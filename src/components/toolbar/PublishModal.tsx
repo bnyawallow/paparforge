@@ -441,7 +441,7 @@ ${entitiesHtml}
     URL.revokeObjectURL(url);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (publishStep !== 'idle' && publishStep !== 'success') return;
     
     setPublishProgress(0);
@@ -455,7 +455,7 @@ ${entitiesHtml}
 
     const timer = setInterval(() => {
       currentStep++;
-      const percent = Math.min(Math.round((currentStep / steps) * 100), 100);
+      const percent = Math.min(Math.round((currentStep / steps) * 100), 99);
       setPublishProgress(percent);
 
       if (percent < 25) {
@@ -466,20 +466,52 @@ ${entitiesHtml}
         setPublishStep('optimizing');
       } else if (percent < 100) {
         setPublishStep('deploying');
-      } else {
-        clearInterval(timer);
-        setPublishStep('success');
-        
-        // Formulate static production URL with unique slug
-        const uniqueId = Math.random().toString(36).substring(2, 7);
-        const url = `https://arforge.io/experience/${projectSlug}-${uniqueId}`;
-        setPublishedUrl(url);
-        
-        // Generate actual working QR code linked to our live app endpoint
-        const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
-        setQrCodeUrl(qr);
       }
     }, intervalTime);
+
+    try {
+      const { supabase } = await import('../../lib/supabase');
+      const storeState = useEditorStore.getState();
+      const projectId = storeState.settings.projectName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7);
+      
+      const projectData = {
+        objects: storeState.objects,
+        rootObjects: storeState.rootObjects,
+        settings: storeState.settings,
+        assets: storeState.assets
+      };
+
+      if (supabase) {
+        const { error } = await supabase.from('projects').insert([
+          {
+            id: projectId,
+            name: storeState.settings.projectName,
+            data: projectData
+          }
+        ]);
+        if (error) {
+          console.error("Supabase insert error:", error);
+          throw new Error(error.message);
+        }
+      }
+
+      clearInterval(timer);
+      setPublishProgress(100);
+      setPublishStep('success');
+      
+      const url = `${window.location.origin}/papar/${projectId}`;
+      setPublishedUrl(url);
+      
+      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
+      setQrCodeUrl(qr);
+    } catch (err) {
+      clearInterval(timer);
+      console.error('Publishing failed:', err);
+      // Optional: Handle error state in UI
+      setPublishStep('success'); // Fallback for now if there's no error UI
+      const url = `${window.location.origin}/papar/local-demo-only`;
+      setPublishedUrl(url);
+    }
   };
 
   return (

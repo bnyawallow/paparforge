@@ -215,29 +215,60 @@ export function AssetBrowser() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const url = URL.createObjectURL(file);
+    let url = '';
     const name = file.name;
-    
     let type: AssetType = 'script';
+    
     if (name.endsWith('.glb') || name.endsWith('.gltf')) type = 'model';
     else if (file.type.startsWith('image/')) type = 'image';
     else if (file.type.startsWith('video/')) type = 'video';
     else if (file.type.startsWith('audio/')) type = 'audio';
 
-    const asset: Asset = {
-      id: uuidv4(),
-      name,
-      type,
-      url,
-    };
+    showToast(`Uploading ${name}...`);
 
-    addAsset(asset);
-    showToast(`Uploaded asset: ${name}`);
-    
+    try {
+      const { supabase } = await import('../../lib/supabase');
+      const storeState = useEditorStore.getState();
+      const projectId = storeState.settings.projectName.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'default-project';
+
+      if (supabase) {
+        const filePath = `${projectId}/${Date.now()}_${name}`;
+        const { error } = await supabase.storage.from('assets').upload(filePath, file);
+        if (error) throw error;
+        
+        const { data: publicData } = supabase.storage.from('assets').getPublicUrl(filePath);
+        url = publicData.publicUrl;
+      } else {
+        url = URL.createObjectURL(file);
+      }
+
+      const asset: Asset = {
+        id: uuidv4(),
+        name,
+        type,
+        url,
+      };
+
+      addAsset(asset);
+      showToast(`Uploaded asset: ${name}`);
+    } catch (err: any) {
+      console.error('Upload failed:', err);
+      showToast(`Failed to upload: ${err.message || 'Unknown error'}`);
+      // Fallback to local
+      url = URL.createObjectURL(file);
+      const asset: Asset = {
+        id: uuidv4(),
+        name,
+        type,
+        url,
+      };
+      addAsset(asset);
+    }
+
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -283,6 +314,20 @@ export function AssetBrowser() {
       addObject(newObj, parentId || undefined);
       showToast(`Added 3D model "${newObj.name}" to the scene.`);
     } else if (asset.type === 'image') {
+      if (selectedObjectId) {
+        const selectedObj = objects[selectedObjectId];
+        if (selectedObj && (selectedObj.type === 'image' || selectedObj.type === 'imageTarget')) {
+           updateObject(selectedObjectId, {
+             properties: {
+               ...selectedObj.properties,
+               textureUrl: asset.url
+             }
+           });
+           showToast(`Applied "${asset.name}" to ${selectedObj.name}.`);
+           return;
+        }
+      }
+      
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
       if (imageTarget) {
         updateObject(imageTarget.id, {
@@ -293,7 +338,23 @@ export function AssetBrowser() {
         });
         showToast(`Set "${asset.name}" as Active tracking marker.`);
       } else {
-        showToast("Error: No ImageTarget found in the scene.");
+        const newObj: SceneObject = {
+          id: uuidv4(),
+          name: asset.name.split('.')[0],
+          type: 'image',
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          visible: true,
+          children: [],
+          parentId: null,
+          properties: {
+            textureUrl: asset.url,
+            opacity: 1.0
+          }
+        };
+        addObject(newObj);
+        showToast(`Added image billboard "${newObj.name}" to the scene.`);
       }
     } else if (asset.type === 'audio') {
       // Play a quick audio preview

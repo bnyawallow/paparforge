@@ -920,6 +920,7 @@ function ObjectRenderer({ id }: { id: string }) {
             outlineColor={obj.properties.outlineColor || '#000000'}
             outlineWidth={obj.properties.outlineWidth ?? 0.01}
             outlineOpacity={obj.properties.outlineOpacity ?? 1}
+            font={obj.properties.fontUrl || undefined}
           >
             {obj.properties.text || 'Text Node'}
           </Text>
@@ -1209,14 +1210,24 @@ export function Viewport() {
         
         addObject(newObj, parentId || undefined);
       } else if (asset.type === 'image') {
-        const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-        if (imageTarget) {
-          useEditorStore.getState().updateObject(imageTarget.id, {
+        const selectedId = useEditorStore.getState().selectedObjectId; const selectedObj = selectedId ? useEditorStore.getState().objects[selectedId] : null;
+        if (selectedObj && (selectedObj.type === 'image' || selectedObj.type === 'imageTarget')) {
+          useEditorStore.getState().updateObject(selectedId!, {
             properties: {
-              ...imageTarget.properties,
+              ...selectedObj.properties,
               textureUrl: asset.url
             }
           });
+        } else {
+          const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+          if (imageTarget) {
+            useEditorStore.getState().updateObject(imageTarget.id, {
+              properties: {
+                ...imageTarget.properties,
+                textureUrl: asset.url
+              }
+            });
+          }
         }
       }
     } catch (err) {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { 
   Trash2, 
@@ -21,10 +21,31 @@ import {
   EyeOff,
   Magnet,
   Sun,
-  Sliders
+  Sliders,
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
+
+const FONT_LIBRARY = [
+  { name: 'Default (Inter)', url: '' },
+  { name: 'Roboto', url: 'https://unpkg.com/@fontsource/roboto/files/roboto-latin-400-normal.woff' },
+  { name: 'Open Sans', url: 'https://unpkg.com/@fontsource/open-sans/files/open-sans-latin-400-normal.woff' },
+  { name: 'Montserrat', url: 'https://unpkg.com/@fontsource/montserrat/files/montserrat-latin-400-normal.woff' },
+  { name: 'Playfair Display', url: 'https://unpkg.com/@fontsource/playfair-display/files/playfair-display-latin-400-normal.woff' },
+  { name: 'Oswald', url: 'https://unpkg.com/@fontsource/oswald/files/oswald-latin-400-normal.woff' },
+  { name: 'Space Grotesk', url: 'https://unpkg.com/@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff' },
+  { name: 'JetBrains Mono', url: 'https://unpkg.com/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff' },
+  { name: 'Caveat', url: 'https://unpkg.com/@fontsource/caveat/files/caveat-latin-400-normal.woff' },
+  { name: 'Pacifico', url: 'https://unpkg.com/@fontsource/pacifico/files/pacifico-latin-400-normal.woff' },
+  { name: 'Bebas Neue', url: 'https://unpkg.com/@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.woff' },
+  { name: 'Cinzel', url: 'https://unpkg.com/@fontsource/cinzel/files/cinzel-latin-400-normal.woff' },
+  { name: 'Orbitron', url: 'https://unpkg.com/@fontsource/orbitron/files/orbitron-latin-400-normal.woff' },
+  { name: 'Bangers', url: 'https://unpkg.com/@fontsource/bangers/files/bangers-latin-400-normal.woff' },
+  { name: 'Righteous', url: 'https://unpkg.com/@fontsource/righteous/files/righteous-latin-400-normal.woff' },
+  { name: 'Lobster', url: 'https://unpkg.com/@fontsource/lobster/files/lobster-latin-400-normal.woff' },
+];
 
 // Preset lists for easy dropdown matching
 const BEHAVIOR_OPTIONS = [
@@ -61,6 +82,9 @@ export function InspectorPanel() {
     settings,
     updateSettings
   } = useEditorStore();
+
+  const [fontSearch, setFontSearch] = useState('');
+  const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
 
   const handleAddBehavior = () => {
     if (!selectedObjectId || !objects[selectedObjectId]) return;
@@ -870,6 +894,58 @@ export function InspectorPanel() {
                     onChange={(e) => handlePropertyChange('text', e.target.value)}
                     className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-blue-500 outline-none h-16 resize-none"
                   />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-[#666] font-medium">Font Family</label>
+                  <div className="relative">
+                    <div 
+                      className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white cursor-pointer flex justify-between items-center hover:border-blue-500"
+                      onClick={() => setIsFontDropdownOpen(!isFontDropdownOpen)}
+                    >
+                      <span>
+                        {FONT_LIBRARY.find(f => f.url === (obj.properties.fontUrl || ''))?.name || 'Default (Inter)'}
+                      </span>
+                      <ChevronDown size={12} className="text-gray-500" />
+                    </div>
+                    
+                    {isFontDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsFontDropdownOpen(false)} />
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#141414] border border-[#333] rounded-md shadow-xl z-50 overflow-hidden flex flex-col">
+                        <div className="p-2 border-b border-[#222] flex items-center gap-2 bg-[#0A0A0A]">
+                          <Search size={12} className="text-gray-500" />
+                          <input 
+                            type="text" 
+                            placeholder="Search fonts..." 
+                            value={fontSearch}
+                            onChange={(e) => setFontSearch(e.target.value)}
+                            className="bg-transparent border-none outline-none text-[10px] text-white w-full"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto p-1 flex flex-col">
+                          {FONT_LIBRARY.filter(f => f.name.toLowerCase().includes(fontSearch.toLowerCase())).map((font) => (
+                            <div 
+                              key={font.name}
+                              className={`p-2 text-[10px] cursor-pointer rounded hover:bg-blue-500/20 ${(obj.properties.fontUrl || '') === font.url ? 'text-blue-400 bg-blue-500/10' : 'text-gray-300'}`}
+                              onClick={() => {
+                                handlePropertyChange('fontUrl', font.url);
+                                setIsFontDropdownOpen(false);
+                                setFontSearch('');
+                              }}
+                            >
+                              {font.name}
+                            </div>
+                          ))}
+                          {FONT_LIBRARY.filter(f => f.name.toLowerCase().includes(fontSearch.toLowerCase())).length === 0 && (
+                            <div className="p-2 text-[10px] text-gray-500 text-center">No fonts found</div>
+                          )}
+                        </div>
+                      </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
