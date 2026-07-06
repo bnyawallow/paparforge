@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Viewport } from '../viewport/Viewport';
 import { supabase } from '../../lib/supabase';
-import { useEditorStore } from '../../store/useEditorStore';
+import { generateAFrameScene } from '../../lib/aframeGenerator';
 
 export function ViewerLayout() {
   const { projectId } = useParams<{ projectId: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [htmlContent, setHtmlContent] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchProject() {
@@ -32,10 +32,9 @@ export function ViewerLayout() {
         }
 
         if (data && data.data) {
-          // Load project data into the store
-          useEditorStore.getState().loadProject(data.data);
-          // Ensure we are in preview mode
-          useEditorStore.setState({ isPreviewMode: true });
+          // Generate the AR scene from the saved project data
+          const html = generateAFrameScene(data.data);
+          setHtmlContent(html);
         } else {
           setError('Project not found or contains no data.');
         }
@@ -48,11 +47,6 @@ export function ViewerLayout() {
     }
 
     fetchProject();
-    
-    // Cleanup to exit preview mode when unmounting (optional)
-    return () => {
-      useEditorStore.setState({ isPreviewMode: false });
-    };
   }, [projectId]);
 
   if (loading) {
@@ -73,9 +67,16 @@ export function ViewerLayout() {
     );
   }
 
+  if (!htmlContent) return null;
+
   return (
     <div className="w-full h-screen bg-black overflow-hidden relative">
-      <Viewport />
+      <iframe 
+        srcDoc={htmlContent}
+        className="w-full h-full border-none"
+        title="AR Experience"
+        allow="camera; microphone; accelerometer; gyroscope; magnetometer; xr-spatial-tracking"
+      />
     </div>
   );
 }
