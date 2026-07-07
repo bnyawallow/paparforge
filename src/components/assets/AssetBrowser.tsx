@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { fileToDataUrl } from '../../lib/fileUtils';
 import { v4 as uuidv4 } from 'uuid';
 import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
 import { 

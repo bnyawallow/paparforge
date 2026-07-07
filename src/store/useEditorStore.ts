@@ -235,6 +235,30 @@ const ensureImageTargetLocked = (objects: Record<string, SceneObject>) => {
   return updated;
 };
 
+
+const sanitizeBlobUrls = (data: any) => {
+  if (!data) return data;
+  if (typeof data === 'string') {
+    if (data.startsWith('blob:')) return '';
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeBlobUrls(item));
+  }
+  if (typeof data === 'object') {
+    const copy = { ...data };
+    for (const key in copy) {
+      if (typeof copy[key] === 'string' && copy[key].startsWith('blob:')) {
+         copy[key] = '';
+      } else if (typeof copy[key] === 'object') {
+         copy[key] = sanitizeBlobUrls(copy[key]);
+      }
+    }
+    return copy;
+  }
+  return data;
+};
+
 const loadSavedState = () => {
   try {
     // 1. Check if projects list exists
@@ -247,7 +271,7 @@ const loadSavedState = () => {
     if (projectsList.length === 0) {
       if (oldAutosave) {
         try {
-          const parsed = JSON.parse(oldAutosave);
+          const parsed = sanitizeBlobUrls(JSON.parse(oldAutosave));
           if (parsed && parsed.objects) {
             const defaultId = 'project-' + uuidv4();
             const defaultProjMetadata = {
@@ -313,7 +337,7 @@ const loadSavedState = () => {
     // 5. Load current project data
     const activeProjDataStr = localStorage.getItem(`ar_forge_project_${activeId}`);
     if (activeProjDataStr) {
-      const activeProjData = JSON.parse(activeProjDataStr);
+      const activeProjData = sanitizeBlobUrls(JSON.parse(activeProjDataStr));
       return {
         currentProjectId: activeId,
         projectsList,
@@ -676,7 +700,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       const savedDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
       if (!savedDataStr) return state;
 
-      const parsed = JSON.parse(savedDataStr);
+      const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
       localStorage.setItem('ar_forge_active_project_id', projectId);
 
       return {
@@ -765,7 +789,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           
           const savedDataStr = localStorage.getItem(`ar_forge_project_${nextActiveId}`);
           if (savedDataStr) {
-            const parsed = JSON.parse(savedDataStr);
+            const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
             return {
               currentProjectId: nextActiveId,
               projectsList: updatedList,
@@ -853,7 +877,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       const savedDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
       if (!savedDataStr) return state;
 
-      const parsed = JSON.parse(savedDataStr);
+      const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
       const newId = 'project-' + uuidv4();
       const newName = `${parsed.settings?.projectName || parsed.name || 'Project'} Copy`;
 
@@ -941,7 +965,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
       const savedDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
       if (savedDataStr) {
-        const parsed = JSON.parse(savedDataStr);
+        const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
         parsed.name = newName;
         if (!parsed.settings) parsed.settings = { projectName: newName, imageTargetName: null };
         parsed.settings.projectName = newName;
@@ -969,7 +993,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   importProject: (projectJson) => {
     try {
-      const parsed = JSON.parse(projectJson);
+      const parsed = sanitizeBlobUrls(JSON.parse(projectJson));
       if (!parsed.objects || !parsed.rootObjects) {
         return null;
       }
