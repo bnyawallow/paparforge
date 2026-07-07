@@ -77,12 +77,45 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
     onClose();
   };
 
-  const handleDeleteConfirm = () => {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteConfirm = async () => {
     if (projectToDelete) {
       const proj = projectsList.find(p => p.id === projectToDelete);
-      deleteProject(projectToDelete);
-      addToast(`Project "${proj?.name || 'Selected'}" deleted`);
-      setProjectToDelete(null);
+      if (proj) {
+        setIsDeleting(true);
+        try {
+          const { supabase } = await import('../../lib/supabase');
+          if (supabase) {
+            // Delete published experiences matching project name
+            await supabase.from('projects').delete().eq('name', proj.name);
+            
+            // Delete assets
+            const savedDataStr = localStorage.getItem(`ar_forge_project_${proj.id}`);
+            if (savedDataStr) {
+               const parsed = JSON.parse(savedDataStr);
+               if (parsed.assets && Array.isArray(parsed.assets)) {
+                  const pathsToRemove: string[] = [];
+                  parsed.assets.forEach((asset: any) => {
+                     if (asset.url && asset.url.includes('/storage/v1/object/public/assets/')) {
+                        const path = asset.url.split('/storage/v1/object/public/assets/')[1];
+                        if (path) pathsToRemove.push(path);
+                     }
+                  });
+                  if (pathsToRemove.length > 0) {
+                     await supabase.storage.from('assets').remove(pathsToRemove);
+                  }
+               }
+            }
+          }
+        } catch (err) {
+          console.error("Cleanup error:", err);
+        }
+        deleteProject(projectToDelete);
+        addToast(`Project "${proj.name}" and its resources deleted`);
+        setProjectToDelete(null);
+        setIsDeleting(false);
+      }
     }
   };
 
@@ -352,15 +385,17 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
             <div className="flex justify-end gap-2.5 pt-2 border-t border-[#252525]">
               <button
                 onClick={() => setProjectToDelete(null)}
-                className="px-3.5 py-1.5 bg-transparent hover:bg-[#252525] text-xs font-bold rounded-lg text-[#AAA] hover:text-white cursor-pointer"
+                disabled={isDeleting}
+                className={`px-3.5 py-1.5 bg-transparent hover:bg-[#252525] text-xs font-bold rounded-lg text-[#AAA] hover:text-white ${isDeleting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 Keep Project
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-xs font-bold rounded-lg text-white cursor-pointer"
+                disabled={isDeleting}
+                className={`px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-xs font-bold rounded-lg text-white ${isDeleting ? 'opacity-50 cursor-not-allowed flex items-center gap-2' : 'cursor-pointer'}`}
               >
-                Yes, Delete
+                {isDeleting ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>
