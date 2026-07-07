@@ -1338,7 +1338,6 @@ export function Viewport() {
                 camera={{ position: [5, 5, 5], fov: 50 }}
                 onPointerMissed={() => selectObject(null)}
               >
-                <color attach="background" args={['transparent']} />
                 
                 <ambientLight intensity={0.6} />
                 <directionalLight position={[10, 10, 5]} intensity={1.2} />
@@ -1552,7 +1551,6 @@ export function Viewport() {
         camera={{ position: [5, 5, 5], fov: 50 }}
         onPointerMissed={() => selectObject(null)}
       >
-        <color attach="background" args={['transparent']} />
         
         <ambientLight color={ambientColor} intensity={ambientIntensity} />
         <directionalLight 

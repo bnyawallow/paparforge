@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, CheckCircle, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { fileToDataUrl } from '../../lib/fileUtils';
 
 export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
   const { objects, updateObject, settings, updateSettings } = useEditorStore();
@@ -17,11 +18,11 @@ export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      const url = URL.createObjectURL(file);
+      const url = await fileToDataUrl(file);
       setPreviewUrl(url);
       setScore(null);
     }

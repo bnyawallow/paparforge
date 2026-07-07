@@ -243,7 +243,7 @@ export function AssetBrowser() {
         const { data: publicData } = supabase.storage.from('assets').getPublicUrl(filePath);
         url = publicData.publicUrl;
       } else {
-        url = URL.createObjectURL(file);
+        url = await fileToDataUrl(file);
       }
 
       const asset: Asset = {
@@ -259,7 +259,7 @@ export function AssetBrowser() {
       console.error('Upload failed:', err);
       showToast(`Failed to upload: ${err.message || 'Unknown error'}`);
       // Fallback to local
-      url = URL.createObjectURL(file);
+      url = await fileToDataUrl(file);
       const asset: Asset = {
         id: uuidv4(),
         name,
