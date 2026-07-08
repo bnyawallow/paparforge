@@ -45,13 +45,19 @@ export function ViewerLayout() {
     fetchProject();
   }, [projectId]);
 
-  // Use document.write to completely replace the React SPA with the raw HTML
-  // This avoids iframe permission restrictions for WebXR/Camera.
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  // Generate a same-origin Blob URL for the iframe. This allows full permission 
+  // inheritance (e.g. camera, sensors) since the origin is secure and identical,
+  // while avoiding parser-blocking document.write blocking and Three.js duplicate imports.
   useEffect(() => {
     if (htmlContent) {
-      document.open();
-      document.write(htmlContent);
-      document.close();
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      setBlobUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
     }
   }, [htmlContent]);
 
@@ -73,5 +79,16 @@ export function ViewerLayout() {
     );
   }
 
-  return null;
+  if (!blobUrl) return null;
+
+  return (
+    <div className="w-full h-screen bg-black overflow-hidden relative">
+      <iframe 
+        src={blobUrl}
+        className="w-full h-full border-none"
+        title="AR Experience"
+        allow="camera; microphone; accelerometer; gyroscope; magnetometer; xr-spatial-tracking; xr"
+      />
+    </div>
+  );
 }
