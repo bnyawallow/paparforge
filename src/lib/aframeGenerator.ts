@@ -362,7 +362,8 @@ export const generateAFrameScene = (state: any) => {
     </script>
 
     <!-- WebAR Scene Rendering Engine -->
-    <a-scene xrextras-gesture-detector landing-page xrextras-loading xrextras-runtime-error
+    <template id="scene-template">
+      <a-scene xrextras-gesture-detector landing-page xrextras-loading xrextras-runtime-error
       renderer="colorManagement:true" xrweb="disableWorldTracking: true">
       
       <a-camera position="0 4 10" raycaster="objects: .clickable" cursor="fuse: false; rayOrigin: mouse;"></a-camera>
@@ -372,6 +373,18 @@ export const generateAFrameScene = (state: any) => {
 
 ${entitiesHtml}
     </a-scene>
+    </template>
+    <script>
+      const initScene = () => {
+        const template = document.getElementById('scene-template');
+        document.body.appendChild(template.content.cloneNode(true));
+      };
+      if (window.XR8) {
+        initScene();
+      } else {
+        window.addEventListener('xrloaded', initScene);
+      }
+    </script>
   </body>
 </html>`;
   };

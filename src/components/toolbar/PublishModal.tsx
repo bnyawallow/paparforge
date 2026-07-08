@@ -118,15 +118,30 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         ]);
         if (error) {
           console.error("Supabase insert error:", error);
-          throw new Error(error.message);
         }
       }
+
+      // Generate the full HTML for standalone
+      const htmlContent = generateAFrameScene(storeState);
+
+      // Publish the actual standalone HTML file to /papar
+      const response = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, html: htmlContent })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to publish HTML file');
+      }
+      
+      const { url: publishedPath } = await response.json();
 
       clearInterval(timer);
       setPublishProgress(100);
       setPublishStep('success');
       
-      const url = `${window.location.origin}/papar/${projectId}`;
+      const url = `${window.location.origin}${publishedPath}`;
       setPublishedUrl(url);
       
       const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
