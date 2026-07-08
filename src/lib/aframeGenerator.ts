@@ -3,7 +3,9 @@ import { Vector3Data } from '../types';
 
 export const generateAFrameScene = (state: any) => {
   const { objects, rootObjects, settings } = state;
-    let entitiesHtml = '';
+  const imageTargetObj = Object.values(objects).find((o: any) => o.type === 'imageTarget') as any;
+  const targetImageUrl = imageTargetObj?.properties?.textureUrl || '';
+  let entitiesHtml = '';
 
     const buildEntity = (id: string, depth = 0): string => {
       const obj = objects[id];
@@ -78,7 +80,66 @@ export const generateAFrameScene = (state: any) => {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>${settings.projectName} - Published WebAR</title>
+    <title>\${settings.projectName} - Published WebAR</title>
+
+    <!-- Global Mobile Console Logger Interceptor -->
+    <script>
+      (function() {
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        const logsBuffer = [];
+
+        window.__logsBuffer = logsBuffer;
+
+        const addLog = (type, args) => {
+          const message = args.map(arg => {
+            if (arg === null) return 'null';
+            if (arg === undefined) return 'undefined';
+            if (typeof arg === 'object') {
+              try {
+                return JSON.stringify(arg);
+              } catch (e) {
+                return String(arg);
+              }
+            }
+            return String(arg);
+          }).join(' ');
+          
+          logsBuffer.push({ type, message, time: new Date().toLocaleTimeString() });
+          if (logsBuffer.length > 300) {
+            logsBuffer.shift();
+          }
+          if (typeof updateConsoleUI === 'function') {
+            const panel = document.getElementById('debug-log-panel');
+            if (panel && panel.style.display === 'flex') {
+              updateConsoleUI();
+            }
+          }
+        };
+
+        console.log = function(...args) {
+          originalLog.apply(console, args);
+          addLog('log', args);
+        };
+        console.warn = function(...args) {
+          originalWarn.apply(console, args);
+          addLog('warn', args);
+        };
+        console.error = function(...args) {
+          originalError.apply(console, args);
+          addLog('error', args);
+        };
+
+        window.addEventListener('error', function(e) {
+          addLog('error', [e.message + ' (' + e.filename + ':' + e.lineno + ')']);
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+          addLog('error', ['Unhandled Promise Rejection: ' + (e.reason ? e.reason.message || e.reason : e)]);
+        });
+      })();
+    </script>
     
     <!-- Core WebAR SDKs & A-Frame Runtime -->
     <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -280,6 +341,21 @@ export const generateAFrameScene = (state: any) => {
       <!-- HUD Toasts -->
       <div id="toasts-container" style="position: absolute; top: 16px; left: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; pointer-events: none;"></div>
       
+      <!-- Mobile Debug Console Toggle -->
+      <button id="debug-toggle-btn" style="position: absolute; bottom: 85px; right: 16px; width: 44px; height: 44px; border-radius: 22px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255,255,255,0.15); color: #fbbf24; z-index: 100000; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5); backdrop-filter: blur(8px); pointer-events: auto; outline: none; transition: transform 0.1s active;" onclick="toggleDebugConsole()">🐞</button>
+
+      <!-- Mobile System Log Console Panel -->
+      <div id="debug-log-panel" style="position: absolute; bottom: 0; left: 0; right: 0; height: 45vh; background: rgba(10, 10, 10, 0.95); border-top: 1px solid rgba(255,255,255,0.15); box-shadow: 0 -10px 30px rgba(0,0,0,0.8); z-index: 100001; display: none; flex-direction: column; font-family: monospace; color: #e5e7eb; backdrop-filter: blur(16px); pointer-events: auto;">
+        <div style="padding: 10px 16px; background: rgba(0,0,0,0.6); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: bold; text-transform: uppercase;">
+          <span style="color: #fbbf24; display: flex; align-items: center; gap: 6px;">🐞 Device Debug Log</span>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="clearDebugLogs()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 4px 10px; border-radius: 6px; font-size: 9px; cursor: pointer; text-transform: uppercase; font-weight: bold;">Clear</button>
+            <button onclick="toggleDebugConsole()" style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; padding: 4px 10px; border-radius: 6px; font-size: 9px; cursor: pointer; text-transform: uppercase; font-weight: bold;">Close</button>
+          </div>
+        </div>
+        <div id="debug-log-list" style="flex: 1; overflow-y: auto; padding: 12px; font-size: 9px; line-height: 1.4; display: flex; flex-direction: column; gap: 4px; font-family: monospace; -webkit-overflow-scrolling: touch;"></div>
+      </div>
+
       <!-- Video Event Player -->
       <div id="video-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; padding: 16px; pointer-events: auto;">
         <div style="background: #141414; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden; width: 100%; max-w: 320px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column;">
@@ -295,9 +371,83 @@ export const generateAFrameScene = (state: any) => {
           </div>
         </div>
       </div>
+
+      <!-- Image Target Scanner Overlay -->
+      <div id="scanner-overlay" style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; transition: opacity 0.4s ease-in-out; opacity: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <!-- Reticle Scanner Box -->
+        <div style="position: relative; width: 250px; height: 250px; border: 2px solid rgba(251, 191, 36, 0.35); border-radius: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(0,0,0,0.5); background: rgba(0,0,0,0.15);">
+          <!-- Corners -->
+          <div style="position: absolute; top: -2px; left: -2px; width: 24px; height: 24px; border-top: 4px solid #fbbf24; border-left: 4px solid #fbbf24; border-top-left-radius: 24px;"></div>
+          <div style="position: absolute; top: -2px; right: -2px; width: 24px; height: 24px; border-top: 4px solid #fbbf24; border-right: 4px solid #fbbf24; border-top-right-radius: 24px;"></div>
+          <div style="position: absolute; bottom: -2px; left: -2px; width: 24px; height: 24px; border-bottom: 4px solid #fbbf24; border-left: 4px solid #fbbf24; border-bottom-left-radius: 24px;"></div>
+          <div style="position: absolute; bottom: -2px; right: -2px; width: 24px; height: 24px; border-bottom: 4px solid #fbbf24; border-right: 4px solid #fbbf24; border-bottom-right-radius: 24px;"></div>
+          
+          <!-- Laser Line -->
+          <div style="position: absolute; left: 8px; right: 8px; height: 3px; background: linear-gradient(90deg, transparent, #fbbf24, transparent); box-shadow: 0 0 10px #fbbf24, 0 0 16px #fbbf24; animation: scanLine 2.5s ease-in-out infinite;"></div>
+          
+          <!-- Pulsing Eye/Finder icon -->
+          <div style="color: rgba(251, 191, 36, 0.6); font-size: 32px; animation: pulseReticle 1.5s ease-in-out infinite;">🔍</div>
+        </div>
+
+        <!-- Guidance Text -->
+        <div style="margin-top: 24px; text-align: center; color: white; padding: 0 24px; max-width: 280px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+          <h3 style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #fbbf24;">Point at Marker Image</h3>
+          <p style="margin: 6px 0 0 0; font-size: 10px; opacity: 0.75; line-height: 1.4;">Position the printed marker in the viewfinder above to trigger the interactive experience.</p>
+        </div>
+
+        <!-- Mini Preview Thumbnail -->
+        ${targetImageUrl ? `
+        <div style="margin-top: 20px; background: rgba(15, 15, 15, 0.9); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); pointer-events: none;">
+          <span style="font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #fbbf24; opacity: 0.8;">Target Image to Scan:</span>
+          <img src="${targetImageUrl}" style="width: 70px; height: 70px; object-fit: contain; border-radius: 6px; background: #000;" />
+        </div>
+        ` : ''}
+      </div>
     </div>
 
     <script>
+      function updateConsoleUI() {
+        const list = document.getElementById('debug-log-list');
+        if (!list) return;
+        list.innerHTML = (window.__logsBuffer || []).map(item => {
+          let color = '#a3a3a3'; // log
+          let bg = 'transparent';
+          let icon = '•';
+          if (item.type === 'warn') {
+            color = '#fbbf24'; // warn
+            icon = '⚠️';
+          } else if (item.type === 'error') {
+            color = '#f87171'; // error
+            bg = 'rgba(239, 68, 68, 0.08)';
+            icon = '❌';
+          }
+          return '<div style="padding: 4px 6px; border-radius: 4px; background: ' + bg + '; color: ' + color + '; word-break: break-all; border-left: 2px solid ' + (color === '#a3a3a3' ? 'rgba(255,255,255,0.1)' : color) + '; display: flex; gap: 6px; align-items: flex-start;">' +
+            '<span style="opacity: 0.4; font-size: 8px; flex-shrink: 0;">[' + item.time + ']</span>' +
+            '<span style="flex-shrink: 0;">' + icon + '</span>' +
+            '<span style="white-space: pre-wrap; font-family: monospace;">' + item.message + '</span>' +
+          '</div>';
+        }).join('');
+        list.scrollTop = list.scrollHeight;
+      }
+
+      function toggleDebugConsole() {
+        const panel = document.getElementById('debug-log-panel');
+        if (!panel) return;
+        if (panel.style.display === 'none' || !panel.style.display) {
+          panel.style.display = 'flex';
+          updateConsoleUI();
+        } else {
+          panel.style.display = 'none';
+        }
+      }
+
+      function clearDebugLogs() {
+        if (window.__logsBuffer) {
+          window.__logsBuffer.length = 0;
+        }
+        updateConsoleUI();
+      }
+
       function showToast(message) {
         const container = document.getElementById('toasts-container');
         if (!container) return;
@@ -357,6 +507,15 @@ export const generateAFrameScene = (state: any) => {
         @keyframes fadeOut {
           to { transform: translateY(-8px); opacity: 0; }
         }
+        @keyframes scanLine {
+          0% { top: 12px; }
+          50% { top: calc(100% - 15px); }
+          100% { top: 12px; }
+        }
+        @keyframes pulseReticle {
+          0%, 100% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.1); opacity: 0.9; }
+        }
       \`;
       document.head.appendChild(style);
     </script>
@@ -375,10 +534,74 @@ ${entitiesHtml}
     </a-scene>
     </template>
     <script>
+      function hideScanningOverlay() {
+        const overlay = document.getElementById('scanner-overlay');
+        if (overlay) {
+          overlay.style.opacity = '0';
+          setTimeout(() => {
+            overlay.style.display = 'none';
+          }, 400);
+        }
+      }
+
+      function showScanningOverlay() {
+        const overlay = document.getElementById('scanner-overlay');
+        if (overlay) {
+          overlay.style.display = 'flex';
+          overlay.offsetHeight; // force reflow
+          overlay.style.opacity = '1';
+        }
+      }
+
+      function attachSceneListeners(scene) {
+        console.log('[STAGE] A-Frame scene element matched. Preparing tracking events.');
+        
+        scene.addEventListener('loaded', () => {
+          console.log('[STAGE] A-Frame components loaded and assets are ready.');
+        });
+        
+        scene.addEventListener('renderstart', () => {
+          console.log('[STAGE] WebGL Renderer render loop started successfully.');
+        });
+
+        scene.addEventListener('realityready', () => {
+          console.log('[STAGE] 8th Wall Reality initialized. Camera feed active and tracking is hot!');
+        });
+
+        scene.addEventListener('xrimagefound', (event) => {
+          console.log('[TRACKING] Image target found: "' + event.detail.name + '" detected! Fading scanning UI.');
+          hideScanningOverlay();
+        });
+
+        scene.addEventListener('xrimagelost', (event) => {
+          console.log('[TRACKING] Image target lost: "' + event.detail.name + '" is out of camera view.');
+          showScanningOverlay();
+        });
+      }
+
+      // Proactive Lifecycle Loggers
+      console.log('[STAGE] Device environment matches WebAR. Launching A-Frame scene...');
+      window.addEventListener('load', () => console.log('[STAGE] Window load complete. Assets finished transferring.'));
+      window.addEventListener('xrloaded', () => console.log('[STAGE] 8th Wall engine bundle loaded and initialized.'));
+
       const initScene = () => {
+        console.log('[STAGE] Cloning scene nodes from HTML template.');
         const template = document.getElementById('scene-template');
-        document.body.appendChild(template.content.cloneNode(true));
+        if (!template) {
+          console.error('[ERROR] Scene template element not found in DOM.');
+          return;
+        }
+        const clone = template.content.cloneNode(true);
+        const scene = clone.querySelector('a-scene');
+        if (scene) {
+          attachSceneListeners(scene);
+        } else {
+          console.warn('[WARN] No custom scene container found inside cloned template.');
+        }
+        document.body.appendChild(clone);
+        console.log('[STAGE] Scene injected into document tree successfully.');
       };
+
       if (window.XR8) {
         initScene();
       } else {
