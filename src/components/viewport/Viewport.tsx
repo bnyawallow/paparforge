@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, Suspense } from 'react';
+import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -357,7 +358,17 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
   
   if (textureUrl) {
     return (
-      <Suspense fallback={
+      <ErrorBoundary fallback={
+        <meshStandardMaterial 
+          color={color} 
+          roughness={roughness} 
+          metalness={metalness} 
+          wireframe={wireframe} 
+          transparent={opacity < 1} 
+          opacity={opacity} 
+          side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
+        />
+      }><Suspense fallback={
         <meshStandardMaterial 
           color={color} 
           roughness={roughness} 
@@ -380,6 +391,7 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
           doubleSided={doubleSided}
         />
       </Suspense>
+      </ErrorBoundary>
     );
   }
 
@@ -949,25 +961,39 @@ function ObjectRenderer({ id }: { id: string }) {
         return <InteractiveYoutubeScreen obj={obj} isPreviewMode={isPreviewMode} />;
       case 'imageTarget':
         return (
-          <Suspense fallback={
+          <ErrorBoundary fallback={
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
               <planeGeometry args={[obj.properties.physicalWidth * 10, obj.properties.physicalWidth * 10]} />
               <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
             </mesh>
           }>
-            <ImageTargetRenderer obj={obj} />
-          </Suspense>
+            <Suspense fallback={
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[obj.properties.physicalWidth * 10, obj.properties.physicalWidth * 10]} />
+                <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
+              </mesh>
+            }>
+              <ImageTargetRenderer obj={obj} />
+            </Suspense>
+          </ErrorBoundary>
         );
       case 'model':
         return obj.properties.url ? (
-          <Suspense fallback={
+          <ErrorBoundary fallback={
             <mesh>
               <boxGeometry args={[1, 1, 1]} />
               <meshStandardMaterial color="#888" wireframe />
             </mesh>
           }>
-            <GLTFModel url={obj.properties.url} properties={obj.properties} id={id} />
-          </Suspense>
+            <Suspense fallback={
+              <mesh>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshStandardMaterial color="#888" wireframe />
+              </mesh>
+            }>
+              <GLTFModel url={obj.properties.url} properties={obj.properties} id={id} />
+            </Suspense>
+          </ErrorBoundary>
         ) : (
           <mesh>
             <boxGeometry args={[1, 1, 1]} />
