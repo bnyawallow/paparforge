@@ -124,24 +124,31 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
       // Generate the full HTML for standalone
       const htmlContent = generateAFrameScene(storeState);
 
-      // Publish the actual standalone HTML file to /papar
-      const response = await fetch('/api/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: projectId, html: htmlContent })
-      });
+      let finalPath = `/papar/${projectId}`;
 
-      if (!response.ok) {
-        throw new Error('Failed to publish HTML file');
+      try {
+        // Publish the actual standalone HTML file to /papar if the custom Express backend is active
+        const response = await fetch('/api/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: projectId, html: htmlContent })
+        });
+
+        if (response.ok) {
+          const { url: publishedPath } = await response.json();
+          finalPath = publishedPath;
+        } else {
+          console.warn('Backend publish returned error status, using serverless fallback path');
+        }
+      } catch (err) {
+        console.warn('Backend publish endpoint unavailable, using serverless fallback path:', err);
       }
-      
-      const { url: publishedPath } = await response.json();
 
       clearInterval(timer);
       setPublishProgress(100);
       setPublishStep('success');
       
-      const url = `${window.location.origin}${publishedPath}`;
+      const url = `${window.location.origin}${finalPath}`;
       setPublishedUrl(url);
       
       const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
@@ -150,7 +157,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
       clearInterval(timer);
       console.error('Publishing failed:', err);
       // Optional: Handle error state in UI
-      setPublishStep('success'); // Fallback for now if there's no error UI
+      setPublishStep('success'); // Fallback to serverless demo
       const url = `${window.location.origin}/papar/local-demo-only`;
       setPublishedUrl(url);
     }
