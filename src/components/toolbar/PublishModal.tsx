@@ -14,7 +14,8 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   
   // Clean URL-friendly slug
-  const projectSlug = settings.projectName
+  const projectName = settings.projectName || 'AR Experience';
+  const projectSlug = projectName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)+/g, '') || 'ar-experience';
@@ -99,7 +100,8 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
     try {
       const { supabase } = await import('../../lib/supabase');
       const storeState = useEditorStore.getState();
-      const projectId = storeState.settings.projectName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7);
+      const projName = storeState.settings.projectName || 'AR Experience';
+      const projectId = projName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7);
       
       const projectData = {
         objects: storeState.objects,
@@ -112,7 +114,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         const { error } = await supabase.from('projects').insert([
           {
             id: projectId,
-            name: storeState.settings.projectName,
+            name: projName,
             data: projectData
           }
         ]);
@@ -216,31 +218,18 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
               <div className="md:col-span-3 space-y-5">
                 
                 {/* Configuration Card */}
-                <div className="bg-[#181818] border border-[#222] rounded-xl p-4 shadow-sm space-y-4">
+                <div className="bg-[#181818] border border-[#222] rounded-xl p-4 shadow-sm space-y-3">
                   <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest font-mono flex items-center gap-1">
-                    <Sparkles size={11} /> Project Identity
+                    <Sparkles size={11} /> Automated Image Target
                   </span>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] text-gray-400 font-medium">Project Name</label>
-                      <input 
-                        type="text" 
-                        value={settings.projectName}
-                        onChange={(e) => updateSettings({ projectName: e.target.value })}
-                        placeholder="Print Campaign"
-                        className="w-full bg-[#0E0E0E] border border-[#262626] rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all duration-150 font-medium"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] text-gray-400 font-medium">8th Wall Target Name</label>
-                      <input 
-                        type="text" 
-                        value={settings.imageTargetName || ''}
-                        placeholder="Image Target Anchor"
-                        onChange={(e) => updateSettings({ imageTargetName: e.target.value })}
-                        className="w-full bg-[#0E0E0E] border border-[#262626] rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all duration-150 font-medium"
-                      />
+                  <div className="p-3 bg-[#0E0E0E] border border-[#1C1C1C] rounded-lg">
+                    <p className="text-xs text-gray-300 font-sans leading-relaxed">
+                      Your uploaded marker image is compiled client-side in real-time when users access your published WebAR link.
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-2 text-[10px] text-blue-400 font-mono">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                      Dynamic tracking anchor configured automatically
                     </div>
                   </div>
                 </div>
@@ -258,7 +247,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                         <div className="w-5 h-5 rounded-full bg-emerald-950 border border-emerald-800 flex items-center justify-center text-[9px] text-emerald-400">✓</div>
                         <div>
                           <p className="text-xs font-semibold text-white">Target Anchored Sync</p>
-                          <p className="text-[9px] text-gray-500">Links content dynamically over target image: "{settings.imageTargetName || 'unnamed'}"</p>
+                          <p className="text-[9px] text-gray-500">Links content dynamically over the uploaded marker image</p>
                         </div>
                       </div>
                       <span className="text-[9px] font-mono px-2 py-0.5 bg-emerald-900/40 text-emerald-400 rounded-full border border-emerald-800/30">Active</span>

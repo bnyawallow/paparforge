@@ -44,7 +44,7 @@ export const generateAFrameScene = (state: any) => {
       } else if (obj.type === 'button') {
         const btnText = obj.properties.text || 'Click Me';
         const btnColor = obj.properties.color || '#3b82f6';
-        entity += `${indent}  <a-box color="${btnColor}" class="clickable" xrextras-haptics></a-box>\n`;
+        entity += `${indent}  <a-box color="${btnColor}" class="clickable"></a-box>\n`;
         entity += `${indent}  <a-text value="${btnText}" align="center" position="0 0 0.51" scale="0.8 0.8 0.8" color="#ffffff"></a-text>\n`;
       } else if (obj.type === 'youtube') {
         entity += `${indent}  <a-plane color="#ff0000" material="src: url(https://img.youtube.com/vi/${obj.properties.videoId || 'dQw4w9WgXcQ'}/0.jpg)" aspect-ratio="1.777"></a-plane>\n`;
@@ -63,12 +63,11 @@ export const generateAFrameScene = (state: any) => {
     rootObjects.forEach(id => {
       const obj = objects[id];
       if (obj && obj.type === 'imageTarget') {
-        const targetName = settings.imageTargetName || 'my-target';
-        entitiesHtml += `      <xrextras-named-image-target name="${targetName}">\n`;
+        entitiesHtml += `      <a-entity mindar-image-target="targetIndex: 0">\n`;
         obj.children.forEach(childId => {
           entitiesHtml += buildEntity(childId, 2);
         });
-        entitiesHtml += `      </xrextras-named-image-target>\n`;
+        entitiesHtml += `      </a-entity>\n`;
       } else if (obj && obj.type !== 'imageTarget') {
         entitiesHtml += buildEntity(id, 1);
       }
@@ -143,9 +142,8 @@ export const generateAFrameScene = (state: any) => {
     
     <!-- Core WebAR SDKs & A-Frame Runtime -->
     <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" crossorigin="anonymous" data-preload-chunks="slam"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1/dist/landing-page.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
 
     <script>
       // 1. Core Visual Behaviors Engine
@@ -336,6 +334,21 @@ export const generateAFrameScene = (state: any) => {
     </script>
   </head>
   <body>
+    <!-- Target Compilation Overlay -->
+    <div id="compiler-overlay" style="position: fixed; inset: 0; background: #0E0E0E; z-index: 100002; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; transition: opacity 0.4s ease-in-out; color: white;">
+      <div style="background: #181818; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 20px; width: 85%; max-width: 320px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
+        <div style="width: 50px; height: 50px; border-radius: 25px; border: 3px solid rgba(251, 191, 36, 0.15); border-top-color: #fbbf24; animation: spinLoader 1s linear infinite;"></div>
+        <div>
+          <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.05em;">WebAR Compiling</h2>
+          <p id="compiler-status" style="margin: 8px 0 0 0; font-size: 10px; opacity: 0.7; line-height: 1.4;">Downloading target image features...</p>
+        </div>
+        <!-- Progress bar container -->
+        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; position: relative;">
+          <div id="compiler-progress" style="position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #fbbf24; box-shadow: 0 0 8px #fbbf24; transition: width 0.3s ease;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Real-time HUD overlay system (Toasts, Video popups) -->
     <div id="hud-overlay" style="position: fixed; inset: 0; z-index: 9999; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
       <!-- HUD Toasts -->
@@ -516,22 +529,26 @@ export const generateAFrameScene = (state: any) => {
           0%, 100% { transform: scale(1); opacity: 0.5; }
           50% { transform: scale(1.1); opacity: 0.9; }
         }
+        @keyframes spinLoader {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
       \`;
       document.head.appendChild(style);
     </script>
 
     <!-- WebAR Scene Rendering Engine -->
     <template id="scene-template">
-      <a-scene xrextras-gesture-detector landing-page xrextras-loading xrextras-runtime-error
-      renderer="colorManagement:true" xrweb="disableWorldTracking: true">
-      
-      <a-camera position="0 4 10" raycaster="objects: .clickable" cursor="fuse: false; rayOrigin: mouse;"></a-camera>
-      
-      <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>
-      <a-light type="ambient" intensity="0.9"></a-light>
+      <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: 1; filterMinCF:0.0001; filterBeta:0.001;" 
+               embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+        
+        <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-camera>
+        
+        <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>
+        <a-light type="ambient" intensity="0.9"></a-light>
 
 ${entitiesHtml}
-    </a-scene>
+      </a-scene>
     </template>
     <script>
       function hideScanningOverlay() {
@@ -564,49 +581,139 @@ ${entitiesHtml}
           console.log('[STAGE] WebGL Renderer render loop started successfully.');
         });
 
-        scene.addEventListener('realityready', () => {
-          console.log('[STAGE] 8th Wall Reality initialized. Camera feed active and tracking is hot!');
-        });
+        // Listen for targetFound and targetLost on MindAR target entity
+        const targetEl = scene.querySelector('[mindar-image-target]');
+        if (targetEl) {
+          targetEl.addEventListener('targetFound', (event) => {
+            console.log('[TRACKING] Image target found! Fading scanning UI.');
+            hideScanningOverlay();
+          });
 
-        scene.addEventListener('xrimagefound', (event) => {
-          console.log('[TRACKING] Image target found: "' + event.detail.name + '" detected! Fading scanning UI.');
-          hideScanningOverlay();
-        });
+          targetEl.addEventListener('targetLost', (event) => {
+            console.log('[TRACKING] Image target lost.');
+            showScanningOverlay();
+          });
+        } else {
+          console.warn('[WARN] mindar-image-target entity not found in scene.');
+        }
+      }
 
-        scene.addEventListener('xrimagelost', (event) => {
-          console.log('[TRACKING] Image target lost: "' + event.detail.name + '" is out of camera view.');
-          showScanningOverlay();
-        });
+      async function compileTargetImage(imageUrl) {
+        console.log('[STAGE] Starting target image compilation...');
+        const statusEl = document.getElementById('compiler-status');
+        const progressEl = document.getElementById('compiler-progress');
+        
+        try {
+          statusEl.innerText = 'Fetching marker image...';
+          progressEl.style.width = '10%';
+          
+          // Load image element
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          const loadPromise = new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = () => reject(new Error('Failed to load target image: ' + imageUrl));
+          });
+          
+          img.src = imageUrl;
+          await loadPromise;
+          
+          statusEl.innerText = 'Analyzing feature points...';
+          progressEl.style.width = '30%';
+          
+          console.log('[STAGE] Image loaded successfully, dimensions: ' + img.width + 'x' + img.height);
+          
+          // Create MindAR Compiler
+          const compiler = new MINDAR.IMAGE.Compiler();
+          compiler.addImage(img);
+          
+          progressEl.style.width = '50%';
+          statusEl.innerText = 'Compiling WebAR dataset (this may take a few seconds)...';
+          
+          // Compile track with a progress callback
+          await compiler.compileTrack((percent) => {
+            const displayPercent = Math.min(Math.round(50 + (percent / 2)), 99);
+            progressEl.style.width = displayPercent + '%';
+            statusEl.innerText = 'Extracting keypoints (' + Math.round(percent) + '%)...';
+          });
+          
+          progressEl.style.width = '100%';
+          statusEl.innerText = 'Finalizing tracking database...';
+          
+          const buffer = compiler.exportData();
+          const blob = new Blob([buffer], {type: 'application/octet-stream'});
+          const mindUrl = URL.createObjectURL(blob);
+          
+          console.log('[STAGE] Dynamic compilation complete. Created MindAR object URL: ' + mindUrl);
+          return mindUrl;
+          
+        } catch (err) {
+          console.error('[ERROR] Compilation failed:', err);
+          statusEl.innerText = 'Compilation Error: ' + err.message;
+          statusEl.style.color = '#ef4444';
+          progressEl.style.backgroundColor = '#ef4444';
+          throw err;
+        }
+      }
+
+      async function initAR() {
+        const imageUrl = "${targetImageUrl}";
+        if (!imageUrl) {
+          console.error('[ERROR] No target image URL specified for tracking.');
+          const compilerOverlay = document.getElementById('compiler-overlay');
+          if (compilerOverlay) compilerOverlay.style.display = 'none';
+          showToast('Error: No target image uploaded for AR tracking.');
+          return;
+        }
+        
+        try {
+          const mindUrl = await compileTargetImage(imageUrl);
+          
+          // Hide compiler overlay with a smooth fade
+          const compilerOverlay = document.getElementById('compiler-overlay');
+          if (compilerOverlay) {
+            compilerOverlay.style.opacity = '0';
+            setTimeout(() => {
+              compilerOverlay.style.display = 'none';
+            }, 400);
+          }
+          
+          console.log('[STAGE] Injecting MindAR A-Frame scene...');
+          
+          // Setup the scene HTML
+          const template = document.getElementById('scene-template');
+          if (!template) {
+            console.error('[ERROR] Scene template element not found in DOM.');
+            return;
+          }
+          
+          let sceneHtml = template.innerHTML;
+          
+          // Replace placeholder imageTargetSrc with compiled mindUrl
+          sceneHtml = sceneHtml.replace('__MIND_URL_PLACEHOLDER__', mindUrl);
+          
+          const sceneContainer = document.createElement('div');
+          sceneContainer.innerHTML = sceneHtml;
+          const scene = sceneContainer.querySelector('a-scene');
+          
+          if (scene) {
+            attachSceneListeners(scene);
+          }
+          
+          document.body.appendChild(sceneContainer.firstElementChild);
+          
+        } catch (err) {
+          console.error('[ERROR] AR Initialization failed:', err);
+        }
       }
 
       // Proactive Lifecycle Loggers
-      console.log('[STAGE] Device environment matches WebAR. Launching A-Frame scene...');
-      window.addEventListener('load', () => console.log('[STAGE] Window load complete. Assets finished transferring.'));
-      window.addEventListener('xrloaded', () => console.log('[STAGE] 8th Wall engine bundle loaded and initialized.'));
-
-      const initScene = () => {
-        console.log('[STAGE] Cloning scene nodes from HTML template.');
-        const template = document.getElementById('scene-template');
-        if (!template) {
-          console.error('[ERROR] Scene template element not found in DOM.');
-          return;
-        }
-        const clone = template.content.cloneNode(true);
-        const scene = clone.querySelector('a-scene');
-        if (scene) {
-          attachSceneListeners(scene);
-        } else {
-          console.warn('[WARN] No custom scene container found inside cloned template.');
-        }
-        document.body.appendChild(clone);
-        console.log('[STAGE] Scene injected into document tree successfully.');
-      };
-
-      if (window.XR8) {
-        initScene();
-      } else {
-        window.addEventListener('xrloaded', initScene);
-      }
+      console.log('[STAGE] Device environment matches WebAR. Starting up...');
+      window.addEventListener('load', () => {
+        console.log('[STAGE] Window load complete. Launching compiler and AR engine.');
+        initAR();
+      });
     </script>
   </body>
 </html>`;
