@@ -1,0 +1,12 @@
+node_modules
+dist
+papar_data
+public/papar
+.env
+.env.local
+.git
+.gitignore
+README.md
+npm-debug.log
+docker-compose.yml
+Dockerfile

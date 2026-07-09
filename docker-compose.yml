@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  papar-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-}
+    container_name: papar-studio
+    restart: unless-stopped
+    ports:
+      # Maps the host port to the internal container port. 
+      # Defaults to 3000, but can be changed to 80 or 443 on your VPS.
+      - "${HOST_PORT:-3000}:3000"
+    volumes:
+      # Host-mounted directory to keep published WebAR HTML files safe and persistent.
+      # This allows you to easily back up, edit, or view the published pages directly from the host VPS.
+      - ./papar_data:/app/papar_data
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      # Environment variables for backend services
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      # If you use custom database parameters, declare them here as well
