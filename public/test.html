@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+</head>
 <body>
-<script type="module">
-import { Compiler } from 'https://esm.sh/mind-ar@1.2.5/dist/mindar-image.prod.js';
-console.log(Compiler);
+<script>
+window.onload = () => {
+  console.log("MINDAR IS:", window.MINDAR);
+}
 </script>
 </body>
 </html>

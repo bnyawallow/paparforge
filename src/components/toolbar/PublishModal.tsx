@@ -100,7 +100,8 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
             <!DOCTYPE html>
             <html>
               <head>
-                <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+                <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
               </head>
               <body>
                 <script>
@@ -114,22 +115,26 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                         const img = new Image();
                         img.crossOrigin = 'anonymous';
                         img.onload = async () => {
-                          const compiler = new window.MINDAR.IMAGE.Compiler();
-                          await compiler.compileImageTargets([img], (percent) => {
-                            window.parent.postMessage({ type: 'COMPILER_PROGRESS', percent }, '*');
-                          });
-                          const exportedData = compiler.exportData();
-                          
-                          // Convert to base64
-                          let binary = '';
-                          const bytes = new Uint8Array(exportedData);
-                          const len = bytes.byteLength;
-                          for (let i = 0; i < len; i++) {
-                            binary += String.fromCharCode(bytes[i]);
+                          try {
+                            const compiler = new window.MINDAR.IMAGE.Compiler();
+                            await compiler.compileImageTargets([img], (percent) => {
+                              window.parent.postMessage({ type: 'COMPILER_PROGRESS', percent }, '*');
+                            });
+                            const exportedData = compiler.exportData();
+                            
+                            // Convert to base64
+                            let binary = '';
+                            const bytes = new Uint8Array(exportedData);
+                            const len = bytes.byteLength;
+                            for (let i = 0; i < len; i++) {
+                              binary += String.fromCharCode(bytes[i]);
+                            }
+                            const base64String = window.btoa(binary);
+                            
+                            window.parent.postMessage({ type: 'COMPILER_SUCCESS', base64Data: base64String }, '*');
+                          } catch (err) {
+                            window.parent.postMessage({ type: 'COMPILER_ERROR', message: err.message || 'Compiler error' }, '*');
                           }
-                          const base64String = window.btoa(binary);
-                          
-                          window.parent.postMessage({ type: 'COMPILER_SUCCESS', base64Data: base64String }, '*');
                         };
                         img.onerror = () => {
                           window.parent.postMessage({ type: 'COMPILER_ERROR', message: 'Failed to load image inside compiler' }, '*');
@@ -157,14 +162,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
               window.removeEventListener('message', listener);
               document.body.removeChild(iframe);
               
-              const byteCharacters = atob(e.data.base64Data);
-              const byteNumbers = new Array(byteCharacters.length);
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-              }
-              const byteArray = new Uint8Array(byteNumbers);
-              const blob = new Blob([byteArray], {type: 'application/octet-stream'});
-              resolve(URL.createObjectURL(blob));
+              resolve('data:application/octet-stream;base64,' + e.data.base64Data);
             } else if (e.data.type === 'COMPILER_ERROR') {
               window.removeEventListener('message', listener);
               document.body.removeChild(iframe);
@@ -300,7 +298,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                   
                   <div className="p-3 bg-[#0E0E0E] border border-[#1C1C1C] rounded-lg">
                     <p className="text-xs text-gray-300 font-sans leading-relaxed">
-                      Your uploaded marker image is compiled client-side in real-time when users access your published WebAR link.
+                      Your uploaded marker image is pre-compiled into a tracking dataset during this publishing process, ensuring instantaneous load times for your users.
                     </p>
                     <div className="mt-2.5 flex items-center gap-2 text-[10px] text-blue-400 font-mono">
                       <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
@@ -434,7 +432,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                     <div className="space-y-1 text-left">
                       <span className="text-[9px] font-mono font-bold text-blue-400 uppercase tracking-widest">
                         {publishStep === 'validating' && 'Stage 1/4: Parsing Scene Nodes...'}
-                        {publishStep === 'packaging' && 'Stage 2/4: Packing Static Bundles...'}
+                        {publishStep === 'packaging' && 'Stage 2/4: Precompiling Image Target...'}
                         {publishStep === 'optimizing' && 'Stage 3/4: Transpiling ECMA Sandbox...'}
                         {publishStep === 'deploying' && 'Stage 4/4: Deploying to Edge CDN...'}
                       </span>
@@ -457,7 +455,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
 
                     <p className="text-[10px] text-gray-500 leading-relaxed text-left border-t border-[#222] pt-3">
                       {publishStep === 'validating' && 'Verifying spatial layout, parsing 3D transforms, bounding volumes, and assets.'}
-                      {publishStep === 'packaging' && 'Compiling A-Frame geometry maps, rendering entities, and packaging external assets.'}
+                      {publishStep === 'packaging' && 'Generating optimized WebAR feature points and precompiling MindAR tracking dataset...'}
                       {publishStep === 'optimizing' && 'Analyzing custom script syntax, packaging sandboxed loops, and testing event bindings.'}
                       {publishStep === 'deploying' && 'Propagating index files and compiled asset buffers to 240+ global Edge caching locations.'}
                     </p>
