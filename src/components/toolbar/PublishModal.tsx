@@ -90,48 +90,90 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
       const targetImageUrl = imageTargetObj?.properties?.textureUrl;
       
       if (targetImageUrl) {
-        // Load compiler script dynamically if not present
-        if (!(window as any).MINDAR?.IMAGE?.Compiler) {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js';
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load MindAR compiler'));
-            document.head.appendChild(script);
-          });
-        }
+        setPublishProgress(15);
         
-        setPublishProgress(25);
-        
-        // Load target image
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error('Failed to load target image for compilation'));
-          img.src = targetImageUrl;
-        });
-        
-        setPublishProgress(40);
-        
-        // Run compilation
-        const compiler = new (window as any).MINDAR.IMAGE.Compiler();
-        await compiler.compileImageTargets([img], (percent: number) => {
-          setPublishProgress(40 + (percent * 0.4)); // 40-80% progress
-        });
-        
-        const exportedData = compiler.exportData();
-        const blob = new Blob([exportedData], { type: 'application/octet-stream' });
-        
-        // Convert Blob to Data URL
         compiledMindUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          
+          const html = `
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+              </head>
+              <body>
+                <script>
+                  window.onload = () => {
+                    window.parent.postMessage({ type: 'COMPILER_READY' }, '*');
+                  };
+                  
+                  window.addEventListener('message', async (e) => {
+                    if (e.data.type === 'START_COMPILATION') {
+                      try {
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        img.onload = async () => {
+                          const compiler = new window.MINDAR.IMAGE.Compiler();
+                          await compiler.compileImageTargets([img], (percent) => {
+                            window.parent.postMessage({ type: 'COMPILER_PROGRESS', percent }, '*');
+                          });
+                          const exportedData = compiler.exportData();
+                          
+                          // Convert to base64
+                          let binary = '';
+                          const bytes = new Uint8Array(exportedData);
+                          const len = bytes.byteLength;
+                          for (let i = 0; i < len; i++) {
+                            binary += String.fromCharCode(bytes[i]);
+                          }
+                          const base64String = window.btoa(binary);
+                          
+                          window.parent.postMessage({ type: 'COMPILER_SUCCESS', base64Data: base64String }, '*');
+                        };
+                        img.onerror = () => {
+                          window.parent.postMessage({ type: 'COMPILER_ERROR', message: 'Failed to load image inside compiler' }, '*');
+                        };
+                        img.src = e.data.imageUrl;
+                      } catch (err) {
+                        window.parent.postMessage({ type: 'COMPILER_ERROR', message: err.message }, '*');
+                      }
+                    }
+                  });
+                </script>
+              </body>
+            </html>
+          `;
+          
+          iframe.srcdoc = html;
+          document.body.appendChild(iframe);
+          
+          const listener = (e: MessageEvent) => {
+            if (e.data.type === 'COMPILER_READY') {
+              iframe.contentWindow?.postMessage({ type: 'START_COMPILATION', imageUrl: targetImageUrl }, '*');
+            } else if (e.data.type === 'COMPILER_PROGRESS') {
+              setPublishProgress(20 + (e.data.percent * 0.6)); // 20-80%
+            } else if (e.data.type === 'COMPILER_SUCCESS') {
+              window.removeEventListener('message', listener);
+              document.body.removeChild(iframe);
+              
+              const byteCharacters = atob(e.data.base64Data);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], {type: 'application/octet-stream'});
+              resolve(URL.createObjectURL(blob));
+            } else if (e.data.type === 'COMPILER_ERROR') {
+              window.removeEventListener('message', listener);
+              document.body.removeChild(iframe);
+              reject(new Error(e.data.message));
+            }
+          };
+          
+          window.addEventListener('message', listener);
         });
-        
-        setPublishProgress(80);
       }
       
       setPublishStep('deploying');

@@ -1,6 +1,6 @@
-import { EditorStore } from '../store/useEditorStore';
+import { EditorState } from '../types';
 
-export function generateAFrameScene(storeState: EditorStore, mindDataUri?: string): string {
+export function generateAFrameScene(storeState: EditorState, mindDataUri?: string): string {
   const { objects, rootObjects, settings } = storeState;
 
   const imageTargetObj = Object.values(objects).find(obj => obj.type === 'imageTarget');
@@ -133,13 +133,16 @@ export function generateAFrameScene(storeState: EditorStore, mindDataUri?: strin
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
       
-      /* Force the video and canvas to fill the screen properly in MindAR */
-      video, canvas {
-        width: 100vw !important;
-        height: 100vh !important;
-        object-fit: cover !important;
+      /* MindAR container sizing */
+      .example-container {
+        overflow: hidden;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
       }
-
+      
       .mindar-ui-overlay {
         position: absolute;
         inset: 0;
@@ -302,16 +305,18 @@ export function generateAFrameScene(storeState: EditorStore, mindDataUri?: strin
     </style>
 
     <!-- WebAR Scene Rendering Engine -->
-    <a-scene mindar-image="imageTargetSrc: ${resolvedMindDataUri}; autoStart: true; maxTrack: 1; filterMinCF:0.0001; filterBeta:0.001;" 
-             embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-      
-      <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-camera>
-      
-      <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>
-      <a-light type="ambient" intensity="0.9"></a-light>
+    <div class="example-container">
+      <a-scene mindar-image="imageTargetSrc: ${resolvedMindDataUri}; autoStart: true; maxTrack: 1; filterMinCF:0.0001; filterBeta:0.001;" 
+               embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+        
+        <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-camera>
+        
+        <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>
+        <a-light type="ambient" intensity="0.9"></a-light>
 
-${entitiesHtml}
-    </a-scene>
+  ${entitiesHtml}
+      </a-scene>
+    </div>
 
     <script>
       function hideScanningOverlay() {
