@@ -100,11 +100,10 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
             <!DOCTYPE html>
             <html>
               <head>
+                <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image.prod.js"></script>
               </head>
               <body>
-                <script type="module">
-                  import { Compiler } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
-                  
+                <script>
                   window.addEventListener('message', async (e) => {
                     if (e.data.type === 'START_COMPILATION') {
                       try {
@@ -112,7 +111,10 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                         img.crossOrigin = 'anonymous';
                         img.onload = async () => {
                           try {
-                            const compiler = new Compiler();
+                            if (!window.MINDAR || !window.MINDAR.IMAGE || !window.MINDAR.IMAGE.Compiler) {
+                              throw new Error('MINDAR.IMAGE.Compiler failed to load. Please verify your internet connection or CDN availability.');
+                            }
+                            const compiler = new window.MINDAR.IMAGE.Compiler();
                             await compiler.compileImageTargets([img], (percent) => {
                               window.parent.postMessage({ type: 'COMPILER_PROGRESS', percent }, '*');
                             });
@@ -291,16 +293,16 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                 {/* Configuration Card */}
                 <div className="bg-[#181818] border border-[#222] rounded-xl p-4 shadow-sm space-y-3">
                   <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest font-mono flex items-center gap-1">
-                    <Sparkles size={11} /> Automated Image Target
+                    <Sparkles size={11} /> Precompiled Target Tracking
                   </span>
                   
                   <div className="p-3 bg-[#0E0E0E] border border-[#1C1C1C] rounded-lg">
                     <p className="text-xs text-gray-300 font-sans leading-relaxed">
-                      Your uploaded marker image is pre-compiled into a tracking dataset during this publishing process, ensuring instantaneous load times for your users.
+                      Your marker image is fully pre-compiled into a high-performance tracking dataset (<code className="font-mono text-blue-400">.mind</code>) during publishing. Users download this binary dataset directly, completely bypassing CPU-intensive client-side compilation.
                     </p>
                     <div className="mt-2.5 flex items-center gap-2 text-[10px] text-blue-400 font-mono">
                       <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                      Dynamic tracking anchor configured automatically
+                      Publish-time binary compilation enabled
                     </div>
                   </div>
                 </div>
@@ -317,11 +319,11 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                       <div className="flex items-center gap-2.5">
                         <div className="w-5 h-5 rounded-full bg-emerald-950 border border-emerald-800 flex items-center justify-center text-[9px] text-emerald-400">✓</div>
                         <div>
-                          <p className="text-xs font-semibold text-white">Target Anchored Sync</p>
-                          <p className="text-[9px] text-gray-500">Links content dynamically over the uploaded marker image</p>
+                          <p className="text-xs font-semibold text-white">Precompiled Target Sync</p>
+                          <p className="text-[9px] text-gray-500">Loads precompiled tracking binary directly for instant start</p>
                         </div>
                       </div>
-                      <span className="text-[9px] font-mono px-2 py-0.5 bg-emerald-900/40 text-emerald-400 rounded-full border border-emerald-800/30">Active</span>
+                      <span className="text-[9px] font-mono px-2 py-0.5 bg-emerald-900/40 text-emerald-400 rounded-full border border-emerald-800/30">Bypassed Clientside</span>
                     </div>
 
                     {/* Scripts Audit */}

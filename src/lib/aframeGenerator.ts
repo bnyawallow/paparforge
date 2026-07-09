@@ -147,6 +147,34 @@ export function generateAFrameScene(storeState: EditorState, mindDataUri?: strin
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
       
+      /* Force MindAR video and canvas to fill the screen correctly */
+      video {
+        position: absolute !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: -2 !important;
+      }
+      
+      a-scene {
+        width: 100% !important;
+        height: 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: -1 !important;
+      }
+      
+      .a-canvas {
+        width: 100% !important;
+        height: 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+      }
+      
       /* MindAR container sizing */
       .example-container {
         overflow: hidden;
