@@ -122,6 +122,20 @@ export function generateAFrameScene(storeState: EditorState, mindDataUri?: strin
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>${settings.projectName || 'AR Experience'}</title>
     
+    <script>
+      // Suppress noisy Three.js and A-Frame deprecation/version logs
+      const origWarn = console.warn;
+      const origLog = console.log;
+      console.warn = function(...args) {
+        if (typeof args[0] === 'string' && (args[0].includes('THREE.') || args[0].includes('deprecated'))) return;
+        origWarn.apply(console, args);
+      };
+      console.log = function(...args) {
+        if (typeof args[0] === 'string' && (args[0].includes('A-Frame Version') || args[0].includes('THREE Version') || args[0].includes('WebVR Polyfill') || args[0].includes('THREE.'))) return;
+        origLog.apply(console, args);
+      };
+    </script>
+    
     <style>
       html, body {
         margin: 0;

@@ -100,14 +100,10 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
             <!DOCTYPE html>
             <html>
               <head>
-                <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
               </head>
               <body>
-                <script>
-                  window.onload = () => {
-                    window.parent.postMessage({ type: 'COMPILER_READY' }, '*');
-                  };
+                <script type="module">
+                  import { Compiler } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
                   
                   window.addEventListener('message', async (e) => {
                     if (e.data.type === 'START_COMPILATION') {
@@ -116,7 +112,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                         img.crossOrigin = 'anonymous';
                         img.onload = async () => {
                           try {
-                            const compiler = new window.MINDAR.IMAGE.Compiler();
+                            const compiler = new Compiler();
                             await compiler.compileImageTargets([img], (percent) => {
                               window.parent.postMessage({ type: 'COMPILER_PROGRESS', percent }, '*');
                             });
@@ -145,6 +141,8 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                       }
                     }
                   });
+                  
+                  window.parent.postMessage({ type: 'COMPILER_READY' }, '*');
                 </script>
               </body>
             </html>
