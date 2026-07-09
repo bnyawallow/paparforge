@@ -75,34 +75,70 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
     setPublishProgress(0);
     setPublishStep('validating');
     
-    // Smooth progress bar transitions representing backend deployment & asset compilation
-    const duration = 2800; // 2.8s total
-    const intervalTime = 40;
-    const steps = duration / intervalTime;
-    let currentStep = 0;
-
-    const timer = setInterval(() => {
-      currentStep++;
-      const percent = Math.min(Math.round((currentStep / steps) * 100), 99);
-      setPublishProgress(percent);
-
-      if (percent < 25) {
-        setPublishStep('validating');
-      } else if (percent < 55) {
-        setPublishStep('packaging');
-      } else if (percent < 80) {
-        setPublishStep('optimizing');
-      } else if (percent < 100) {
-        setPublishStep('deploying');
-      }
-    }, intervalTime);
+    const storeState = useEditorStore.getState();
+    const projName = storeState.settings.projectName || 'AR Experience';
+    const projectId = projName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7);
 
     try {
-      const { supabase } = await import('../../lib/supabase');
-      const storeState = useEditorStore.getState();
-      const projName = storeState.settings.projectName || 'AR Experience';
-      const projectId = projName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7);
+      // Step 1: Precompile MindAR tracking target
+      setPublishStep('packaging');
+      setPublishProgress(15);
       
+      let compiledMindUrl = '';
+      
+      const imageTargetObj = Object.values(storeState.objects).find(obj => obj.type === 'imageTarget');
+      const targetImageUrl = imageTargetObj?.properties?.textureUrl;
+      
+      if (targetImageUrl) {
+        // Load compiler script dynamically if not present
+        if (!(window as any).MINDAR?.IMAGE?.Compiler) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load MindAR compiler'));
+            document.head.appendChild(script);
+          });
+        }
+        
+        setPublishProgress(25);
+        
+        // Load target image
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load target image for compilation'));
+          img.src = targetImageUrl;
+        });
+        
+        setPublishProgress(40);
+        
+        // Run compilation
+        const compiler = new (window as any).MINDAR.IMAGE.Compiler();
+        await compiler.compileImageTargets([img], (percent: number) => {
+          setPublishProgress(40 + (percent * 0.4)); // 40-80% progress
+        });
+        
+        const exportedData = compiler.exportData();
+        const blob = new Blob([exportedData], { type: 'application/octet-stream' });
+        
+        // Convert Blob to Data URL
+        compiledMindUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        
+        setPublishProgress(80);
+      }
+      
+      setPublishStep('deploying');
+      
+      // Pass the compiled MindAR target data to the scene generator
+      const htmlContent = generateAFrameScene(storeState, compiledMindUrl);
+
       const projectData = {
         objects: storeState.objects,
         rootObjects: storeState.rootObjects,
@@ -110,6 +146,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         assets: storeState.assets
       };
 
+      const { supabase } = await import('../../lib/supabase');
       if (supabase) {
         const { error } = await supabase.from('projects').insert([
           {
@@ -123,13 +160,11 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         }
       }
 
-      // Generate the full HTML for standalone
-      const htmlContent = generateAFrameScene(storeState);
+      setPublishProgress(90);
 
       let finalPath = `/papar/${projectId}`;
 
       try {
-        // Publish the actual standalone HTML file to /papar if the custom Express backend is active
         const response = await fetch('/api/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -146,7 +181,6 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         console.warn('Backend publish endpoint unavailable, using serverless fallback path:', err);
       }
 
-      clearInterval(timer);
       setPublishProgress(100);
       setPublishStep('success');
       
@@ -156,7 +190,6 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
       const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
       setQrCodeUrl(qr);
     } catch (err) {
-      clearInterval(timer);
       console.error('Publishing failed:', err);
       // Optional: Handle error state in UI
       setPublishStep('success'); // Fallback to serverless demo
