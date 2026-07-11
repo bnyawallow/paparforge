@@ -85,28 +85,21 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
       if (proj) {
         setIsDeleting(true);
         try {
-          const { supabase } = await import('../../lib/supabase');
-          if (supabase) {
-            // Delete published experiences matching project name
-            await supabase.from('projects').delete().eq('name', proj.name);
-            
-            // Delete assets
+          const { SupabaseService } = await import('../../services/supabaseService');
+          if (SupabaseService.isConfigured()) {
+            const assetUrls: string[] = [];
             const savedDataStr = localStorage.getItem(`ar_forge_project_${proj.id}`);
             if (savedDataStr) {
-               const parsed = JSON.parse(savedDataStr);
-               if (parsed.assets && Array.isArray(parsed.assets)) {
-                  const pathsToRemove: string[] = [];
-                  parsed.assets.forEach((asset: any) => {
-                     if (asset.url && asset.url.includes('/storage/v1/object/public/assets/')) {
-                        const path = asset.url.split('/storage/v1/object/public/assets/')[1];
-                        if (path) pathsToRemove.push(path);
-                     }
-                  });
-                  if (pathsToRemove.length > 0) {
-                     await supabase.storage.from('assets').remove(pathsToRemove);
-                  }
-               }
+              const parsed = JSON.parse(savedDataStr);
+              if (parsed.assets && Array.isArray(parsed.assets)) {
+                parsed.assets.forEach((asset: any) => {
+                  if (asset.url) assetUrls.push(asset.url);
+                });
+              }
             }
+
+            // Centralized cleanup of database entry and associated storage assets
+            await SupabaseService.deleteProject(proj.id, proj.name, assetUrls);
           }
         } catch (err) {
           console.error("Cleanup error:", err);

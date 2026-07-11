@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { SupabaseService } from '../../services/supabaseService';
 import { generateAFrameScene } from '../../lib/aframeGenerator';
 
 export function ViewerLayout() {
@@ -15,22 +15,17 @@ export function ViewerLayout() {
       
       try {
         setLoading(true);
-        if (!supabase) {
+        if (!SupabaseService.isConfigured()) {
           setError('Supabase is not configured. Please set up your environment variables.');
           setLoading(false);
           return;
         }
-        const { data, error: fetchError } = await supabase
-          .from('projects')
-          .select('data')
-          .eq('id', projectId)
-          .single();
-        if (fetchError) {
-          throw fetchError;
-        }
-        if (data && data.data) {
+        
+        const projectData = await SupabaseService.loadProject(projectId);
+        
+        if (projectData) {
           // Generate the AR scene from the saved project data
-          const html = generateAFrameScene(data.data);
+          const html = generateAFrameScene(projectData);
           setHtmlContent(html);
         } else {
           setError('Project not found or contains no data.');

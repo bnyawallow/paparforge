@@ -10,41 +10,25 @@ export const convertEditorToAR = (
 ): { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } => {
   const S = 1.0 / ((physicalWidth || 1) * 50);
 
-  // 1. Position Transformation
-  // In editor (XZ plane): width is X, normal is Y, height/depth is Z (top points to -Z)
-  // In MindAR (XY plane): width is X, height is Y, normal is Z (pointing to user)
+  // 1. Position Transformation - aligned with XY plane (X = width, Y = height, Z = normal)
   const pos_ar: [number, number, number] = [
     pos[0] * S,
-    -pos[2] * S,
-    pos[1] * S
+    pos[1] * S,
+    pos[2] * S
   ];
 
-  // 2. Scale Transformation
-  // Swap Y and Z scale components to match the orientation rotation
+  // 2. Scale Transformation - aligned with XY plane
   const scale_ar: [number, number, number] = [
     scale[0] * S,
-    scale[2] * S,
-    scale[1] * S
+    scale[1] * S,
+    scale[2] * S
   ];
 
-  // 3. Rotation Transformation
-  const q_ed = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      THREE.MathUtils.degToRad(rot[0]),
-      THREE.MathUtils.degToRad(rot[1]),
-      THREE.MathUtils.degToRad(rot[2]),
-      'YXZ'
-    )
-  );
-
-  const q_x_90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-  const q_ar = q_x_90.clone().multiply(q_ed);
-
-  const rot_ar = new THREE.Euler().setFromQuaternion(q_ar, 'YXZ');
+  // 3. Rotation Transformation - aligned 1:1
   const rot_ar_deg: [number, number, number] = [
-    THREE.MathUtils.radToDeg(rot_ar.x),
-    THREE.MathUtils.radToDeg(rot_ar.y),
-    THREE.MathUtils.radToDeg(rot_ar.z)
+    rot[0],
+    rot[1],
+    rot[2]
   ];
 
   return {
@@ -68,17 +52,23 @@ export const generateAFrameScene = (state: any) => {
       
       // Inject standard click handlers, custom script hooks, and visual event components
       let customComponents = '';
+      let isClickable = false;
       
       if (obj.properties.soundUrl) {
         // Safe string escaping
         const escapedUrl = obj.properties.soundUrl.replace(/"/g, '&quot;');
-        customComponents += ` sound-on-click="url: ${escapedUrl}"`;
+        customComponents += ` sound-on-click data-sound-url="${escapedUrl}"`;
+        isClickable = true;
       }
       
       if (obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0) {
         const behaviorsJson = JSON.stringify(obj.properties.visualBehaviors)
           .replace(/"/g, '&quot;');
-        customComponents += ` visual-behavior="behaviors: ${behaviorsJson}"`;
+        customComponents += ` visual-behavior data-behaviors="${behaviorsJson}"`;
+        const hasTap = obj.properties.visualBehaviors.some((b: any) => b.trigger === 'onTap');
+        if (hasTap) {
+          isClickable = true;
+        }
       }
       
       if (obj.properties.scriptCode && (obj.properties.scriptEnabled ?? true)) {
@@ -87,8 +77,19 @@ export const generateAFrameScene = (state: any) => {
           .replace(/"/g, '&quot;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
-        customComponents += ` custom-script="code: ${escapedCode}; enabled: true"`;
+        customComponents += ` custom-script data-script-code="${escapedCode}" data-script-enabled="true"`;
+        isClickable = true;
       }
+
+      if (obj.properties.behavior) {
+        customComponents += ` live-behavior="rule: ${obj.properties.behavior}"`;
+      }
+
+      if (obj.type === 'button') {
+        isClickable = true;
+      }
+
+      const classAttr = isClickable ? ' class="clickable"' : '';
 
       // Check if this object is a direct child of the image target
       const physicalWidth = imageTargetObj?.properties?.physicalWidth || 1;
@@ -105,7 +106,7 @@ export const generateAFrameScene = (state: any) => {
         scaleStr = transformed.scale.map(v => Number(v.toFixed(6))).join(' ');
       }
 
-      let entity = `${indent}<a-entity id="${obj.id}" position="${positionStr}" rotation="${rotationStr}" scale="${scaleStr}"${customComponents}>\n`;
+      let entity = `${indent}<a-entity id="${obj.id}" position="${positionStr}" rotation="${rotationStr}" scale="${scaleStr}"${classAttr}${customComponents}>\n`;
 
       if (obj.type === 'box') {
         entity += `${indent}  <a-box color="${obj.properties.color || '#ffffff'}"></a-box>\n`;
@@ -255,17 +256,54 @@ export const generateAFrameScene = (state: any) => {
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
 
     <script>
-      // 1. Core Visual Behaviors Engine
-      AFRAME.registerComponent('visual-behavior', {
+      // 0. Continuous Interactive Live Behaviors (Spin, Hover, Pulse)
+      AFRAME.registerComponent('live-behavior', {
         schema: {
-          behaviors: {type: 'string'}
+          rule: {type: 'string', default: ''}
         },
         init: function() {
+          this.initialY = this.el.object3D.position.y;
+          this.initialRotY = this.el.object3D.rotation.y;
+          this.initialScaleX = this.el.object3D.scale.x;
+          this.initialScaleY = this.el.object3D.scale.y;
+          this.initialScaleZ = this.el.object3D.scale.z;
+          this.time = 0;
+        },
+        tick: function(time, timeDelta) {
+          const rule = this.data.rule;
+          if (!rule) return;
+          this.time += timeDelta / 1000;
+          const t = this.time;
+
+          if (rule === 'hover') {
+            this.el.object3D.position.y = this.initialY + Math.sin(t * 3) * 0.2;
+          } else if (rule === 'spin') {
+            this.el.object3D.rotation.y = this.initialRotY + t * 0.8;
+          } else if (rule === 'pulse') {
+            const scaleVal = 1 + Math.sin(t * 4.5) * 0.08;
+            this.el.object3D.scale.set(
+              this.initialScaleX * scaleVal,
+              this.initialScaleY * scaleVal,
+              this.initialScaleZ * scaleVal
+            );
+          }
+        }
+      });
+
+      // 1. Core Visual Behaviors Engine
+      AFRAME.registerComponent('visual-behavior', {
+        init: function() {
           const self = this;
-          const behaviors = JSON.parse(this.data.behaviors || '[]');
+          const behaviorsJson = this.el.getAttribute('data-behaviors');
+          this.behaviors = [];
+          try {
+            this.behaviors = JSON.parse(behaviorsJson || '[]');
+          } catch (e) {
+            console.error("Error parsing visual behaviors:", e);
+          }
           const el = this.el;
 
-          behaviors.forEach(b => {
+          this.behaviors.forEach(b => {
             if (b.trigger === 'onStart') {
               self.executeBehavior(b);
             } else if (b.trigger === 'onTap') {
@@ -276,10 +314,10 @@ export const generateAFrameScene = (state: any) => {
           });
         },
         tick: function() {
-          const behaviors = JSON.parse(this.data.behaviors || '[]');
+          if (!this.behaviors || this.behaviors.length === 0) return;
           const self = this;
           
-          behaviors.forEach(b => {
+          this.behaviors.forEach(b => {
             if (b.trigger === 'onProximity') {
               const cam = document.querySelector('[camera]') || document.querySelector('a-camera');
               if (!cam) return;
@@ -353,12 +391,10 @@ export const generateAFrameScene = (state: any) => {
 
       // 2. Custom Javascript Scripts Sandbox Engine
       AFRAME.registerComponent('custom-script', {
-        schema: {
-          code: {type: 'string'},
-          enabled: {type: 'boolean', default: true}
-        },
         init: function() {
-          if (!this.data.enabled || !this.data.code) return;
+          const code = this.el.getAttribute('data-script-code');
+          const enabled = this.el.getAttribute('data-script-enabled') !== 'false';
+          if (!enabled || !code) return;
           const el = this.el;
           
           this.callbacks = {
@@ -397,7 +433,7 @@ export const generateAFrameScene = (state: any) => {
           };
           
           try {
-            const scriptFn = new Function('mesh', 'object', 'api', 'onTap', 'onUpdate', this.data.code);
+            const scriptFn = new Function('mesh', 'object', 'api', 'onTap', 'onUpdate', code);
             scriptFn(el.object3D, { id: el.id }, api, registerOnTap, registerOnUpdate);
           } catch(err) {
             console.error("Script init error:", err);
@@ -427,11 +463,8 @@ export const generateAFrameScene = (state: any) => {
 
       // 3. Audio Attachment Component
       AFRAME.registerComponent('sound-on-click', {
-        schema: {
-          url: {type: 'string'}
-        },
         init: function() {
-          const url = this.data.url;
+          const url = this.el.getAttribute('data-sound-url');
           if (!url) return;
           this.el.addEventListener('click', () => {
             const sfx = new Audio(url);

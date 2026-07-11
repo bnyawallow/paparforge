@@ -232,17 +232,12 @@ export function AssetBrowser() {
     showToast(`Uploading ${name}...`);
 
     try {
-      const { supabase } = await import('../../lib/supabase');
+      const { SupabaseService } = await import('../../services/supabaseService');
       const storeState = useEditorStore.getState();
-      const projectId = storeState.settings.projectName.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'default-project';
+      const projectName = storeState.settings.projectName || 'default-project';
 
-      if (supabase) {
-        const filePath = `${projectId}/${Date.now()}_${name}`;
-        const { error } = await supabase.storage.from('assets').upload(filePath, file);
-        if (error) throw error;
-        
-        const { data: publicData } = supabase.storage.from('assets').getPublicUrl(filePath);
-        url = publicData.publicUrl;
+      if (SupabaseService.isConfigured()) {
+        url = await SupabaseService.uploadAsset(file, projectName);
       } else {
         url = await fileToDataUrl(file);
       }

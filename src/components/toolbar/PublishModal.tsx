@@ -98,7 +98,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
     }, intervalTime);
 
     try {
-      const { supabase } = await import('../../lib/supabase');
+      const { SupabaseService } = await import('../../services/supabaseService');
       const storeState = useEditorStore.getState();
       const projName = storeState.settings.projectName || 'AR Experience';
       const projectId = storeState.settings.publishedProjectId || (projName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7));
@@ -113,19 +113,6 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         assets: storeState.assets
       };
 
-      if (supabase) {
-        const { error } = await supabase.from('projects').upsert([
-          {
-            id: projectId,
-            name: projName,
-            data: projectData
-          }
-        ]);
-        if (error) {
-          console.error("Supabase upsert error:", error);
-        }
-      }
-
       // Generate the full HTML for standalone
       const htmlContent = generateAFrameScene({
         ...storeState,
@@ -135,41 +122,28 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         }
       });
 
-      let finalPath = `/papar/${projectId}`;
-
-      try {
-        // Publish the actual standalone HTML file to /papar if the custom Express backend is active
-        const response = await fetch('/api/publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: projectId, html: htmlContent })
-        });
-
-        if (response.ok) {
-          const { url: publishedPath } = await response.json();
-          finalPath = publishedPath;
-        } else {
-          console.warn('Backend publish returned error status, using serverless fallback path');
-        }
-      } catch (err) {
-        console.warn('Backend publish endpoint unavailable, using serverless fallback path:', err);
-      }
+      // Delegate database persistence and deployment path selection to the unified service layer
+      const result = await SupabaseService.publishProject(
+        projectId,
+        projName,
+        projectData,
+        htmlContent
+      );
 
       clearInterval(timer);
       setPublishProgress(100);
       setPublishStep('success');
       
-      const url = `${window.location.origin}${finalPath}`;
-      setPublishedUrl(url);
+      setPublishedUrl(result.url);
 
       // Save settings with publishedProjectId and publishedProjectUrl to state and localStorage
       updateSettings({
-        publishedProjectId: projectId,
-        publishedProjectUrl: url
+        publishedProjectId: result.publishedProjectId,
+        publishedProjectUrl: result.url
       });
       useEditorStore.getState().saveCurrentProject();
       
-      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
+      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(result.url)}`;
       setQrCodeUrl(qr);
     } catch (err) {
       clearInterval(timer);

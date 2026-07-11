@@ -56,9 +56,9 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: cardId,
       name: 'Business Card Panel',
       type: 'box',
-      position: [0, 0.01, 0],
+      position: [0, 0, 0.01],
       rotation: [0, 0, 0],
-      scale: [1.2, 0.02, 0.8],
+      scale: [1.2, 0.8, 0.02],
       visible: true,
       children: [textNameId, btnId, ytId],
       parentId: imageTargetId,
@@ -69,8 +69,8 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: textNameId,
       name: 'Name Text',
       type: 'text',
-      position: [-0.3, 0.1, -0.2],
-      rotation: [-90, 0, 0],
+      position: [-0.3, 0.2, 0.03],
+      rotation: [0, 0, 0],
       scale: [0.5, 0.5, 0.5],
       visible: true,
       children: [],
@@ -82,8 +82,8 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: btnId,
       name: 'Portfolio Link',
       type: 'button',
-      position: [-0.3, 0.1, 0.15],
-      rotation: [-90, 0, 0],
+      position: [-0.3, -0.15, 0.03],
+      rotation: [0, 0, 0],
       scale: [0.4, 0.1, 0.02],
       visible: true,
       children: [],
@@ -95,8 +95,8 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: ytId,
       name: 'Intro Video',
       type: 'youtube',
-      position: [0.25, 0.1, 0],
-      rotation: [-90, 0, 0],
+      position: [0.25, 0, 0.03],
+      rotation: [0, 0, 0],
       scale: [0.5, 0.28, 0.5],
       visible: true,
       children: [],
@@ -114,7 +114,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: pGroupId,
       name: 'Product Group',
       type: 'group',
-      position: [0, 0.2, 0],
+      position: [0, 0, 0.2],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
       visible: true,
@@ -127,7 +127,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: sphereId,
       name: 'Product Model Sphere',
       type: 'sphere',
-      position: [0, 0.1, -0.1],
+      position: [0, 0.1, 0],
       rotation: [0, 0, 0],
       scale: [0.3, 0.3, 0.3],
       visible: true,
@@ -140,7 +140,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: textPriceId,
       name: 'Product Label',
       type: 'text',
-      position: [0, 0.4, -0.1],
+      position: [0, 0.4, 0],
       rotation: [0, 0, 0],
       scale: [0.4, 0.4, 0.4],
       visible: true,
@@ -153,8 +153,8 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: btnBuyId,
       name: 'Buy Button',
       type: 'button',
-      position: [0, -0.1, 0.1],
-      rotation: [-45, 0, 0],
+      position: [0, -0.2, 0],
+      rotation: [0, 0, 0],
       scale: [0.4, 0.1, 0.02],
       visible: true,
       children: [],
@@ -172,7 +172,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: parentGroupId,
       name: 'Solar Demo Group',
       type: 'group',
-      position: [0, 0.15, 0],
+      position: [0, 0, 0.15],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
       visible: true,
@@ -211,8 +211,8 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       id: labelId,
       name: 'Orbit Label',
       type: 'text',
-      position: [0, -0.2, 0.3],
-      rotation: [-90, 0, 0],
+      position: [0, -0.4, 0],
+      rotation: [0, 0, 0],
       scale: [0.4, 0.4, 0.4],
       visible: true,
       children: [],
@@ -937,6 +937,28 @@ export const useEditorStore = create<EditorState>((set) => ({
       };
 
       localStorage.setItem(`ar_forge_project_${state.currentProjectId}`, JSON.stringify(projectData));
+
+      // If already published, sync the configuration to Supabase in the background
+      if (state.settings.publishedProjectId) {
+        import('../services/supabaseService').then(({ SupabaseService }) => {
+          if (SupabaseService.isConfigured()) {
+            SupabaseService.saveProject(
+              state.settings.publishedProjectId!,
+              state.settings.projectName,
+              {
+                objects: state.objects,
+                rootObjects: state.rootObjects,
+                settings: state.settings,
+                assets: state.assets
+              }
+            ).then(() => {
+              console.log('Successfully synced current project configuration to the cloud.');
+            }).catch((err) => {
+              console.warn('Could not sync project configuration to the cloud:', err);
+            });
+          }
+        });
+      }
 
       const updatedList = state.projectsList.map((p) => 
         p.id === state.currentProjectId 

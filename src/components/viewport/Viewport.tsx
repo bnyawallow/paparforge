@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
 import { SceneObject } from '../../types';
@@ -326,7 +326,7 @@ function ImageTargetRenderer({ obj }: { obj: SceneObject }) {
   
   const width = (obj.properties.physicalWidth || 1) * 50;
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh>
       <planeGeometry args={[width, width]} />
       <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
     </mesh>
@@ -339,7 +339,7 @@ function ImageTargetWithTexture({ obj }: { obj: SceneObject }) {
   const height = texture && texture.image ? width * (texture.image.height / texture.image.width) : width;
   
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh>
       <planeGeometry args={[width, height]} />
       {texture && <meshBasicMaterial map={texture} transparent opacity={0.8} side={THREE.DoubleSide} />}
     </mesh>
@@ -962,13 +962,13 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'imageTarget':
         return (
           <ErrorBoundary fallback={
-            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <mesh>
               <planeGeometry args={[obj.properties.physicalWidth * 10, obj.properties.physicalWidth * 10]} />
               <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
             </mesh>
           }>
             <Suspense fallback={
-              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <mesh>
                 <planeGeometry args={[obj.properties.physicalWidth * 10, obj.properties.physicalWidth * 10]} />
                 <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
               </mesh>
@@ -1008,6 +1008,7 @@ function ObjectRenderer({ id }: { id: string }) {
   return (
     <group 
       ref={meshRef}
+      name={id}
       position={obj.position}
       rotation={rotation}
       scale={obj.scale}
@@ -1060,8 +1061,9 @@ function ObjectRenderer({ id }: { id: string }) {
 }
 
 function TransformController() {
-  const target = useEditorStore(state => state.selectedObjectRef);
+  const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
+  const target = selectedObjectId ? scene.getObjectByName(selectedObjectId) : null;
   const objects = useEditorStore(state => state.objects);
   const transformMode = useEditorStore(state => state.transformMode);
   const updateObject = useEditorStore(state => state.updateObject);
