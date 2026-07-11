@@ -319,6 +319,90 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   return <primitive ref={group} object={clonedScene} />;
 }
 
+function ModelLoadingFallback() {
+  const meshRef1 = useRef<THREE.Mesh>(null);
+  const meshRef2 = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    if (meshRef1.current) {
+      meshRef1.current.rotation.y = t * 1.5;
+      meshRef1.current.rotation.x = t * 0.7;
+    }
+    if (meshRef2.current) {
+      meshRef2.current.rotation.y = -t * 1.2;
+      meshRef2.current.rotation.z = t * 0.9;
+    }
+  });
+
+  return (
+    <group>
+      {/* Outer spinning icosahedron wireframe */}
+      <mesh ref={meshRef1}>
+        <icosahedronGeometry args={[0.5, 1]} />
+        <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.3} />
+      </mesh>
+      
+      {/* Inner spinning octahedron wireframe */}
+      <mesh ref={meshRef2}>
+        <octahedronGeometry args={[0.25, 0]} />
+        <meshBasicMaterial color="#60a5fa" wireframe transparent opacity={0.6} />
+      </mesh>
+
+      {/* Floating loading HUD */}
+      <Html center distanceFactor={1.5} zIndexRange={[100, 0]}>
+        <div className="flex flex-col items-center gap-2 p-3 bg-neutral-950/90 border border-blue-500/30 backdrop-blur-md rounded-xl shadow-2xl text-white font-sans w-36 select-none pointer-events-none">
+          <div className="relative flex items-center justify-center w-7 h-7">
+            <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-pulse"></div>
+            <RefreshCw size={12} className="text-blue-400 animate-spin" />
+          </div>
+          <span className="text-[9px] font-semibold tracking-wider text-neutral-300 uppercase font-mono animate-pulse">
+            Loading Model
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+function ImageTargetLoadingFallback({ obj }: { obj: SceneObject }) {
+  const scanRef = useRef<THREE.Mesh>(null);
+  const width = (obj.properties.physicalWidth || 1) * 50;
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    if (scanRef.current) {
+      scanRef.current.position.y = Math.sin(t * 3) * (width / 2);
+    }
+  });
+
+  return (
+    <group>
+      {/* Plane outline boundary */}
+      <mesh>
+        <planeGeometry args={[width, width]} />
+        <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Scanning line laser mesh */}
+      <mesh ref={scanRef} position={[0, 0, 0.005]}>
+        <planeGeometry args={[width, width * 0.03]} />
+        <meshBasicMaterial color="#818cf8" transparent opacity={0.7} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Overlay status label */}
+      <Html center distanceFactor={2.0} zIndexRange={[100, 0]}>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-950/90 border border-indigo-500/30 backdrop-blur-md rounded-lg shadow-xl text-white font-sans w-40 select-none pointer-events-none justify-center">
+          <RefreshCw size={11} className="text-indigo-400 animate-spin flex-shrink-0" />
+          <span className="text-[9px] font-semibold tracking-wider text-neutral-300 uppercase font-mono animate-pulse truncate">
+            Loading Target
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 function ImageTargetRenderer({ obj }: { obj: SceneObject }) {
   if (obj.properties.textureUrl) {
     return <ImageTargetWithTexture obj={obj} />;
@@ -963,16 +1047,11 @@ function ObjectRenderer({ id }: { id: string }) {
         return (
           <ErrorBoundary fallback={
             <mesh>
-              <planeGeometry args={[obj.properties.physicalWidth * 10, obj.properties.physicalWidth * 10]} />
-              <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
+              <planeGeometry args={[(obj.properties.physicalWidth || 1) * 50, (obj.properties.physicalWidth || 1) * 50]} />
+              <meshBasicMaterial color="#ef4444" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
             </mesh>
           }>
-            <Suspense fallback={
-              <mesh>
-                <planeGeometry args={[obj.properties.physicalWidth * 10, obj.properties.physicalWidth * 10]} />
-                <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
-              </mesh>
-            }>
+            <Suspense fallback={<ImageTargetLoadingFallback obj={obj} />}>
               <ImageTargetRenderer obj={obj} />
             </Suspense>
           </ErrorBoundary>
@@ -982,15 +1061,10 @@ function ObjectRenderer({ id }: { id: string }) {
           <ErrorBoundary fallback={
             <mesh>
               <boxGeometry args={[1, 1, 1]} />
-              <meshStandardMaterial color="#888" wireframe />
+              <meshStandardMaterial color="#ef4444" wireframe />
             </mesh>
           }>
-            <Suspense fallback={
-              <mesh>
-                <boxGeometry args={[1, 1, 1]} />
-                <meshStandardMaterial color="#888" wireframe />
-              </mesh>
-            }>
+            <Suspense fallback={<ModelLoadingFallback />}>
               <GLTFModel url={obj.properties.url} properties={obj.properties} id={id} />
             </Suspense>
           </ErrorBoundary>
