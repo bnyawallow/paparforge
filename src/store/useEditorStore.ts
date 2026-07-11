@@ -396,6 +396,51 @@ const createSnapshot = (state: any): HistorySnapshot => {
   };
 };
 
+const cloneObjectSubtree = (
+  rootId: string,
+  targetParentId: string | null,
+  sourceObjects: Record<string, SceneObject>,
+  newObjects: Record<string, SceneObject>,
+  isRoot: boolean
+): SceneObject | null => {
+  const original = sourceObjects[rootId];
+  if (!original) return null;
+
+  const newId = uuidv4();
+  const clonedProps = JSON.parse(JSON.stringify(original.properties));
+
+  let position = [...original.position] as [number, number, number];
+  if (isRoot) {
+    position[0] += 0.25; // Slightly offset X
+    position[2] += 0.25; // Slightly offset Z
+  }
+
+  const clonedObj: SceneObject = {
+    ...original,
+    id: newId,
+    name: isRoot 
+      ? (original.name.endsWith(' (Copy)') ? original.name : `${original.name} (Copy)`)
+      : original.name,
+    position,
+    rotation: [...original.rotation] as [number, number, number],
+    scale: [...original.scale] as [number, number, number],
+    parentId: targetParentId,
+    children: [],
+    properties: clonedProps
+  };
+
+  newObjects[newId] = clonedObj;
+
+  original.children.forEach(childId => {
+    const childClone = cloneObjectSubtree(childId, newId, sourceObjects, newObjects, false);
+    if (childClone) {
+      clonedObj.children.push(childClone.id);
+    }
+  });
+
+  return clonedObj;
+};
+
 export const useEditorStore = create<EditorState>((set) => ({
   objects: initialObjects,
   rootObjects: initialRootObjects,
@@ -404,6 +449,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   settings: initialSettings,
   transformMode: 'translate',
   assets: initialAssets,
+  copiedObjectData: null,
   isPreviewMode: false,
   lastSavedTime: initialLastSavedTime,
   hasUnsavedChanges: false,
@@ -607,6 +653,184 @@ export const useEditorStore = create<EditorState>((set) => ({
       past: newPast,
       future: [], // Clear redo stack
       hasUnsavedChanges: true
+    };
+  }),
+
+  duplicateObject: (id) => set((state) => {
+    const original = state.objects[id];
+    if (!original || original.type === 'imageTarget') return state;
+
+    // Create history snapshot
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const newObjects = { ...state.objects };
+    let newRootObjects = [...state.rootObjects];
+
+    // Clone the subtree
+    const rootClone = cloneObjectSubtree(id, original.parentId, state.objects, newObjects, true);
+    if (!rootClone) return state;
+
+    // Insert into parent or root objects list next to original
+    if (original.parentId && newObjects[original.parentId]) {
+      const parent = newObjects[original.parentId];
+      const index = parent.children.indexOf(id);
+      const newChildren = [...parent.children];
+      if (index !== -1) {
+        newChildren.splice(index + 1, 0, rootClone.id);
+      } else {
+        newChildren.push(rootClone.id);
+      }
+      newObjects[original.parentId] = {
+        ...parent,
+        children: newChildren
+      };
+    } else {
+      const index = newRootObjects.indexOf(id);
+      if (index !== -1) {
+        newRootObjects.splice(index + 1, 0, rootClone.id);
+      } else {
+        newRootObjects.push(rootClone.id);
+      }
+    }
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      objects: newObjects,
+      rootObjects: newRootObjects,
+      selectedObjectId: rootClone.id,
+      selectedObjectRef: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Duplicated "${original.name}"` }]
+    };
+  }),
+
+  copyObject: (id) => set((state) => {
+    const original = state.objects[id];
+    if (!original || original.type === 'imageTarget') return state;
+
+    // Collect all descendants of the object
+    const copiedObjects: Record<string, SceneObject> = {};
+    const collectDescendants = (targetId: string) => {
+      const obj = state.objects[targetId];
+      if (obj) {
+        copiedObjects[targetId] = JSON.parse(JSON.stringify(obj));
+        obj.children.forEach(collectDescendants);
+      }
+    };
+    collectDescendants(id);
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      copiedObjectData: {
+        rootId: id,
+        objects: copiedObjects
+      },
+      toasts: [...state.toasts, { id: toastId, message: `Copied "${original.name}" to clipboard` }]
+    };
+  }),
+
+  pasteObject: () => set((state) => {
+    if (!state.copiedObjectData) {
+      const toastId = Math.random().toString(36).substring(2, 9);
+      setTimeout(() => {
+        set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+      }, 3000);
+      return {
+        toasts: [...state.toasts, { id: toastId, message: 'Clipboard is empty' }]
+      };
+    }
+
+    const { rootId, objects: copiedObjects } = state.copiedObjectData;
+    const originalRoot = copiedObjects[rootId];
+    if (!originalRoot) return state;
+
+    // Create history snapshot
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const newObjects = { ...state.objects };
+    let newRootObjects = [...state.rootObjects];
+
+    // Determine target parent ID
+    const selectedId = state.selectedObjectId;
+    let targetParentId: string | null = null;
+    if (selectedId) {
+      const selObj = state.objects[selectedId];
+      if (selObj) {
+        if (selObj.type === 'group' || selObj.type === 'imageTarget') {
+          targetParentId = selectedId;
+        } else {
+          targetParentId = selObj.parentId;
+        }
+      }
+    } else {
+      const imageTarget = Object.values(state.objects).find(o => o.type === 'imageTarget');
+      if (imageTarget) {
+        targetParentId = imageTarget.id;
+      }
+    }
+
+    // Clone subtree
+    const rootClone = cloneObjectSubtree(rootId, targetParentId, copiedObjects, newObjects, true);
+    if (!rootClone) return state;
+
+    // Insert into hierarchy
+    if (targetParentId && newObjects[targetParentId]) {
+      const parentObj = newObjects[targetParentId];
+      if (selectedId && selectedId !== targetParentId && parentObj.children.includes(selectedId)) {
+        const index = parentObj.children.indexOf(selectedId);
+        const newChildren = [...parentObj.children];
+        newChildren.splice(index + 1, 0, rootClone.id);
+        newObjects[targetParentId] = {
+          ...parentObj,
+          children: newChildren
+        };
+      } else {
+        newObjects[targetParentId] = {
+          ...parentObj,
+          children: [...parentObj.children, rootClone.id]
+        };
+      }
+    } else {
+      if (selectedId && newRootObjects.includes(selectedId)) {
+        const index = newRootObjects.indexOf(selectedId);
+        newRootObjects.splice(index + 1, 0, rootClone.id);
+      } else {
+        newRootObjects.push(rootClone.id);
+      }
+    }
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      objects: newObjects,
+      rootObjects: newRootObjects,
+      selectedObjectId: rootClone.id,
+      selectedObjectRef: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Pasted "${originalRoot.name}"` }]
     };
   }),
 

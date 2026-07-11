@@ -13,6 +13,7 @@ import {
   Unlock,
   Eye,
   EyeOff,
+  Copy,
   FolderMinus,
   FolderPlus,
   Plus,
@@ -36,6 +37,7 @@ export function HierarchyPanel() {
     moveObject, 
     updateObject,
     addObject,
+    duplicateObject,
     isPreviewMode
   } = useEditorStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -268,6 +270,20 @@ export function HierarchyPanel() {
             >
               {obj.visible ? <EyeOff size={11} /> : <Eye size={11} />}
             </button>
+
+            {/* Duplicate Action Button */}
+            {obj.type !== 'imageTarget' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  duplicateObject(id);
+                }}
+                className="p-1 rounded hover:bg-[#2A2A2A] transition-colors text-[#555] hover:text-white"
+                title="Duplicate object"
+              >
+                <Copy size={11} />
+              </button>
+            )}
           </div>
 
           {/* Static state icons when not hovered but active (locked or hidden) */}

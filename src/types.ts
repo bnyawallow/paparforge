@@ -56,6 +56,7 @@ export interface EditorState {
   editingScriptObjectId: string | null;
   toasts: { id: string; message: string }[];
   arVideoPlaying: { title: string; url: string } | null;
+  copiedObjectData: { rootId: string; objects: Record<string, SceneObject> } | null;
   
   // Auto-save state
   lastSavedTime: number | null;
@@ -95,6 +96,9 @@ export interface EditorState {
   updateSettings: (updates: Partial<ProjectSettings>) => void;
   setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => void;
   moveObject: (draggedId: string, targetId: string) => void;
+  duplicateObject: (id: string) => void;
+  copyObject: (id: string) => void;
+  pasteObject: () => void;
   addAsset: (asset: Asset) => void;
   removeAsset: (id: string) => void;
   updateAsset: (id: string, name: string) => void;

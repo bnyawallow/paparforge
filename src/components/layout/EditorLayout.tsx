@@ -75,6 +75,21 @@ export function EditorLayout() {
         } else if (e.key.toLowerCase() === 'y') {
           e.preventDefault();
           useEditorStore.getState().redo();
+        } else if (e.key.toLowerCase() === 'c') {
+          const state = useEditorStore.getState();
+          if (state.selectedObjectId) {
+            e.preventDefault();
+            state.copyObject(state.selectedObjectId);
+          }
+        } else if (e.key.toLowerCase() === 'v') {
+          e.preventDefault();
+          useEditorStore.getState().pasteObject();
+        } else if (e.key.toLowerCase() === 'd') {
+          const state = useEditorStore.getState();
+          if (state.selectedObjectId) {
+            e.preventDefault();
+            state.duplicateObject(state.selectedObjectId);
+          }
         }
       }
     };
