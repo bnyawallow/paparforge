@@ -5,15 +5,14 @@ import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
-  const PORT = parseInt(process.env.PORT || "3000", 10);
-  const HOST = process.env.HOST || "0.0.0.0";
+  const PORT = 3000;
 
   app.use(express.json({ limit: "50mb" }));
 
   // Ensure papar directory exists
   const isProd = process.env.NODE_ENV === "production";
-  // Decouple user-published files from built assets for easy volume mounting & persistence in Docker
-  const paparDir = process.env.PAPAR_DIR || path.join(process.cwd(), "papar_data");
+  const publicDir = isProd ? path.join(process.cwd(), "dist") : path.join(process.cwd(), "public");
+  const paparDir = path.join(publicDir, "papar");
   
   try {
     await fs.mkdir(paparDir, { recursive: true });
@@ -79,8 +78,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, HOST, () => {
-    console.log(`Server running on http://${HOST}:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 

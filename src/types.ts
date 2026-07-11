@@ -32,6 +32,8 @@ export interface ProjectSettings {
   directionalIntensity?: number;
   directionalPosition?: [number, number, number];
   shadowsEnabled?: boolean;
+  publishedProjectId?: string;
+  publishedProjectUrl?: string;
 }
 
 export interface HistorySnapshot {
