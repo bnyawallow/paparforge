@@ -1437,7 +1437,7 @@ export function Viewport() {
             {/* 3D R3F Canvas Layer (Transparent bg) */}
             <div className="absolute inset-0 z-10">
               <Canvas 
-                camera={{ position: [5, 5, 5], fov: 50 }}
+                camera={{ position: [5, 5, 5], fov: 50, up: [0, 0, 1] }}
                 onPointerMissed={() => selectObject(null)}
               >
                 
@@ -1644,15 +1644,16 @@ export function Viewport() {
 
   return (
     <div 
-      className="w-full h-full relative"
+      className="w-full h-full relative bg-[#222224]"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
       <Canvas 
         shadows={shadowsEnabled}
-        camera={{ position: [5, 5, 5], fov: 50 }}
+        camera={{ position: [5, 5, 5], fov: 50, up: [0, 0, 1] }}
         onPointerMissed={() => selectObject(null)}
       >
+        <color attach="background" args={['#222224']} />
         
         <ambientLight color={ambientColor} intensity={ambientIntensity} />
         <directionalLight 
@@ -1663,14 +1664,18 @@ export function Viewport() {
           shadow-mapSize={[1024, 1024]}
         />
         
-        <Grid 
-          infiniteGrid 
-          fadeDistance={20} 
-          sectionColor="#444" 
-          cellColor="#2A2A2A"
-          cellSize={gridSnapEnabled ? gridSnapIncrement : 0.5}
-          sectionSize={gridSnapEnabled ? gridSnapIncrement * 10 : 5}
-        />
+        <group rotation={[Math.PI / 2, 0, 0]}>
+          <Grid 
+            infiniteGrid 
+            fadeDistance={20} 
+            sectionColor="#6b7280" 
+            cellColor="#4b5563"
+            sectionThickness={1.5}
+            cellThickness={1.0}
+            cellSize={gridSnapEnabled ? gridSnapIncrement : 0.5}
+            sectionSize={gridSnapEnabled ? gridSnapIncrement * 10 : 5}
+          />
+        </group>
         <axesHelper args={[5]} />
         
         {rootObjects.map(id => (
