@@ -38,6 +38,56 @@ export const convertEditorToAR = (
   };
 };
 
+const buildMaterialAttr = (properties: any, isPlane = false): string => {
+  const parts: string[] = [];
+  
+  // Base Color
+  parts.push(`color: ${properties.color || '#ffffff'}`);
+  
+  // Roughness & Metalness
+  if (properties.roughness !== undefined) {
+    parts.push(`roughness: ${properties.roughness}`);
+  } else {
+    parts.push(`roughness: 0.5`);
+  }
+  if (properties.metalness !== undefined) {
+    parts.push(`metalness: ${properties.metalness}`);
+  } else {
+    parts.push(`metalness: 0.1`);
+  }
+  
+  // Opacity & Transparency
+  if (properties.opacity !== undefined) {
+    parts.push(`opacity: ${properties.opacity}`);
+    if (properties.opacity < 1) {
+      parts.push(`transparent: true`);
+    }
+  }
+  
+  // Wireframe Mode
+  if (properties.wireframe) {
+    parts.push(`wireframe: true`);
+  }
+  
+  // Double-Sided Geometry
+  const doubleSided = properties.doubleSided ?? (isPlane ? true : false);
+  if (doubleSided) {
+    parts.push(`side: double`);
+  } else {
+    parts.push(`side: front`);
+  }
+  
+  // Texture src & mapping
+  if (properties.textureUrl) {
+    parts.push(`src: ${properties.textureUrl}`);
+    const repX = properties.textureRepeatX ?? 1;
+    const repY = properties.textureRepeatY ?? 1;
+    parts.push(`repeat: ${repX} ${repY}`);
+  }
+  
+  return parts.join('; ');
+};
+
 export const generateAFrameScene = (state: any) => {
   const { objects, rootObjects, settings } = state;
   const imageTargetObj = Object.values(objects).find((o: any) => o.type === 'imageTarget') as any;
@@ -110,34 +160,70 @@ export const generateAFrameScene = (state: any) => {
       let entity = `${indent}<a-entity id="${obj.id}" position="${positionStr}" rotation="${rotationStr}" scale="${scaleStr}"${classAttr}${customComponents}>\n`;
 
       if (obj.type === 'box') {
-        entity += `${indent}  <a-box color="${obj.properties.color || '#ffffff'}"></a-box>\n`;
+        entity += `${indent}  <a-box material="${buildMaterialAttr(obj.properties)}"></a-box>\n`;
       } else if (obj.type === 'sphere') {
-        entity += `${indent}  <a-sphere color="${obj.properties.color || '#ffffff'}" radius="0.5"></a-sphere>\n`;
+        entity += `${indent}  <a-sphere radius="0.5" material="${buildMaterialAttr(obj.properties)}"></a-sphere>\n`;
       } else if (obj.type === 'cylinder') {
-        entity += `${indent}  <a-cylinder color="${obj.properties.color || '#ffffff'}" radius="0.5" height="1"></a-cylinder>\n`;
+        entity += `${indent}  <a-cylinder radius="0.5" height="1" material="${buildMaterialAttr(obj.properties)}"></a-cylinder>\n`;
       } else if (obj.type === 'cone') {
-        entity += `${indent}  <a-cone color="${obj.properties.color || '#ffffff'}" radius-bottom="0.5" height="1"></a-cone>\n`;
+        entity += `${indent}  <a-cone radius-bottom="0.5" height="1" material="${buildMaterialAttr(obj.properties)}"></a-cone>\n`;
       } else if (obj.type === 'torus') {
-        entity += `${indent}  <a-torus color="${obj.properties.color || '#ffffff'}" radius="0.4" radius-tubular="0.12"></a-torus>\n`;
+        entity += `${indent}  <a-torus radius="0.4" radius-tubular="0.12" material="${buildMaterialAttr(obj.properties)}"></a-torus>\n`;
       } else if (obj.type === 'plane') {
-        entity += `${indent}  <a-plane color="${obj.properties.color || '#ffffff'}" material="side: double;"></a-plane>\n`;
+        entity += `${indent}  <a-plane material="${buildMaterialAttr(obj.properties, true)}"></a-plane>\n`;
       } else if (obj.type === 'text') {
         entity += `${indent}  <a-text value="${obj.properties.text || 'Text Node'}" align="${obj.properties.textAlign || 'center'}" color="${obj.properties.color || '#ffffff'}" width="4"></a-text>\n`;
       } else if (obj.type === 'image') {
-        entity += `${indent}  <a-image src="${obj.properties.textureUrl || ''}" material="side: double;"></a-image>\n`;
+        entity += `${indent}  <a-image src="${obj.properties.textureUrl || ''}" material="${buildMaterialAttr(obj.properties, true)}"></a-image>\n`;
       } else if (obj.type === 'video') {
-        entity += `${indent}  <a-video src="${obj.properties.videoUrl || ''}" width="1.6" height="0.9"></a-video>\n`;
+        const autoplay = obj.properties.autoplay !== false;
+        const loop = obj.properties.loop !== false;
+        const muted = obj.properties.muted !== false;
+        const volume = obj.properties.volume ?? 0.5;
+        const wireframe = obj.properties.wireframe ? '; wireframe: true' : '';
+        entity += `${indent}  <a-video src="${obj.properties.videoUrl || ''}" width="1.6" height="0.9" ar-video-handler="autoplay: ${autoplay}; loop: ${loop}; muted: ${muted}; volume: ${volume}" material="side: double${wireframe}"></a-video>\n`;
       } else if (obj.type === 'light') {
-        entity += `${indent}  <a-light type="${obj.properties.lightType || 'point'}" color="${obj.properties.color || '#ffffff'}" intensity="${obj.properties.intensity ?? 1.0}"></a-light>\n`;
+        const lightType = obj.properties.lightType || 'point';
+        const color = obj.properties.color || '#ffffff';
+        const intensity = obj.properties.intensity ?? 1.0;
+        let lightAttrs = `type="${lightType}" color="${color}" intensity="${intensity}"`;
+        if (lightType !== 'directional') {
+          lightAttrs += ` distance="${obj.properties.distance ?? 12.0}"`;
+        }
+        if (lightType === 'spot') {
+          const angleRad = obj.properties.angle ?? (Math.PI / 4);
+          const angleDeg = Math.round((angleRad * 180) / Math.PI);
+          lightAttrs += ` angle="${angleDeg}"`;
+        }
+        entity += `${indent}  <a-light ${lightAttrs}></a-light>\n`;
       } else if (obj.type === 'button') {
         const btnText = obj.properties.text || 'Click Me';
         const btnColor = obj.properties.color || '#3b82f6';
-        entity += `${indent}  <a-box color="${btnColor}" class="clickable"></a-box>\n`;
-        entity += `${indent}  <a-text value="${btnText}" align="center" position="0 0 0.51" scale="0.8 0.8 0.8" color="#ffffff"></a-text>\n`;
+        const textColor = obj.properties.textColor || '#ffffff';
+        const style = obj.properties.buttonStyle || '3d_push';
+        const url = obj.properties.url || '';
+        const btnUrlAttr = url ? ` ar-button-handler="url: ${url}"` : '';
+        
+        if (style === 'glass_panel') {
+          entity += `${indent}  <a-box material="color: #ffffff; opacity: 0.25; transparent: true; roughness: 0.1; metalness: 0.8; side: double" depth="0.05" class="clickable"${btnUrlAttr}></a-box>\n`;
+        } else {
+          entity += `${indent}  <a-box material="color: ${btnColor}; roughness: 0.4; metalness: 0.2" depth="0.2" class="clickable"${btnUrlAttr}></a-box>\n`;
+        }
+        entity += `${indent}  <a-text value="${btnText}" align="center" position="0 0 0.11" scale="0.8 0.8 0.8" color="${textColor}"></a-text>\n`;
       } else if (obj.type === 'youtube') {
         entity += `${indent}  <a-plane color="#ff0000" material="src: url(https://img.youtube.com/vi/${obj.properties.videoId || 'dQw4w9WgXcQ'}/0.jpg)" aspect-ratio="1.777"></a-plane>\n`;
       } else if (obj.type === 'model') {
-        entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"></a-entity>\n`;
+        const activeAnim = obj.properties.activeAnimation || '*';
+        const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;
+        const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: repeat"`;
+        const wireframeAttr = ` model-wireframe="enabled: ${obj.properties.wireframe ?? false}"`;
+        entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}></a-entity>\n`;
+      } else if (obj.type === 'audio') {
+        const soundUrl = obj.properties.soundUrl || '';
+        const volume = obj.properties.volume ?? 0.5;
+        const autoplay = obj.properties.autoplay ?? false;
+        const loop = obj.properties.loop ?? true;
+        entity += `${indent}  <a-sound src="${soundUrl}" volume="${volume}" autoplay="${autoplay}" loop="${loop}"></a-sound>\n`;
       }
 
       for (const childId of obj.children) {
@@ -253,6 +339,7 @@ export const generateAFrameScene = (state: any) => {
     
     <!-- Core WebAR SDKs & A-Frame Runtime -->
     <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
 
@@ -481,6 +568,89 @@ export const generateAFrameScene = (state: any) => {
       });
 
       // 3. Audio Attachment Component
+      // Custom system components inserted here:
+      AFRAME.registerComponent('model-wireframe', {
+        schema: {
+          enabled: {type: 'boolean', default: false}
+        },
+        init: function() {
+          this.el.addEventListener('model-loaded', () => {
+            this.update();
+          });
+        },
+        update: function() {
+          const enabled = this.data.enabled;
+          const obj3d = this.el.getObject3D('mesh');
+          if (!obj3d) return;
+          obj3d.traverse(node => {
+            if (node.isMesh && node.material) {
+              node.material.wireframe = enabled;
+            }
+          });
+        }
+      });
+
+      AFRAME.registerComponent('ar-video-handler', {
+        schema: {
+          autoplay: {type: 'boolean', default: true},
+          loop: {type: 'boolean', default: true},
+          muted: {type: 'boolean', default: true},
+          volume: {type: 'number', default: 0.5}
+        },
+        init: function() {
+          const el = this.el;
+          const data = this.data;
+          const videoUrl = el.getAttribute('src');
+          if (!videoUrl) return;
+          
+          const video = document.createElement('video');
+          video.src = videoUrl;
+          video.crossOrigin = 'anonymous';
+          video.loop = data.loop;
+          video.muted = data.muted;
+          video.volume = data.volume;
+          video.playsInline = true;
+          
+          el.setAttribute('material', {
+            src: video,
+            shader: 'flat',
+            side: 'double'
+          });
+          
+          const playVideo = () => {
+            video.play().catch(err => console.log('Video autoplay blocked, waiting for click', err));
+          };
+          
+          if (data.autoplay) {
+            playVideo();
+            document.body.addEventListener('click', playVideo, {once: true});
+            document.body.addEventListener('touchstart', playVideo, {once: true});
+          }
+          
+          el.addEventListener('click', () => {
+            if (video.paused) {
+              video.play().catch(e => console.log(e));
+            } else {
+              video.pause();
+            }
+          });
+        }
+      });
+
+      AFRAME.registerComponent('ar-button-handler', {
+        schema: {
+          url: {type: 'string', default: ''}
+        },
+        init: function() {
+          const data = this.data;
+          this.el.addEventListener('click', () => {
+            if (data.url) {
+              window.open(data.url, '_blank', 'noopener,noreferrer');
+            }
+          });
+        }
+      });
+
       AFRAME.registerComponent('sound-on-click', {
         init: function() {
           const url = this.el.getAttribute('data-sound-url');

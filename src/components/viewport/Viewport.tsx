@@ -1352,6 +1352,105 @@ export function Viewport() {
     };
   }, [isPreviewMode, bgType]);
 
+  // Keyboard Shortcuts Hook
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore shortcut if user is actively editing a form field or input
+      const activeEl = document.activeElement;
+      if (activeEl) {
+        const tag = activeEl.tagName.toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || activeEl.hasAttribute('contenteditable')) {
+          return;
+        }
+      }
+
+      const selectedObjectId = useEditorStore.getState().selectedObjectId;
+
+      // Escape key to deselect object
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        selectObject(null);
+      }
+
+      // W or T: Set transform mode to Translate
+      if (e.key.toLowerCase() === 'w' || e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        setTransformMode('translate');
+      }
+
+      // E: Set transform mode to Rotate
+      if (e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setTransformMode('rotate');
+      }
+
+      // R or S: Set transform mode to Scale
+      if (e.key.toLowerCase() === 'r' || e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        setTransformMode('scale');
+      }
+
+      // Delete or Backspace: Remove selected object
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedObjectId) {
+          const selectedObj = useEditorStore.getState().objects[selectedObjectId];
+          // Prevent deleting the root image target
+          if (selectedObj && selectedObj.type !== 'imageTarget') {
+            e.preventDefault();
+            useEditorStore.getState().removeObject(selectedObjectId);
+          }
+        }
+      }
+
+      // Ctrl+D or Cmd+D or D: Duplicate selected object
+      if (e.key.toLowerCase() === 'd') {
+        if (selectedObjectId) {
+          const selectedObj = useEditorStore.getState().objects[selectedObjectId];
+          if (selectedObj && selectedObj.type !== 'imageTarget') {
+            e.preventDefault();
+            useEditorStore.getState().duplicateObject(selectedObjectId);
+          }
+        }
+      }
+
+      // Ctrl+C or Cmd+C / Ctrl+V or Cmd+V
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (selectedObjectId) {
+          const selectedObj = useEditorStore.getState().objects[selectedObjectId];
+          if (selectedObj && selectedObj.type !== 'imageTarget') {
+            e.preventDefault();
+            useEditorStore.getState().copyObject(selectedObjectId);
+          }
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        useEditorStore.getState().pasteObject();
+      }
+
+      // Ctrl+Z / Cmd+Z: Undo
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        useEditorStore.getState().undo();
+      }
+
+      // Ctrl+Y / Cmd+Y or Ctrl+Shift+Z: Redo
+      if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        e.preventDefault();
+        useEditorStore.getState().redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectObject, setTransformMode]);
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const data = e.dataTransfer.getData('application/json');
@@ -1518,7 +1617,7 @@ export function Viewport() {
             {/* 3D R3F Canvas Layer (Transparent bg) */}
             <div className="absolute inset-0 z-10">
               <Canvas 
-                camera={{ position: [5, 5, 5], fov: 50, up: [0, 1, 0] }}
+                camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
                 onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
               >
                 
@@ -1734,8 +1833,8 @@ export function Viewport() {
         shadows={shadowsEnabled}
         orthographic={cameraType === 'orthographic'}
         camera={cameraType === 'orthographic' 
-          ? { position: [5, 5, 5], zoom: 100, up: [0, 1, 0], near: -100, far: 1000 }
-          : { position: [5, 5, 5], fov: 50, up: [0, 1, 0] }
+          ? { position: [0, -4, 4], zoom: 100, up: [0, 0, 1], near: -100, far: 1000 }
+          : { position: [0, -4, 4], fov: 50, up: [0, 0, 1] }
         }
         onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
       >

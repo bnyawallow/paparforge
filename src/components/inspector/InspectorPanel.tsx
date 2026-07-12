@@ -1,5 +1,76 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { fileToDataUrl } from '../../lib/fileUtils';
+import { SupabaseService } from '../../services/supabaseService';
+import { Upload } from 'lucide-react';
+
+interface AssetUploaderProps {
+  onUploadComplete: (url: string) => void;
+  accept: string;
+  placeholder?: string;
+  label?: string;
+}
+
+function AssetUploader({ onUploadComplete, accept, placeholder = "Upload", label }: AssetUploaderProps) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const { settings } = useEditorStore();
+  const projectName = settings?.projectName || 'AR Experience';
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      let fileUrl = '';
+      if (SupabaseService.isConfigured()) {
+        fileUrl = await SupabaseService.uploadAsset(file, projectName);
+      } else {
+        fileUrl = await fileToDataUrl(file);
+      }
+      onUploadComplete(fileUrl);
+    } catch (err) {
+      console.error("Asset upload failed:", err);
+      try {
+        const fallbackUrl = await fileToDataUrl(file);
+        onUploadComplete(fallbackUrl);
+      } catch (fallbackErr) {
+        console.error("DataURL fallback failed:", fallbackErr);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1 shrink-0">
+      {label && <label className="text-[9px] text-[#666] font-medium">{label}</label>}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1C1C1C] hover:bg-[#262626] border border-[#2C2C2C] disabled:opacity-50 rounded text-[10px] font-bold font-mono transition-colors text-white cursor-pointer"
+        >
+          {uploading ? (
+            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          ) : (
+            <Upload size={12} className="text-[#888]" />
+          )}
+          {uploading ? "..." : placeholder}
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept={accept}
+          className="hidden"
+        />
+      </div>
+    </div>
+  );
+}
 import { 
   Trash2, 
   Play, 
@@ -1201,13 +1272,20 @@ export function InspectorPanel() {
                   <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Texture Mapping</span>
                   <div className="flex flex-col gap-1">
                     <label className="text-[8px] text-[#666] font-medium">Texture URL / Image Source</label>
-                    <input 
-                      type="text" 
-                      placeholder="Paste Image URL (PNG/JPG)..."
-                      value={obj.properties.textureUrl || ''}
-                      onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] font-mono p-1.5 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                    />
+                    <div className="flex gap-1.5">
+                      <input 
+                        type="text" 
+                        placeholder="Paste Image URL (PNG/JPG)..."
+                        value={obj.properties.textureUrl || ''}
+                        onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
+                        className="bg-[#0A0A0A] text-[10px] font-mono p-1.5 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
+                      />
+                      <AssetUploader 
+                        accept="image/*" 
+                        onUploadComplete={(url) => handlePropertyChange('textureUrl', url)} 
+                        placeholder="Upload"
+                      />
+                    </div>
                   </div>
                   {obj.properties.textureUrl && (
                     <div className="grid grid-cols-2 gap-2 mt-1">
@@ -1464,12 +1542,19 @@ export function InspectorPanel() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">Image URL Source</label>
-                  <input 
-                    type="text" 
-                    value={obj.properties.textureUrl || ''}
-                    onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                  />
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text" 
+                      value={obj.properties.textureUrl || ''}
+                      onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
+                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                    <AssetUploader 
+                      accept="image/*" 
+                      onUploadComplete={(url) => handlePropertyChange('textureUrl', url)} 
+                      placeholder="Upload"
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10px]">
@@ -1504,13 +1589,20 @@ export function InspectorPanel() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">MP4 Video Source Link</label>
-                  <input 
-                    type="text" 
-                    value={obj.properties.videoUrl || ''}
-                    onChange={(e) => handlePropertyChange('videoUrl', e.target.value)}
-                    placeholder="https://..."
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                  />
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text" 
+                      value={obj.properties.videoUrl || ''}
+                      onChange={(e) => handlePropertyChange('videoUrl', e.target.value)}
+                      placeholder="https://..."
+                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                    <AssetUploader 
+                      accept="video/mp4" 
+                      onUploadComplete={(url) => handlePropertyChange('videoUrl', url)} 
+                      placeholder="Upload"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between text-xs mt-1">
@@ -1581,13 +1673,20 @@ export function InspectorPanel() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">Sound Track URL (WAV/MP3)</label>
-                  <input 
-                    type="text" 
-                    value={obj.properties.soundUrl || ''}
-                    onChange={(e) => handlePropertyChange('soundUrl', e.target.value)}
-                    placeholder="https://..."
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                  />
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text" 
+                      value={obj.properties.soundUrl || ''}
+                      onChange={(e) => handlePropertyChange('soundUrl', e.target.value)}
+                      placeholder="https://..."
+                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                    <AssetUploader 
+                      accept="audio/*" 
+                      onUploadComplete={(url) => handlePropertyChange('soundUrl', url)} 
+                      placeholder="Upload"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between text-xs mt-1">
@@ -1866,13 +1965,20 @@ export function InspectorPanel() {
               <div className="flex flex-col gap-3.5">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">Model Asset URL (.gltf / .glb)</label>
-                  <input 
-                    type="text" 
-                    value={obj.properties.url || ''}
-                    onChange={(e) => handlePropertyChange('url', e.target.value)}
-                    placeholder="https://..."
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                  />
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text" 
+                      value={obj.properties.url || ''}
+                      onChange={(e) => handlePropertyChange('url', e.target.value)}
+                      placeholder="https://..."
+                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                    <AssetUploader 
+                      accept=".gltf,.glb" 
+                      onUploadComplete={(url) => handlePropertyChange('url', url)} 
+                      placeholder="Upload"
+                    />
+                  </div>
                 </div>
 
                 {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 ? (
@@ -1943,12 +2049,19 @@ export function InspectorPanel() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">AR target Marker Image</label>
-                  <input 
-                    type="text" 
-                    value={obj.properties.textureUrl || ''}
-                    onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                  />
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text" 
+                      value={obj.properties.textureUrl || ''}
+                      onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
+                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                    <AssetUploader 
+                      accept="image/*" 
+                      onUploadComplete={(url) => handlePropertyChange('textureUrl', url)} 
+                      placeholder="Upload"
+                    />
+                  </div>
                   <span className="text-[8px] text-[#555]">This acts as the physical 2D visual blueprint the mobile camera scans to overlay content.</span>
                 </div>
                 <div className="flex flex-col gap-1">
