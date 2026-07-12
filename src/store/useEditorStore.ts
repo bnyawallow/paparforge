@@ -607,6 +607,192 @@ export const useEditorStore = create<EditorState>((set) => ({
     };
   }),
 
+  groupSelection: () => set((state) => {
+    const selectedIds = state.selectedObjectIds;
+    if (selectedIds.length === 0) return state;
+
+    // Filter to only include top-most selected objects
+    const topSelectedIds = selectedIds.filter(id => {
+      let current = state.objects[id];
+      if (!current) return false;
+      while (current.parentId) {
+        if (selectedIds.includes(current.parentId)) {
+          return false;
+        }
+        current = state.objects[current.parentId];
+      }
+      return true;
+    });
+
+    if (topSelectedIds.length === 0) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    lastEditedObjectId = null;
+    lastSnapshotTime = 0;
+
+    let sumX = 0, sumY = 0, sumZ = 0;
+    let count = 0;
+    topSelectedIds.forEach(id => {
+      const obj = state.objects[id];
+      if (obj) {
+        sumX += obj.position[0];
+        sumY += obj.position[1];
+        sumZ += obj.position[2];
+        count++;
+      }
+    });
+
+    const centerX = count > 0 ? sumX / count : 0;
+    const centerY = count > 0 ? sumY / count : 0;
+    const centerZ = count > 0 ? sumZ / count : 0;
+
+    const groupId = uuidv4();
+    const groupName = "Grouped Objects";
+    
+    const firstParentId = state.objects[topSelectedIds[0]]?.parentId || null;
+    const allShareSameParent = topSelectedIds.every(id => state.objects[id]?.parentId === firstParentId);
+    const groupParentId = allShareSameParent ? firstParentId : null;
+
+    const groupObj: SceneObject = {
+      id: groupId,
+      name: groupName,
+      type: 'group',
+      position: [centerX, centerY, centerZ],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [...topSelectedIds],
+      parentId: groupParentId,
+      properties: {}
+    };
+
+    const newObjects = { ...state.objects, [groupId]: groupObj };
+
+    topSelectedIds.forEach(id => {
+      const child = newObjects[id];
+      if (child) {
+        newObjects[id] = {
+          ...child,
+          parentId: groupId,
+          position: [
+            child.position[0] - centerX,
+            child.position[1] - centerY,
+            child.position[2] - centerZ
+          ]
+        };
+      }
+    });
+
+    let newRootObjects = [...state.rootObjects];
+    if (groupParentId && newObjects[groupParentId]) {
+      const parent = newObjects[groupParentId];
+      newObjects[groupParentId] = {
+        ...parent,
+        children: [
+          ...parent.children.filter(childId => !topSelectedIds.includes(childId)),
+          groupId
+        ]
+      };
+    } else {
+      newRootObjects = [
+        ...newRootObjects.filter(id => !topSelectedIds.includes(id)),
+        groupId
+      ];
+    }
+
+    if (!allShareSameParent) {
+      topSelectedIds.forEach(id => {
+        const child = state.objects[id];
+        if (child && child.parentId && newObjects[child.parentId]) {
+          const oldParent = newObjects[child.parentId];
+          newObjects[child.parentId] = {
+            ...oldParent,
+            children: oldParent.children.filter(cId => cId !== id)
+          };
+        }
+      });
+    }
+
+    return {
+      objects: newObjects,
+      rootObjects: newRootObjects,
+      selectedObjectId: groupId,
+      selectedObjectIds: [groupId],
+      selectedObjectRef: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
+
+  ungroupObject: (groupId) => set((state) => {
+    const groupObj = state.objects[groupId];
+    if (!groupObj || groupObj.type !== 'group') return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    lastEditedObjectId = null;
+    lastSnapshotTime = 0;
+
+    const newObjects = { ...state.objects };
+    const childIds = [...groupObj.children];
+    const parentId = groupObj.parentId;
+
+    delete newObjects[groupId];
+
+    childIds.forEach(childId => {
+      const child = newObjects[childId];
+      if (child) {
+        newObjects[childId] = {
+          ...child,
+          parentId: parentId,
+          position: [
+            child.position[0] + groupObj.position[0],
+            child.position[1] + groupObj.position[1],
+            child.position[2] + groupObj.position[2]
+          ]
+        };
+      }
+    });
+
+    let newRootObjects = [...state.rootObjects];
+    if (parentId && newObjects[parentId]) {
+      const parent = newObjects[parentId];
+      newObjects[parentId] = {
+        ...parent,
+        children: [
+          ...parent.children.filter(id => id !== groupId),
+          ...childIds
+        ]
+      };
+    } else {
+      newRootObjects = [
+        ...newRootObjects.filter(id => id !== groupId),
+        ...childIds
+      ];
+    }
+
+    return {
+      objects: newObjects,
+      rootObjects: newRootObjects,
+      selectedObjectId: childIds.length > 0 ? childIds[childIds.length - 1] : null,
+      selectedObjectIds: childIds,
+      selectedObjectRef: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
+
   updateSettings: (updates) => set((state) => ({
     settings: { ...state.settings, ...updates },
     hasUnsavedChanges: true

@@ -97,6 +97,8 @@ export interface EditorState {
   removeObject: (id: string) => void;
   updateObject: (id: string, updates: Partial<SceneObject>) => void;
   selectObject: (id: string | null, multi?: boolean) => void;
+  groupSelection: () => void;
+  ungroupObject: (id: string) => void;
   updateSettings: (updates: Partial<ProjectSettings>) => void;
   setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => void;
   moveObject: (draggedId: string, targetId: string) => void;

@@ -16,6 +16,7 @@ import {
   Copy,
   FolderMinus,
   FolderPlus,
+  Folder,
   Plus,
   Circle,
   Play,
@@ -34,6 +35,8 @@ export function HierarchyPanel() {
     rootObjects, 
     selectedObjectId, selectedObjectIds, 
     selectObject, 
+    groupSelection,
+    ungroupObject,
     moveObject, 
     updateObject,
     addObject,
@@ -185,6 +188,7 @@ export function HierarchyPanel() {
 
     let Icon = Box;
     if (obj.type === 'imageTarget') Icon = ImageIcon;
+    else if (obj.type === 'group') Icon = Folder;
     else if (obj.type === 'youtube') Icon = Youtube;
     else if (obj.type === 'button') Icon = Link2;
     else if (obj.type === 'text') Icon = Type;
@@ -326,6 +330,32 @@ export function HierarchyPanel() {
           </button>
         </div>
       </div>
+
+      {/* Selection context actions (Group / Ungroup) */}
+      {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && objects[selectedObjectId]?.type === 'group'))) && (
+        <div className="p-2 border-b border-[#2A2A2A] bg-[#1a1a1a] flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
+          {selectedObjectIds.length > 1 && (
+            <button
+              onClick={() => groupSelection()}
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-blue-600/25 hover:bg-blue-600/35 border border-blue-500/35 text-blue-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              title="Group selected elements together"
+            >
+              <Folder size={11} className="shrink-0" />
+              <span>Group ({selectedObjectIds.length})</span>
+            </button>
+          )}
+          {selectedObjectId && objects[selectedObjectId]?.type === 'group' && (
+            <button
+              onClick={() => ungroupObject(selectedObjectId)}
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-amber-600/25 hover:bg-amber-600/35 border border-amber-500/35 text-amber-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              title="Dissolve group back to individual entities"
+            >
+              <FolderMinus size={11} className="shrink-0" />
+              <span>Ungroup</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Add Component Action Sub-header */}
       <div className="p-2 border-b border-[#2A2A2A] bg-[#181818] shrink-0 relative">

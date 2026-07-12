@@ -24,7 +24,9 @@ import {
   Sliders,
   Search,
   ChevronDown,
-  Lightbulb
+  Lightbulb,
+  Folder,
+  FolderMinus
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
@@ -72,6 +74,7 @@ export function InspectorPanel() {
     updateObject, 
     removeObject, 
     addObject,
+    ungroupObject,
     editingScriptObjectId, 
     setEditingScriptObjectId,
     gridSnapEnabled,
@@ -724,19 +727,30 @@ export function InspectorPanel() {
               </div>
               <div className="p-4 flex flex-col gap-6">
                 {/* Entity Name & Type */}
-        <div className="flex items-center gap-3 bg-[#1A1A1A] p-3 rounded border border-[#2A2A2A]">
-          <div className="w-9 h-9 bg-black/40 rounded flex items-center justify-center border border-[#333] text-blue-400 font-mono text-base font-bold">
-            {obj.type === 'imageTarget' ? '🖼️' : obj.type === 'model' ? '📦' : '◈'}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3 bg-[#1A1A1A] p-3 rounded border border-[#2A2A2A]">
+            <div className="w-9 h-9 bg-black/40 rounded flex items-center justify-center border border-[#333] text-blue-400 font-mono text-base font-bold shrink-0">
+              {obj.type === 'imageTarget' ? '🖼️' : obj.type === 'model' ? '📦' : obj.type === 'group' ? <Folder size={18} /> : '◈'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <input 
+                type="text" 
+                value={obj.name}
+                onChange={(e) => updateObject(selectedObjectId, { name: e.target.value })}
+                className="bg-transparent text-xs font-bold text-white border-b border-transparent hover:border-[#333] focus:border-blue-500 outline-none w-full py-0.5"
+              />
+              <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <input 
-              type="text" 
-              value={obj.name}
-              onChange={(e) => updateObject(selectedObjectId, { name: e.target.value })}
-              className="bg-transparent text-xs font-bold text-white border-b border-transparent hover:border-[#333] focus:border-blue-500 outline-none w-full py-0.5"
-            />
-            <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
-          </div>
+          {obj.type === 'group' && (
+            <button
+              onClick={() => ungroupObject(selectedObjectId)}
+              className="flex items-center justify-center gap-1.5 p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider transition-colors"
+            >
+              <FolderMinus size={12} />
+              Ungroup Objects
+            </button>
+          )}
         </div>
 
         {/* Lock / Unlock Toggle Panel */}
