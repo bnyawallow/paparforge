@@ -82,7 +82,8 @@ export const generateAFrameScene = (state: any) => {
       }
 
       if (obj.properties.behavior) {
-        customComponents += ` live-behavior="rule: ${obj.properties.behavior}"`;
+        const spinAxis = obj.properties.spinAxis || 'z';
+        customComponents += ` live-behavior="rule: ${obj.properties.behavior}; spinAxis: ${spinAxis}"`;
       }
 
       if (obj.type === 'button') {
@@ -259,11 +260,15 @@ export const generateAFrameScene = (state: any) => {
       // 0. Continuous Interactive Live Behaviors (Spin, Hover, Pulse)
       AFRAME.registerComponent('live-behavior', {
         schema: {
-          rule: {type: 'string', default: ''}
+          rule: {type: 'string', default: ''},
+          spinAxis: {type: 'string', default: 'z'}
         },
         init: function() {
           this.initialY = this.el.object3D.position.y;
+          this.initialZ = this.el.object3D.position.z;
+          this.initialRotX = this.el.object3D.rotation.x;
           this.initialRotY = this.el.object3D.rotation.y;
+          this.initialRotZ = this.el.object3D.rotation.z;
           this.initialScaleX = this.el.object3D.scale.x;
           this.initialScaleY = this.el.object3D.scale.y;
           this.initialScaleZ = this.el.object3D.scale.z;
@@ -271,14 +276,28 @@ export const generateAFrameScene = (state: any) => {
         },
         tick: function(time, timeDelta) {
           const rule = this.data.rule;
+          const spinAxis = this.data.spinAxis;
           if (!rule) return;
           this.time += timeDelta / 1000;
           const t = this.time;
 
+          // Restore un-animated channels to prevent stale transitions
+          this.el.object3D.position.y = this.initialY;
+          this.el.object3D.position.z = this.initialZ;
+          if (spinAxis !== 'x') this.el.object3D.rotation.x = this.initialRotX;
+          if (spinAxis !== 'y') this.el.object3D.rotation.y = this.initialRotY;
+          if (spinAxis !== 'z') this.el.object3D.rotation.z = this.initialRotZ;
+
           if (rule === 'hover') {
-            this.el.object3D.position.y = this.initialY + Math.sin(t * 3) * 0.2;
+            this.el.object3D.position.z = this.initialZ + Math.sin(t * 3) * 0.2;
           } else if (rule === 'spin') {
-            this.el.object3D.rotation.y = this.initialRotY + t * 0.8;
+            if (spinAxis === 'x') {
+              this.el.object3D.rotation.x = this.initialRotX + t * 0.8;
+            } else if (spinAxis === 'y') {
+              this.el.object3D.rotation.y = this.initialRotY + t * 0.8;
+            } else {
+              this.el.object3D.rotation.z = this.initialRotZ + t * 0.8;
+            }
           } else if (rule === 'pulse') {
             const scaleVal = 1 + Math.sin(t * 4.5) * 0.08;
             this.el.object3D.scale.set(
@@ -307,9 +326,9 @@ export const generateAFrameScene = (state: any) => {
             if (b.trigger === 'onStart') {
               self.executeBehavior(b);
             } else if (b.trigger === 'onTap') {
-              el.addEventListener('click', () => {
-                self.executeBehavior(b);
-              });
+              const tapHandler = () => self.executeBehavior(b);
+              el.addEventListener('click', tapHandler);
+              el.addEventListener('touchstart', tapHandler);
             }
           });
         },
@@ -378,7 +397,7 @@ export const generateAFrameScene = (state: any) => {
               if (spinEl) {
                 spinEl.setAttribute('animation', {
                   property: 'rotation',
-                  to: '0 360 0',
+                  to: '0 0 360',
                   dur: 2000,
                   easing: 'linear',
                   loop: true
@@ -466,11 +485,15 @@ export const generateAFrameScene = (state: any) => {
         init: function() {
           const url = this.el.getAttribute('data-sound-url');
           if (!url) return;
-          this.el.addEventListener('click', () => {
+          const playSound = () => {
             const sfx = new Audio(url);
             sfx.volume = 0.5;
             sfx.play().catch(e => console.log('Sound error', e));
-          });
+          };
+          this.el.addEventListener('click', playSound);
+          this.el.addEventListener('touchstart', (e) => { e.preventDefault(); playSound(); });
+          // replace dummy
+        
         }
       });
     </script>
@@ -688,6 +711,10 @@ export const generateAFrameScene = (state: any) => {
         
         <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>
         <a-light type="ambient" intensity="0.9"></a-light>
+
+        ${settings.ambientSoundUrl ? `
+        <a-sound src="${settings.ambientSoundUrl}" autoplay="true" loop="true" position="0 0 0" volume="1"></a-sound>
+        ` : ''}
 
 ${entitiesHtml}
       </a-scene>

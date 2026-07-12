@@ -32,7 +32,7 @@ export function HierarchyPanel() {
   const { 
     objects, 
     rootObjects, 
-    selectedObjectId, 
+    selectedObjectId, selectedObjectIds, 
     selectObject, 
     moveObject, 
     updateObject,
@@ -178,7 +178,7 @@ export function HierarchyPanel() {
     const obj = objects[id];
     if (!obj) return null;
 
-    const isSelected = selectedObjectId === id;
+    const isSelected = selectedObjectIds.includes(id);
     const isDragOver = dragOverId === id;
     const hasChildren = obj.children.length > 0;
     const isCollapsed = !!collapsedIds[id];
@@ -203,7 +203,10 @@ export function HierarchyPanel() {
             isDragOver && "bg-[#2A2A2A] border-blue-400"
           )}
           style={{ paddingLeft: `${depth * 10 + 6}px` }}
-          onClick={() => selectObject(id)}
+          onClick={(e) => {
+            const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+            selectObject(id, isMulti);
+          }}
           onDoubleClick={() => startEditing(id, obj.name)}
           draggable={obj.type !== 'imageTarget'}
           onDragStart={(e) => handleDragStart(e, id)}

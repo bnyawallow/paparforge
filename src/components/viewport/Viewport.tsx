@@ -73,7 +73,7 @@ function Volumetric3DText({ text, color, fontSize, position, ...props }: any) {
 }
 
 // Interactive physical 3D Push Button and Floating Glassmorphic UI Panel
-function Interactive3DButton({ obj, isPreviewMode }: { obj: SceneObject; isPreviewMode: boolean }) {
+function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: () => void }) {
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -85,9 +85,7 @@ function Interactive3DButton({ obj, isPreviewMode }: { obj: SceneObject; isPrevi
 
   const handleClick = (e: any) => {
     e.stopPropagation();
-    if (isPreviewMode && url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
+    if (onInteract) onInteract();
   };
 
   if (style === 'glass_panel') {
@@ -701,12 +699,13 @@ function LightNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
 
 function ObjectRenderer({ id }: { id: string }) {
   const obj = useEditorStore(state => state.objects[id]);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
   const selectObject = useEditorStore(state => state.selectObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const meshRef = useRef<THREE.Group>(null);
   
-  const isSelected = selectedObjectId === id;
+  const isSelected = selectedObjectIds.includes(id);
 
   // Local state/refs for scripts & proximity triggers
   const wasProximityActiveRef = useRef<Record<string, boolean>>({});
@@ -893,19 +892,34 @@ function ObjectRenderer({ id }: { id: string }) {
     const behavior = obj.properties.behavior;
     const t = state.clock.getElapsedTime();
 
-    // 1. Position hover levitation
+    // 1. Position hover levitation along Z axis (perpendicular to horizontal XY ground plane)
     if (behavior === 'hover') {
-      meshRef.current.position.y = obj.position[1] + Math.sin(t * 3) * 0.2;
+      meshRef.current.position.z = obj.position[2] + Math.sin(t * 3) * 0.2;
     } else {
-      meshRef.current.position.y = obj.position[1];
+      meshRef.current.position.z = obj.position[2];
     }
+    meshRef.current.position.y = obj.position[1];
 
-    // 2. Continuous spin on Y axis
+    // 2. Continuous spin
+    const spinAxis = obj.properties.spinAxis || 'z';
     if (behavior === 'spin') {
-      meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]) + t * 0.8;
+      if (spinAxis === 'x') {
+        meshRef.current.rotation.x = THREE.MathUtils.degToRad(obj.rotation[0]) + t * 0.8;
+      } else if (spinAxis === 'y') {
+        meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]) + t * 0.8;
+      } else {
+        meshRef.current.rotation.z = THREE.MathUtils.degToRad(obj.rotation[2]) + t * 0.8;
+      }
     } else {
-      meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]);
+      if (spinAxis === 'x') meshRef.current.rotation.x = THREE.MathUtils.degToRad(obj.rotation[0]);
+      if (spinAxis === 'y') meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]);
+      if (spinAxis === 'z') meshRef.current.rotation.z = THREE.MathUtils.degToRad(obj.rotation[2]);
     }
+    
+    // Always reset other axes to avoid accumulating rotation on unselected axes
+    if (spinAxis !== 'x') meshRef.current.rotation.x = THREE.MathUtils.degToRad(obj.rotation[0]);
+    if (spinAxis !== 'y') meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]);
+    if (spinAxis !== 'z') meshRef.current.rotation.z = THREE.MathUtils.degToRad(obj.rotation[2]);
 
     // 3. Rhythmic size pulse
     if (behavior === 'pulse') {
@@ -957,6 +971,48 @@ function ObjectRenderer({ id }: { id: string }) {
     THREE.MathUtils.degToRad(obj.rotation[1]),
     THREE.MathUtils.degToRad(obj.rotation[2]),
   ];
+
+  const handleInteract = (e?: any) => {
+    if (!isPreviewMode && obj.locked) return; // Prevent selection or clicks on locked items in 3D viewport
+    if (e && e.stopPropagation) e.stopPropagation();
+    
+    console.log(`[Debug Log] Screen tapped on object: ${obj.name} (ID: ${id})`);
+    if (!isPreviewMode) {
+      const isMulti = e ? (e.shiftKey || e.ctrlKey || e.metaKey) : false;
+      selectObject(id, isMulti);
+    }
+
+    // Standard Audio playback on click if a sound asset is attached
+    if (obj.properties.soundUrl) {
+      const sfx = new Audio(obj.properties.soundUrl);
+      sfx.volume = 0.5;
+      sfx.play().catch(err => console.log('Interactive SFX playback failed:', err));
+    }
+
+    // Button redirect in live preview
+    if (isPreviewMode && obj.type === 'button' && obj.properties.url) {
+      window.open(obj.properties.url, '_blank', 'noopener,noreferrer');
+    }
+
+    // Run On Tap visual event rules
+    if (isPreviewMode) {
+      const behaviors = obj.properties.visualBehaviors || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onTap') {
+          executeBehaviorAction(b);
+        }
+      });
+    }
+
+    // Run onTap script callbacks
+    if (isPreviewMode && scriptCallbacksRef.current.onTap && (obj.properties.scriptEnabled ?? true)) {
+      try {
+        scriptCallbacksRef.current.onTap();
+      } catch (err) {
+        console.error("onTap script callback error:", err);
+      }
+    }
+  };
 
   const renderGeometry = () => {
     switch (obj.type) {
@@ -1040,7 +1096,7 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'light':
         return <LightNodeRenderer properties={obj.properties} isPreviewMode={isPreviewMode} />;
       case 'button':
-        return <Interactive3DButton obj={obj} isPreviewMode={isPreviewMode} />;
+        return <Interactive3DButton obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'youtube':
         return <InteractiveYoutubeScreen obj={obj} isPreviewMode={isPreviewMode} />;
       case 'imageTarget':
@@ -1086,45 +1142,7 @@ function ObjectRenderer({ id }: { id: string }) {
       position={obj.position}
       rotation={rotation}
       scale={obj.scale}
-      onPointerDown={(e) => {
-        if (!isPreviewMode && obj.locked) return; // Prevent selection or clicks on locked items in 3D viewport
-        e.stopPropagation();
-        
-        if (!isPreviewMode) {
-          selectObject(id);
-        }
-
-        // Standard Audio playback on click if a sound asset is attached
-        if (obj.properties.soundUrl) {
-          const sfx = new Audio(obj.properties.soundUrl);
-          sfx.volume = 0.5;
-          sfx.play().catch(err => console.log('Interactive SFX playback failed:', err));
-        }
-
-        // Button redirect in live preview
-        if (isPreviewMode && obj.type === 'button' && obj.properties.url) {
-          window.open(obj.properties.url, '_blank', 'noopener,noreferrer');
-        }
-
-        // Run On Tap visual event rules
-        if (isPreviewMode) {
-          const behaviors = obj.properties.visualBehaviors || [];
-          behaviors.forEach((b: any) => {
-            if (b.trigger === 'onTap') {
-              executeBehaviorAction(b);
-            }
-          });
-        }
-
-        // Run onTap script callbacks
-        if (isPreviewMode && scriptCallbacksRef.current.onTap && (obj.properties.scriptEnabled ?? true)) {
-          try {
-            scriptCallbacksRef.current.onTap();
-          } catch (err) {
-            console.error("onTap script callback error:", err);
-          }
-        }
-      }}
+      onClick={handleInteract}
     >
       {renderGeometry()}
       {obj.children.map(childId => (
@@ -1148,6 +1166,8 @@ function TransformController() {
   const gridSnapIncrement = useEditorStore(state => state.gridSnapIncrement);
   const rotationSnapEnabled = useEditorStore(state => state.rotationSnapEnabled);
   const rotationSnapIncrement = useEditorStore(state => state.rotationSnapIncrement);
+
+  const obj = selectedObjectId ? objects[selectedObjectId] : null;
 
   const handleTransform = () => {
     if (!target || !selectedObjectId) return;
@@ -1177,10 +1197,10 @@ function TransformController() {
     };
   }, [target]);
 
-  if (!target || !target.parent || !selectedObjectId || isPreviewMode) return null;
+  if (!target || !target.parent || !selectedObjectId || isPreviewMode || !obj || !obj.visible) return null;
 
   // Hide gizmo if the selected object is locked
-  const isLocked = objects[selectedObjectId]?.locked;
+  const isLocked = obj.locked;
   if (isLocked) return null;
 
   return (
@@ -1202,6 +1222,24 @@ const VIDEO_URLS = {
 };
 
 export function Viewport() {
+  const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
+  
+  useEffect(() => {
+    const originalLog = console.log;
+    console.log = (...args) => {
+      originalLog(...args);
+      const msg = args.join(' ');
+      if (msg.includes('[Debug Log]')) {
+        setDebugLogs(prev => {
+          const newLogs = [...prev, { id: Date.now(), message: msg.replace('[Debug Log]', '').trim() }];
+          return newLogs.slice(-5);
+        });
+      }
+    };
+    return () => {
+      console.log = originalLog;
+    };
+  }, []);
   const rootObjects = useEditorStore(state => state.rootObjects);
   const selectObject = useEditorStore(state => state.selectObject);
   const transformMode = useEditorStore(state => state.transformMode);
@@ -1393,10 +1431,23 @@ export function Viewport() {
           }}
         ></div>
 
+        {settings.ambientSoundUrl && (
+          <audio src={settings.ambientSoundUrl} autoPlay loop className="hidden" />
+        )}
+
         {/* Outer Workspace HUD */}
         <div className="absolute top-4 left-4 z-40 bg-black/60 border border-white/10 px-3 py-1.5 rounded-lg backdrop-blur text-xs flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
           <span className="font-mono text-[#AAA]">WORKSPACE: SIMULATOR ACTIVE</span>
+        </div>
+        
+        {/* Debug Log Overlay */}
+        <div className="absolute bottom-4 left-4 right-4 z-40 pointer-events-none flex flex-col gap-1.5">
+          {debugLogs.map(log => (
+            <div key={log.id} className="bg-black/70 border border-[#333] px-3 py-2 rounded shadow text-[11px] font-mono text-yellow-400 animate-in fade-in slide-in-from-bottom-2 self-start backdrop-blur-sm">
+              <span className="opacity-50 mr-2 text-white">🐞 TOUCH EVENT:</span> {log.message}
+            </div>
+          ))}
         </div>
 
         {/* Bezel Device wrapper vs Full Bleed wrapper */}
@@ -1438,7 +1489,7 @@ export function Viewport() {
             <div className="absolute inset-0 z-10">
               <Canvas 
                 camera={{ position: [5, 5, 5], fov: 50, up: [0, 0, 1] }}
-                onPointerMissed={() => selectObject(null)}
+                onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
               >
                 
                 <ambientLight intensity={0.6} />
@@ -1651,7 +1702,7 @@ export function Viewport() {
       <Canvas 
         shadows={shadowsEnabled}
         camera={{ position: [5, 5, 5], fov: 50, up: [0, 0, 1] }}
-        onPointerMissed={() => selectObject(null)}
+        onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
       >
         <color attach="background" args={['#222224']} />
         

@@ -23,7 +23,8 @@ import {
   Sun,
   Sliders,
   Search,
-  ChevronDown
+  ChevronDown,
+  Lightbulb
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
@@ -66,9 +67,11 @@ const SOUND_OPTIONS = [
 export function InspectorPanel() {
   const { 
     objects, 
-    selectedObjectId, 
+    selectedObjectId, selectedObjectIds, 
+    selectObject,
     updateObject, 
     removeObject, 
+    addObject,
     editingScriptObjectId, 
     setEditingScriptObjectId,
     gridSnapEnabled,
@@ -83,8 +86,47 @@ export function InspectorPanel() {
     updateSettings
   } = useEditorStore();
 
+  const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting'>('inspector');
   const [fontSearch, setFontSearch] = useState('');
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
+
+  const handleAddLightObject = (lightType: 'point' | 'spot' | 'directional') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    const lightNames = {
+      point: 'Point Light',
+      spot: 'Spot Light',
+      directional: 'Directional Light'
+    };
+    
+    let parentId = selectedObjectId;
+    if (!parentId) {
+      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+      if (imageTarget) parentId = imageTarget.id;
+    }
+
+    const newObj = {
+      id,
+      name: `${lightNames[lightType]} ${Object.values(objects).filter(o => o.type === 'light').length + 1}`,
+      type: 'light' as const,
+      position: [0, 2, 0] as [number, number, number],
+      rotation: [0, 0, 0] as [number, number, number],
+      scale: [1, 1, 1] as [number, number, number],
+      visible: true,
+      children: [],
+      parentId: parentId || null,
+      properties: {
+        lightType,
+        color: lightType === 'directional' ? '#ffffff' : '#ffedd5',
+        intensity: lightType === 'directional' ? 2.0 : 3.0,
+        distance: 12.0,
+        decay: 1.5,
+        angle: 0.78
+      }
+    };
+
+    addObject(newObj, parentId || undefined);
+    selectObject(id);
+  };
 
   const handleAddBehavior = () => {
     if (!selectedObjectId || !objects[selectedObjectId]) return;
@@ -134,163 +176,51 @@ export function InspectorPanel() {
     });
   };
 
-  if (!selectedObjectId || !objects[selectedObjectId]) {
-    const ambientColor = settings.ambientColor || '#ffffff';
-    const ambientIntensity = settings.ambientIntensity ?? 0.5;
-    const directionalColor = settings.directionalColor || '#ffffff';
-    const directionalIntensity = settings.directionalIntensity ?? 1.0;
-    const shadowsEnabled = settings.shadowsEnabled ?? true;
-
-    return (
-      <aside className="w-72 border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-y-auto">
-        <div className="p-3 border-b border-[#2A2A2A] flex items-center justify-between shrink-0">
-          <span className="text-[10px] uppercase tracking-widest font-bold text-[#666]">Scene Settings</span>
-          <Sun size={14} className="text-yellow-500/80 animate-pulse" />
-        </div>
-
-        <div className="p-4 flex flex-col gap-6">
-          {/* Project Details section */}
-          <div className="flex flex-col gap-3">
-            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Project Configuration</span>
-            
-            <div className="flex flex-col gap-1 bg-[#1A1A1A] p-3 rounded border border-[#2A2A2A]">
-              <label className="text-[9px] text-[#888] font-semibold uppercase tracking-wider">Active Experience Name</label>
-              <input 
-                type="text" 
-                value={settings.projectName || 'My AR Experience'}
-                onChange={(e) => updateSettings({ projectName: e.target.value })}
-                className="bg-black/40 text-[11px] p-2 rounded w-full border border-[#2A2A2A] text-white focus:border-blue-500 font-medium outline-none mt-1"
-                placeholder="Name your experience..."
-              />
-            </div>
-          </div>
-
-          {/* Global Ambient Lighting */}
-          <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
-            <div className="flex items-center gap-1.5">
-              <Sun size={12} className="text-yellow-400" />
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Ambient Environment Light</span>
-            </div>
-
-            <div className="flex flex-col gap-3 bg-[#1A1A1A]/50 border border-[#222] p-3 rounded-lg">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[9px] text-[#666] font-medium">Ambient Color</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="color" 
-                    value={ambientColor}
-                    onChange={(e) => updateSettings({ ambientColor: e.target.value })}
-                    className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
-                  />
-                  <input 
-                    type="text" 
-                    value={ambientColor}
-                    onChange={(e) => updateSettings({ ambientColor: e.target.value })}
-                    className="bg-[#0A0A0A] text-[10px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[#666]">Ambient Intensity</span>
-                  <span className="text-yellow-400 font-mono">{ambientIntensity.toFixed(2)}</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="0.0" 
-                  max="2.0" 
-                  step="0.05" 
-                  value={ambientIntensity} 
-                  onChange={(e) => updateSettings({ ambientIntensity: parseFloat(e.target.value) })}
-                  className="accent-yellow-500 w-full h-1 cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Key Directional Lighting */}
-          <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
-            <div className="flex items-center gap-1.5">
-              <Sliders size={12} className="text-blue-400" />
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Direct Key Spotlight</span>
-            </div>
-
-            <div className="flex flex-col gap-3 bg-[#1A1A1A]/50 border border-[#222] p-3 rounded-lg">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[9px] text-[#666] font-medium">Sunlight Color</label>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="color" 
-                    value={directionalColor}
-                    onChange={(e) => updateSettings({ directionalColor: e.target.value })}
-                    className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
-                  />
-                  <input 
-                    type="text" 
-                    value={directionalColor}
-                    onChange={(e) => updateSettings({ directionalColor: e.target.value })}
-                    className="bg-[#0A0A0A] text-[10px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[#666]">Key Light Intensity</span>
-                  <span className="text-blue-400 font-mono">{directionalIntensity.toFixed(2)}</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="0.0" 
-                  max="4.0" 
-                  step="0.05" 
-                  value={directionalIntensity} 
-                  onChange={(e) => updateSettings({ directionalIntensity: parseFloat(e.target.value) })}
-                  className="accent-blue-500 w-full h-1 cursor-pointer"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] border-t border-black/20 pt-2.5">
-                <span className="text-[#666]">Enable Real-Time Shadows</span>
-                <input 
-                  type="checkbox" 
-                  checked={shadowsEnabled}
-                  onChange={(e) => updateSettings({ shadowsEnabled: e.target.checked })}
-                  className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Helpful interactive reminder */}
-          <div className="border-t border-[#222] pt-4 text-center">
-            <p className="text-[9px] text-gray-500 font-medium leading-relaxed max-w-[220px] mx-auto">
-              Select any entity in the Scene Hierarchy tree or double-click in the Viewport to configure specific material, behavioral, or physical parameters.
-            </p>
-          </div>
-        </div>
-      </aside>
-    );
-  }
-
-  const obj = objects[selectedObjectId];
+  const obj = selectedObjectId ? objects[selectedObjectId] : null;
 
   const handleVectorChange = (prop: 'position' | 'rotation' | 'scale', index: number, value: string) => {
+    if (!obj) return;
     const numValue = parseFloat(value) || 0;
-    const newVec = [...obj[prop]] as Vector3Data;
-    newVec[index] = numValue;
-    updateObject(selectedObjectId, { [prop]: newVec });
+
+    if (selectedObjectIds && selectedObjectIds.length > 0) {
+      selectedObjectIds.forEach(id => {
+        if (objects[id]) {
+           const o = objects[id];
+           const v = [...o[prop]] as Vector3Data;
+           v[index] = numValue;
+           updateObject(id, { [prop]: v });
+        }
+      });
+    } else {
+      const newVec = [...obj[prop]] as Vector3Data;
+      newVec[index] = numValue;
+      updateObject(selectedObjectId!, { [prop]: newVec });
+    }
   };
 
   const handlePropertyChange = (key: string, value: any) => {
-    updateObject(selectedObjectId, {
-      properties: { ...obj.properties, [key]: value }
-    });
+    if (!obj) return;
+    if (selectedObjectIds && selectedObjectIds.length > 0) {
+      selectedObjectIds.forEach(id => {
+        if (objects[id]) {
+          updateObject(id, {
+            properties: { ...objects[id].properties, [key]: value }
+          });
+        }
+      });
+    } else {
+      updateObject(selectedObjectId!, {
+        properties: { ...obj.properties, [key]: value }
+      });
+    }
   };
 
   const handleDelete = () => {
-    removeObject(selectedObjectId);
+    if (selectedObjectIds && selectedObjectIds.length > 0) {
+      selectedObjectIds.forEach(id => removeObject(id));
+    } else if (selectedObjectId) {
+      removeObject(selectedObjectId);
+    }
   };
 
   const playPreviewSound = (url: string) => {
@@ -309,23 +239,491 @@ export function InspectorPanel() {
     }
   };
 
+  const renderLightingPanel = () => {
+    const ambientColor = settings.ambientColor || '#ffffff';
+    const ambientIntensity = settings.ambientIntensity ?? 0.5;
+    const directionalColor = settings.directionalColor || '#ffffff';
+    const directionalIntensity = settings.directionalIntensity ?? 1.0;
+    const shadowsEnabled = settings.shadowsEnabled ?? true;
+
+    const dynamicLights = Object.values(objects).filter(o => o.type === 'light');
+
+    return (
+      <div className="p-4 flex flex-col gap-5">
+        <div className="bg-[#1A1A1A] p-3 rounded-lg border border-[#222]">
+          <h3 className="text-[11px] font-bold text-white flex items-center gap-1.5 mb-1">
+            <Sparkles size={12} className="text-yellow-400 animate-pulse" />
+            Lighting Studio
+          </h3>
+          <p className="text-[9px] text-[#888] leading-relaxed">
+            Configure global ambient environment illumination, primary direct sunlight, and spawn dynamic 3D light objects with custom colors, distance limits, and intensities.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Add Dynamic Light</span>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              onClick={() => handleAddLightObject('point')}
+              className="flex flex-col items-center justify-center py-2 px-1 bg-[#1A1A1A] hover:bg-[#222] hover:border-yellow-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+              title="Add a dynamic point light casting glow in all directions"
+            >
+              <Lightbulb size={14} className="text-yellow-400 group-hover:scale-110 transition-transform duration-100" />
+              <span className="text-[8px] font-bold text-gray-400 group-hover:text-white mt-1">Point Light</span>
+            </button>
+
+            <button
+              onClick={() => handleAddLightObject('spot')}
+              className="flex flex-col items-center justify-center py-2 px-1 bg-[#1A1A1A] hover:bg-[#222] hover:border-blue-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+              title="Add a spotlight casting focused light cones"
+            >
+              <Zap size={14} className="text-blue-400 group-hover:scale-110 transition-transform duration-100" />
+              <span className="text-[8px] font-bold text-gray-400 group-hover:text-white mt-1">Spot Light</span>
+            </button>
+
+            <button
+              onClick={() => handleAddLightObject('directional')}
+              className="flex flex-col items-center justify-center py-2 px-1 bg-[#1A1A1A] hover:bg-[#222] hover:border-amber-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+              title="Add directional parallel key light sources"
+            >
+              <Sun size={14} className="text-amber-400 group-hover:scale-110 transition-transform duration-100" />
+              <span className="text-[8px] font-bold text-gray-400 group-hover:text-white mt-1">Sun Light</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3.5 border-t border-[#222] pt-4">
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Global Atmosphere</span>
+          
+          <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-gray-300">Ambient Color</span>
+              <span className="text-[8px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 rounded-full uppercase font-bold tracking-wider">Global</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="color" 
+                value={ambientColor}
+                onChange={(e) => updateSettings({ ambientColor: e.target.value })}
+                className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+              />
+              <input 
+                type="text" 
+                value={ambientColor}
+                onChange={(e) => updateSettings({ ambientColor: e.target.value })}
+                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between text-[10px]">
+                <span className="text-[#666]">Ambient Intensity</span>
+                <span className="text-yellow-400 font-mono">{ambientIntensity.toFixed(2)}</span>
+              </div>
+              <input 
+                type="range" 
+                min="0.0" 
+                max="4.0" 
+                step="0.05" 
+                value={ambientIntensity} 
+                onChange={(e) => updateSettings({ ambientIntensity: parseFloat(e.target.value) })}
+                className="accent-yellow-500 w-full h-1 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-gray-300">Direct Key Sunlight</span>
+              <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded-full uppercase font-bold tracking-wider">Global</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="color" 
+                value={directionalColor}
+                onChange={(e) => updateSettings({ directionalColor: e.target.value })}
+                className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+              />
+              <input 
+                type="text" 
+                value={directionalColor}
+                onChange={(e) => updateSettings({ directionalColor: e.target.value })}
+                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between text-[10px]">
+                <span className="text-[#666]">Sunlight Intensity</span>
+                <span className="text-blue-400 font-mono">{directionalIntensity.toFixed(2)}</span>
+              </div>
+              <input 
+                type="range" 
+                min="0.0" 
+                max="4.0" 
+                step="0.05" 
+                value={directionalIntensity} 
+                onChange={(e) => updateSettings({ directionalIntensity: parseFloat(e.target.value) })}
+                className="accent-blue-500 w-full h-1 cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] border-t border-black/20 pt-2">
+              <span className="text-[#666]">Render Shadow Maps</span>
+              <input 
+                type="checkbox" 
+                checked={shadowsEnabled}
+                onChange={(e) => updateSettings({ shadowsEnabled: e.target.checked })}
+                className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+              />
+            </div>
+          </div>
+
+          <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-gray-300">Ambient Soundtrack</span>
+              <span className="text-[8px] px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded-full uppercase font-bold tracking-wider">Audio</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] text-[#666]">Sound URL (MP3/WAV)</label>
+              <input 
+                type="text" 
+                placeholder="https://.../ambient.mp3"
+                value={settings.ambientSoundUrl || ''}
+                onChange={(e) => updateSettings({ ambientSoundUrl: e.target.value })}
+                className="bg-[#0A0A0A] text-[10px] p-2 rounded border border-[#222] outline-none font-mono text-white focus:border-green-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3.5 border-t border-[#222] pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Active Scene Lights</span>
+            <span className="text-[9px] font-mono text-gray-400">{dynamicLights.length} in scene</span>
+          </div>
+
+          {dynamicLights.length === 0 ? (
+            <div className="text-center py-6 border border-dashed border-[#222] rounded-lg bg-[#111]/30">
+              <Lightbulb size={18} className="text-[#333] mx-auto mb-1.5" />
+              <p className="text-[9px] text-[#555] max-w-[180px] mx-auto leading-relaxed">
+                No custom light objects placed yet. Tap any button above to light up your scene!
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {dynamicLights.map(light => {
+                const lightType = light.properties.lightType || 'point';
+                const lColor = light.properties.color || '#ffedd5';
+                const lIntensity = light.properties.intensity ?? 3.0;
+                const lDistance = light.properties.distance ?? 12.0;
+                const lAngle = light.properties.angle ?? Math.PI / 4;
+
+                const isLightSelected = selectedObjectId === light.id;
+
+                return (
+                  <div 
+                    key={light.id} 
+                    className={cn(
+                      "bg-[#1A1A1A]/60 border rounded-lg p-3 flex flex-col gap-2.5 transition-all",
+                      isLightSelected ? "border-blue-500/50 bg-[#1A1A1A]" : "border-[#222]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between border-b border-black/10 pb-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <button 
+                          onClick={() => selectObject(light.id)}
+                          className={cn(
+                            "text-[10px] font-bold hover:text-white text-left transition-colors truncate block max-w-[100px]",
+                            isLightSelected ? "text-blue-400" : "text-gray-300"
+                          )}
+                        >
+                          {light.name}
+                        </button>
+                        <span className="text-[8px] px-1 bg-black/40 text-gray-500 rounded font-mono capitalize">
+                          {lightType}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => selectObject(isLightSelected ? null : light.id)}
+                          className={cn(
+                            "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider transition-colors",
+                            isLightSelected ? "bg-blue-500/20 text-blue-400" : "text-gray-500 hover:text-white hover:bg-black/40"
+                          )}
+                        >
+                          Focus
+                        </button>
+                        <button
+                          onClick={() => removeObject(light.id)}
+                          className="p-1 rounded text-red-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[8px] text-[#666] font-medium uppercase tracking-wider">Illumination Color</label>
+                        <div className="flex items-center gap-1.5">
+                          <input 
+                            type="color" 
+                            value={lColor}
+                            onChange={(e) => updateObject(light.id, {
+                              properties: { ...light.properties, color: e.target.value }
+                            })}
+                            className="w-6 h-6 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                          />
+                          <input 
+                            type="text" 
+                            value={lColor}
+                            onChange={(e) => updateObject(light.id, {
+                              properties: { ...light.properties, color: e.target.value }
+                            })}
+                            className="bg-[#0A0A0A] text-[9px] p-1 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[9px]">
+                          <span className="text-[#666]">Luminous Intensity</span>
+                          <span className="text-yellow-400 font-mono">{lIntensity.toFixed(1)} lm</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="10" 
+                          step="0.1" 
+                          value={lIntensity} 
+                          onChange={(e) => updateObject(light.id, {
+                            properties: { ...light.properties, intensity: parseFloat(e.target.value) }
+                          })}
+                          className="accent-yellow-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+
+                      {lightType !== 'directional' && (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[9px]">
+                            <span className="text-[#666]">Max Range Distance</span>
+                            <span className="text-gray-400 font-mono">{lDistance.toFixed(1)}m</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="1" 
+                            max="30" 
+                            step="0.5" 
+                            value={lDistance} 
+                            onChange={(e) => updateObject(light.id, {
+                              properties: { ...light.properties, distance: parseFloat(e.target.value) }
+                            })}
+                            className="accent-blue-500 w-full h-1 cursor-pointer"
+                          />
+                        </div>
+                      )}
+
+                      {lightType === 'spot' && (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[9px]">
+                            <span className="text-[#666]">Beam Spread Angle</span>
+                            <span className="text-gray-400 font-mono">{Math.round((lAngle * 180) / Math.PI)}°</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0.1" 
+                            max="1.5" 
+                            step="0.05" 
+                            value={lAngle} 
+                            onChange={(e) => updateObject(light.id, {
+                              properties: { ...light.properties, angle: parseFloat(e.target.value) }
+                            })}
+                            className="accent-blue-500 w-full h-1 cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <aside className="w-72 border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-y-auto">
-      <div className="p-3 border-b border-[#2A2A2A] flex items-center justify-between shrink-0">
-        <span className="text-[10px] uppercase tracking-widest font-bold text-[#666]">Inspector</span>
-        {obj.type !== 'imageTarget' && (
-          <button 
-            onClick={handleDelete} 
-            className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-colors"
-            title="Delete Object"
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
+    <aside className="w-72 border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-hidden">
+      {/* Tab Switcher */}
+      <div className="flex border-b border-[#2A2A2A] shrink-0 bg-[#0F0F0F]">
+        <button
+          onClick={() => setActivePanelTab('inspector')}
+          className={cn(
+            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+            activePanelTab === 'inspector' 
+              ? "text-blue-400 border-blue-500 bg-[#141414]" 
+              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Sliders size={11} />
+          Inspector
+        </button>
+        <button
+          onClick={() => setActivePanelTab('lighting')}
+          className={cn(
+            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+            activePanelTab === 'lighting' 
+              ? "text-yellow-400 border-yellow-500 bg-[#141414]" 
+              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Lightbulb size={11} className={activePanelTab === 'lighting' ? "text-yellow-400" : "text-[#666]"} />
+          Lighting
+        </button>
       </div>
 
-      <div className="p-4 flex flex-col gap-6">
-        {/* Entity Name & Type */}
+      <div className="flex-1 overflow-y-auto">
+        {activePanelTab === 'lighting' ? (
+          renderLightingPanel()
+        ) : (
+          !selectedObjectId || !objects[selectedObjectId] ? (
+            <div className="p-4 flex flex-col gap-6">
+              {/* Project Details section */}
+              <div className="flex flex-col gap-3">
+                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Project Configuration</span>
+                
+                <div className="flex flex-col gap-1 bg-[#1A1A1A] p-3 rounded border border-[#2A2A2A]">
+                  <label className="text-[9px] text-[#888] font-semibold uppercase tracking-wider">Active Experience Name</label>
+                  <input 
+                    type="text" 
+                    value={settings.projectName || 'My AR Experience'}
+                    onChange={(e) => updateSettings({ projectName: e.target.value })}
+                    className="bg-black/40 text-[11px] p-2 rounded w-full border border-[#2A2A2A] text-white focus:border-blue-500 font-medium outline-none mt-1"
+                    placeholder="Name your experience..."
+                  />
+                </div>
+              </div>
+
+              {/* Global Ambient Lighting */}
+              <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
+                <div className="flex items-center gap-1.5">
+                  <Sun size={12} className="text-yellow-400" />
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Ambient Environment Light</span>
+                </div>
+
+                <div className="flex flex-col gap-3 bg-[#1A1A1A]/50 border border-[#222] p-3 rounded-lg">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] text-[#666] font-medium">Ambient Color</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="color" 
+                        value={settings.ambientColor || '#ffffff'}
+                        onChange={(e) => updateSettings({ ambientColor: e.target.value })}
+                        className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                      />
+                      <input 
+                        type="text" 
+                        value={settings.ambientColor || '#ffffff'}
+                        onChange={(e) => updateSettings({ ambientColor: e.target.value })}
+                        className="bg-[#0A0A0A] text-[10px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[#666]">Ambient Intensity</span>
+                      <span className="text-yellow-400 font-mono">{(settings.ambientIntensity ?? 0.5).toFixed(2)}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.0" 
+                      max="2.0" 
+                      step="0.05" 
+                      value={settings.ambientIntensity ?? 0.5} 
+                      onChange={(e) => updateSettings({ ambientIntensity: parseFloat(e.target.value) })}
+                      className="accent-yellow-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Directional Lighting */}
+              <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
+                <div className="flex items-center gap-1.5">
+                  <Sliders size={12} className="text-blue-400" />
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Direct Key Spotlight</span>
+                </div>
+
+                <div className="flex flex-col gap-3 bg-[#1A1A1A]/50 border border-[#222] p-3 rounded-lg">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] text-[#666] font-medium">Sunlight Color</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="color" 
+                        value={settings.directionalColor || '#ffffff'}
+                        onChange={(e) => updateSettings({ directionalColor: e.target.value })}
+                        className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                      />
+                      <input 
+                        type="text" 
+                        value={settings.directionalColor || '#ffffff'}
+                        onChange={(e) => updateSettings({ directionalColor: e.target.value })}
+                        className="bg-[#0A0A0A] text-[10px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[#666]">Key Light Intensity</span>
+                      <span className="text-blue-400 font-mono">{(settings.directionalIntensity ?? 1.0).toFixed(2)}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0.0" 
+                      max="4.0" 
+                      step="0.05" 
+                      value={settings.directionalIntensity ?? 1.0} 
+                      onChange={(e) => updateSettings({ directionalIntensity: parseFloat(e.target.value) })}
+                      className="accent-blue-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] border-t border-black/20 pt-2.5">
+                    <span className="text-[#666]">Enable Real-Time Shadows</span>
+                    <input 
+                      type="checkbox" 
+                      checked={settings.shadowsEnabled ?? true}
+                      onChange={(e) => updateSettings({ shadowsEnabled: e.target.checked })}
+                      className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-[#222] pt-4 text-center">
+                <p className="text-[9px] text-gray-500 font-medium leading-relaxed max-w-[220px] mx-auto">
+                  Select any entity in the Scene Hierarchy tree or double-click in the Viewport to configure specific material, behavioral, or physical parameters.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="p-3 border-b border-[#2A2A2A] flex items-center justify-between shrink-0 bg-[#161616]">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Object Inspector</span>
+                {obj!.type !== 'imageTarget' && (
+                  <button 
+                    onClick={handleDelete} 
+                    className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded transition-colors"
+                    title="Delete Object"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+              <div className="p-4 flex flex-col gap-6">
+                {/* Entity Name & Type */}
         <div className="flex items-center gap-3 bg-[#1A1A1A] p-3 rounded border border-[#2A2A2A]">
           <div className="w-9 h-9 bg-black/40 rounded flex items-center justify-center border border-[#333] text-blue-400 font-mono text-base font-bold">
             {obj.type === 'imageTarget' ? '🖼️' : obj.type === 'model' ? '📦' : '◈'}
@@ -501,6 +899,24 @@ export function InspectorPanel() {
                 ))}
               </select>
             </div>
+
+            {obj.properties.behavior === 'spin' && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
+                  <Zap size={10} className="text-blue-400" />
+                  Spin Axis
+                </label>
+                <select
+                  value={obj.properties.spinAxis || 'z'}
+                  onChange={(e) => handlePropertyChange('spinAxis', e.target.value)}
+                  className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+                >
+                  <option value="x">X Axis</option>
+                  <option value="y">Y Axis</option>
+                  <option value="z">Z Axis</option>
+                </select>
+              </div>
+            )}
 
             {/* 2. Interactive Audio Trigger */}
             <div className="flex flex-col gap-1">
@@ -1505,10 +1921,11 @@ export function InspectorPanel() {
             )}
           </div>
         </div>
+      </div>
 
         {/* Quick Add Interactions section */}
         {obj.type !== 'imageTarget' && (!obj.properties.behavior || !obj.properties.soundUrl) && (
-          <div className="flex flex-col gap-2.5 border-t border-[#222] pt-4">
+          <div className="flex flex-col gap-2.5 border-t border-[#222] pt-4 p-4">
             <span className="text-[9px] font-bold text-[#555] uppercase tracking-wider">Quick Interactions</span>
             <div className="flex flex-col gap-1.5">
               {!obj.properties.behavior && (
@@ -1531,6 +1948,9 @@ export function InspectorPanel() {
               )}
             </div>
           </div>
+        )}
+            </>
+          )
         )}
       </div>
     </aside>

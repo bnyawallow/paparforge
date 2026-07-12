@@ -34,21 +34,25 @@ export interface ProjectSettings {
   shadowsEnabled?: boolean;
   publishedProjectId?: string;
   publishedProjectUrl?: string;
+  ambientSoundUrl?: string;
 }
 
 export interface HistorySnapshot {
   objects: Record<string, SceneObject>;
   rootObjects: string[];
   selectedObjectId: string | null;
+  selectedObjectIds: string[];
 }
 
 export interface EditorState {
   objects: Record<string, SceneObject>;
   rootObjects: string[];
   selectedObjectId: string | null;
+  selectedObjectIds: string[];
   selectedObjectRef: any | null;
   settings: ProjectSettings;
   transformMode: 'translate' | 'rotate' | 'scale';
+
   assets: Asset[];
   isPreviewMode: boolean;
   
@@ -92,7 +96,7 @@ export interface EditorState {
   addObject: (obj: SceneObject, parentId?: string) => void;
   removeObject: (id: string) => void;
   updateObject: (id: string, updates: Partial<SceneObject>) => void;
-  selectObject: (id: string | null) => void;
+  selectObject: (id: string | null, multi?: boolean) => void;
   updateSettings: (updates: Partial<ProjectSettings>) => void;
   setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => void;
   moveObject: (draggedId: string, targetId: string) => void;

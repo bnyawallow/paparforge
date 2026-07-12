@@ -392,7 +392,7 @@ const createSnapshot = (state: any): HistorySnapshot => {
   return {
     objects: JSON.parse(JSON.stringify(state.objects)),
     rootObjects: [...state.rootObjects],
-    selectedObjectId: state.selectedObjectId
+    selectedObjectId: state.selectedObjectId, selectedObjectIds: [...state.selectedObjectIds]
   };
 };
 
@@ -444,7 +444,7 @@ const cloneObjectSubtree = (
 export const useEditorStore = create<EditorState>((set) => ({
   objects: initialObjects,
   rootObjects: initialRootObjects,
-  selectedObjectId: null,
+  selectedObjectId: null, selectedObjectIds: [],
   selectedObjectRef: null,
   settings: initialSettings,
   transformMode: 'translate',
@@ -538,6 +538,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       objects: newObjects,
       rootObjects: state.rootObjects.filter(rootId => rootId !== id),
       selectedObjectId: state.selectedObjectId === id ? null : state.selectedObjectId,
+      selectedObjectIds: state.selectedObjectIds.includes(id) ? state.selectedObjectIds.filter(x => x !== id) : state.selectedObjectIds,
       selectedObjectRef: state.selectedObjectId === id ? null : state.selectedObjectRef,
       past: newPast,
       future: [], // Clear redo stack on new action
@@ -577,13 +578,31 @@ export const useEditorStore = create<EditorState>((set) => ({
     };
   }),
 
-  selectObject: (id) => set((state) => {
+  selectObject: (id, multi) => set((state) => {
     // Reset update cooldown on selection change so next update is a clean new snapshot
     lastEditedObjectId = null;
     lastSnapshotTime = 0;
 
+    if (multi && id) {
+      const isAlreadySelected = state.selectedObjectIds.includes(id);
+      let newSelectedIds = [...state.selectedObjectIds];
+      
+      if (isAlreadySelected) {
+        newSelectedIds = newSelectedIds.filter(selectedId => selectedId !== id);
+      } else {
+        newSelectedIds.push(id);
+      }
+      
+      return {
+        selectedObjectId: newSelectedIds.length > 0 ? newSelectedIds[newSelectedIds.length - 1] : null,
+        selectedObjectIds: newSelectedIds,
+        selectedObjectRef: null
+      };
+    }
+
     return { 
       selectedObjectId: id,
+      selectedObjectIds: id ? [id] : [],
       selectedObjectRef: state.selectedObjectId === id ? state.selectedObjectRef : null 
     };
   }),
@@ -887,6 +906,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       objects: previous.objects,
       rootObjects: previous.rootObjects,
       selectedObjectId: previous.selectedObjectId,
+      selectedObjectIds: previous.selectedObjectIds,
       selectedObjectRef: state.selectedObjectId === previous.selectedObjectId ? state.selectedObjectRef : null,
       past: newPast,
       future: newFuture,
@@ -912,6 +932,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       objects: next.objects,
       rootObjects: next.rootObjects,
       selectedObjectId: next.selectedObjectId,
+      selectedObjectIds: next.selectedObjectIds,
       selectedObjectRef: state.selectedObjectId === next.selectedObjectId ? state.selectedObjectRef : null,
       past: newPast,
       future: newFuture,
@@ -933,7 +954,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         rootObjects: parsed.rootObjects,
         settings: parsed.settings || { projectName: parsed.name || 'Untitled Project', imageTargetName: null },
         assets: parsed.assets || [],
-        selectedObjectId: null,
+        selectedObjectId: null, selectedObjectIds: [],
         selectedObjectRef: null,
         past: [],
         future: [],
@@ -987,7 +1008,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           imageTargetName: null
         },
         assets: [],
-        selectedObjectId: null,
+        selectedObjectId: null, selectedObjectIds: [],
         selectedObjectRef: null,
         past: [],
         future: [],
@@ -1021,7 +1042,7 @@ export const useEditorStore = create<EditorState>((set) => ({
               rootObjects: parsed.rootObjects,
               settings: parsed.settings || { projectName: parsed.name || 'Untitled Project', imageTargetName: null },
               assets: parsed.assets || [],
-              selectedObjectId: null,
+              selectedObjectId: null, selectedObjectIds: [],
               selectedObjectRef: null,
               past: [],
               future: [],
@@ -1078,7 +1099,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           rootObjects: [defaultImageTargetId],
           settings: { projectName: 'My AR Experience', imageTargetName: null },
           assets: [],
-          selectedObjectId: null,
+          selectedObjectId: null, selectedObjectIds: [],
           selectedObjectRef: null,
           past: [],
           future: [],
@@ -1135,7 +1156,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         rootObjects: projectData.rootObjects,
         settings: projectData.settings,
         assets: projectData.assets || [],
-        selectedObjectId: null,
+        selectedObjectId: null, selectedObjectIds: [],
         selectedObjectRef: null,
         past: [],
         future: [],
@@ -1278,7 +1299,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           rootObjects: projectData.rootObjects,
           settings: projectData.settings,
           assets: projectData.assets,
-          selectedObjectId: null,
+          selectedObjectId: null, selectedObjectIds: [],
           selectedObjectRef: null,
           past: [],
           future: [],
