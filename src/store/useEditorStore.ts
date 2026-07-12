@@ -461,6 +461,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   gridSnapIncrement: 0.1,
   rotationSnapEnabled: false,
   rotationSnapIncrement: 15,
+
+  // Camera & View modes
+  cameraType: 'perspective',
+  wireframeEnabled: false,
   
   // History state
   past: [],
@@ -1505,4 +1509,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setGridSnapIncrement: (increment) => set({ gridSnapIncrement: increment }),
   setRotationSnapEnabled: (enabled) => set({ rotationSnapEnabled: enabled }),
   setRotationSnapIncrement: (increment) => set({ rotationSnapIncrement: increment }),
+
+  setCameraType: (cameraType) => set({ cameraType }),
+  setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),
 }));

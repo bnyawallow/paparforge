@@ -1486,6 +1486,16 @@ export function InspectorPanel() {
                     className="accent-blue-500 w-full h-1 cursor-pointer"
                   />
                 </div>
+
+                <div className="flex items-center justify-between text-xs mt-1 border-t border-[#222] pt-2.5">
+                  <span className="text-[#666]">Wireframe Mode</span>
+                  <input 
+                    type="checkbox" 
+                    checked={obj.properties.wireframe ?? false}
+                    onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
+                    className="accent-blue-500 cursor-pointer"
+                  />
+                </div>
               </div>
             )}
 
@@ -1552,6 +1562,16 @@ export function InspectorPanel() {
                       className="accent-blue-500 cursor-pointer"
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs mt-1 border-t border-[#222] pt-2.5">
+                  <span className="text-[#666]">Wireframe Mode</span>
+                  <input 
+                    type="checkbox" 
+                    checked={obj.properties.wireframe ?? false}
+                    onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
+                    className="accent-blue-500 cursor-pointer"
+                  />
                 </div>
               </div>
             )}
@@ -1903,6 +1923,16 @@ export function InspectorPanel() {
                     value={obj.properties.animationSpeed ?? 1.0} 
                     onChange={(e) => handlePropertyChange('animationSpeed', parseFloat(e.target.value))}
                     className="accent-blue-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs mt-1 border-t border-[#222] pt-2.5">
+                  <span className="text-[#666]">Wireframe Mode</span>
+                  <input 
+                    type="checkbox" 
+                    checked={obj.properties.wireframe ?? false}
+                    onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
+                    className="accent-blue-500 cursor-pointer"
                   />
                 </div>
               </div>

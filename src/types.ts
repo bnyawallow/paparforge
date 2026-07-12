@@ -76,6 +76,11 @@ export interface EditorState {
   setRotationSnapEnabled: (enabled: boolean) => void;
   setRotationSnapIncrement: (increment: number) => void;
   
+  cameraType: 'perspective' | 'orthographic';
+  setCameraType: (type: 'perspective' | 'orthographic') => void;
+  wireframeEnabled: boolean;
+  setWireframeEnabled: (enabled: boolean) => void;
+  
   // Multi-project state
   currentProjectId: string;
   projectsList: { id: string; name: string; createdAt: number; updatedAt: number }[];

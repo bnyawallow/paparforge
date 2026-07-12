@@ -91,6 +91,31 @@ export function EditorLayout() {
             state.duplicateObject(state.selectedObjectId);
           }
         }
+      } else if (!e.altKey && !e.ctrlKey && !e.metaKey) {
+        // Individual key shortcuts when no modifier is pressed
+        const lowerKey = e.key.toLowerCase();
+        if (lowerKey === 'w' || lowerKey === 't') {
+          e.preventDefault();
+          useEditorStore.getState().setTransformMode('translate');
+        } else if (lowerKey === 'e') {
+          e.preventDefault();
+          useEditorStore.getState().setTransformMode('rotate');
+        } else if (lowerKey === 'r' || lowerKey === 's') {
+          e.preventDefault();
+          useEditorStore.getState().setTransformMode('scale');
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          const state = useEditorStore.getState();
+          if (state.selectedObjectId) {
+            const obj = state.objects[state.selectedObjectId];
+            if (obj && obj.type !== 'imageTarget') {
+              e.preventDefault();
+              state.removeObject(state.selectedObjectId);
+            }
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          useEditorStore.getState().selectObject(null);
+        }
       }
     };
 

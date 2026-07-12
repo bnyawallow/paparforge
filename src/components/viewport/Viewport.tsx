@@ -20,7 +20,9 @@ import {
   BatteryCharging, 
   Sparkles,
   Magnet,
-  Grid as GridIcon
+  Grid as GridIcon,
+  Layers,
+  Compass
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -76,6 +78,7 @@ function Volumetric3DText({ text, color, fontSize, position, ...props }: any) {
 function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: () => void }) {
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
 
   const style = obj.properties.buttonStyle || '3d_push';
   const color = obj.properties.color || '#3b82f6';
@@ -101,6 +104,7 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
             roughness={0.15} 
             metalness={0.9} 
             side={THREE.DoubleSide} 
+            wireframe={wireframe}
           />
         </mesh>
         
@@ -154,6 +158,7 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
           color="#1c1917" 
           roughness={0.4} 
           metalness={0.8} 
+          wireframe={wireframe}
         />
       </mesh>
 
@@ -167,6 +172,7 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
             metalness={0.1} 
             emissive={color}
             emissiveIntensity={isHovered ? 0.15 : 0.0}
+            wireframe={wireframe}
           />
         </mesh>
 
@@ -254,15 +260,27 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
 
   const { actions, names } = useAnimations(animations, group);
 
-  // Auto-traverse mesh elements to enable real-time shadows
+  const storeWireframe = useEditorStore(state => state.wireframeEnabled) || false;
+  const wireframe = storeWireframe || (properties.wireframe ?? false);
+
+  // Auto-traverse mesh elements to enable real-time shadows and wireframe
   useEffect(() => {
     clonedScene.traverse((node: any) => {
       if (node.isMesh) {
         node.castShadow = true;
         node.receiveShadow = true;
+        if (node.material) {
+          if (Array.isArray(node.material)) {
+            node.material.forEach((mat: any) => {
+              if (mat) mat.wireframe = wireframe;
+            });
+          } else {
+            node.material.wireframe = wireframe;
+          }
+        }
       }
     });
-  }, [clonedScene]);
+  }, [clonedScene, wireframe]);
 
   // Discover and store model's keyframe clips in state
   useEffect(() => {
@@ -419,11 +437,12 @@ function ImageTargetWithTexture({ obj }: { obj: SceneObject }) {
   const texture = useTexture(obj.properties.textureUrl) as any;
   const width = (obj.properties.physicalWidth || 1) * 50;
   const height = texture && texture.image ? width * (texture.image.height / texture.image.width) : width;
+  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
   
   return (
     <mesh>
       <planeGeometry args={[width, height]} />
-      {texture && <meshBasicMaterial map={texture} transparent opacity={0.8} side={THREE.DoubleSide} />}
+      {texture && <meshBasicMaterial map={texture} transparent opacity={0.8} side={THREE.DoubleSide} wireframe={wireframe} />}
     </mesh>
   );
 }
@@ -435,7 +454,8 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
   const roughness = properties.roughness ?? 0.5;
   const metalness = properties.metalness ?? 0.1;
   const opacity = properties.opacity ?? 1;
-  const wireframe = properties.wireframe ?? false;
+  const storeWireframe = useEditorStore(state => state.wireframeEnabled) || false;
+  const wireframe = storeWireframe || (properties.wireframe ?? false);
   const doubleSided = properties.doubleSided ?? false;
   
   if (textureUrl) {
@@ -578,8 +598,11 @@ function VideoMeshMaterial({ properties }: { properties: any }) {
     return tex;
   });
 
+  const storeWireframe = useEditorStore(state => state.wireframeEnabled) || false;
+  const wireframe = storeWireframe || (properties.wireframe ?? false);
+
   return (
-    <meshBasicMaterial map={texture} side={THREE.DoubleSide} />
+    <meshBasicMaterial map={texture} side={THREE.DoubleSide} wireframe={wireframe} />
   );
 }
 
@@ -631,6 +654,8 @@ function AudioNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
     }
   }, [isPlaying, isPreviewMode]);
 
+  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
+
   if (isPreviewMode) return null;
 
   return (
@@ -638,15 +663,15 @@ function AudioNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
       {/* Outer audio wireframe rings */}
       <mesh>
         <boxGeometry args={[0.3, 0.45, 0.25]} />
-        <meshStandardMaterial color="#4f46e5" roughness={0.3} metalness={0.2} />
+        <meshStandardMaterial color="#4f46e5" roughness={0.3} metalness={0.2} wireframe={wireframe} />
       </mesh>
       <mesh position={[0, 0, 0.15]}>
         <torusGeometry args={[0.15, 0.02, 8, 24]} />
-        <meshBasicMaterial color="#a78bfa" />
+        <meshBasicMaterial color="#a78bfa" wireframe={wireframe} />
       </mesh>
       <mesh position={[0, 0, 0.2]}>
         <torusGeometry args={[0.25, 0.015, 8, 24]} />
-        <meshBasicMaterial color="#c084fc" opacity={0.5} transparent />
+        <meshBasicMaterial color="#c084fc" opacity={0.5} transparent wireframe={wireframe} />
       </mesh>
     </group>
   );
@@ -660,6 +685,7 @@ function LightNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
   const distance = properties.distance ?? 12;
   const decay = properties.decay ?? 1.5;
   const angle = properties.angle ?? Math.PI / 4;
+  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
 
   return (
     <group>
@@ -668,7 +694,7 @@ function LightNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
           {/* Bulb center */}
           <mesh>
             <sphereGeometry args={[0.18, 16, 16]} />
-            <meshBasicMaterial color={color} />
+            <meshBasicMaterial color={color} wireframe={wireframe} />
           </mesh>
           {/* Wire sphere guide */}
           <mesh>
@@ -1258,7 +1284,11 @@ export function Viewport() {
     rotationSnapEnabled,
     rotationSnapIncrement,
     setRotationSnapEnabled,
-    setRotationSnapIncrement
+    setRotationSnapIncrement,
+    cameraType,
+    setCameraType,
+    wireframeEnabled,
+    setWireframeEnabled
   } = useEditorStore();
 
   const [showBezel, setShowBezel] = useState(true);
@@ -1488,7 +1518,7 @@ export function Viewport() {
             {/* 3D R3F Canvas Layer (Transparent bg) */}
             <div className="absolute inset-0 z-10">
               <Canvas 
-                camera={{ position: [5, 5, 5], fov: 50, up: [0, 0, 1] }}
+                camera={{ position: [5, 5, 5], fov: 50, up: [0, 1, 0] }}
                 onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
               >
                 
@@ -1700,8 +1730,13 @@ export function Viewport() {
       onDragOver={handleDragOver}
     >
       <Canvas 
+        key={cameraType}
         shadows={shadowsEnabled}
-        camera={{ position: [5, 5, 5], fov: 50, up: [0, 0, 1] }}
+        orthographic={cameraType === 'orthographic'}
+        camera={cameraType === 'orthographic' 
+          ? { position: [5, 5, 5], zoom: 100, up: [0, 1, 0], near: -100, far: 1000 }
+          : { position: [5, 5, 5], fov: 50, up: [0, 1, 0] }
+        }
         onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
       >
         <color attach="background" args={['#222224']} />
@@ -1748,21 +1783,21 @@ export function Viewport() {
           <button 
             onClick={() => setTransformMode('translate')}
             className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'translate' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
-            title="Translate (Move)"
+            title="Translate (Move) [W / T]"
           >
             <Move size={14} />
           </button>
           <button 
             onClick={() => setTransformMode('rotate')}
             className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'rotate' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
-            title="Rotate"
+            title="Rotate [E]"
           >
             <RotateCw size={14} />
           </button>
           <button 
             onClick={() => setTransformMode('scale')}
             className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'scale' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
-            title="Scale"
+            title="Scale [R / S]"
           >
             <Maximize size={14} />
           </button>
@@ -1816,6 +1851,27 @@ export function Viewport() {
               <option value="90">90°</option>
             </select>
           )}
+        </div>
+
+        {/* Camera Projection & Wireframe Toggles */}
+        <div className="flex items-center gap-1.5 text-[10px] font-sans border-l border-[#2A2A2A] pl-2 ml-1">
+          {/* Camera projection toggle */}
+          <button
+            onClick={() => setCameraType(cameraType === 'perspective' ? 'orthographic' : 'perspective')}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${cameraType === 'orthographic' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
+            title={`Switch to ${cameraType === 'perspective' ? 'Orthographic' : 'Perspective'} view`}
+          >
+            <Compass size={14} className={cameraType === 'orthographic' ? 'animate-spin' : ''} style={{ animationDuration: cameraType === 'orthographic' ? '12s' : '0s' }} />
+          </button>
+
+          {/* Wireframe toggle */}
+          <button
+            onClick={() => setWireframeEnabled(!wireframeEnabled)}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${wireframeEnabled ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
+            title={wireframeEnabled ? "Disable wireframe view" : "Enable wireframe view"}
+          >
+            <Layers size={14} />
+          </button>
         </div>
       </div>
     </div>
