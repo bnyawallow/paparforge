@@ -29,7 +29,7 @@ import {
 import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
 
-export function HierarchyPanel() {
+export function HierarchyPanel({ width }: { width?: number }) {
   const { 
     objects, 
     rootObjects, 
@@ -85,7 +85,7 @@ export function HierarchyPanel() {
       newObj.properties = { videoUrl: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761', playing: true, loop: true, muted: true, volume: 0.5 };
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'audio') {
-      newObj.properties = { soundUrl: 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav', autoplay: false, playing: false, loop: true, volume: 0.5 };
+      newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: false, playing: false, loop: true, volume: 0.5 };
     } else if (type === 'light') {
       newObj.properties = { lightType: 'point', color: '#ffedd5', intensity: 3.0, distance: 12.0, decay: 1.5, angle: 0.78 };
       newObj.position = [0, 2, 0];
@@ -310,7 +310,10 @@ export function HierarchyPanel() {
   };
 
   return (
-    <aside className="w-60 border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0">
+    <aside 
+      style={{ width: width ? `${width}px` : '240px' }}
+      className="border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0"
+    >
       <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
         <span className="text-[10px] uppercase tracking-widest font-bold text-[#666]">Hierarchy</span>
         <div className="flex items-center gap-2">

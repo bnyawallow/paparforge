@@ -20,10 +20,10 @@ const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
     { name: 'Blueprint Grid 📐', url: 'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?q=80&w=600&auto=format&fit=crop' },
   ],
   audio: [
-    { name: 'Cyber Click 🎵', url: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav' },
-    { name: 'Success Chime ✨', url: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav' },
-    { name: 'Robot Beep 🤖', url: 'https://assets.mixkit.co/active_storage/sfx/1601/1601-84.wav' },
-    { name: 'Forest Ambient 🌲', url: 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav' },
+    { name: 'Cyber Click 🎵', url: '/sounds/cyber_click.wav' },
+    { name: 'Success Chime ✨', url: '/sounds/success_chime.wav' },
+    { name: 'Robot Beep 🤖', url: '/sounds/robot_beep.wav' },
+    { name: 'Forest Ambient 🌲', url: '/sounds/forest_ambient.wav' },
   ],
   video: [
     { name: 'Abstract Tunnel 🌀', url: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761' },
@@ -253,6 +253,7 @@ const MATERIAL_LIBRARY: Array<{
   name: string;
   category: string;
   description: string;
+  previewUrl: string;
   properties: Record<string, any>;
 }> = [
   {
@@ -260,6 +261,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🏆 Polished Gold',
     category: 'Metals',
     description: 'Highly reflective, rich gold metallic finish.',
+    previewUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#ffd700',
       roughness: 0.08,
@@ -277,6 +279,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🪙 Polished Copper',
     category: 'Metals',
     description: 'Shiny warm copper metallic finish.',
+    previewUrl: 'https://images.unsplash.com/photo-1605557626697-2e87166a88f9?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#b87333',
       roughness: 0.12,
@@ -294,6 +297,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🪞 Chrome Mirror',
     category: 'Metals',
     description: 'Perfect mirror-like metallic reflection.',
+    previewUrl: 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#ffffff',
       roughness: 0.01,
@@ -311,6 +315,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '⚙️ Brushed Steel',
     category: 'Metals',
     description: 'Anisotropic brushed industrial steel look.',
+    previewUrl: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#a1a1aa',
       roughness: 0.35,
@@ -327,6 +332,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🏚️ Rusty Iron',
     category: 'Metals',
     description: 'Rough, oxidized dark rusty iron plate.',
+    previewUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#451a03',
       roughness: 0.85,
@@ -343,6 +349,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '💎 Pure Glass',
     category: 'Glass & Gems',
     description: 'Physical transmissive clear solid glass.',
+    previewUrl: 'https://images.unsplash.com/photo-1598432439360-504c32e93cc3?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#ffffff',
       roughness: 0.05,
@@ -363,6 +370,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '❄️ Frost Glass',
     category: 'Glass & Gems',
     description: 'Rough translucent frosted glass pane.',
+    previewUrl: 'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#e0f2fe',
       roughness: 0.45,
@@ -383,6 +391,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '❤️ Ruby Crystal',
     category: 'Glass & Gems',
     description: 'Translucent rich red polished gemstone.',
+    previewUrl: 'https://images.unsplash.com/photo-1551376347-075b0121a65b?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#dc2626',
       roughness: 0.04,
@@ -403,6 +412,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '💚 Emerald Gem',
     category: 'Glass & Gems',
     description: 'Translucent glowing deep green precious gem.',
+    previewUrl: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#059669',
       roughness: 0.06,
@@ -423,6 +433,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🏺 Polished Marble',
     category: 'Stone & Ceramic',
     description: 'Ultra-glossy white ceramic marble material.',
+    previewUrl: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#fafaf9',
       roughness: 0.05,
@@ -440,6 +451,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🌋 Dark Obsidian',
     category: 'Stone & Ceramic',
     description: 'Glossy pitch-black volcanic glass rock.',
+    previewUrl: 'https://images.unsplash.com/photo-1611085583191-a3b1a30a8a0a?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#0c0a09',
       roughness: 0.1,
@@ -457,6 +469,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '☕ Matte Ceramic',
     category: 'Stone & Ceramic',
     description: 'Soft matte earthenware porous ceramic body.',
+    previewUrl: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#f5f5f4',
       roughness: 0.6,
@@ -473,6 +486,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🏁 Carbon Fiber',
     category: 'Sci-Fi',
     description: 'Specular black checkered weave composites.',
+    previewUrl: 'https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#18181b',
       roughness: 0.25,
@@ -490,6 +504,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '💖 Pink Neon Glow',
     category: 'Sci-Fi',
     description: 'Deep emissive electric magenta glowing body.',
+    previewUrl: 'https://images.unsplash.com/photo-1507608869274-d3177c8bb4c7?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#ec4899',
       roughness: 0.2,
@@ -506,6 +521,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '🌐 Cyber Cyan Glow',
     category: 'Sci-Fi',
     description: 'Bright cybernetic neon light source.',
+    previewUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#06b6d4',
       roughness: 0.1,
@@ -522,6 +538,7 @@ const MATERIAL_LIBRARY: Array<{
     name: '📡 Ghost Hologram',
     category: 'Sci-Fi',
     description: 'Wireframe blue transparent hologram shell.',
+    previewUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=120&q=80',
     properties: {
       color: '#06b6d4',
       roughness: 0.2,
@@ -546,13 +563,13 @@ const BEHAVIOR_OPTIONS = [
 
 const SOUND_OPTIONS = [
   { value: '', label: 'No sound attached' },
-  { value: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav', label: '🎵 Cyber Click' },
-  { value: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav', label: '✨ Success Chime' },
-  { value: 'https://assets.mixkit.co/active_storage/sfx/1601/1601-84.wav', label: '🤖 Robot Beep' },
-  { value: 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav', label: '🌲 Forest Ambient' },
+  { value: '/sounds/cyber_click.wav', label: '🎵 Cyber Click' },
+  { value: '/sounds/success_chime.wav', label: '✨ Success Chime' },
+  { value: '/sounds/robot_beep.wav', label: '🤖 Robot Beep' },
+  { value: '/sounds/forest_ambient.wav', label: '🌲 Forest Ambient' },
 ];
 
-export function InspectorPanel() {
+export function InspectorPanel({ width }: { width?: number }) {
   const { 
     objects, 
     selectedObjectId, selectedObjectIds, 
@@ -628,7 +645,7 @@ export function InspectorPanel() {
       action: 'toast',
       toastMessage: 'Triggered Event Action!',
       url: 'https://',
-      soundPreset: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav',
+      soundPreset: '/sounds/success_chime.wav',
       targetObjectId: '',
       proximityDistance: 2.0
     };
@@ -705,6 +722,23 @@ export function InspectorPanel() {
     }
   };
 
+  const handleMultiplePropertiesChange = (updates: Record<string, any>) => {
+    if (!obj) return;
+    if (selectedObjectIds && selectedObjectIds.length > 0) {
+      selectedObjectIds.forEach(id => {
+        if (objects[id]) {
+          updateObject(id, {
+            properties: { ...objects[id].properties, ...updates }
+          });
+        }
+      });
+    } else {
+      updateObject(selectedObjectId!, {
+        properties: { ...obj.properties, ...updates }
+      });
+    }
+  };
+
   const handleDelete = () => {
     if (selectedObjectIds && selectedObjectIds.length > 0) {
       selectedObjectIds.forEach(id => removeObject(id));
@@ -724,7 +758,7 @@ export function InspectorPanel() {
     if (type === 'behavior') {
       handlePropertyChange('behavior', 'spin');
     } else if (type === 'sound') {
-      handlePropertyChange('soundUrl', 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav');
+      handlePropertyChange('soundUrl', '/sounds/cyber_click.wav');
       handlePropertyChange('soundName', 'Cyber Click');
     }
   };
@@ -1043,7 +1077,10 @@ export function InspectorPanel() {
   };
 
   return (
-    <aside className="w-72 border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-hidden">
+    <aside 
+      style={{ width: width ? `${width}px` : '288px' }}
+      className="border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-hidden"
+    >
       {/* Tab Switcher */}
       <div className="flex border-b border-[#2A2A2A] shrink-0 bg-[#0F0F0F]">
         <button
@@ -1705,33 +1742,47 @@ export function InspectorPanel() {
                           <button
                             key={preset.id}
                             onClick={() => {
-                              // Apply all preset properties
-                              Object.entries(preset.properties).forEach(([key, value]) => {
-                                handlePropertyChange(key, value);
+                              // Build atomic batch updates
+                              const updates: Record<string, any> = { ...preset.properties };
+                              
+                              // Reset maps that aren't defined in the preset to clear previous maps
+                              const mapKeys = [
+                                'textureUrl', 'normalMapUrl', 'roughnessMapUrl', 
+                                'metalnessMapUrl', 'displacementMapUrl'
+                              ];
+                              mapKeys.forEach(key => {
+                                if (!(key in updates)) {
+                                  updates[key] = '';
+                                }
                               });
-                              // Also clear basic map properties to reset unless preset specifies otherwise
-                              if (!preset.properties.textureUrl) handlePropertyChange('textureUrl', '');
-                              if (!preset.properties.normalMapUrl) handlePropertyChange('normalMapUrl', '');
-                              if (!preset.properties.roughnessMapUrl) handlePropertyChange('roughnessMapUrl', '');
-                              if (!preset.properties.metalnessMapUrl) handlePropertyChange('metalnessMapUrl', '');
-                              if (!preset.properties.displacementMapUrl) handlePropertyChange('displacementMapUrl', '');
+                              
+                              handleMultiplePropertiesChange(updates);
                             }}
-                            className={`p-2 rounded-lg border text-left flex flex-col gap-1 transition-all group ${
+                            className={`p-1.5 rounded-lg border text-left flex items-start gap-2 transition-all duration-200 group ${
                               isCurrentlyApplied 
-                                ? 'bg-blue-600/10 border-blue-500' 
-                                : 'bg-[#18181b]/50 border-[#222] hover:border-gray-500'
+                                ? 'bg-blue-600/15 border-blue-500 shadow-md shadow-blue-500/10' 
+                                : 'bg-[#18181b]/50 border-[#222] hover:border-gray-500 hover:bg-black/30'
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 justify-between w-full">
-                              <span className="text-[10px] font-bold text-white truncate">{preset.name}</span>
-                              <div 
-                                className="w-2.5 h-2.5 rounded-full border border-black/30 shrink-0" 
-                                style={{ backgroundColor: preset.properties.color }}
+                            {/* Material Preview Image */}
+                            <div className="w-9 h-9 rounded-md overflow-hidden shrink-0 border border-white/10 relative bg-[#111]">
+                              <img 
+                                src={preset.previewUrl} 
+                                alt={preset.name} 
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                referrerPolicy="no-referrer"
                               />
+                              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-200" />
                             </div>
-                            <span className="text-[8px] text-gray-500 line-clamp-2 leading-normal h-6">
-                              {preset.description}
-                            </span>
+
+                            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                              <span className="text-[9px] font-extrabold text-white truncate leading-tight group-hover:text-blue-300 transition-colors">
+                                {preset.name}
+                              </span>
+                              <span className="text-[7.5px] text-gray-500 line-clamp-2 leading-tight select-none">
+                                {preset.description}
+                              </span>
+                            </div>
                           </button>
                         );
                       })}

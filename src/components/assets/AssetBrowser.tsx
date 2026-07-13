@@ -119,7 +119,7 @@ const PRESET_SOUNDS = [
     id: 'p-sound-click',
     name: 'Cyber Click',
     type: 'audio' as AssetType,
-    url: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav',
+    url: '/sounds/cyber_click.wav',
     thumbnail: '🎵',
     description: 'Clean futuristic electronic tap feedback',
   },
@@ -127,7 +127,7 @@ const PRESET_SOUNDS = [
     id: 'p-sound-success',
     name: 'Success Ring',
     type: 'audio' as AssetType,
-    url: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav',
+    url: '/sounds/success_chime.wav',
     thumbnail: '✨',
     description: 'Shimmering positive response chime',
   },
@@ -135,7 +135,7 @@ const PRESET_SOUNDS = [
     id: 'p-sound-beep',
     name: 'Tech Beep',
     type: 'audio' as AssetType,
-    url: 'https://assets.mixkit.co/active_storage/sfx/1601/1601-84.wav',
+    url: '/sounds/robot_beep.wav',
     thumbnail: '🤖',
     description: 'Short high-pitch computer processing tone',
   },
@@ -143,7 +143,7 @@ const PRESET_SOUNDS = [
     id: 'p-sound-ambient',
     name: 'Nature Ambient',
     type: 'audio' as AssetType,
-    url: 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav',
+    url: '/sounds/forest_ambient.wav',
     thumbnail: '🌲',
     description: 'Gentle organic wilderness backdrop loop',
   }
@@ -932,7 +932,12 @@ export function AssetBrowser() {
                     <div className="w-full h-14 flex items-center justify-center bg-black/40 rounded text-xl mb-1 relative overflow-hidden">
                       <span className="group-hover:rotate-12 transition-transform">{sound.thumbnail}</span>
                       <button 
-                        onClick={(e) => { e.stopPropagation(); handleUseAsset(sound); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const preview = new Audio(sound.url);
+                          preview.volume = 0.4;
+                          preview.play().catch(err => console.log('Audio playback preview failed', err));
+                        }}
                         className="absolute inset-0 bg-pink-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       >
                         <Play size={16} className="text-pink-400 fill-pink-400/20" />

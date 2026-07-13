@@ -35,7 +35,7 @@ onUpdate((time) => {
     code: `// Registers a callback when the object is clicked in Preview Mode
 onTap(() => {
   // Play the Success Chime sound preset
-  api.playSound('https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav');
+  api.playSound('/sounds/success_chime.wav');
   
   // Show an AR notification banner
   api.showToast("Success! You activated the portal.");

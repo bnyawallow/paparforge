@@ -461,7 +461,7 @@ export const generateAFrameScene = (state: any) => {
               }
               break;
             case 'playSound':
-              const playUrl = b.soundPreset || 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav';
+              const playUrl = b.soundPreset || '/sounds/success_chime.wav';
               const sfx = new Audio(playUrl);
               sfx.volume = 0.5;
               sfx.play().catch(e => console.log('Audio preset play failed', e));
@@ -528,7 +528,7 @@ export const generateAFrameScene = (state: any) => {
               return targetEl ? { id: targetId, visible: targetEl.getAttribute('visible') !== false } : null;
             },
             playSound: (url) => {
-              const playUrl = url || 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav';
+              const playUrl = url || '/sounds/cyber_click.wav';
               const sfx = new Audio(playUrl);
               sfx.volume = 0.5;
               sfx.play().catch(e => console.log('Script sound failed', e));

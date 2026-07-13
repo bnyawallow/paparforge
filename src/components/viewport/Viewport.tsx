@@ -743,7 +743,7 @@ function VideoMeshMaterial({ properties }: { properties: any }) {
 
 // Beautiful 3D Audio Node simulation
 function AudioNodeRenderer({ properties, isPreviewMode }: { properties: any; isPreviewMode: boolean }) {
-  const soundUrl = properties.soundUrl || 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav';
+  const soundUrl = properties.soundUrl || '/sounds/forest_ambient.wav';
   const autoplay = properties.autoplay ?? false;
   const loop = properties.loop ?? true;
   const volume = properties.volume ?? 0.5;
@@ -901,7 +901,7 @@ function ObjectRenderer({ id }: { id: string }) {
         }
         break;
       case 'playSound':
-        const playUrl = b.soundPreset || 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav';
+        const playUrl = b.soundPreset || '/sounds/success_chime.wav';
         const sfx = new Audio(playUrl);
         sfx.volume = 0.5;
         sfx.play().catch(e => console.log('Audio preset play failed', e));
@@ -985,7 +985,7 @@ function ObjectRenderer({ id }: { id: string }) {
             return useEditorStore.getState().objects[targetId];
           },
           playSound: (url: string) => {
-            const playUrl = url || 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav';
+            const playUrl = url || '/sounds/cyber_click.wav';
             const sfx = new Audio(playUrl);
             sfx.volume = 0.5;
             sfx.play().catch(e => console.log('Script sound failed', e));

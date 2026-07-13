@@ -12,26 +12,53 @@ export function EditorLayout() {
   const editingScriptObjectId = useEditorStore(state => state.editingScriptObjectId);
 
   const [bottomHeight, setBottomHeight] = React.useState(224); // default 224px (h-56)
-  const [isDragging, setIsDragging] = React.useState(false);
+  const [leftWidth, setLeftWidth] = React.useState(240); // default 240px
+  const [rightWidth, setRightWidth] = React.useState(288); // default 288px (w-72)
+  const [isDraggingBottom, setIsDraggingBottom] = React.useState(false);
+  const [isDraggingLeft, setIsDraggingLeft] = React.useState(false);
+  const [isDraggingRight, setIsDraggingRight] = React.useState(false);
 
-  const startResize = (e: React.MouseEvent) => {
+  const startResizeBottom = (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    setIsDraggingBottom(true);
+  };
+
+  const startResizeLeft = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingLeft(true);
+  };
+
+  const startResizeRight = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingRight(true);
   };
 
   React.useEffect(() => {
-    if (!isDragging) return;
+    if (!isDraggingBottom && !isDraggingLeft && !isDraggingRight) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const newHeight = window.innerHeight - e.clientY;
-      // restrict size to sensible bounds (e.g. min 120px, max screen - 200px)
-      if (newHeight > 120 && newHeight < window.innerHeight - 200) {
-        setBottomHeight(newHeight);
+      if (isDraggingBottom) {
+        const newHeight = window.innerHeight - e.clientY;
+        if (newHeight > 100 && newHeight < window.innerHeight - 200) {
+          setBottomHeight(newHeight);
+        }
+      } else if (isDraggingLeft) {
+        const newWidth = e.clientX;
+        if (newWidth > 180 && newWidth < 500) {
+          setLeftWidth(newWidth);
+        }
+      } else if (isDraggingRight) {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth > 240 && newWidth < 600) {
+          setRightWidth(newWidth);
+        }
       }
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
+      setIsDraggingBottom(false);
+      setIsDraggingLeft(false);
+      setIsDraggingRight(false);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -40,7 +67,7 @@ export function EditorLayout() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDraggingBottom, isDraggingLeft, isDraggingRight]);
 
   // Global Keyboard Shortcuts for Undo/Redo (Ctrl+Z / Cmd+Z, Ctrl+Y / Cmd+Shift+Z)
   React.useEffect(() => {
@@ -155,7 +182,22 @@ export function EditorLayout() {
         <div className="flex-1 flex flex-col overflow-hidden bg-[#111111]">
           {/* Top segment: Hierarchy Panel and Viewport (3D Editor) side-by-side */}
           <div className="flex-1 flex overflow-hidden relative">
-            {!isPreviewMode && <HierarchyPanel />}
+            {!isPreviewMode && <HierarchyPanel width={leftWidth} />}
+            {!isPreviewMode && (
+              <div 
+                onMouseDown={startResizeLeft}
+                className="w-1 bg-[#222] hover:bg-blue-500 cursor-col-resize transition-all shrink-0 z-40 relative group"
+                title="Drag to resize hierarchy panel"
+              >
+                <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
+                {/* Visual grab indicators in the center of the vertical bar */}
+                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                </div>
+              </div>
+            )}
             <div className="flex-1 relative overflow-hidden">
               {!isPreviewMode && (
                 <div 
@@ -171,7 +213,7 @@ export function EditorLayout() {
             <>
               {/* Resize handle bar */}
               <div 
-                onMouseDown={startResize}
+                onMouseDown={startResizeBottom}
                 className="h-1 bg-[#222] hover:bg-blue-500 cursor-row-resize transition-all shrink-0 z-40 relative group"
                 title="Drag to resize assets panel"
               >
@@ -189,7 +231,24 @@ export function EditorLayout() {
             </>
           )}
         </div>
-        {!isPreviewMode && <InspectorPanel />}
+        {!isPreviewMode && (
+          <>
+            <div 
+              onMouseDown={startResizeRight}
+              className="w-1 bg-[#222] hover:bg-blue-500 cursor-col-resize transition-all shrink-0 z-40 relative group"
+              title="Drag to resize inspector panel"
+            >
+              <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
+              {/* Visual grab indicators in the center of the vertical bar */}
+              <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+              </div>
+            </div>
+            <InspectorPanel width={rightWidth} />
+          </>
+        )}
       </div>
     </div>
   );
