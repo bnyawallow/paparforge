@@ -447,30 +447,56 @@ function ImageTargetWithTexture({ obj }: { obj: SceneObject }) {
   );
 }
 
-// Textured material rendering for primitives
+// Textured material rendering for primitives - Upgraded to supports custom physical parameters and multiple maps
 function TexturedMaterial({ properties, defaultColor }: { properties: any; defaultColor: string }) {
   const color = properties.color || defaultColor;
-  const textureUrl = properties.textureUrl;
-  const roughness = properties.roughness ?? 0.5;
-  const metalness = properties.metalness ?? 0.1;
-  const opacity = properties.opacity ?? 1;
   const storeWireframe = useEditorStore(state => state.wireframeEnabled) || false;
   const wireframe = storeWireframe || (properties.wireframe ?? false);
+  const opacity = properties.opacity ?? 1;
   const doubleSided = properties.doubleSided ?? false;
   
-  if (textureUrl) {
-    return (
-      <ErrorBoundary fallback={
-        <meshStandardMaterial 
-          color={color} 
-          roughness={roughness} 
-          metalness={metalness} 
-          wireframe={wireframe} 
-          transparent={opacity < 1} 
-          opacity={opacity} 
-          side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
-        />
-      }><Suspense fallback={
+  // Basic properties
+  const roughness = properties.roughness ?? 0.5;
+  const metalness = properties.metalness ?? 0.1;
+  
+  // Emissive properties
+  const emissiveColor = properties.emissiveColor || '#000000';
+  const emissiveIntensity = properties.emissiveIntensity ?? 0;
+  
+  // Advanced clearcoat / transmission
+  const clearcoat = properties.clearcoat ?? 0;
+  const clearcoatRoughness = properties.clearcoatRoughness ?? 0.1;
+  const transmission = properties.transmission ?? 0;
+  const thickness = properties.thickness ?? 0;
+  const ior = properties.ior ?? 1.5;
+  const flatShading = properties.flatShading ?? false;
+
+  // Map URLs
+  const textureUrl = properties.textureUrl;
+  const normalMapUrl = properties.normalMapUrl;
+  const roughnessMapUrl = properties.roughnessMapUrl;
+  const metalnessMapUrl = properties.metalnessMapUrl;
+  const displacementMapUrl = properties.displacementMapUrl;
+  const displacementScale = properties.displacementScale ?? 0.05;
+  const normalScale = properties.normalScale ?? 1;
+
+  // Repeat values
+  const repeatX = properties.textureRepeatX ?? 1;
+  const repeatY = properties.textureRepeatY ?? 1;
+
+  return (
+    <ErrorBoundary fallback={
+      <meshStandardMaterial 
+        color={color} 
+        roughness={roughness} 
+        metalness={metalness} 
+        wireframe={wireframe} 
+        transparent={opacity < 1} 
+        opacity={opacity} 
+        side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
+      />
+    }>
+      <Suspense fallback={
         <meshStandardMaterial 
           color={color} 
           roughness={roughness} 
@@ -481,54 +507,163 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
           side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
         />
       }>
-        <TexturedMaterialWithHook 
-          url={textureUrl} 
-          color={color} 
-          roughness={roughness} 
-          metalness={metalness} 
-          wireframe={wireframe} 
-          opacity={opacity} 
-          repeatX={properties.textureRepeatX} 
-          repeatY={properties.textureRepeatY} 
+        <PhysicalMaterialLoader 
+          color={color}
+          opacity={opacity}
           doubleSided={doubleSided}
+          roughness={roughness}
+          metalness={metalness}
+          emissiveColor={emissiveColor}
+          emissiveIntensity={emissiveIntensity}
+          clearcoat={clearcoat}
+          clearcoatRoughness={clearcoatRoughness}
+          transmission={transmission}
+          thickness={thickness}
+          ior={ior}
+          flatShading={flatShading}
+          textureUrl={textureUrl}
+          normalMapUrl={normalMapUrl}
+          roughnessMapUrl={roughnessMapUrl}
+          metalnessMapUrl={metalnessMapUrl}
+          displacementMapUrl={displacementMapUrl}
+          displacementScale={displacementScale}
+          normalScale={normalScale}
+          repeatX={repeatX}
+          repeatY={repeatY}
+          wireframe={wireframe}
         />
       </Suspense>
-      </ErrorBoundary>
+    </ErrorBoundary>
+  );
+}
+
+function PhysicalMaterialLoader({
+  color,
+  opacity,
+  doubleSided,
+  roughness,
+  metalness,
+  emissiveColor,
+  emissiveIntensity,
+  clearcoat,
+  clearcoatRoughness,
+  transmission,
+  thickness,
+  ior,
+  flatShading,
+  textureUrl,
+  normalMapUrl,
+  roughnessMapUrl,
+  metalnessMapUrl,
+  displacementMapUrl,
+  displacementScale,
+  normalScale,
+  repeatX,
+  repeatY,
+  wireframe
+}: any) {
+  const [maps, setMaps] = useState<Record<string, THREE.Texture>>({});
+
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    const loadedMaps: Record<string, THREE.Texture> = {};
+    let active = true;
+
+    const urls = {
+      map: textureUrl,
+      normalMap: normalMapUrl,
+      roughnessMap: roughnessMapUrl,
+      metalnessMap: metalnessMapUrl,
+      displacementMap: displacementMapUrl,
+    };
+
+    const loadPromises = Object.entries(urls).map(([key, url]) => {
+      if (!url) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        loader.load(
+          url,
+          (tex) => {
+            if (active) {
+              tex.wrapS = THREE.RepeatWrapping;
+              tex.wrapT = THREE.RepeatWrapping;
+              tex.repeat.set(repeatX || 1, repeatY || 1);
+              tex.needsUpdate = true;
+              loadedMaps[key] = tex;
+            }
+            resolve();
+          },
+          undefined,
+          () => {
+            // Error loading texture - resolve silently to prevent crashing
+            resolve();
+          }
+        );
+      });
+    });
+
+    Promise.all(loadPromises).then(() => {
+      if (active) {
+        setMaps({ ...loadedMaps });
+      }
+    });
+
+    return () => {
+      active = false;
+      // Dispose loaded textures
+      Object.values(loadedMaps).forEach(tex => tex.dispose());
+    };
+  }, [textureUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, displacementMapUrl, repeatX, repeatY]);
+
+  // Determine whether we should use meshPhysicalMaterial or meshStandardMaterial.
+  // meshPhysicalMaterial supports transmission, clearcoat, thickness, ior.
+  const isPhysical = clearcoat > 0 || transmission > 0;
+
+  if (isPhysical) {
+    return (
+      <meshPhysicalMaterial
+        color={color}
+        map={maps.map || null}
+        normalMap={maps.normalMap || null}
+        normalScale={new THREE.Vector2(normalScale, normalScale)}
+        roughnessMap={maps.roughnessMap || null}
+        metalnessMap={maps.metalnessMap || null}
+        displacementMap={maps.displacementMap || null}
+        displacementScale={displacementScale}
+        roughness={roughness}
+        metalness={metalness}
+        emissive={new THREE.Color(emissiveColor)}
+        emissiveIntensity={emissiveIntensity}
+        clearcoat={clearcoat}
+        clearcoatRoughness={clearcoatRoughness}
+        transmission={transmission}
+        thickness={thickness}
+        ior={ior}
+        flatShading={flatShading}
+        wireframe={wireframe}
+        transparent={opacity < 1 || transmission > 0}
+        opacity={opacity}
+        side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
+      />
     );
   }
 
   return (
-    <meshStandardMaterial 
-      color={color} 
-      roughness={roughness} 
-      metalness={metalness} 
+    <meshStandardMaterial
+      color={color}
+      map={maps.map || null}
+      normalMap={maps.normalMap || null}
+      normalScale={new THREE.Vector2(normalScale, normalScale)}
+      roughnessMap={maps.roughnessMap || null}
+      metalnessMap={maps.metalnessMap || null}
+      displacementMap={maps.displacementMap || null}
+      displacementScale={displacementScale}
+      roughness={roughness}
+      metalness={metalness}
+      emissive={new THREE.Color(emissiveColor)}
+      emissiveIntensity={emissiveIntensity}
+      flatShading={flatShading}
       wireframe={wireframe}
       transparent={opacity < 1}
-      opacity={opacity}
-      side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
-    />
-  );
-}
-
-function TexturedMaterialWithHook({ url, color, roughness, metalness, wireframe, opacity, repeatX, repeatY, doubleSided }: any) {
-  const texture = useTexture(url) as any;
-  useEffect(() => {
-    if (texture) {
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(repeatX || 1, repeatY || 1);
-      texture.needsUpdate = true;
-    }
-  }, [texture, repeatX, repeatY]);
-
-  return (
-    <meshStandardMaterial 
-      map={texture} 
-      color={color} 
-      roughness={roughness} 
-      metalness={metalness} 
-      wireframe={wireframe}
-      transparent={opacity < 1 || texture.transparent}
       opacity={opacity}
       side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
     />

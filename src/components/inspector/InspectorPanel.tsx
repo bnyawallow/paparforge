@@ -248,6 +248,294 @@ const FONT_LIBRARY = [
   { name: 'Lobster', url: 'https://unpkg.com/@fontsource/lobster/files/lobster-latin-400-normal.woff' },
 ];
 
+const MATERIAL_LIBRARY: Array<{
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  properties: Record<string, any>;
+}> = [
+  {
+    id: 'gold',
+    name: '🏆 Polished Gold',
+    category: 'Metals',
+    description: 'Highly reflective, rich gold metallic finish.',
+    properties: {
+      color: '#ffd700',
+      roughness: 0.08,
+      metalness: 1.0,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.05,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'copper',
+    name: '🪙 Polished Copper',
+    category: 'Metals',
+    description: 'Shiny warm copper metallic finish.',
+    properties: {
+      color: '#b87333',
+      roughness: 0.12,
+      metalness: 1.0,
+      clearcoat: 0.4,
+      clearcoatRoughness: 0.08,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'chrome',
+    name: '🪞 Chrome Mirror',
+    category: 'Metals',
+    description: 'Perfect mirror-like metallic reflection.',
+    properties: {
+      color: '#ffffff',
+      roughness: 0.01,
+      metalness: 1.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.02,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'brushed_steel',
+    name: '⚙️ Brushed Steel',
+    category: 'Metals',
+    description: 'Anisotropic brushed industrial steel look.',
+    properties: {
+      color: '#a1a1aa',
+      roughness: 0.35,
+      metalness: 0.95,
+      clearcoat: 0,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'rusty_iron',
+    name: '🏚️ Rusty Iron',
+    category: 'Metals',
+    description: 'Rough, oxidized dark rusty iron plate.',
+    properties: {
+      color: '#451a03',
+      roughness: 0.85,
+      metalness: 0.3,
+      clearcoat: 0,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'glass',
+    name: '💎 Pure Glass',
+    category: 'Glass & Gems',
+    description: 'Physical transmissive clear solid glass.',
+    properties: {
+      color: '#ffffff',
+      roughness: 0.05,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.02,
+      transmission: 1.0,
+      thickness: 1.5,
+      ior: 1.52,
+      opacity: 1.0,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'frozen_glass',
+    name: '❄️ Frost Glass',
+    category: 'Glass & Gems',
+    description: 'Rough translucent frosted glass pane.',
+    properties: {
+      color: '#e0f2fe',
+      roughness: 0.45,
+      metalness: 0.0,
+      clearcoat: 0.2,
+      clearcoatRoughness: 0.2,
+      transmission: 0.85,
+      thickness: 1.0,
+      ior: 1.45,
+      opacity: 0.9,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'ruby',
+    name: '❤️ Ruby Crystal',
+    category: 'Glass & Gems',
+    description: 'Translucent rich red polished gemstone.',
+    properties: {
+      color: '#dc2626',
+      roughness: 0.04,
+      metalness: 0.05,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.01,
+      transmission: 0.92,
+      thickness: 2.0,
+      ior: 1.76,
+      opacity: 1.0,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'emerald',
+    name: '💚 Emerald Gem',
+    category: 'Glass & Gems',
+    description: 'Translucent glowing deep green precious gem.',
+    properties: {
+      color: '#059669',
+      roughness: 0.06,
+      metalness: 0.05,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.01,
+      transmission: 0.9,
+      thickness: 2.0,
+      ior: 1.57,
+      opacity: 1.0,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'polished_marble',
+    name: '🏺 Polished Marble',
+    category: 'Stone & Ceramic',
+    description: 'Ultra-glossy white ceramic marble material.',
+    properties: {
+      color: '#fafaf9',
+      roughness: 0.05,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.02,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'obsidian',
+    name: '🌋 Dark Obsidian',
+    category: 'Stone & Ceramic',
+    description: 'Glossy pitch-black volcanic glass rock.',
+    properties: {
+      color: '#0c0a09',
+      roughness: 0.1,
+      metalness: 0.1,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.05,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'matte_ceramic',
+    name: '☕ Matte Ceramic',
+    category: 'Stone & Ceramic',
+    description: 'Soft matte earthenware porous ceramic body.',
+    properties: {
+      color: '#f5f5f4',
+      roughness: 0.6,
+      metalness: 0.0,
+      clearcoat: 0,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'carbon_fiber',
+    name: '🏁 Carbon Fiber',
+    category: 'Sci-Fi',
+    description: 'Specular black checkered weave composites.',
+    properties: {
+      color: '#18181b',
+      roughness: 0.25,
+      metalness: 0.8,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1,
+      emissiveColor: '#000000',
+      emissiveIntensity: 0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'pink_neon',
+    name: '💖 Pink Neon Glow',
+    category: 'Sci-Fi',
+    description: 'Deep emissive electric magenta glowing body.',
+    properties: {
+      color: '#ec4899',
+      roughness: 0.2,
+      metalness: 0.1,
+      clearcoat: 0,
+      emissiveColor: '#ec4899',
+      emissiveIntensity: 2.5,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'cyan_glow',
+    name: '🌐 Cyber Cyan Glow',
+    category: 'Sci-Fi',
+    description: 'Bright cybernetic neon light source.',
+    properties: {
+      color: '#06b6d4',
+      roughness: 0.1,
+      metalness: 0.1,
+      clearcoat: 0,
+      emissiveColor: '#06b6d4',
+      emissiveIntensity: 3.0,
+      transmission: 0,
+      flatShading: false,
+    }
+  },
+  {
+    id: 'hologram',
+    name: '📡 Ghost Hologram',
+    category: 'Sci-Fi',
+    description: 'Wireframe blue transparent hologram shell.',
+    properties: {
+      color: '#06b6d4',
+      roughness: 0.2,
+      metalness: 0.2,
+      opacity: 0.45,
+      wireframe: true,
+      emissiveColor: '#06b6d4',
+      emissiveIntensity: 1.5,
+      transmission: 0,
+      flatShading: false,
+    }
+  }
+];
+
 // Preset lists for easy dropdown matching
 const BEHAVIOR_OPTIONS = [
   { value: '', label: 'None (Static)' },
@@ -288,6 +576,7 @@ export function InspectorPanel() {
   } = useEditorStore();
 
   const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting'>('inspector');
+  const [materialTab, setMaterialTab] = useState<'presets' | 'base' | 'specular' | 'emissive' | 'transmission' | 'textures'>('presets');
   const [fontSearch, setFontSearch] = useState('');
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
 
@@ -1358,152 +1647,518 @@ export function InspectorPanel() {
           <div className="flex flex-col gap-4">
             {/* --- 1. PRIMITIVES SECTION --- */}
             {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(obj.type) && (
-              <div className="flex flex-col gap-4.5">
-                {/* Color Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] text-[#666] font-medium">Material Base Color</label>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="color" 
-                      value={obj.properties.color || '#ffffff'}
-                      onChange={(e) => handlePropertyChange('color', e.target.value)}
-                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 outline-none animate-none"
-                    />
-                    <input 
-                      type="text" 
-                      value={obj.properties.color || '#ffffff'}
-                      onChange={(e) => handlePropertyChange('color', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] p-2 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
-                    />
+              <div className="bg-[#141414]/80 border border-[#222] rounded-xl p-3 flex flex-col gap-4">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2">
+                  <span className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sliders size={12} className="text-blue-400" />
+                    Material Studio
+                  </span>
+                  <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                    PHYSICAL SHADER
+                  </span>
+                </div>
+
+                {/* Material Editor Sub-tabs */}
+                <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-thin scrollbar-thumb-[#222]">
+                  {[
+                    { id: 'presets', label: 'Presets' },
+                    { id: 'base', label: 'Base' },
+                    { id: 'specular', label: 'Reflection' },
+                    { id: 'emissive', label: 'Glow' },
+                    { id: 'transmission', label: 'Glass' },
+                    { id: 'textures', label: 'Maps' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setMaterialTab(tab.id as any)}
+                      className={`px-2.5 py-1 rounded text-[9px] font-bold uppercase transition-all shrink-0 ${
+                        materialTab === tab.id
+                          ? 'bg-blue-600/10 text-blue-400 border border-blue-500/30 font-extrabold'
+                          : 'bg-black/30 text-gray-500 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sub-tab content */}
+                
+                {/* 1. PRESETS TAB */}
+                {materialTab === 'presets' && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col bg-black/20 p-2 border border-[#222] rounded-lg">
+                      <span className="text-[10px] text-gray-400 leading-relaxed font-sans">
+                        Attach a high-fidelity material style to this object instantly. You can customize any applied properties in the other tabs!
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                      {MATERIAL_LIBRARY.map(preset => {
+                        const isCurrentlyApplied = 
+                          obj.properties.color === preset.properties.color &&
+                          (obj.properties.roughness ?? 0.5) === preset.properties.roughness &&
+                          (obj.properties.metalness ?? 0.1) === preset.properties.metalness &&
+                          (obj.properties.transmission ?? 0) === (preset.properties.transmission ?? 0);
+
+                        return (
+                          <button
+                            key={preset.id}
+                            onClick={() => {
+                              // Apply all preset properties
+                              Object.entries(preset.properties).forEach(([key, value]) => {
+                                handlePropertyChange(key, value);
+                              });
+                              // Also clear basic map properties to reset unless preset specifies otherwise
+                              if (!preset.properties.textureUrl) handlePropertyChange('textureUrl', '');
+                              if (!preset.properties.normalMapUrl) handlePropertyChange('normalMapUrl', '');
+                              if (!preset.properties.roughnessMapUrl) handlePropertyChange('roughnessMapUrl', '');
+                              if (!preset.properties.metalnessMapUrl) handlePropertyChange('metalnessMapUrl', '');
+                              if (!preset.properties.displacementMapUrl) handlePropertyChange('displacementMapUrl', '');
+                            }}
+                            className={`p-2 rounded-lg border text-left flex flex-col gap-1 transition-all group ${
+                              isCurrentlyApplied 
+                                ? 'bg-blue-600/10 border-blue-500' 
+                                : 'bg-[#18181b]/50 border-[#222] hover:border-gray-500'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 justify-between w-full">
+                              <span className="text-[10px] font-bold text-white truncate">{preset.name}</span>
+                              <div 
+                                className="w-2.5 h-2.5 rounded-full border border-black/30 shrink-0" 
+                                style={{ backgroundColor: preset.properties.color }}
+                              />
+                            </div>
+                            <span className="text-[8px] text-gray-500 line-clamp-2 leading-normal h-6">
+                              {preset.description}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  {/* Preset swatches for quick material choices */}
-                  <div className="flex gap-1.5 mt-1">
-                    {['#ffffff', '#ff3366', '#33ccff', '#33ffaa', '#ffcc33', '#8b5cf6'].map(preset => (
-                      <button 
-                        key={preset}
-                        onClick={() => handlePropertyChange('color', preset)}
-                        className="w-4 h-4 rounded-full border border-black/20 cursor-pointer hover:scale-110 active:scale-95 transition-transform"
-                        style={{ backgroundColor: preset }}
+                )}
+
+                {/* 2. BASE PROPERTIES TAB */}
+                {materialTab === 'base' && (
+                  <div className="flex flex-col gap-3.5">
+                    {/* Base Color */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[9px] text-[#888] font-bold uppercase tracking-wider">Base Color</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="color" 
+                          value={obj.properties.color || '#ffffff'}
+                          onChange={(e) => handlePropertyChange('color', e.target.value)}
+                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 outline-none animate-none"
+                        />
+                        <input 
+                          type="text" 
+                          value={obj.properties.color || '#ffffff'}
+                          onChange={(e) => handlePropertyChange('color', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Opacity */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#666]">Opacity</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.opacity ?? 1.0).toFixed(2)}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={obj.properties.opacity ?? 1.0} 
+                        onChange={(e) => handlePropertyChange('opacity', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
                       />
-                    ))}
-                  </div>
-                </div>
+                    </div>
 
-                {/* Texture Mapping Panel */}
-                <div className="bg-[#1A1A1A]/30 border border-[#222] rounded-lg p-2.5 flex flex-col gap-2.5">
-                  <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Texture Mapping</span>
-                  <div className="flex flex-col gap-1">
-                    <MediaAssetPicker 
-                      value={obj.properties.textureUrl || ''}
-                      onChange={(url) => handlePropertyChange('textureUrl', url)}
-                      type="image"
-                      accept="image/*"
-                      placeholder="Paste Image URL (PNG/JPG)..."
-                      label="Texture URL / Image Source"
-                    />
-                  </div>
-                  {obj.properties.textureUrl && (
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[8px] text-[#666]">Repeat X: {obj.properties.textureRepeatX ?? 1}</label>
+                    {/* Basic Toggles */}
+                    <div className="flex flex-col gap-2 mt-1 border-t border-[#222] pt-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#666]">Wireframe Mode</span>
                         <input 
-                          type="range" 
-                          min="1" 
-                          max="10" 
-                          step="1"
-                          value={obj.properties.textureRepeatX ?? 1}
-                          onChange={(e) => handlePropertyChange('textureRepeatX', parseInt(e.target.value))}
-                          className="accent-blue-500 w-full h-1 cursor-pointer"
+                          type="checkbox" 
+                          checked={obj.properties.wireframe ?? false}
+                          onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
+                          className="accent-blue-500 cursor-pointer"
                         />
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[8px] text-[#666]">Repeat Y: {obj.properties.textureRepeatY ?? 1}</label>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#666]">Double-Sided Render</span>
                         <input 
-                          type="range" 
-                          min="1" 
-                          max="10" 
-                          step="1"
-                          value={obj.properties.textureRepeatY ?? 1}
-                          onChange={(e) => handlePropertyChange('textureRepeatY', parseInt(e.target.value))}
-                          className="accent-blue-500 w-full h-1 cursor-pointer"
+                          type="checkbox" 
+                          checked={obj.properties.doubleSided ?? false}
+                          onChange={(e) => handlePropertyChange('doubleSided', e.target.checked)}
+                          className="accent-blue-500 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#666]">Low-Poly Flat Shading</span>
+                        <input 
+                          type="checkbox" 
+                          checked={obj.properties.flatShading ?? false}
+                          onChange={(e) => handlePropertyChange('flatShading', e.target.checked)}
+                          className="accent-blue-500 cursor-pointer"
                         />
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* Material Sliders */}
-                <div className="grid grid-cols-1 gap-2.5">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-[#666]">Roughness</span>
-                      <span className="text-gray-400 font-mono">{(obj.properties.roughness ?? 0.5).toFixed(2)}</span>
+                {/* 3. REFLECTION / SPECULAR TAB */}
+                {materialTab === 'specular' && (
+                  <div className="flex flex-col gap-3.5">
+                    {/* Roughness */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Roughness</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.roughness ?? 0.5).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[8px] text-gray-500 leading-normal mb-1">
+                        How rough the surface is. 0.0 is mirror shiny, 1.0 is completely matte.
+                      </p>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={obj.properties.roughness ?? 0.5} 
+                        onChange={(e) => handlePropertyChange('roughness', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
                     </div>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="1" 
-                      step="0.01" 
-                      value={obj.properties.roughness ?? 0.5} 
-                      onChange={(e) => handlePropertyChange('roughness', parseFloat(e.target.value))}
-                      className="accent-blue-500 w-full h-1 cursor-pointer"
-                    />
-                  </div>
 
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-[#666]">Metalness</span>
-                      <span className="text-gray-400 font-mono">{(obj.properties.metalness ?? 0.1).toFixed(2)}</span>
+                    {/* Metalness */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Metalness</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.metalness ?? 0.1).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[8px] text-gray-500 leading-normal mb-1">
+                        How metal-like the material is. Gold, brass, copper are 1.0. Ceramics, plastic are 0.0.
+                      </p>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={obj.properties.metalness ?? 0.1} 
+                        onChange={(e) => handlePropertyChange('metalness', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
                     </div>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="1" 
-                      step="0.01" 
-                      value={obj.properties.metalness ?? 0.1} 
-                      onChange={(e) => handlePropertyChange('metalness', parseFloat(e.target.value))}
-                      className="accent-blue-500 w-full h-1 cursor-pointer"
-                    />
-                  </div>
 
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-[#666]">Opacity</span>
-                      <span className="text-gray-400 font-mono">{(obj.properties.opacity ?? 1.0).toFixed(2)}</span>
+                    {/* Clearcoat */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Clearcoat Overlay</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.clearcoat ?? 0.0).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[8px] text-gray-500 leading-normal mb-1">
+                        Adds a secondary glossy coating over the material, like car paint glaze or polished wood finish.
+                      </p>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={obj.properties.clearcoat ?? 0.0} 
+                        onChange={(e) => handlePropertyChange('clearcoat', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
                     </div>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="1" 
-                      step="0.01" 
-                      value={obj.properties.opacity ?? 1.0} 
-                      onChange={(e) => handlePropertyChange('opacity', parseFloat(e.target.value))}
-                      className="accent-blue-500 w-full h-1 cursor-pointer"
-                    />
-                  </div>
-                </div>
 
-                {/* Material Switches */}
-                <div className="flex flex-col gap-2 mt-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#666]">Wireframe Mode</span>
-                    <input 
-                      type="checkbox" 
-                      checked={obj.properties.wireframe ?? false}
-                      onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
-                      className="accent-blue-500 cursor-pointer"
-                    />
+                    {/* Clearcoat Roughness */}
+                    { (obj.properties.clearcoat ?? 0) > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[#666]">Clearcoat Roughness</span>
+                          <span className="text-gray-400 font-mono">{(obj.properties.clearcoatRoughness ?? 0.1).toFixed(2)}</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="1" 
+                          step="0.01" 
+                          value={obj.properties.clearcoatRoughness ?? 0.1} 
+                          onChange={(e) => handlePropertyChange('clearcoatRoughness', parseFloat(e.target.value))}
+                          className="accent-blue-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#666]">Double-Sided Geometry</span>
-                    <input 
-                      type="checkbox" 
-                      checked={obj.properties.doubleSided ?? false}
-                      onChange={(e) => handlePropertyChange('doubleSided', e.target.checked)}
-                      className="accent-blue-500 cursor-pointer"
-                    />
+                )}
+
+                {/* 4. GLOW / EMISSIVE TAB */}
+                {materialTab === 'emissive' && (
+                  <div className="flex flex-col gap-3.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Self-Emissive Glow</span>
+                      <input 
+                        type="checkbox" 
+                        checked={!!obj.properties.emissiveIntensity && obj.properties.emissiveColor !== '#000000'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            handlePropertyChange('emissiveColor', obj.properties.color || '#3b82f6');
+                            handlePropertyChange('emissiveIntensity', 1.5);
+                          } else {
+                            handlePropertyChange('emissiveColor', '#000000');
+                            handlePropertyChange('emissiveIntensity', 0);
+                          }
+                        }}
+                        className="accent-blue-500 cursor-pointer"
+                      />
+                    </div>
+
+                    <p className="text-[8px] text-gray-500 leading-normal">
+                      Makes the object glow with light energy. Perfect for neon signs, sci-fi computer cores, or lasers.
+                    </p>
+
+                    <div className="flex flex-col gap-3 border-t border-[#222] pt-3">
+                      {/* Emissive Color */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] text-[#666]">Glow Color</label>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="color" 
+                            value={obj.properties.emissiveColor || '#000000'}
+                            onChange={(e) => handlePropertyChange('emissiveColor', e.target.value)}
+                            className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0 outline-none animate-none"
+                          />
+                          <input 
+                            type="text" 
+                            value={obj.properties.emissiveColor || '#000000'}
+                            onChange={(e) => handlePropertyChange('emissiveColor', e.target.value)}
+                            className="bg-[#0A0A0A] text-[9px] p-2 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Emissive Intensity */}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[#666]">Glow Intensity</span>
+                          <span className="text-gray-400 font-mono">{(obj.properties.emissiveIntensity ?? 0.0).toFixed(1)}x</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="10" 
+                          step="0.1" 
+                          value={obj.properties.emissiveIntensity ?? 0.0} 
+                          onChange={(e) => handlePropertyChange('emissiveIntensity', parseFloat(e.target.value))}
+                          className="accent-blue-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* 5. GLASS / TRANSMISSION TAB */}
+                {materialTab === 'transmission' && (
+                  <div className="flex flex-col gap-3.5">
+                    <div className="flex flex-col bg-blue-500/5 border border-blue-500/10 rounded-lg p-2.5">
+                      <span className="text-[10px] text-blue-400 font-bold uppercase mb-1">Physical Glass Engine</span>
+                      <p className="text-[8px] text-gray-400 leading-relaxed">
+                        Transmission lets light pass through objects for hyper-realistic glass refraction. Best when metalness is 0.0 and roughness is close to 0.0!
+                      </p>
+                    </div>
+
+                    {/* Transmission slider */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Transmission (Transparency)</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.transmission ?? 0.0).toFixed(2)}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={obj.properties.transmission ?? 0.0} 
+                        onChange={(e) => handlePropertyChange('transmission', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Thickness slider */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Glass Thickness</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.thickness ?? 0.0).toFixed(2)}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="10" 
+                        step="0.1" 
+                        value={obj.properties.thickness ?? 0.0} 
+                        onChange={(e) => handlePropertyChange('thickness', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Index of Refraction (IOR) */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Index of Refraction (IOR)</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.ior ?? 1.5).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[7.5px] text-gray-500 leading-normal mb-1">
+                        Water: 1.33 • Glass: 1.52 • Ruby: 1.76 • Diamond: 2.42
+                      </p>
+                      <input 
+                        type="range" 
+                        min="1" 
+                        max="2.5" 
+                        step="0.01" 
+                        value={obj.properties.ior ?? 1.5} 
+                        onChange={(e) => handlePropertyChange('ior', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. TEXTURES & MAPS TAB */}
+                {materialTab === 'textures' && (
+                  <div className="flex flex-col gap-4">
+                    <p className="text-[8px] text-gray-500 leading-normal">
+                      Map textures directly onto material channels. High-contrast images can act as roughness/metalness guides or surface normal dimples!
+                    </p>
+
+                    {/* Texture Map */}
+                    <div className="flex flex-col gap-1">
+                      <MediaAssetPicker 
+                        value={obj.properties.textureUrl || ''}
+                        onChange={(url) => handlePropertyChange('textureUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        placeholder="Select Image Asset..."
+                        label="Texture Base Map"
+                      />
+                    </div>
+
+                    {/* Normal Map */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <MediaAssetPicker 
+                        value={obj.properties.normalMapUrl || ''}
+                        onChange={(url) => handlePropertyChange('normalMapUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        placeholder="Select Normal Map (Purple shape)..."
+                        label="Normal Surface Bump Map"
+                      />
+                      {obj.properties.normalMapUrl && (
+                        <div className="flex flex-col gap-1 mt-1">
+                          <div className="flex justify-between text-[9px]">
+                            <span className="text-gray-400">Normal Scale Intensity: {obj.properties.normalScale ?? 1}</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="-2" 
+                            max="2" 
+                            step="0.1" 
+                            value={obj.properties.normalScale ?? 1}
+                            onChange={(e) => handlePropertyChange('normalScale', parseFloat(e.target.value))}
+                            className="accent-blue-500 w-full h-1 cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Roughness Map */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <MediaAssetPicker 
+                        value={obj.properties.roughnessMapUrl || ''}
+                        onChange={(url) => handlePropertyChange('roughnessMapUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        placeholder="Select Roughness Grayscale Map..."
+                        label="Roughness Channel Guide Map"
+                      />
+                    </div>
+
+                    {/* Metalness Map */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <MediaAssetPicker 
+                        value={obj.properties.metalnessMapUrl || ''}
+                        onChange={(url) => handlePropertyChange('metalnessMapUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        placeholder="Select Metalness Grayscale Map..."
+                        label="Metalness Channel Guide Map"
+                      />
+                    </div>
+
+                    {/* Displacement Map */}
+                    <div className="flex flex-col gap-1 border-t border-[#222] pt-2.5">
+                      <MediaAssetPicker 
+                        value={obj.properties.displacementMapUrl || ''}
+                        onChange={(url) => handlePropertyChange('displacementMapUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        placeholder="Select Displacement Map..."
+                        label="Displacement (Height) Map"
+                      />
+                      {obj.properties.displacementMapUrl && (
+                        <div className="flex flex-col gap-1 mt-1">
+                          <div className="flex justify-between text-[9px]">
+                            <span className="text-gray-400">Height Displacement Scale: {obj.properties.displacementScale ?? 0.05}</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max="0.5" 
+                            step="0.01" 
+                            value={obj.properties.displacementScale ?? 0.05}
+                            onChange={(e) => handlePropertyChange('displacementScale', parseFloat(e.target.value))}
+                            className="accent-blue-500 w-full h-1 cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Texture Repeat Coordinates */}
+                    {(obj.properties.textureUrl || obj.properties.normalMapUrl || obj.properties.roughnessMapUrl || obj.properties.metalnessMapUrl || obj.properties.displacementMapUrl) && (
+                      <div className="bg-[#1A1A1A]/30 border border-[#222] rounded-lg p-2.5 mt-2 flex flex-col gap-2.5">
+                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Map Wrapping & Repeat</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666]">Repeat X: {obj.properties.textureRepeatX ?? 1}</label>
+                            <input 
+                              type="range" 
+                              min="1" 
+                              max="10" 
+                              step="1"
+                              value={obj.properties.textureRepeatX ?? 1}
+                              onChange={(e) => handlePropertyChange('textureRepeatX', parseInt(e.target.value))}
+                              className="accent-blue-500 w-full h-1 cursor-pointer"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666]">Repeat Y: {obj.properties.textureRepeatY ?? 1}</label>
+                            <input 
+                              type="range" 
+                              min="1" 
+                              max="10" 
+                              step="1"
+                              value={obj.properties.textureRepeatY ?? 1}
+                              onChange={(e) => handlePropertyChange('textureRepeatY', parseInt(e.target.value))}
+                              className="accent-blue-500 w-full h-1 cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
