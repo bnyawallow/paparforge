@@ -1536,6 +1536,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <option value="onTap">👆 On Tap (Mouse Click)</option>
                           <option value="onProximity">📐 On Proximity (Distance)</option>
                           <option value="onStart">🚀 On Start / Loaded</option>
+                          <option value="onTargetFound">👁 MindAR Target Found</option>
+                          <option value="onTargetLost">🙈 MindAR Target Lost</option>
                         </select>
                       </div>
 
@@ -1566,6 +1568,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <option value="playVideo">🎬 Play Video Panel</option>
                           <option value="toggleVisibility">👁 Toggle Visibility</option>
                           <option value="spin">🔄 Make Spin Animation</option>
+                          <option value="transform">📐 Set Transform (Pos/Rot/Scale)</option>
+                          <option value="material">🎨 Set Material (Color/Texture)</option>
                         </select>
                       </div>
 
@@ -1582,7 +1586,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                         </div>
                       )}
 
-                      {(b.action === 'openUrl' || b.action === 'playVideo') && (
+                      {b.action === 'openUrl' && (
                         <div className="flex flex-col gap-1">
                           <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">URL Link</label>
                           <input
@@ -1595,6 +1599,31 @@ export function InspectorPanel({ width }: { width?: number }) {
                         </div>
                       )}
 
+                      {b.action === 'playVideo' && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Video Panel Source URL</label>
+                          <input
+                            type="text"
+                            value={b.url ?? ''}
+                            onChange={(e) => handleUpdateBehavior(b.id, { url: e.target.value })}
+                            placeholder="Select below or paste custom URL..."
+                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                          />
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) handleUpdateBehavior(b.id, { url: e.target.value });
+                            }}
+                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                          >
+                            <option value="">(Choose from Video Assets)</option>
+                            {useEditorStore.getState().assets.filter(a => a.type === 'video').map(a => (
+                              <option key={a.id} value={a.url}>{a.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
                       {b.action === 'playSound' && (
                         <div className="flex flex-col gap-1">
                           <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Audio Sound</label>
@@ -1603,14 +1632,74 @@ export function InspectorPanel({ width }: { width?: number }) {
                             onChange={(e) => handleUpdateBehavior(b.id, { soundPreset: e.target.value })}
                             className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
                           >
-                            {SOUND_OPTIONS.filter(opt => opt.value !== '').map(opt => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
+                            <optgroup label="Presets">
+                              {SOUND_OPTIONS.filter(opt => opt.value !== '').map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Custom Audio Assets">
+                              {useEditorStore.getState().assets.filter(a => a.type === 'audio').map(a => (
+                                <option key={a.id} value={a.url}>{a.name}</option>
+                              ))}
+                            </optgroup>
                           </select>
                         </div>
                       )}
 
-                      {(b.action === 'toggleVisibility' || b.action === 'spin') && (
+                      {b.action === 'transform' && (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Transform Property</label>
+                            <select
+                              value={b.propertyName ?? 'position'}
+                              onChange={(e) => handleUpdateBehavior(b.id, { propertyName: e.target.value })}
+                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                            >
+                              <option value="position">Position (x,y,z)</option>
+                              <option value="rotation">Rotation (x,y,z)</option>
+                              <option value="scale">Scale (x,y,z)</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Value</label>
+                            <input
+                              type="text"
+                              value={b.propertyValue ?? '0,0,0'}
+                              onChange={(e) => handleUpdateBehavior(b.id, { propertyValue: e.target.value })}
+                              placeholder="0,0,0"
+                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {b.action === 'material' && (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Material Property</label>
+                            <select
+                              value={b.propertyName ?? 'color'}
+                              onChange={(e) => handleUpdateBehavior(b.id, { propertyName: e.target.value })}
+                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                            >
+                              <option value="color">Color (Hex/Name)</option>
+                              <option value="texture">Texture URL</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Value</label>
+                            <input
+                              type="text"
+                              value={b.propertyValue ?? ''}
+                              onChange={(e) => handleUpdateBehavior(b.id, { propertyValue: e.target.value })}
+                              placeholder={b.propertyName === 'texture' ? 'https://...' : '#ffffff'}
+                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {(b.action === 'toggleVisibility' || b.action === 'spin' || b.action === 'transform' || b.action === 'material') && (
                         <div className="flex flex-col gap-1">
                           <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Object</label>
                           <select

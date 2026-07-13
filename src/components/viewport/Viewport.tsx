@@ -931,6 +931,29 @@ function ObjectRenderer({ id }: { id: string }) {
           });
         }
         break;
+      case 'transform': {
+        const targetIdT = b.targetObjectId || id;
+        const targetObjT = useEditorStore.getState().objects[targetIdT];
+        if (targetObjT) {
+           const vals = (b.propertyValue || '0,0,0').split(',').map((v: string) => parseFloat(v) || 0) as [number, number, number];
+           if (b.propertyName === 'position') useEditorStore.getState().updateObject(targetIdT, { position: vals });
+           else if (b.propertyName === 'rotation') useEditorStore.getState().updateObject(targetIdT, { rotation: vals });
+           else if (b.propertyName === 'scale') useEditorStore.getState().updateObject(targetIdT, { scale: vals });
+        }
+        break;
+      }
+      case 'material': {
+        const targetIdM = b.targetObjectId || id;
+        const targetObjM = useEditorStore.getState().objects[targetIdM];
+        if (targetObjM) {
+           if (b.propertyName === 'color') {
+             useEditorStore.getState().updateObject(targetIdM, { properties: { ...targetObjM.properties, color: b.propertyValue } });
+           } else if (b.propertyName === 'texture') {
+             useEditorStore.getState().updateObject(targetIdM, { properties: { ...targetObjM.properties, textureUrl: b.propertyValue } });
+           }
+        }
+        break;
+      }
       default:
         break;
     }
@@ -1125,6 +1148,18 @@ function ObjectRenderer({ id }: { id: string }) {
     }
   });
 
+  useEffect(() => {
+    if (obj?.properties.visualBehaviors) {
+      obj.properties.visualBehaviors.forEach((b: any) => {
+        if (b.action === 'playSound' && b.soundPreset) {
+          const audio = new Audio();
+          audio.preload = 'auto';
+          audio.src = b.soundPreset;
+        }
+      });
+    }
+  }, [obj?.properties.visualBehaviors]);
+
   if (!obj || !obj.visible) return null;
 
   const rotation: [number, number, number] = [
@@ -1141,6 +1176,16 @@ function ObjectRenderer({ id }: { id: string }) {
     if (!isPreviewMode) {
       const isMulti = e ? (e.shiftKey || e.ctrlKey || e.metaKey) : false;
       selectObject(id, isMulti);
+    }
+    
+    if (isPreviewMode) {
+      const hasTapBehavior = (obj.properties.visualBehaviors || []).some((b: any) => b.trigger === 'onTap');
+      const hasScriptTap = scriptCallbacksRef.current.onTap && (obj.properties.scriptEnabled ?? true);
+      const isButton = obj.type === 'button';
+      const hasBasicSound = !!obj.properties.soundUrl;
+      if (!hasTapBehavior && !hasScriptTap && !isButton && !hasBasicSound) {
+        return; // Only objects with relevant behaviours attached should receive clicks/tap events.
+      }
     }
 
     // Standard Audio playback on click if a sound asset is attached

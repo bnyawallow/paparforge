@@ -398,6 +398,14 @@ export const generateAFrameScene = (state: any) => {
 
       // 1. Core Visual Behaviors Engine
       AFRAME.registerComponent('visual-behavior', {
+        triggerEvent: function(triggerName) {
+          if (!this.behaviors) return;
+          this.behaviors.forEach(b => {
+            if (b.trigger === triggerName) {
+              this.executeBehavior(b);
+            }
+          });
+        },
         init: function() {
           const self = this;
           const behaviorsJson = this.el.getAttribute('data-behaviors');
@@ -410,6 +418,12 @@ export const generateAFrameScene = (state: any) => {
           const el = this.el;
 
           this.behaviors.forEach(b => {
+            if (b.action === 'playSound' && b.soundPreset) {
+              const audio = new Audio();
+              audio.preload = 'auto';
+              audio.src = b.soundPreset;
+            }
+
             if (b.trigger === 'onStart') {
               self.executeBehavior(b);
             } else if (b.trigger === 'onTap') {
@@ -491,6 +505,31 @@ export const generateAFrameScene = (state: any) => {
                 });
               }
               break;
+            case 'transform': {
+              const targetElT = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (targetElT) {
+                const vals = (b.propertyValue || '0,0,0').split(',').map(v => parseFloat(v) || 0);
+                if (b.propertyName === 'position') {
+                  targetElT.setAttribute('position', vals.join(' '));
+                } else if (b.propertyName === 'rotation') {
+                  targetElT.setAttribute('rotation', vals.join(' '));
+                } else if (b.propertyName === 'scale') {
+                  targetElT.setAttribute('scale', vals.join(' '));
+                }
+              }
+              break;
+            }
+            case 'material': {
+              const targetElM = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (targetElM) {
+                if (b.propertyName === 'color') {
+                  targetElM.setAttribute('material', 'color', b.propertyValue);
+                } else if (b.propertyName === 'texture') {
+                  targetElM.setAttribute('material', 'src', b.propertyValue);
+                }
+              }
+              break;
+            }
           }
         }
       });
@@ -955,11 +994,21 @@ ${entitiesHtml}
           targetEl.addEventListener('targetFound', (event) => {
             console.log('[MINDAR-TRACKING] Image target found! Fading scanning UI.');
             hideScanningOverlay();
+            document.querySelectorAll('[visual-behavior]').forEach(el => {
+              if (el.components['visual-behavior']) {
+                el.components['visual-behavior'].triggerEvent('onTargetFound');
+              }
+            });
           });
 
           targetEl.addEventListener('targetLost', (event) => {
             console.log('[MINDAR-TRACKING] Image target lost.');
             showScanningOverlay();
+            document.querySelectorAll('[visual-behavior]').forEach(el => {
+              if (el.components['visual-behavior']) {
+                el.components['visual-behavior'].triggerEvent('onTargetLost');
+              }
+            });
           });
         } else {
           console.warn('[WARN] mindar-image-target entity not found in scene.');
