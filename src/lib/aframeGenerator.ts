@@ -546,15 +546,15 @@ export const generateAFrameScene = (state: any) => {
             showToast("Script Init Error: " + err.message);
           }
           
-          if (this.callbacks.onTap) {
-            el.addEventListener('click', () => {
+          el.addEventListener('click', () => {
+            if (this.callbacks && typeof this.callbacks.onTap === 'function') {
               try {
                 this.callbacks.onTap();
               } catch(err) {
                 console.error("onTap error:", err);
               }
-            });
-          }
+            }
+          });
         },
         tick: function(time, timeDelta) {
           if (this.callbacks && this.callbacks.onUpdate) {
@@ -658,12 +658,33 @@ export const generateAFrameScene = (state: any) => {
           const playSound = () => {
             const sfx = new Audio(url);
             sfx.volume = 0.5;
-            sfx.play().catch(e => console.log('Sound error', e));
+            sfx.play().catch(e => {
+              console.log('AudioContext play error, trying to resume context', e);
+              const resumeAndPlay = () => {
+                const sceneEl = document.querySelector('a-scene');
+                if (sceneEl && sceneEl.audioListener) {
+                  sceneEl.audioListener.context.resume().then(() => {
+                    sfx.play().catch(err => console.log('Audio retry failed:', err));
+                  });
+                } else {
+                  sfx.play().catch(err => console.log('Audio fallback failed:', err));
+                }
+              };
+              resumeAndPlay();
+            });
           };
           this.el.addEventListener('click', playSound);
-          this.el.addEventListener('touchstart', (e) => { e.preventDefault(); playSound(); });
-          // replace dummy
-        
+        }
+      });
+
+      // Global touch/click interaction helper to unlock audio context on mobile browsers
+      document.addEventListener('click', function unlockAudioContext() {
+        const sceneEl = document.querySelector('a-scene');
+        if (sceneEl && sceneEl.audioListener && sceneEl.audioListener.context) {
+          sceneEl.audioListener.context.resume().then(() => {
+            console.log('AudioContext successfully unlocked via global click gesture!');
+            document.removeEventListener('click', unlockAudioContext);
+          }).catch(err => console.log('Context unlock failed:', err));
         }
       });
     </script>

@@ -1,21 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
 import { Upload } from 'lucide-react';
 
-interface AssetUploaderProps {
-  onUploadComplete: (url: string) => void;
+const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
+  model: [
+    { name: 'Astronaut 🚀', url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb' },
+    { name: 'Toy Retro Car 🚗', url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb' },
+    { name: 'Expressive Robot 🤖', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb' },
+    { name: 'Bronze Vase 🏺', url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb' },
+    { name: 'Vintage Lantern 🏮', url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb' },
+    { name: 'E-Comm Sneaker 👟', url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb' },
+  ],
+  image: [
+    { name: 'Magazine Cover 📖', url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=600&auto=format&fit=crop' },
+    { name: 'Abstract Art 🎨', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop' },
+    { name: 'Contour Map 🗺️', url: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=600&auto=format&fit=crop' },
+    { name: 'Blueprint Grid 📐', url: 'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?q=80&w=600&auto=format&fit=crop' },
+  ],
+  audio: [
+    { name: 'Cyber Click 🎵', url: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav' },
+    { name: 'Success Chime ✨', url: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-84.wav' },
+    { name: 'Robot Beep 🤖', url: 'https://assets.mixkit.co/active_storage/sfx/1601/1601-84.wav' },
+    { name: 'Forest Ambient 🌲', url: 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav' },
+  ],
+  video: [
+    { name: 'Abstract Tunnel 🌀', url: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761' },
+    { name: 'Nature Forest 🌲', url: 'https://player.vimeo.com/external/435674703.sd.mp4?s=6f4188cbcd97ec1994e66699319e0094038a306f&profile_id=139&oauth2_token_id=57447761' },
+    { name: 'Tech Matrix 💻', url: 'https://player.vimeo.com/external/430810795.sd.mp4?s=d740c83a15af820c7cc61899532551e18cc8ef24&profile_id=139&oauth2_token_id=57447761' }
+  ]
+};
+
+interface MediaAssetPickerProps {
+  value: string;
+  onChange: (url: string) => void;
+  type: 'model' | 'image' | 'video' | 'audio';
   accept: string;
   placeholder?: string;
   label?: string;
 }
 
-function AssetUploader({ onUploadComplete, accept, placeholder = "Upload", label }: AssetUploaderProps) {
+function MediaAssetPicker({ value, onChange, type, accept, placeholder = "Paste URL or Select...", label }: MediaAssetPickerProps) {
   const [uploading, setUploading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const { settings } = useEditorStore();
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const { assets, addAsset, settings } = useEditorStore();
   const projectName = settings?.projectName || 'AR Experience';
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -29,12 +73,28 @@ function AssetUploader({ onUploadComplete, accept, placeholder = "Upload", label
       } else {
         fileUrl = await fileToDataUrl(file);
       }
-      onUploadComplete(fileUrl);
+      
+      onChange(fileUrl);
+
+      const newAsset = {
+        id: Math.random().toString(36).substring(2, 9),
+        name: file.name,
+        type: type,
+        url: fileUrl
+      };
+      addAsset(newAsset);
     } catch (err) {
       console.error("Asset upload failed:", err);
       try {
         const fallbackUrl = await fileToDataUrl(file);
-        onUploadComplete(fallbackUrl);
+        onChange(fallbackUrl);
+        const newAsset = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          type: type,
+          url: fallbackUrl
+        };
+        addAsset(newAsset);
       } catch (fallbackErr) {
         console.error("DataURL fallback failed:", fallbackErr);
       }
@@ -43,23 +103,45 @@ function AssetUploader({ onUploadComplete, accept, placeholder = "Upload", label
     }
   };
 
+  const matchingStudioAssets = assets.filter(a => a.type === type);
+  const presetsList = MEDIA_PRESETS[type] || [];
+
   return (
-    <div className="flex flex-col gap-1 shrink-0">
-      {label && <label className="text-[9px] text-[#666] font-medium">{label}</label>}
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1 w-full relative" ref={dropdownRef}>
+      {label && <label className="text-[10px] text-[#666] font-medium">{label}</label>}
+      <div className="flex gap-1.5 items-center">
+        <input 
+          type="text" 
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none min-w-0"
+        />
+
+        <button
+          type="button"
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="flex items-center gap-1 px-2.5 py-2 bg-[#1C1C1C] hover:bg-[#262626] border border-[#2C2C2C] rounded text-[10px] text-gray-300 font-bold font-sans transition-colors cursor-pointer shrink-0"
+          title="Select from Asset Studio or Presets"
+        >
+          <Folder size={11} className="text-blue-400" />
+          <span>Pick</span>
+        </button>
+
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1C1C1C] hover:bg-[#262626] border border-[#2C2C2C] disabled:opacity-50 rounded text-[10px] font-bold font-mono transition-colors text-white cursor-pointer"
+          className="flex items-center gap-1 px-2.5 py-2 bg-[#1C1C1C] hover:bg-[#262626] border border-[#2C2C2C] disabled:opacity-50 rounded text-[10px] font-bold font-mono transition-colors text-white cursor-pointer shrink-0"
         >
           {uploading ? (
             <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
           ) : (
-            <Upload size={12} className="text-[#888]" />
+            <Upload size={11} className="text-gray-400" />
           )}
-          {uploading ? "..." : placeholder}
+          <span>{uploading ? "..." : "Upload"}</span>
         </button>
+
         <input
           type="file"
           ref={fileInputRef}
@@ -68,6 +150,51 @@ function AssetUploader({ onUploadComplete, accept, placeholder = "Upload", label
           className="hidden"
         />
       </div>
+
+      {showDropdown && (
+        <div className="absolute right-0 top-full mt-1 w-64 bg-[#141414] border border-[#2A2A2A] rounded-md shadow-2xl z-50 flex flex-col max-h-60 overflow-hidden font-sans">
+          
+          <div className="flex-1 overflow-y-auto p-1 border-b border-[#222]">
+            <div className="px-2 py-1 text-[9px] font-bold text-blue-400 uppercase tracking-wider">Asset Studio (My Uploads)</div>
+            {matchingStudioAssets.length === 0 ? (
+              <div className="px-2 py-1.5 text-[10px] text-[#666] italic">No uploads yet. Upload a file above!</div>
+            ) : (
+              matchingStudioAssets.map(asset => (
+                <button
+                  key={asset.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(asset.url);
+                    setShowDropdown(false);
+                  }}
+                  className="w-full text-left px-2 py-1.5 hover:bg-[#222] rounded text-[10px] text-white flex items-center justify-between group transition-colors"
+                >
+                  <span className="truncate flex-1 pr-2 text-left">{asset.name}</span>
+                  <span className="text-[8px] bg-[#222] group-hover:bg-[#333] px-1 py-0.5 rounded text-gray-500 font-mono">My Asset</span>
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-1 max-h-40">
+            <div className="px-2 py-1 text-[9px] font-bold text-green-400 uppercase tracking-wider">Asset Presets Library</div>
+            {presetsList.map(preset => (
+              <button
+                key={preset.url}
+                type="button"
+                onClick={() => {
+                  onChange(preset.url);
+                  setShowDropdown(false);
+                }}
+                className="w-full text-left px-2 py-1.5 hover:bg-[#222] rounded text-[10px] text-white flex items-center justify-between transition-colors"
+              >
+                <span className="truncate">{preset.name}</span>
+              </button>
+            ))}
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
@@ -1005,37 +1132,32 @@ export function InspectorPanel() {
 
             {/* 2. Interactive Audio Trigger */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
-                <Volume2 size={10} className="text-pink-400" />
-                Audio click Response
-              </label>
-              <div className="flex gap-1">
-                <select
-                  value={obj.properties.soundUrl || ''}
-                  onChange={(e) => {
-                    const selectedOpt = SOUND_OPTIONS.find(o => o.value === e.target.value);
-                    handlePropertyChange('soundUrl', e.target.value);
-                    handlePropertyChange('soundName', selectedOpt ? selectedOpt.label.replace(/^[^\s]+\s/, '') : '');
-                  }}
-                  className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer flex-1 min-w-0"
-                >
-                  {SOUND_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value} className="bg-[#141414]">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[#666] font-medium flex items-center gap-1">
+                  <Volume2 size={10} className="text-pink-400" />
+                  Audio click Response
+                </span>
                 {obj.properties.soundUrl && (
                   <button
                     onClick={() => playPreviewSound(obj.properties.soundUrl)}
-                    className="p-2 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded transition-colors"
+                    className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded text-[8px] uppercase font-bold transition-colors"
                     title="Play Preview Sound"
                   >
-                    <Play size={12} className="fill-pink-400/20" />
+                    <Play size={8} className="fill-pink-400/20" />
+                    <span>Test Play</span>
                   </button>
                 )}
               </div>
+              <MediaAssetPicker 
+                value={obj.properties.soundUrl || ''}
+                onChange={(url) => {
+                  handlePropertyChange('soundUrl', url);
+                  handlePropertyChange('soundName', url.substring(url.lastIndexOf('/') + 1));
+                }}
+                type="audio"
+                accept="audio/*"
+                placeholder="Select SFX or Paste URL..."
+              />
             </div>
           </div>
         </div>
@@ -1271,21 +1393,14 @@ export function InspectorPanel() {
                 <div className="bg-[#1A1A1A]/30 border border-[#222] rounded-lg p-2.5 flex flex-col gap-2.5">
                   <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Texture Mapping</span>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[8px] text-[#666] font-medium">Texture URL / Image Source</label>
-                    <div className="flex gap-1.5">
-                      <input 
-                        type="text" 
-                        placeholder="Paste Image URL (PNG/JPG)..."
-                        value={obj.properties.textureUrl || ''}
-                        onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
-                        className="bg-[#0A0A0A] text-[10px] font-mono p-1.5 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
-                      />
-                      <AssetUploader 
-                        accept="image/*" 
-                        onUploadComplete={(url) => handlePropertyChange('textureUrl', url)} 
-                        placeholder="Upload"
-                      />
-                    </div>
+                    <MediaAssetPicker 
+                      value={obj.properties.textureUrl || ''}
+                      onChange={(url) => handlePropertyChange('textureUrl', url)}
+                      type="image"
+                      accept="image/*"
+                      placeholder="Paste Image URL (PNG/JPG)..."
+                      label="Texture URL / Image Source"
+                    />
                   </div>
                   {obj.properties.textureUrl && (
                     <div className="grid grid-cols-2 gap-2 mt-1">
@@ -1541,20 +1656,14 @@ export function InspectorPanel() {
             {obj.type === 'image' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Image URL Source</label>
-                  <div className="flex gap-1.5">
-                    <input 
-                      type="text" 
-                      value={obj.properties.textureUrl || ''}
-                      onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
-                    />
-                    <AssetUploader 
-                      accept="image/*" 
-                      onUploadComplete={(url) => handlePropertyChange('textureUrl', url)} 
-                      placeholder="Upload"
-                    />
-                  </div>
+                  <MediaAssetPicker 
+                    value={obj.properties.textureUrl || ''}
+                    onChange={(url) => handlePropertyChange('textureUrl', url)}
+                    type="image"
+                    accept="image/*"
+                    placeholder="Paste Image URL (PNG/JPG)..."
+                    label="Image URL Source"
+                  />
                 </div>
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10px]">
@@ -1588,21 +1697,14 @@ export function InspectorPanel() {
             {obj.type === 'video' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">MP4 Video Source Link</label>
-                  <div className="flex gap-1.5">
-                    <input 
-                      type="text" 
-                      value={obj.properties.videoUrl || ''}
-                      onChange={(e) => handlePropertyChange('videoUrl', e.target.value)}
-                      placeholder="https://..."
-                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
-                    />
-                    <AssetUploader 
-                      accept="video/mp4" 
-                      onUploadComplete={(url) => handlePropertyChange('videoUrl', url)} 
-                      placeholder="Upload"
-                    />
-                  </div>
+                  <MediaAssetPicker 
+                    value={obj.properties.videoUrl || ''}
+                    onChange={(url) => handlePropertyChange('videoUrl', url)}
+                    type="video"
+                    accept="video/mp4"
+                    placeholder="Paste MP4 Video Link..."
+                    label="MP4 Video Source Link"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between text-xs mt-1">
@@ -1672,21 +1774,14 @@ export function InspectorPanel() {
             {obj.type === 'audio' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Sound Track URL (WAV/MP3)</label>
-                  <div className="flex gap-1.5">
-                    <input 
-                      type="text" 
-                      value={obj.properties.soundUrl || ''}
-                      onChange={(e) => handlePropertyChange('soundUrl', e.target.value)}
-                      placeholder="https://..."
-                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
-                    />
-                    <AssetUploader 
-                      accept="audio/*" 
-                      onUploadComplete={(url) => handlePropertyChange('soundUrl', url)} 
-                      placeholder="Upload"
-                    />
-                  </div>
+                  <MediaAssetPicker 
+                    value={obj.properties.soundUrl || ''}
+                    onChange={(url) => handlePropertyChange('soundUrl', url)}
+                    type="audio"
+                    accept="audio/*"
+                    placeholder="Paste Sound Link (WAV/MP3)..."
+                    label="Sound Track URL (WAV/MP3)"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between text-xs mt-1">
@@ -1964,21 +2059,14 @@ export function InspectorPanel() {
             {obj.type === 'model' && (
               <div className="flex flex-col gap-3.5">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Model Asset URL (.gltf / .glb)</label>
-                  <div className="flex gap-1.5">
-                    <input 
-                      type="text" 
-                      value={obj.properties.url || ''}
-                      onChange={(e) => handlePropertyChange('url', e.target.value)}
-                      placeholder="https://..."
-                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
-                    />
-                    <AssetUploader 
-                      accept=".gltf,.glb" 
-                      onUploadComplete={(url) => handlePropertyChange('url', url)} 
-                      placeholder="Upload"
-                    />
-                  </div>
+                  <MediaAssetPicker 
+                    value={obj.properties.url || ''}
+                    onChange={(url) => handlePropertyChange('url', url)}
+                    type="model"
+                    accept=".gltf,.glb"
+                    placeholder="Paste Model Link (.gltf / .glb)..."
+                    label="Model Asset URL (.gltf / .glb)"
+                  />
                 </div>
 
                 {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 ? (
@@ -2048,20 +2136,14 @@ export function InspectorPanel() {
             {obj.type === 'imageTarget' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">AR target Marker Image</label>
-                  <div className="flex gap-1.5">
-                    <input 
-                      type="text" 
-                      value={obj.properties.textureUrl || ''}
-                      onChange={(e) => handlePropertyChange('textureUrl', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-blue-500 text-white outline-none"
-                    />
-                    <AssetUploader 
-                      accept="image/*" 
-                      onUploadComplete={(url) => handlePropertyChange('textureUrl', url)} 
-                      placeholder="Upload"
-                    />
-                  </div>
+                  <MediaAssetPicker 
+                    value={obj.properties.textureUrl || ''}
+                    onChange={(url) => handlePropertyChange('textureUrl', url)}
+                    type="image"
+                    accept="image/*"
+                    placeholder="Paste Marker Image URL..."
+                    label="AR target Marker Image"
+                  />
                   <span className="text-[8px] text-[#555]">This acts as the physical 2D visual blueprint the mobile camera scans to overlay content.</span>
                 </div>
                 <div className="flex flex-col gap-1">

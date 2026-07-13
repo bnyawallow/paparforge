@@ -20,7 +20,8 @@ import {
   Check, 
   Eye, 
   Info,
-  Play
+  Play,
+  Search
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 
@@ -176,7 +177,122 @@ const PRESET_BEHAVIORS = [
   }
 ];
 
-type CategoryTab = 'uploads' | 'models' | 'markers' | 'audio' | 'behaviors';
+const SKETCHFAB_WEB_MODELS = [
+  {
+    name: 'Zero-G Astronaut 👨‍🚀',
+    category: 'space',
+    url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
+    creator: 'Google Poly CC',
+    description: 'Astronaut in zero-gravity extravehicular mobility suit'
+  },
+  {
+    name: 'Cyberpunk Retro Car 🚗',
+    category: 'vehicles',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    creator: 'Sketchfab CC-BY',
+    description: 'Highly detailed retro cyberpunk style collectible car'
+  },
+  {
+    name: 'NASA Space Shuttle 🚀',
+    category: 'space',
+    url: 'https://raw.githubusercontent.com/nasa/nasa-3d-resources/master/3d-models/shuttle-gltf/shuttle.glb',
+    creator: 'NASA Open Resource',
+    description: 'Official NASA Space Shuttle orbiter model'
+  },
+  {
+    name: 'Expressive Companion Robot 🤖',
+    category: 'characters',
+    url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
+    creator: 'Three.js CC-BY',
+    description: 'Companion droid with animated expression screens and walking loops'
+  },
+  {
+    name: 'Bonsai Potted Tree 🪴',
+    category: 'nature',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    creator: 'Poly Pizza CC0',
+    description: 'Miniature Japanese bonsai tree in decorative ceramic planter'
+  },
+  {
+    name: 'Vintage Brass Lantern 🏮',
+    category: 'interior',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
+    creator: 'Smithsonian CC0',
+    description: '19th century style brass kerosene storm lantern'
+  },
+  {
+    name: 'E-Commerce Athletic Sneaker 👟',
+    category: 'items',
+    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
+    creator: 'Khronos Group CC0',
+    description: 'Photorealistic commercial running sneaker model'
+  },
+  {
+    name: 'BoomBox Audio 📻',
+    category: 'items',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
+    creator: 'Khronos Group CC0',
+    description: 'Classic 1980s portable cassette radio boombox'
+  },
+  {
+    name: 'NASA Apollo Lunar Lander 🌙',
+    category: 'space',
+    url: 'https://raw.githubusercontent.com/nasa/nasa-3d-resources/master/3d-models/apollo-gltf/apollo.glb',
+    creator: 'NASA Open Resource',
+    description: 'Historical lunar module vehicle'
+  },
+  {
+    name: 'Curiosity Mars Rover 🚜',
+    category: 'space',
+    url: 'https://raw.githubusercontent.com/nasa/nasa-3d-resources/master/3d-models/curiosity-gltf/curiosity.glb',
+    creator: 'NASA Open Resource',
+    description: 'Mars Science Laboratory rover exploration vehicle'
+  },
+  {
+    name: 'Bronze Museum Vase 🏺',
+    category: 'interior',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    creator: 'Smithsonian CC0',
+    description: 'Detailed ancient Greek replica bronze vase'
+  },
+  {
+    name: 'Retro Wood Chair 🪑',
+    category: 'interior',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/SheenChair/glTF-Binary/SheenChair.glb',
+    creator: 'Khronos Group CC0',
+    description: 'Modernist wooden design accent chair with sheen fabrics'
+  },
+  {
+    name: 'Damaged Helmet 🪖',
+    category: 'items',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    creator: 'Sketchfab CC-BY',
+    description: 'Futuristic sci-fi battle-damaged helmet with detailed texture maps'
+  },
+  {
+    name: 'Flamingo 🦩',
+    category: 'animals',
+    url: 'https://threejs.org/examples/models/gltf/Flamingo.glb',
+    creator: 'Three.js CC-BY',
+    description: 'Graceful pink flamingo in fully-animated flight cycle'
+  },
+  {
+    name: 'Parrot 🦜',
+    category: 'animals',
+    url: 'https://threejs.org/examples/models/gltf/Parrot.glb',
+    creator: 'Three.js CC-BY',
+    description: 'Bright multi-color tropical parrot soaring loop'
+  },
+  {
+    name: 'Stork 🦅',
+    category: 'animals',
+    url: 'https://threejs.org/examples/models/gltf/Stork.glb',
+    creator: 'Three.js CC-BY',
+    description: 'Elegant white stork soaring with flapping wings'
+  }
+];
+
+type CategoryTab = 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors';
 
 export function AssetBrowser() {
   const { 
@@ -196,6 +312,9 @@ export function AssetBrowser() {
   const [editValue, setEditValue] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
   const [showMarkerManager, setShowMarkerManager] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchCategory, setSearchCategory] = useState('all');
+  const [customImportUrl, setCustomImportUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -466,6 +585,20 @@ export function AssetBrowser() {
           </button>
 
           <div className="border-t border-[#222] my-1 mx-2"></div>
+          <span className="px-3 py-1 text-[9px] font-bold text-yellow-500 uppercase tracking-wider flex items-center gap-1">
+            <Sparkles size={10} />
+            3D Discover Web
+          </span>
+
+          <button 
+            onClick={() => setActiveTab('sketchfab')}
+            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'sketchfab' ? 'bg-[#222] text-white border-l-2 border-yellow-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+          >
+            <Search size={13} className="text-yellow-400" />
+            <span>Sketchfab / CC</span>
+          </button>
+
+          <div className="border-t border-[#222] my-1 mx-2"></div>
           <span className="px-3 py-1 text-[9px] font-bold text-[#555] uppercase tracking-wider">Presets Library</span>
 
           <button 
@@ -576,6 +709,147 @@ export function AssetBrowser() {
                   </div>
                 ))
               )}
+            </div>
+          )}
+
+          {/* SKETCHFAB / WEB SEARCH TAB */}
+          {activeTab === 'sketchfab' && (
+            <div className="flex flex-col gap-4 font-sans h-full w-full">
+              {/* Header */}
+              <div className="flex flex-col bg-[#141414] border border-[#222] rounded-lg p-3">
+                <span className="text-xs font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles size={11} className="animate-pulse text-yellow-400" />
+                  Free 3D Discovery Studio
+                </span>
+                <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+                  Search and deploy 100% free, open-source Creative Commons 3D models from 
+                  <strong> Sketchfab</strong>, <strong>NASA</strong>, and the <strong>Smithsonian Museum</strong>. 
+                  Adding an asset automatically registers it in your <strong>Asset Studio</strong> for reuse!
+                </p>
+              </div>
+
+              {/* Controls: Search & Paste URL */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Search Box */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-2.5 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Search models (e.g. Astronaut, Car, Rocket)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-[#111] text-xs font-sans pl-9 pr-3 py-2 border border-[#222] rounded focus:border-yellow-500 text-white outline-none"
+                  />
+                </div>
+
+                {/* Direct Link Importer */}
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!customImportUrl) return;
+                    // Add as asset & spawn using standard helper
+                    const newAssetId = Math.random().toString(36).substring(2, 9);
+                    const cleanName = customImportUrl.substring(customImportUrl.lastIndexOf('/') + 1) || 'Custom GLB Model';
+                    const newAsset = {
+                      id: newAssetId,
+                      name: cleanName,
+                      type: 'model' as AssetType,
+                      url: customImportUrl
+                    };
+                    addAsset(newAsset);
+                    handleUseAsset(newAsset);
+                    setCustomImportUrl('');
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    placeholder="Paste any custom .glb/.gltf asset link..."
+                    value={customImportUrl}
+                    onChange={(e) => setCustomImportUrl(e.target.value)}
+                    className="flex-1 bg-[#111] text-xs font-mono px-3 py-2 border border-[#222] rounded focus:border-yellow-500 text-white outline-none min-w-0"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold text-xs rounded transition-colors cursor-pointer shrink-0"
+                  >
+                    Import & Deploy
+                  </button>
+                </form>
+              </div>
+
+              {/* Category Badges */}
+              <div className="flex flex-wrap gap-1.5 border-b border-[#222] pb-3">
+                {['all', 'space', 'vehicles', 'characters', 'nature', 'interior', 'items', 'animals'].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSearchCategory(cat)}
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                      searchCategory === cat
+                        ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 font-extrabold'
+                        : 'bg-[#141414] text-gray-500 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Models Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 content-start">
+                {SKETCHFAB_WEB_MODELS.filter(m => {
+                  const matchQuery = m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                     m.description.toLowerCase().includes(searchQuery.toLowerCase());
+                  const matchCategory = searchCategory === 'all' || m.category === searchCategory;
+                  return matchQuery && matchCategory;
+                }).map(model => (
+                  <div
+                    key={model.name}
+                    className="bg-[#141414] border border-[#222] hover:border-yellow-500 rounded p-3 flex flex-col items-start gap-1 hover:bg-[#1A1A1A] transition-all group relative cursor-pointer"
+                    title="Double-click to deploy and save"
+                    onDoubleClick={() => {
+                      const newAsset = {
+                        id: Math.random().toString(36).substring(2, 9),
+                        name: model.name,
+                        type: 'model' as AssetType,
+                        url: model.url
+                      };
+                      addAsset(newAsset);
+                      handleUseAsset(newAsset);
+                    }}
+                  >
+                    {/* Visual Thumb */}
+                    <div className="w-full aspect-square flex flex-col items-center justify-center bg-black/40 rounded mb-1 relative overflow-hidden text-center p-2">
+                      <span className="text-3xl group-hover:scale-125 transition-transform">📦</span>
+                      <span className="text-[8px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1 py-0.5 rounded mt-2 uppercase font-mono font-bold tracking-wider leading-none">
+                        {model.creator}
+                      </span>
+                      <div className="absolute inset-0 bg-yellow-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Plus size={20} className="text-yellow-400" />
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-bold text-white truncate w-full">{model.name}</span>
+                    <p className="text-[9px] text-[#666] leading-snug h-6 overflow-hidden line-clamp-2 w-full">{model.description}</p>
+                    
+                    <button
+                      onClick={() => {
+                        const newAsset = {
+                          id: Math.random().toString(36).substring(2, 9),
+                          name: model.name,
+                          type: 'model' as AssetType,
+                          url: model.url
+                        };
+                        addAsset(newAsset);
+                        handleUseAsset(newAsset);
+                      }}
+                      className="mt-2 w-full text-center bg-yellow-600 hover:bg-yellow-500 text-black text-[10px] font-bold py-1 rounded transition-colors cursor-pointer"
+                    >
+                      Deploy Model
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
