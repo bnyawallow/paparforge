@@ -79,7 +79,7 @@ const buildMaterialAttr = (properties: any, isPlane = false): string => {
   
   // Texture src & mapping
   if (properties.textureUrl) {
-    parts.push(`src: ${properties.textureUrl}`);
+    parts.push(`src: url(${properties.textureUrl})`);
     const repX = properties.textureRepeatX ?? 1;
     const repY = properties.textureRepeatY ?? 1;
     parts.push(`repeat: ${repX} ${repY}`);
@@ -187,7 +187,10 @@ export const generateAFrameScene = (state: any) => {
       } else if (obj.type === 'plane') {
         entity += `${indent}  <a-plane material="${buildMaterialAttr(obj.properties, true)}"></a-plane>\n`;
       } else if (obj.type === 'text') {
-        entity += `${indent}  <a-text value="${obj.properties.text || 'Text Node'}" align="${obj.properties.textAlign || 'center'}" color="${obj.properties.color || '#ffffff'}" width="4"></a-text>\n`;
+        const fontStr = obj.properties.fontUrl ? ` font: ${obj.properties.fontUrl};` : '';
+        const sizeStr = ` fontSize: ${obj.properties.fontSize ?? 0.25};`;
+        const maxWidthStr = ` maxWidth: ${obj.properties.maxWidth ?? 4};`;
+        entity += `${indent}  <a-entity troika-text="value: ${obj.properties.text || 'Text Node'}; align: ${obj.properties.textAlign || 'center'}; color: ${obj.properties.color || '#ffffff'};${fontStr}${sizeStr}${maxWidthStr}"></a-entity>\n`;
       } else if (obj.type === 'image') {
         entity += `${indent}  <a-image src="${obj.properties.textureUrl || ''}" material="${buildMaterialAttr(obj.properties, true)}"></a-image>\n`;
       } else if (obj.type === 'video') {
@@ -224,7 +227,7 @@ export const generateAFrameScene = (state: any) => {
         } else {
           entity += `${indent}  <a-box material="color: ${btnColor}; roughness: 0.4; metalness: 0.2" depth="0.2" class="clickable"${btnUrlAttr}></a-box>\n`;
         }
-        entity += `${indent}  <a-text value="${btnText}" align="center" position="0 0 0.11" scale="0.8 0.8 0.8" color="${textColor}"></a-text>\n`;
+        entity += `${indent}  <a-entity position="0 0 0.11" scale="0.8 0.8 0.8" troika-text="value: ${btnText}; align: center; color: ${textColor}; fontSize: 0.25; maxWidth: 4"></a-entity>\n`;
       } else if (obj.type === 'youtube') {
         entity += `${indent}  <a-plane color="#ff0000" material="src: url(https://img.youtube.com/vi/${obj.properties.videoId || 'dQw4w9WgXcQ'}/0.jpg)" aspect-ratio="1.777"></a-plane>\n`;
       } else if (obj.type === 'model') {
@@ -356,6 +359,7 @@ export const generateAFrameScene = (state: any) => {
     <!-- Core WebAR SDKs & A-Frame Runtime -->
     <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
+    <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
 
@@ -492,9 +496,10 @@ export const generateAFrameScene = (state: any) => {
               break;
             case 'playSound':
               const playUrl = b.soundPreset || '/sounds/success_chime.wav';
-              const sfx = new Audio(playUrl);
-              sfx.volume = 0.5;
-              sfx.play().catch(e => console.log('Audio preset play failed', e));
+              const soundEntity = document.createElement('a-entity');
+              soundEntity.setAttribute('sound', 'src: url(' + playUrl + '); autoplay: true; volume: 0.5');
+              this.el.appendChild(soundEntity);
+              setTimeout(() => { if(soundEntity.parentNode) soundEntity.parentNode.removeChild(soundEntity); }, 5000);
               break;
             case 'playVideo':
               showARVideo({
@@ -514,7 +519,7 @@ export const generateAFrameScene = (state: any) => {
               if (spinEl) {
                 spinEl.setAttribute('animation', {
                   property: 'rotation',
-                  to: '0 0 360',
+                  to: '0 360 0',
                   dur: 2000,
                   easing: 'linear',
                   loop: true
@@ -586,9 +591,10 @@ export const generateAFrameScene = (state: any) => {
             },
             playSound: (url) => {
               const playUrl = url || '/sounds/cyber_click.wav';
-              const sfx = new Audio(playUrl);
-              sfx.volume = 0.5;
-              sfx.play().catch(e => console.log('Script sound failed', e));
+              const soundEntity = document.createElement('a-entity');
+              soundEntity.setAttribute('sound', 'src: url(' + playUrl + '); autoplay: true; volume: 0.5');
+              el.appendChild(soundEntity);
+              setTimeout(() => { if(soundEntity.parentNode) soundEntity.parentNode.removeChild(soundEntity); }, 5000);
             },
             showToast: (msg) => {
               showToast(msg);
@@ -713,37 +719,33 @@ export const generateAFrameScene = (state: any) => {
           const url = this.el.getAttribute('data-sound-url');
           if (!url) return;
           const playSound = () => {
-            const sfx = new Audio(url);
-            sfx.volume = 0.5;
-            sfx.play().catch(e => {
-              console.log('AudioContext play error, trying to resume context', e);
-              const resumeAndPlay = () => {
-                const sceneEl = document.querySelector('a-scene');
-                if (sceneEl && sceneEl.audioListener) {
-                  sceneEl.audioListener.context.resume().then(() => {
-                    sfx.play().catch(err => console.log('Audio retry failed:', err));
-                  });
-                } else {
-                  sfx.play().catch(err => console.log('Audio fallback failed:', err));
-                }
-              };
-              resumeAndPlay();
-            });
+             const soundEntity = document.createElement('a-entity');
+             soundEntity.setAttribute('sound', 'src: url(' + url + '); autoplay: true; volume: 0.5');
+             this.el.appendChild(soundEntity);
+             setTimeout(() => { if(soundEntity.parentNode) soundEntity.parentNode.removeChild(soundEntity); }, 5000);
           };
           this.el.addEventListener('click', playSound);
         }
       });
 
       // Global touch/click interaction helper to unlock audio context on mobile browsers
-      document.addEventListener('click', function unlockAudioContext() {
+      const unlockAudioContext = function () {
         const sceneEl = document.querySelector('a-scene');
         if (sceneEl && sceneEl.audioListener && sceneEl.audioListener.context) {
-          sceneEl.audioListener.context.resume().then(() => {
-            console.log('AudioContext successfully unlocked via global click gesture!');
+          if (sceneEl.audioListener.context.state === 'suspended') {
+            sceneEl.audioListener.context.resume().then(() => {
+              console.log('AudioContext successfully unlocked via global interaction!');
+              document.removeEventListener('click', unlockAudioContext);
+              document.removeEventListener('touchstart', unlockAudioContext);
+            }).catch(err => console.log('Context unlock failed:', err));
+          } else {
             document.removeEventListener('click', unlockAudioContext);
-          }).catch(err => console.log('Context unlock failed:', err));
+            document.removeEventListener('touchstart', unlockAudioContext);
+          }
         }
-      });
+      };
+      document.addEventListener('click', unlockAudioContext);
+      document.addEventListener('touchstart', unlockAudioContext);
     </script>
   </head>
   <body>

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, Plus, Trash2, Copy, FileDown, FileUp, Folder, Calendar, ArrowRight, Sparkles, 
-  Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload
+  Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload, Edit2
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 
@@ -18,12 +18,15 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
     deleteProject,
     duplicateProject,
     importProject,
+    renameProject,
     addToast
   } = useEditorStore();
 
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<'empty' | 'business_card' | 'product_showcase' | 'educational'>('empty');
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +60,15 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
       color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
     }
   ];
+
+  const handleRenameSubmit = (projectId: string) => {
+    if (renameValue.trim()) {
+      renameProject(projectId, renameValue.trim());
+      addToast(`Renamed to "${renameValue.trim()}"`);
+    }
+    setRenamingProjectId(null);
+    setRenameValue('');
+  };
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,9 +311,24 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-[#555]'}`}></span>
-                        <h4 className={`text-xs font-bold truncate ${isActive ? 'text-blue-400' : 'text-[#CCC]'}`}>
-                          {project.name}
-                        </h4>
+                        {renamingProjectId === project.id ? (
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRenameSubmit(project.id);
+                              if (e.key === 'Escape') setRenamingProjectId(null);
+                            }}
+                            onBlur={() => handleRenameSubmit(project.id)}
+                            autoFocus
+                            className="text-xs font-bold bg-[#0A0A0A] border border-blue-500 rounded px-1.5 py-0.5 text-white outline-none w-48"
+                          />
+                        ) : (
+                          <h4 className={`text-xs font-bold truncate ${isActive ? 'text-blue-400' : 'text-[#CCC]'}`}>
+                            {project.name}
+                          </h4>
+                        )}
                         {isActive && (
                           <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded uppercase font-bold">Active</span>
                         )}
@@ -327,6 +354,16 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                         </button>
                       )}
                       
+                      <button
+                        onClick={() => {
+                          setRenamingProjectId(project.id);
+                          setRenameValue(project.name);
+                        }}
+                        className="p-1.5 bg-[#202020] hover:bg-[#2A2A2A] text-[#888] hover:text-white border border-[#2A2A2A] rounded-lg transition-colors cursor-pointer"
+                        title="Rename project"
+                      >
+                        <Edit2 size={13} />
+                      </button>
                       <button
                         onClick={() => handleDuplicate(project.id, project.name)}
                         className="p-1.5 bg-[#202020] hover:bg-[#2A2A2A] text-[#888] hover:text-white border border-[#2A2A2A] rounded-lg transition-colors cursor-pointer"
