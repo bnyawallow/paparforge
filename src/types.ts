@@ -32,10 +32,17 @@ export interface ProjectSettings {
   directionalIntensity?: number;
   directionalPosition?: [number, number, number];
   shadowsEnabled?: boolean;
+  shadowIntensity?: number;
+  shadowSoftness?: number;
+  shadowResolution?: number;
   publishedProjectId?: string;
   publishedProjectUrl?: string;
   ambientSoundUrl?: string;
   lightingPreset?: 'studio' | 'daylight' | 'sunset';
+  bloomEnabled?: boolean;
+  bloomIntensity?: number;
+  bloomRadius?: number;
+  bloomThreshold?: number;
 }
 
 export interface HistorySnapshot {
@@ -53,6 +60,7 @@ export interface EditorState {
   selectedObjectRef: any | null;
   settings: ProjectSettings;
   transformMode: 'translate' | 'rotate' | 'scale';
+  transformSpace: 'local' | 'world';
 
   assets: Asset[];
   isPreviewMode: boolean;
@@ -107,6 +115,7 @@ export interface EditorState {
   ungroupObject: (id: string) => void;
   updateSettings: (updates: Partial<ProjectSettings>) => void;
   setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => void;
+  setTransformSpace: (space: 'local' | 'world') => void;
   moveObject: (draggedId: string, targetId: string) => void;
   duplicateObject: (id: string) => void;
   copyObject: (id: string) => void;

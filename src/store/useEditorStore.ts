@@ -448,6 +448,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   selectedObjectRef: null,
   settings: initialSettings,
   transformMode: 'translate',
+  transformSpace: 'world',
   assets: initialAssets,
   copiedObjectData: null,
   isPreviewMode: false,
@@ -803,6 +804,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   })),
 
   setTransformMode: (mode) => set({ transformMode: mode }),
+  setTransformSpace: (space) => set({ transformSpace: space }),
 
   moveObject: (draggedId, targetId) => set((state) => {
     const newObjects = { ...state.objects };

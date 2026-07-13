@@ -5,6 +5,7 @@ import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, Gizm
 import { useEditorStore } from '../../store/useEditorStore';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
+import { BloomEffect } from './BloomEffect';
 import { 
   Maximize, 
   RotateCw, 
@@ -22,7 +23,8 @@ import {
   Magnet,
   Grid as GridIcon,
   Layers,
-  Compass
+  Compass,
+  Globe
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -297,6 +299,148 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     }
   }, [names, id]);
 
+  // Discover and store model's unique material names in state
+  useEffect(() => {
+    const materialNames: string[] = [];
+    clonedScene.traverse((node: any) => {
+      if (node.isMesh && node.material) {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach((mat: any) => {
+          if (mat && mat.name && !materialNames.includes(mat.name)) {
+            materialNames.push(mat.name);
+          }
+        });
+      }
+    });
+
+    if (materialNames.length > 0) {
+      const currentMats = useEditorStore.getState().objects[id]?.properties.discoveredMaterials;
+      if (!currentMats || JSON.stringify(currentMats) !== JSON.stringify(materialNames)) {
+        useEditorStore.getState().updateObject(id, {
+          properties: {
+            ...useEditorStore.getState().objects[id]?.properties,
+            discoveredMaterials: materialNames
+          }
+        });
+      }
+    }
+  }, [clonedScene, id]);
+
+  // Apply material overrides dynamically
+  const materialOverrides = properties.materialOverrides || {};
+
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    clonedScene.traverse((node: any) => {
+      if (node.isMesh && node.material) {
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        
+        materials.forEach((mat: any, index: number) => {
+          const matName = mat.name;
+          if (!matName) return;
+
+          const override = materialOverrides[matName];
+          if (override) {
+            // Clone the material if not already cloned to prevent polluting shared model cache
+            let targetMat = mat;
+            if (!targetMat.__isCloned) {
+              targetMat = targetMat.clone();
+              targetMat.__isCloned = true;
+              if (Array.isArray(node.material)) {
+                node.material[index] = targetMat;
+              } else {
+                node.material = targetMat;
+              }
+            }
+
+            // Apply override properties
+            if (override.color !== undefined) {
+              targetMat.color.set(override.color);
+            }
+            if (override.roughness !== undefined) {
+              targetMat.roughness = override.roughness;
+            }
+            if (override.metalness !== undefined) {
+              targetMat.metalness = override.metalness;
+            }
+            if (override.opacity !== undefined) {
+              targetMat.opacity = override.opacity;
+              targetMat.transparent = override.opacity < 1;
+            }
+            if (override.emissiveColor !== undefined) {
+              if (targetMat.emissive) {
+                targetMat.emissive.set(override.emissiveColor);
+              }
+            }
+            if (override.emissiveIntensity !== undefined) {
+              targetMat.emissiveIntensity = override.emissiveIntensity;
+            }
+
+            // Load and apply texture maps
+            if (override.textureUrl !== undefined) {
+              if (override.textureUrl) {
+                loader.load(override.textureUrl, (tex) => {
+                  tex.colorSpace = THREE.SRGBColorSpace;
+                  targetMat.map = tex;
+                  targetMat.needsUpdate = true;
+                });
+              } else {
+                targetMat.map = null;
+                targetMat.needsUpdate = true;
+              }
+            }
+            if (override.normalMapUrl !== undefined) {
+              if (override.normalMapUrl) {
+                loader.load(override.normalMapUrl, (tex) => {
+                  targetMat.normalMap = tex;
+                  targetMat.needsUpdate = true;
+                });
+              } else {
+                targetMat.normalMap = null;
+                targetMat.needsUpdate = true;
+              }
+            }
+            if (override.roughnessMapUrl !== undefined) {
+              if (override.roughnessMapUrl) {
+                loader.load(override.roughnessMapUrl, (tex) => {
+                  targetMat.roughnessMap = tex;
+                  targetMat.needsUpdate = true;
+                });
+              } else {
+                targetMat.roughnessMap = null;
+                targetMat.needsUpdate = true;
+              }
+            }
+            if (override.metalnessMapUrl !== undefined) {
+              if (override.metalnessMapUrl) {
+                loader.load(override.metalnessMapUrl, (tex) => {
+                  targetMat.metalnessMap = tex;
+                  targetMat.needsUpdate = true;
+                });
+              } else {
+                targetMat.metalnessMap = null;
+                targetMat.needsUpdate = true;
+              }
+            }
+            if (override.displacementMapUrl !== undefined) {
+              if (override.displacementMapUrl) {
+                loader.load(override.displacementMapUrl, (tex) => {
+                  targetMat.displacementMap = tex;
+                  targetMat.needsUpdate = true;
+                });
+              } else {
+                targetMat.displacementMap = null;
+                targetMat.needsUpdate = true;
+              }
+            }
+
+            targetMat.needsUpdate = true;
+          }
+        });
+      }
+    });
+  }, [clonedScene, materialOverrides]);
+
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
   const animationPlaying = properties.animationPlaying !== false;
   const animationSpeed = properties.animationSpeed ?? 1.0;
@@ -531,6 +675,7 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
           repeatX={repeatX}
           repeatY={repeatY}
           wireframe={wireframe}
+          shaderType={properties.shaderType}
         />
       </Suspense>
     </ErrorBoundary>
@@ -560,7 +705,8 @@ function PhysicalMaterialLoader({
   normalScale,
   repeatX,
   repeatY,
-  wireframe
+  wireframe,
+  shaderType
 }: any) {
   const [maps, setMaps] = useState<Record<string, THREE.Texture>>({});
 
@@ -614,11 +760,53 @@ function PhysicalMaterialLoader({
     };
   }, [textureUrl, normalMapUrl, roughnessMapUrl, metalnessMapUrl, displacementMapUrl, repeatX, repeatY]);
 
-  // Determine whether we should use meshPhysicalMaterial or meshStandardMaterial.
-  // meshPhysicalMaterial supports transmission, clearcoat, thickness, ior.
-  const isPhysical = clearcoat > 0 || transmission > 0;
+  // Determine default shader if not explicitly chosen
+  const activeShader = shaderType || (clearcoat > 0 || transmission > 0 ? 'physical' : 'standard');
 
-  if (isPhysical) {
+  if (activeShader === 'toon') {
+    return (
+      <meshToonMaterial
+        color={color}
+        map={maps.map || null}
+        normalMap={maps.normalMap || null}
+        normalScale={new THREE.Vector2(normalScale, normalScale)}
+        displacementMap={maps.displacementMap || null}
+        displacementScale={displacementScale}
+        wireframe={wireframe}
+        transparent={opacity < 1}
+        opacity={opacity}
+        side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
+      />
+    );
+  }
+
+  if (activeShader === 'basic') {
+    return (
+      <meshBasicMaterial
+        color={color}
+        map={maps.map || null}
+        wireframe={wireframe}
+        transparent={opacity < 1}
+        opacity={opacity}
+        side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
+      />
+    );
+  }
+
+  if (activeShader === 'normal') {
+    return (
+      <meshNormalMaterial
+        displacementMap={maps.displacementMap || null}
+        displacementScale={displacementScale}
+        wireframe={wireframe}
+        transparent={opacity < 1}
+        opacity={opacity}
+        side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
+      />
+    );
+  }
+
+  if (activeShader === 'physical') {
     return (
       <meshPhysicalMaterial
         color={color}
@@ -1361,6 +1549,7 @@ function TransformController() {
   const target = selectedObjectId ? scene.getObjectByName(selectedObjectId) : null;
   const objects = useEditorStore(state => state.objects);
   const transformMode = useEditorStore(state => state.transformMode);
+  const transformSpace = useEditorStore(state => state.transformSpace);
   const updateObject = useEditorStore(state => state.updateObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const controlsRef = useRef<any>(null);
@@ -1411,6 +1600,7 @@ function TransformController() {
       ref={controlsRef}
       object={target}
       mode={transformMode}
+      space={transformSpace}
       onMouseUp={handleTransform}
       translationSnap={gridSnapEnabled ? gridSnapIncrement : null}
       rotationSnap={rotationSnapEnabled ? (rotationSnapIncrement * Math.PI) / 180 : null}
@@ -1447,6 +1637,8 @@ export function Viewport() {
   const selectObject = useEditorStore(state => state.selectObject);
   const transformMode = useEditorStore(state => state.transformMode);
   const setTransformMode = useEditorStore(state => state.setTransformMode);
+  const transformSpace = useEditorStore(state => state.transformSpace);
+  const setTransformSpace = useEditorStore(state => state.setTransformSpace);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const toasts = useEditorStore(state => state.toasts);
   const arVideoPlaying = useEditorStore(state => state.arVideoPlaying);
@@ -1555,6 +1747,13 @@ export function Viewport() {
         setTransformMode('translate');
       }
 
+      // Q: Toggle coordinate transform space
+      if (e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        const currentSpace = useEditorStore.getState().transformSpace;
+        useEditorStore.getState().setTransformSpace(currentSpace === 'local' ? 'world' : 'local');
+      }
+
       // E: Set transform mode to Rotate
       if (e.key.toLowerCase() === 'e') {
         e.preventDefault();
@@ -1626,7 +1825,7 @@ export function Viewport() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectObject, setTransformMode]);
+  }, [selectObject, setTransformMode, setTransformSpace]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1806,6 +2005,7 @@ export function Viewport() {
                 ))}
 
                 <OrbitControls makeDefault />
+                <BloomEffect />
               </Canvas>
             </div>
 
@@ -1998,6 +2198,9 @@ export function Viewport() {
   const directionalIntensity = settings.directionalIntensity ?? 1.0;
   const directionalPosition = settings.directionalPosition || [10, 10, 5];
   const shadowsEnabled = settings.shadowsEnabled ?? true;
+  const shadowIntensity = settings.shadowIntensity ?? 0.6;
+  const shadowSoftness = settings.shadowSoftness ?? 3.0;
+  const shadowResolution = settings.shadowResolution ?? 1024;
 
   return (
     <div 
@@ -2023,7 +2226,9 @@ export function Viewport() {
           color={directionalColor} 
           intensity={directionalIntensity} 
           castShadow={shadowsEnabled}
-          shadow-mapSize={[1024, 1024]}
+          shadow-mapSize={[shadowResolution, shadowResolution]}
+          shadow-radius={shadowSoftness}
+          shadow-bias={-0.0005}
         />
         
         <group rotation={[Math.PI / 2, 0, 0]}>
@@ -2051,10 +2256,11 @@ export function Viewport() {
         </GizmoHelper>
 
         <OrbitControls makeDefault />
+        <BloomEffect />
       </Canvas>
 
       <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-[#141414]/90 p-1.5 rounded-lg border border-[#2A2A2A] shadow-2xl backdrop-blur-md">
-        {/* Transform Mode Buttons Group */}
+        {/* Transform Mode & Space Buttons Group */}
         <div className="flex gap-1 border-r border-[#2A2A2A] pr-2 mr-1">
           <button 
             onClick={() => setTransformMode('translate')}
@@ -2076,6 +2282,14 @@ export function Viewport() {
             title="Scale [R / S]"
           >
             <Maximize size={14} />
+          </button>
+          <button 
+            onClick={() => setTransformSpace(transformSpace === 'local' ? 'world' : 'local')}
+            className={`h-8 px-1.5 ml-1 rounded flex items-center gap-1 transition-all border text-[9px] font-bold font-mono ${transformSpace === 'world' ? 'bg-amber-600/15 border-amber-500/25 text-amber-400' : 'bg-blue-600/15 border-blue-500/25 text-blue-400'}`}
+            title={`Toggle Transform Space [Q]: Currently ${transformSpace === 'local' ? 'Local' : 'Global (World)'}`}
+          >
+            <Globe size={11} className={transformSpace === 'world' ? 'animate-pulse' : ''} />
+            <span>{transformSpace.toUpperCase()}</span>
           </button>
         </div>
 

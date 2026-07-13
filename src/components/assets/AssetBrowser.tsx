@@ -21,7 +21,8 @@ import {
   Eye, 
   Info,
   Play,
-  Search
+  Search,
+  Sun
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 
@@ -115,37 +116,297 @@ const PRESET_MARKERS = [
 
 // SFX files for interactive triggers
 const PRESET_SOUNDS = [
+  // --- INTERFACE & UI ---
   {
     id: 'p-sound-click',
     name: 'Cyber Click',
     type: 'audio' as AssetType,
-    url: '/sounds/cyber_click.wav',
-    thumbnail: '🎵',
-    description: 'Clean futuristic electronic tap feedback',
+    url: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav',
+    thumbnail: '🔘',
+    category: 'UI & Interface',
+    description: 'Clean futuristic electronic tap feedback, perfect for buttons and menus.',
   },
+  {
+    id: 'p-sound-soft-tap',
+    name: 'Soft UI Tap',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2569/2569-84.wav',
+    thumbnail: '👇',
+    category: 'UI & Interface',
+    description: 'Subtle high-frequency organic confirmation sound, gentle on ears.',
+  },
+  {
+    id: 'p-sound-confirm',
+    name: 'Tactile Select',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2562/2562-84.wav',
+    thumbnail: '✅',
+    category: 'UI & Interface',
+    description: 'Double-click mechanical toggle sound for options and switches.',
+  },
+  
+  // --- MAGICAL & FANTASY ---
   {
     id: 'p-sound-success',
     name: 'Success Ring',
     type: 'audio' as AssetType,
-    url: '/sounds/success_chime.wav',
+    url: 'https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav',
     thumbnail: '✨',
-    description: 'Shimmering positive response chime',
+    category: 'Magical & Fantasy',
+    description: 'Shimmering positive response chime for completions and unlocks.',
   },
   {
-    id: 'p-sound-beep',
-    name: 'Tech Beep',
+    id: 'p-sound-sparkle',
+    name: 'Fairy Dust Sparkle',
     type: 'audio' as AssetType,
-    url: '/sounds/robot_beep.wav',
+    url: 'https://assets.mixkit.co/active_storage/sfx/2020/2020-84.wav',
+    thumbnail: '🪄',
+    category: 'Magical & Fantasy',
+    description: 'High-pitch ascending windchimes, great for spawn or teleports.',
+  },
+  {
+    id: 'p-sound-shimmer',
+    name: 'Mystic Dream',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2017/2017-84.wav',
+    thumbnail: '🔮',
+    category: 'Magical & Fantasy',
+    description: 'Ethereal chime wave ideal for magical interactions.',
+  },
+
+  // --- RETRO & SCI-FI ---
+  {
+    id: 'p-sound-beep',
+    name: 'Robot Chirp',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2570/2570-84.wav',
     thumbnail: '🤖',
-    description: 'Short high-pitch computer processing tone',
+    category: 'Sci-Fi & Retro',
+    description: 'Chirpy electronic robot expression tone.',
+  },
+  {
+    id: 'p-sound-laser',
+    name: 'Neon Laser Zap',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2585/2585-84.wav',
+    thumbnail: '⚡',
+    category: 'Sci-Fi & Retro',
+    description: 'Classic synthesized raygun laser blast.',
+  },
+  {
+    id: 'p-sound-hologram',
+    name: 'Hologram Grid Hum',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2573/2573-84.wav',
+    thumbnail: '🌐',
+    category: 'Sci-Fi & Retro',
+    description: 'Electric static telemetry and computer system initialization.',
+  },
+  {
+    id: 'p-sound-error',
+    name: 'Warning Buzzer',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2572/2572-84.wav',
+    thumbnail: '🚨',
+    category: 'Sci-Fi & Retro',
+    description: 'Short abrasive buzzer sound indicating errors or warnings.',
+  },
+
+  // --- MUSIC & BEAT LOOPS ---
+  {
+    id: 'p-sound-lofi',
+    name: 'Chill Lo-Fi Loop',
+    type: 'audio' as AssetType,
+    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+    thumbnail: '☕',
+    category: 'Music & Loops',
+    description: 'Relaxing jazzy hip-hop study beat, loopable and cozy.',
+  },
+  {
+    id: 'p-sound-synthwave',
+    name: 'Retro Drive Beats',
+    type: 'audio' as AssetType,
+    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+    thumbnail: '🕶️',
+    category: 'Music & Loops',
+    description: 'High energy synthesized driving track, perfect for active scenes.',
+  },
+  {
+    id: 'p-sound-cosmic',
+    name: 'Acoustic Oasis',
+    type: 'audio' as AssetType,
+    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
+    thumbnail: '🎸',
+    category: 'Music & Loops',
+    description: 'Warm acoustic melody blended with uplifting cinematic pads.',
+  },
+
+  // --- AMBIENCE & ENVIRONMENT ---
+  {
+    id: 'p-sound-rain',
+    name: 'Heavy Storm Rain',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2433/2433-84.wav',
+    thumbnail: '⛈️',
+    category: 'Ambience & Environments',
+    description: 'Intense background raindrops crashing on wooden deck.',
   },
   {
     id: 'p-sound-ambient',
     name: 'Nature Ambient',
     type: 'audio' as AssetType,
-    url: '/sounds/forest_ambient.wav',
+    url: 'https://assets.mixkit.co/active_storage/sfx/2431/2431-84.wav',
     thumbnail: '🌲',
-    description: 'Gentle organic wilderness backdrop loop',
+    category: 'Ambience & Environments',
+    description: 'Chirping birds and gentle breeze rustling forest leaves.',
+  },
+  {
+    id: 'p-sound-ocean',
+    name: 'Soft Ocean Waves',
+    type: 'audio' as AssetType,
+    url: 'https://assets.mixkit.co/active_storage/sfx/2432/2432-84.wav',
+    thumbnail: '🌊',
+    category: 'Ambience & Environments',
+    description: 'Slow rolling saltwater shoreline foam and breeze.',
+  }
+];
+
+const LIGHTING_PRESETS = [
+  {
+    id: 'light-noon',
+    name: '☀️ High Noon',
+    category: 'Cinematic',
+    description: 'Crisp, high-contrast daylight with precise neutral shadows. Ideal for showcasing 3D products.',
+    settings: {
+      ambientColor: '#ffffff',
+      ambientIntensity: 0.45,
+      directionalColor: '#ffffff',
+      directionalIntensity: 1.25,
+      directionalPosition: [3, 10, 4] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.75,
+      shadowSoftness: 2.0,
+      shadowResolution: 2048,
+    }
+  },
+  {
+    id: 'light-sunset',
+    name: '🌇 Sunset Glow',
+    category: 'Mood / Warm',
+    description: 'Golden hour warmth with deep purple ambient fills and elongated, soft amber shadows.',
+    settings: {
+      ambientColor: '#4c1d95',
+      ambientIntensity: 0.35,
+      directionalColor: '#f59e0b',
+      directionalIntensity: 1.45,
+      directionalPosition: [8, 3, 2] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.65,
+      shadowSoftness: 5.5,
+      shadowResolution: 1024,
+    }
+  },
+  {
+    id: 'light-neon',
+    name: '🌌 Cyberpunk Neon',
+    category: 'Vibrant',
+    description: 'Vivid synthwave aesthetics. Cool cyan fill lights combined with a hot pink key light.',
+    settings: {
+      ambientColor: '#083344',
+      ambientIntensity: 0.45,
+      directionalColor: '#ec4899',
+      directionalIntensity: 1.55,
+      directionalPosition: [-5, 5, 4] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.85,
+      shadowSoftness: 4.0,
+      shadowResolution: 1024,
+    }
+  },
+  {
+    id: 'light-moonlight',
+    name: '🌕 Mystical Moonlight',
+    category: 'Night / Cool',
+    description: 'Dim, cool twilight setup. Soft blue ambient lighting and a cold pale white moon highlight.',
+    settings: {
+      ambientColor: '#1e1b4b',
+      ambientIntensity: 0.25,
+      directionalColor: '#e0e7ff',
+      directionalIntensity: 0.65,
+      directionalPosition: [4, 8, -4] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.55,
+      shadowSoftness: 7.0,
+      shadowResolution: 1024,
+    }
+  },
+  {
+    id: 'light-studio',
+    name: '🍵 Soft Studio',
+    category: 'Cinematic',
+    description: 'Bright, diffused studio umbrella setup. High fill light with subtle, ultra-soft shadows.',
+    settings: {
+      ambientColor: '#f1f5f9',
+      ambientIntensity: 0.85,
+      directionalColor: '#ffffff',
+      directionalIntensity: 0.45,
+      directionalPosition: [0, 8, 8] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.35,
+      shadowSoftness: 9.0,
+      shadowResolution: 2048,
+    }
+  },
+  {
+    id: 'light-volcano',
+    name: '🌋 Volcanic Ash',
+    category: 'Mood / Warm',
+    description: 'Dreadful volcanic landscape. Deep dark red sky glow with intense lava-orange light bursts.',
+    settings: {
+      ambientColor: '#450a0a',
+      ambientIntensity: 0.35,
+      directionalColor: '#f97316',
+      directionalIntensity: 1.35,
+      directionalPosition: [5, 4, 3] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.85,
+      shadowSoftness: 3.5,
+      shadowResolution: 1024,
+    }
+  },
+  {
+    id: 'light-matrix',
+    name: '🟢 Digital Matrix',
+    category: 'Vibrant',
+    description: 'Chlorophyll-infused retro computing terminal glow. Dark emerald fill and bright digital lime green.',
+    settings: {
+      ambientColor: '#022c22',
+      ambientIntensity: 0.3,
+      directionalColor: '#22c55e',
+      directionalIntensity: 1.25,
+      directionalPosition: [3, 6, 2] as [number, number, number],
+      shadowsEnabled: true,
+      shadowIntensity: 0.75,
+      shadowSoftness: 2.5,
+      shadowResolution: 1024,
+    }
+  },
+  {
+    id: 'light-shadowless',
+    name: '☁️ Overcast Day',
+    category: 'Neutral',
+    description: 'Soft cloud coverage. Diffuse, shadowless light for maximum shape legibility and flat tones.',
+    settings: {
+      ambientColor: '#e2e8f0',
+      ambientIntensity: 0.95,
+      directionalColor: '#ffffff',
+      directionalIntensity: 0.15,
+      directionalPosition: [0, 10, 0] as [number, number, number],
+      shadowsEnabled: false,
+      shadowIntensity: 0,
+      shadowSoftness: 0,
+      shadowResolution: 512,
+    }
   }
 ];
 
@@ -292,7 +553,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors';
+type CategoryTab = 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting';
 
 export function AssetBrowser() {
   const { 
@@ -303,11 +564,15 @@ export function AssetBrowser() {
     addObject, 
     selectedObjectId, 
     objects,
-    updateObject
+    updateObject,
+    updateSettings,
+    settings
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<CategoryTab>('uploads');
+  const [selectedAudioCategory, setSelectedAudioCategory] = useState<string>('All');
+  const [selectedLightingCategory, setSelectedLightingCategory] = useState<string>('All');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
@@ -632,6 +897,14 @@ export function AssetBrowser() {
             <Zap size={13} className="text-orange-400" />
             <span>Behaviors</span>
           </button>
+
+          <button 
+            onClick={() => setActiveTab('lighting')}
+            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'lighting' ? 'bg-[#222] text-white border-l-2 border-yellow-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+          >
+            <Sun size={13} className="text-yellow-400" />
+            <span>Lighting Presets</span>
+          </button>
         </div>
 
         {/* Assets Grid */}
@@ -919,42 +1192,65 @@ export function AssetBrowser() {
 
           {/* AUDIO TAB */}
           {activeTab === 'audio' && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 content-start">
-              {PRESET_SOUNDS.map(sound => {
-                const hasSelected = !!selectedObjectId;
-                return (
-                  <div 
-                    key={sound.id}
-                    onDoubleClick={() => handleUseAsset(sound)}
-                    className="bg-[#141414] border border-[#222] hover:border-pink-500 rounded p-3 flex flex-col gap-1 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative"
-                    title="Double-click to preview sound / Attach to selected object"
+            <div className="flex flex-col gap-4 h-full overflow-hidden">
+              {/* Category selector */}
+              <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#222] -mx-1 px-1">
+                {['All', 'UI & Interface', 'Magical & Fantasy', 'Sci-Fi & Retro', 'Music & Loops', 'Ambience & Environments'].map(category => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedAudioCategory(category)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      selectedAudioCategory === category
+                        ? 'bg-pink-600/20 text-pink-400 border border-pink-500/30'
+                        : 'bg-[#141414] text-gray-400 hover:text-white border border-transparent'
+                    }`}
                   >
-                    <div className="w-full h-14 flex items-center justify-center bg-black/40 rounded text-xl mb-1 relative overflow-hidden">
-                      <span className="group-hover:rotate-12 transition-transform">{sound.thumbnail}</span>
+                    {category}
+                  </button>
+                ))}
+              </div>
+
+              {/* Grid of sounds */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 overflow-y-auto pr-1">
+                {PRESET_SOUNDS.filter(s => selectedAudioCategory === 'All' || s.category === selectedAudioCategory).map(sound => {
+                  const hasSelected = !!selectedObjectId;
+                  return (
+                    <div 
+                      key={sound.id}
+                      onDoubleClick={() => handleUseAsset(sound)}
+                      className="bg-[#141414] border border-[#222] hover:border-pink-500 rounded p-3 flex flex-col gap-1 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative"
+                      title="Double-click to preview sound / Attach to selected object"
+                    >
+                      <div className="w-full h-14 flex items-center justify-center bg-black/40 rounded text-xl mb-1 relative overflow-hidden">
+                        <span className="group-hover:rotate-12 transition-transform">{sound.thumbnail}</span>
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const preview = new Audio(sound.url);
+                            preview.volume = 0.4;
+                            preview.play().catch(err => console.log('Audio playback preview failed', err));
+                          }}
+                          className="absolute inset-0 bg-pink-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        >
+                          <Play size={16} className="text-pink-400 fill-pink-400/20" />
+                        </button>
+                      </div>
+                      <span className="text-xs font-bold text-white truncate w-full">{sound.name}</span>
+                      <div className="flex items-center justify-between text-[8px] font-mono text-pink-400 uppercase tracking-wider mt-0.5">
+                        {sound.category}
+                      </div>
+                      <p className="text-[9px] text-[#666] leading-snug h-6 overflow-hidden line-clamp-2 w-full mt-0.5">{sound.description}</p>
+                      
                       <button 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          const preview = new Audio(sound.url);
-                          preview.volume = 0.4;
-                          preview.play().catch(err => console.log('Audio playback preview failed', err));
-                        }}
-                        className="absolute inset-0 bg-pink-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        onClick={() => handleUseAsset(sound)}
+                        className={`mt-2 w-full text-center text-[10px] font-semibold py-1 rounded transition-colors border ${hasSelected ? 'bg-pink-600 hover:bg-pink-500 border-pink-500 text-white' : 'bg-[#222] hover:bg-[#333] border-[#333] text-[#888]'}`}
                       >
-                        <Play size={16} className="text-pink-400 fill-pink-400/20" />
+                        {hasSelected ? 'Attach to Selected' : 'Preview Sound'}
                       </button>
                     </div>
-                    <span className="text-xs font-bold text-white truncate w-full">{sound.name}</span>
-                    <p className="text-[9px] text-[#666] leading-snug h-6 overflow-hidden line-clamp-2 w-full">{sound.description}</p>
-                    
-                    <button 
-                      onClick={() => handleUseAsset(sound)}
-                      className={`mt-2 w-full text-center text-[10px] font-semibold py-1 rounded transition-colors border ${hasSelected ? 'bg-pink-600 hover:bg-pink-500 border-pink-500 text-white' : 'bg-[#222] hover:bg-[#333] border-[#333] text-[#888]'}`}
-                    >
-                      {hasSelected ? 'Attach to Selected' : 'Preview Sound'}
-                    </button>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -992,6 +1288,98 @@ export function AssetBrowser() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* SCENE LIGHTING TAB */}
+          {activeTab === 'lighting' && (
+            <div className="flex flex-col gap-4 h-full">
+              {/* Category Filter Bar */}
+              <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#222] -mx-1 px-1">
+                {['All', 'Cinematic', 'Mood / Warm', 'Vibrant', 'Night / Cool', 'Neutral'].map(category => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedLightingCategory(category)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      selectedLightingCategory === category
+                        ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30'
+                        : 'bg-[#141414] text-gray-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+
+              {/* Grid of lighting presets */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto pr-1">
+                {LIGHTING_PRESETS.filter(p => selectedLightingCategory === 'All' || p.category === selectedLightingCategory).map(preset => {
+                  const isCurrentlyApplied = 
+                    settings.ambientColor === preset.settings.ambientColor &&
+                    settings.ambientIntensity === preset.settings.ambientIntensity &&
+                    settings.directionalColor === preset.settings.directionalColor &&
+                    settings.directionalIntensity === preset.settings.directionalIntensity;
+
+                  return (
+                    <div 
+                      key={preset.id}
+                      onClick={() => {
+                        updateSettings(preset.settings);
+                        showToast(`Applied atmospheric lighting preset "${preset.name}" to the scene.`);
+                      }}
+                      className={`bg-[#141414] border rounded-xl p-4 flex flex-col gap-3 cursor-pointer hover:bg-[#1A1A1A] transition-all duration-300 group ${
+                        isCurrentlyApplied 
+                          ? 'border-yellow-500 shadow-lg shadow-yellow-500/5 bg-[#1C1A14]' 
+                          : 'border-[#222] hover:border-gray-500'
+                      }`}
+                      title="Click to apply atmosphere preset to the scene"
+                    >
+                      {/* Dynamic Color Gradient representation of the mood/preset */}
+                      <div className="w-full h-24 rounded-lg relative overflow-hidden border border-white/5 flex flex-col justify-between p-2.5"
+                           style={{
+                             background: `linear-gradient(135deg, ${preset.settings.ambientColor}30 0%, ${preset.settings.directionalColor}A0 100%)`
+                           }}
+                      >
+                        {/* Dynamic color orb indicators */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-1">
+                            <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ backgroundColor: preset.settings.ambientColor }} title="Ambient Color" />
+                            <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ backgroundColor: preset.settings.directionalColor }} title="Directional Color" />
+                          </div>
+                          <span className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-black/60 text-yellow-400 border border-yellow-500/10 font-bold">
+                            {preset.category}
+                          </span>
+                        </div>
+
+                        {/* Title inside card */}
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-sm font-extrabold text-white group-hover:text-yellow-300 transition-colors drop-shadow-md">
+                            {preset.name}
+                          </span>
+                          {isCurrentlyApplied && (
+                            <span className="text-[8px] bg-yellow-500 text-black font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Description and metadata details */}
+                      <div className="flex flex-col gap-2">
+                        <p className="text-[10px] text-gray-400 leading-relaxed font-medium h-12 overflow-hidden line-clamp-3">
+                          {preset.description}
+                        </p>
+                        
+                        {/* Show tiny color metrics */}
+                        <div className="flex items-center justify-between text-[8px] font-mono text-[#666] border-t border-[#222]/60 pt-2">
+                          <span>Intensity: {(preset.settings.ambientIntensity + preset.settings.directionalIntensity).toFixed(2)}x</span>
+                          <span>Shadows: {preset.settings.shadowsEnabled ? `${preset.settings.shadowResolution}px` : 'No'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

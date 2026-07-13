@@ -41,6 +41,15 @@ export const convertEditorToAR = (
 const buildMaterialAttr = (properties: any, isPlane = false): string => {
   const parts: string[] = [];
   
+  // Shader type mapping
+  if (properties.shaderType === 'toon') {
+    parts.push(`shader: toon`);
+  } else if (properties.shaderType === 'basic') {
+    parts.push(`shader: flat`);
+  } else {
+    parts.push(`shader: standard`);
+  }
+
   // Base Color
   parts.push(`color: ${properties.color || '#ffffff'}`);
   
@@ -365,6 +374,21 @@ export const generateAFrameScene = (state: any) => {
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
 
     <script>
+      // Deduplication lock to prevent double taps/clicks on mobile devices
+      window.__lastClickTimes = window.__lastClickTimes || {};
+      window.isDuplicateClick = function(el) {
+        const id = el.id || 'anonymous';
+        const now = Date.now();
+        const lastTime = window.__lastClickTimes[id] || 0;
+        // If clicks happen in the same call frame (within 30ms), let both fire (e.g., sound + custom script components)
+        // If clicks are more than 30ms but less than 400ms apart, deduplicate them as duplicate taps.
+        if (now - lastTime > 30 && now - lastTime < 400) {
+          return true;
+        }
+        window.__lastClickTimes[id] = now;
+        return false;
+      };
+
       // 0. Continuous Interactive Live Behaviors (Spin, Hover, Pulse)
       AFRAME.registerComponent('live-behavior', {
         schema: {
@@ -445,6 +469,7 @@ export const generateAFrameScene = (state: any) => {
               self.executeBehavior(b);
             } else if (b.trigger === 'onTap') {
               const tapHandler = (e) => {
+                if (window.isDuplicateClick && window.isDuplicateClick(el)) return;
                 if (e.type === 'touchstart') return; // ignore native touchstart if it ever fires
                 self.executeBehavior(b);
               };
@@ -598,6 +623,7 @@ export const generateAFrameScene = (state: any) => {
           }
           
           el.addEventListener('click', () => {
+            if (window.isDuplicateClick && window.isDuplicateClick(el)) return;
             if (this.callbacks && typeof this.callbacks.onTap === 'function') {
               try {
                 this.callbacks.onTap();
@@ -679,6 +705,7 @@ export const generateAFrameScene = (state: any) => {
           }
           
           el.addEventListener('click', () => {
+            if (window.isDuplicateClick && window.isDuplicateClick(el)) return;
             if (video.paused) {
               video.play().catch(e => console.log(e));
             } else {
@@ -695,6 +722,7 @@ export const generateAFrameScene = (state: any) => {
         init: function() {
           const data = this.data;
           this.el.addEventListener('click', () => {
+            if (window.isDuplicateClick && window.isDuplicateClick(this.el)) return;
             if (data.url) {
               window.open(data.url, '_blank', 'noopener,noreferrer');
             }
@@ -712,7 +740,10 @@ export const generateAFrameScene = (state: any) => {
              this.el.appendChild(soundEntity);
              setTimeout(() => { if(soundEntity.parentNode) soundEntity.parentNode.removeChild(soundEntity); }, 5000);
           };
-          this.el.addEventListener('click', playSound);
+          this.el.addEventListener('click', () => {
+            if (window.isDuplicateClick && window.isDuplicateClick(this.el)) return;
+            playSound();
+          });
         }
       });
 
@@ -953,7 +984,7 @@ export const generateAFrameScene = (state: any) => {
         <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-camera>
         
         <a-light type="ambient" color="${settings.ambientColor || '#ffffff'}" intensity="${settings.ambientIntensity ?? 0.5}"></a-light>
-        <a-light type="directional" color="${settings.directionalColor || '#ffffff'}" intensity="${settings.directionalIntensity ?? 1.0}" position="${settings.directionalPosition ? settings.directionalPosition.join(' ') : '1 2 1'}" castShadow="${settings.shadowsEnabled !== false}"></a-light>
+        <a-light type="directional" color="${settings.directionalColor || '#ffffff'}" intensity="${settings.directionalIntensity ?? 1.0}" position="${settings.directionalPosition ? settings.directionalPosition.join(' ') : '1 2 1'}" ${settings.shadowsEnabled !== false ? `light="castShadow: true; shadowMapHeight: ${settings.shadowResolution || 1024}; shadowMapWidth: ${settings.shadowResolution || 1024}; shadowRadius: ${settings.shadowSoftness ?? 3}; shadowBias: -0.0005"` : 'light="castShadow: false"'}></a-light>
 
         ${settings.ambientSoundUrl ? `
         <a-sound src="${settings.ambientSoundUrl}" autoplay="true" loop="true" position="0 0 0" volume="1"></a-sound>
@@ -982,11 +1013,81 @@ ${entitiesHtml}
         }
       }
 
+      function setupMobileTouchFallback(scene) {
+        console.log('[TOUCH] Initializing bulletproof mobile screen touch/tap raycaster.');
+        
+        const handleScreenTouch = (e) => {
+          // Supports standard click, touchstart/touchend, etc.
+          let clientX, clientY;
+          if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+          } else if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+          } else if (e.clientX !== undefined) {
+            clientX = e.clientX;
+            clientY = e.clientY;
+          } else {
+            return;
+          }
+
+          const cameraEl = scene.querySelector('[camera]') || scene.querySelector('a-camera');
+          if (!cameraEl || !cameraEl.components.camera) {
+            console.warn('[TOUCH-WARN] Active camera component not ready.');
+            return;
+          }
+
+          const camera = cameraEl.components.camera.camera;
+          const raycaster = new THREE.Raycaster();
+          const mouse = new THREE.Vector2();
+
+          // Resolve normalized coordinate [-1, 1] relative to client screen
+          mouse.x = (clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+
+          // Locate all clickable nodes
+          const clickables = Array.from(scene.querySelectorAll('.clickable'));
+          const objects3D = clickables.map(el => el.object3D).filter(Boolean);
+
+          if (objects3D.length === 0) return;
+
+          // Check intersections
+          const intersects = raycaster.intersectObjects(objects3D, true);
+          if (intersects.length > 0) {
+            // Traverse up to find the element containing the matching class
+            let firstObj = intersects[0].object;
+            let current = firstObj;
+            let matchedEl = null;
+
+            while (current) {
+              matchedEl = clickables.find(el => el.object3D === current);
+              if (matchedEl) break;
+              current = current.parent;
+            }
+
+            if (matchedEl) {
+              console.log('[TOUCH-SUCCESS] Raycaster intersected clickable entity:', matchedEl.id || matchedEl.tagName);
+              
+              // Standard DOM click dispatching to invoke A-Frame click event listeners
+              matchedEl.emit('click', { intersection: intersects[0] });
+            }
+          }
+        };
+
+        // Attach listeners directly to scene element
+        scene.addEventListener('touchend', handleScreenTouch, { passive: true });
+        scene.addEventListener('click', handleScreenTouch, { passive: true });
+      }
+
       function attachSceneListeners(scene) {
         console.log('[STAGE] A-Frame scene element matched. Preparing tracking and system events.');
         
         scene.addEventListener('loaded', () => {
           console.log('[STAGE] A-Frame components loaded and assets are ready.');
+          setupMobileTouchFallback(scene);
         });
         
         scene.addEventListener('renderstart', () => {

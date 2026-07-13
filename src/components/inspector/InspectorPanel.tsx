@@ -3,6 +3,8 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
 import { Upload } from 'lucide-react';
+import { TextureOptimizerPanel } from './TextureOptimizerPanel';
+import { ModelMaterialEditor } from './ModelMaterialEditor';
 
 const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
   model: [
@@ -41,7 +43,7 @@ interface MediaAssetPickerProps {
   label?: string;
 }
 
-function MediaAssetPicker({ value, onChange, type, accept, placeholder = "Paste URL or Select...", label }: MediaAssetPickerProps) {
+export function MediaAssetPicker({ value, onChange, type, accept, placeholder = "Paste URL or Select...", label }: MediaAssetPickerProps) {
   const [uploading, setUploading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -221,6 +223,7 @@ import {
   Sun,
   Sunset,
   Sliders,
+  Moon,
   Search,
   ChevronDown,
   ChevronRight,
@@ -260,6 +263,70 @@ const MATERIAL_LIBRARY: Array<{
   previewUrl: string;
   properties: Record<string, any>;
 }> = [
+  {
+    id: 'toon_cel',
+    name: '🎨 Toon Anime Pink',
+    category: 'Toon & Comic',
+    description: 'Flat, high-contrast outline shading in soft pastel pink.',
+    previewUrl: 'https://images.unsplash.com/photo-1507608869274-d3177c8bb4c7?auto=format&fit=crop&w=120&q=80',
+    properties: {
+      color: '#f472b6',
+      shaderType: 'toon',
+      roughness: 0.8,
+      metalness: 0.0,
+      clearcoat: 0,
+      transmission: 0,
+      flatShading: true,
+    }
+  },
+  {
+    id: 'toon_green',
+    name: '🌿 Toon Grass Green',
+    category: 'Toon & Comic',
+    description: 'Illustrative cartoon shading on vibrant leaf green.',
+    previewUrl: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=120&q=80',
+    properties: {
+      color: '#4ade80',
+      shaderType: 'toon',
+      roughness: 0.6,
+      metalness: 0.0,
+      clearcoat: 0,
+      transmission: 0,
+      flatShading: true,
+    }
+  },
+  {
+    id: 'toon_blue',
+    name: '🌀 Toon Cyber Blue',
+    category: 'Toon & Comic',
+    description: 'Cyberpunk manga bright neon sky-blue shading.',
+    previewUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=120&q=80',
+    properties: {
+      color: '#38bdf8',
+      shaderType: 'toon',
+      roughness: 0.7,
+      metalness: 0.0,
+      clearcoat: 0,
+      transmission: 0,
+      flatShading: true,
+    }
+  },
+  {
+    id: 'toon_yellow',
+    name: '🍋 Toon Pop Lemon',
+    category: 'Toon & Comic',
+    description: 'Bright comic-book style pop-art yellow base.',
+    previewUrl: 'https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?auto=format&fit=crop&w=120&q=80',
+    properties: {
+      color: '#facc15',
+      shaderType: 'toon',
+      roughness: 0.5,
+      metalness: 0.0,
+      clearcoat: 0,
+      transmission: 0,
+      flatShading: true,
+    }
+  },
   {
     id: 'gold',
     name: '🏆 Polished Gold',
@@ -650,6 +717,7 @@ export function InspectorPanel({ width }: { width?: number }) {
 
   const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting'>('inspector');
   const [materialTab, setMaterialTab] = useState<'presets' | 'base' | 'specular' | 'emissive' | 'transmission' | 'textures'>('presets');
+  const [selectedMaterialCategory, setSelectedMaterialCategory] = useState<string>('All');
   const [fontSearch, setFontSearch] = useState('');
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
   const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({});
@@ -1013,6 +1081,79 @@ export function InspectorPanel({ width }: { width?: number }) {
             </div>
           </div>
 
+          {/* Shadow settings panel */}
+          <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-gray-300 flex items-center gap-1.5">
+                <Moon size={11} className="text-blue-400" />
+                Shadow Tuning Panel
+              </span>
+              <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded-full uppercase font-bold tracking-wider font-mono">Precision</span>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] border-b border-black/10 pb-2">
+              <span className="text-[#666]">Caster Enabled</span>
+              <input 
+                type="checkbox" 
+                checked={shadowsEnabled}
+                onChange={(e) => updateSettings({ shadowsEnabled: e.target.checked })}
+                className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+              />
+            </div>
+
+            {shadowsEnabled && (
+              <div className="flex flex-col gap-3 mt-1">
+                {/* Shadow Intensity */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Opacity / Intensity</span>
+                    <span className="text-blue-400 font-mono">{(settings.shadowIntensity ?? 0.6).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.0" 
+                    max="1.0" 
+                    step="0.05" 
+                    value={settings.shadowIntensity ?? 0.6} 
+                    onChange={(e) => updateSettings({ shadowIntensity: parseFloat(e.target.value) })}
+                    className="accent-blue-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                {/* Shadow Softness */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Softness (Blur radius)</span>
+                    <span className="text-blue-400 font-mono">{(settings.shadowSoftness ?? 3.0).toFixed(1)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.0" 
+                    max="10.0" 
+                    step="0.5" 
+                    value={settings.shadowSoftness ?? 3.0} 
+                    onChange={(e) => updateSettings({ shadowSoftness: parseFloat(e.target.value) })}
+                    className="accent-blue-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                {/* Shadow Map Resolution */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] text-[#666] font-medium">Map Map Size</label>
+                  <select
+                    value={settings.shadowResolution ?? 1024}
+                    onChange={(e) => updateSettings({ shadowResolution: parseInt(e.target.value) })}
+                    className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-blue-500 font-mono outline-none"
+                  >
+                    <option value="512">512 px (Low - Fast)</option>
+                    <option value="1024">1024 px (Balanced)</option>
+                    <option value="2048">2048 px (High - Sharp)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-semibold text-gray-300">Ambient Soundtrack</span>
@@ -1028,6 +1169,89 @@ export function InspectorPanel({ width }: { width?: number }) {
                 className="bg-[#0A0A0A] text-[10px] p-2 rounded border border-[#222] outline-none font-mono text-white focus:border-green-500"
               />
             </div>
+          </div>
+
+          {/* Post-Processing Bloom Effects */}
+          <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-gray-300 flex items-center gap-1.5">
+                <Sparkles size={11} className="text-purple-400 animate-pulse" />
+                Post-Processing Bloom (Glow)
+              </span>
+              <span className="text-[8px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 rounded-full uppercase font-bold tracking-wider">Effects</span>
+            </div>
+
+            <p className="text-[8px] text-gray-500 leading-normal">
+              Applies a post-processing bloom filter to the scene, causing emissive materials and light sources to radiate a cinematic volumetric glow.
+            </p>
+
+            <div className="flex items-center justify-between text-[10px] border-b border-black/10 pb-2">
+              <span className="text-[#666]">Enable Bloom Effect</span>
+              <input 
+                type="checkbox" 
+                checked={settings.bloomEnabled ?? false}
+                onChange={(e) => updateSettings({ bloomEnabled: e.target.checked })}
+                className="accent-purple-500 cursor-pointer w-3.5 h-3.5"
+              />
+            </div>
+
+            {(settings.bloomEnabled ?? false) && (
+              <div className="flex flex-col gap-3.5 mt-1">
+                {/* Intensity Slider */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Glow Intensity</span>
+                    <span className="text-purple-400 font-mono">{(settings.bloomIntensity ?? 1.2).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.1" 
+                    max="3.0" 
+                    step="0.05" 
+                    value={settings.bloomIntensity ?? 1.2} 
+                    onChange={(e) => updateSettings({ bloomIntensity: parseFloat(e.target.value) })}
+                    className="accent-purple-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                {/* Radius Slider */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Glow Radius (Spread)</span>
+                    <span className="text-purple-400 font-mono">{(settings.bloomRadius ?? 0.5).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.0" 
+                    max="2.0" 
+                    step="0.05" 
+                    value={settings.bloomRadius ?? 0.5} 
+                    onChange={(e) => updateSettings({ bloomRadius: parseFloat(e.target.value) })}
+                    className="accent-purple-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                {/* Threshold Slider */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Luminance Threshold</span>
+                    <span className="text-purple-400 font-mono">{(settings.bloomThreshold ?? 0.5).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.0" 
+                    max="1.0" 
+                    step="0.05" 
+                    value={settings.bloomThreshold ?? 0.5} 
+                    onChange={(e) => updateSettings({ bloomThreshold: parseFloat(e.target.value) })}
+                    className="accent-purple-500 w-full h-1 cursor-pointer"
+                  />
+                  <p className="text-[7.5px] text-gray-600 mt-0.5 leading-relaxed">
+                    Lower threshold makes more parts of the scene glow; higher threshold restricts glow only to bright lights/emissives.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1970,8 +2194,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                     <Sliders size={12} className="text-blue-400" />
                     Material Studio
                   </span>
-                  <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
-                    PHYSICAL SHADER
+                  <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider uppercase">
+                    {(obj.properties.shaderType || 'standard')} SHADER
                   </span>
                 </div>
 
@@ -2004,19 +2228,39 @@ export function InspectorPanel({ width }: { width?: number }) {
                 {/* 1. PRESETS TAB */}
                 {materialTab === 'presets' && (
                   <div className="flex flex-col gap-3">
-                    <div className="flex flex-col bg-black/20 p-2 border border-[#222] rounded-lg">
-                      <span className="text-[10px] text-gray-400 leading-relaxed font-sans">
-                        Attach a high-fidelity material style to this object instantly. You can customize any applied properties in the other tabs!
-                      </span>
+                    <div className="flex gap-1 pb-1.5 overflow-x-auto scrollbar-none border-b border-[#222] -mx-1 px-1">
+                      {['All', 'Metals', 'Glass & Gems', 'Toon & Comic', 'Stone & Ceramic', 'Sci-Fi'].map(category => (
+                        <button
+                          key={category}
+                          onClick={() => setSelectedMaterialCategory(category)}
+                          className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                            selectedMaterialCategory === category
+                              ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                              : 'bg-black/30 text-gray-500 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                      {MATERIAL_LIBRARY.map(preset => {
+                    <div className="grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                      {MATERIAL_LIBRARY.filter(preset => selectedMaterialCategory === 'All' || preset.category === selectedMaterialCategory).map(preset => {
                         const isCurrentlyApplied = 
                           obj.properties.color === preset.properties.color &&
                           (obj.properties.roughness ?? 0.5) === preset.properties.roughness &&
                           (obj.properties.metalness ?? 0.1) === preset.properties.metalness &&
-                          (obj.properties.transmission ?? 0) === (preset.properties.transmission ?? 0);
+                          (obj.properties.transmission ?? 0) === (preset.properties.transmission ?? 0) &&
+                          (obj.properties.shaderType || 'standard') === (preset.properties.shaderType || 'standard');
+
+                        const shaderType = preset.properties.shaderType || 'standard';
+                        const shaderBadges: Record<string, string> = {
+                          standard: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
+                          physical: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
+                          toon: 'bg-green-500/15 text-green-400 border-green-500/20',
+                          basic: 'bg-orange-500/15 text-orange-400 border-orange-500/20',
+                          normal: 'bg-rose-500/15 text-rose-400 border-rose-500/20',
+                        };
 
                         return (
                           <button
@@ -2038,28 +2282,31 @@ export function InspectorPanel({ width }: { width?: number }) {
                               
                               handleMultiplePropertiesChange(updates);
                             }}
-                            className={`p-1.5 rounded-lg border text-left flex items-start gap-2 transition-all duration-200 group ${
+                            className={`p-2 rounded-xl border text-left flex flex-col gap-1.5 transition-all duration-300 group ${
                               isCurrentlyApplied 
-                                ? 'bg-blue-600/15 border-blue-500 shadow-md shadow-blue-500/10' 
+                                ? 'bg-blue-600/15 border-blue-500 shadow-lg shadow-blue-500/10' 
                                 : 'bg-[#18181b]/50 border-[#222] hover:border-gray-500 hover:bg-black/30'
                             }`}
                           >
-                            {/* Material Preview Image */}
-                            <div className="w-9 h-9 rounded-md overflow-hidden shrink-0 border border-white/10 relative bg-[#111]">
+                            {/* Material Preview Thumbnail */}
+                            <div className="w-full h-16 rounded-lg overflow-hidden shrink-0 border border-white/10 relative bg-[#111]">
                               <img 
                                 src={preset.previewUrl} 
                                 alt={preset.name} 
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                 referrerPolicy="no-referrer"
                               />
-                              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-200" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                              <span className={`absolute bottom-1 left-1 text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider border backdrop-blur-[2px] ${shaderBadges[shaderType] || shaderBadges.standard}`}>
+                                {shaderType}
+                              </span>
                             </div>
 
                             <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                              <span className="text-[9px] font-extrabold text-white truncate leading-tight group-hover:text-blue-300 transition-colors">
+                              <span className="text-[10px] font-extrabold text-white truncate leading-tight group-hover:text-blue-300 transition-colors">
                                 {preset.name}
                               </span>
-                              <span className="text-[7.5px] text-gray-500 line-clamp-2 leading-tight select-none">
+                              <span className="text-[8px] text-gray-500 line-clamp-2 leading-relaxed">
                                 {preset.description}
                               </span>
                             </div>
@@ -2073,6 +2320,40 @@ export function InspectorPanel({ width }: { width?: number }) {
                 {/* 2. BASE PROPERTIES TAB */}
                 {materialTab === 'base' && (
                   <div className="flex flex-col gap-3.5">
+                    {/* Shader Model Selector */}
+                    <div className="flex flex-col gap-1.5 pb-2.5 border-b border-[#222]">
+                      <label className="text-[9px] text-[#888] font-bold uppercase tracking-wider">Shader Model</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'standard', name: 'Standard (PBR)', desc: 'Realistic lighting & shadows', activeColor: 'border-blue-500 text-blue-400 bg-blue-500/5' },
+                          { id: 'physical', name: 'Physical', desc: 'Advanced clearcoat, glass', activeColor: 'border-purple-500 text-purple-400 bg-purple-500/5' },
+                          { id: 'toon', name: 'Cel / Toon 🎨', desc: 'Sharp cartoon style rendering', activeColor: 'border-green-500 text-green-400 bg-green-500/5' },
+                          { id: 'basic', name: 'Flat / Basic ⬜', desc: 'Unlit solid surface color', activeColor: 'border-orange-500 text-orange-400 bg-orange-500/5' },
+                          { id: 'normal', name: 'Normals 🌀', desc: 'Renders face-direction vector', activeColor: 'border-rose-500 text-rose-400 bg-rose-500/5' }
+                        ].map((s) => {
+                          const isActive = (obj.properties.shaderType || 'standard') === s.id;
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => handlePropertyChange('shaderType', s.id)}
+                              className={`p-1.5 rounded-lg border text-left flex flex-col gap-0.5 transition-all duration-200 cursor-pointer ${
+                                isActive 
+                                  ? `${s.activeColor} shadow-md` 
+                                  : 'bg-black/40 border-[#222] text-gray-400 hover:border-[#333] hover:text-white hover:bg-black/60'
+                              }`}
+                            >
+                              <span className="text-[9.5px] font-extrabold leading-tight">
+                                {s.name}
+                              </span>
+                              <span className="text-[7.5px] text-gray-500 leading-snug">
+                                {s.desc}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* Base Color */}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[9px] text-[#888] font-bold uppercase tracking-wider">Base Color</label>
@@ -2488,6 +2769,9 @@ export function InspectorPanel({ width }: { width?: number }) {
                         </div>
                       </div>
                     )}
+                    
+                    {/* Texture size performance optimizer */}
+                    <TextureOptimizerPanel obj={obj} handlePropertyChange={handlePropertyChange} />
                   </div>
                 )}
               </div>
@@ -3114,6 +3398,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                     onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
                     className="accent-blue-500 cursor-pointer"
                   />
+                </div>
+
+                <div className="border-t border-[#222] pt-3.5 mt-1">
+                  <ModelMaterialEditor obj={obj} handlePropertyChange={handlePropertyChange} />
                 </div>
               </div>
             )}
