@@ -998,6 +998,97 @@ export function InspectorPanel({ width }: { width?: number }) {
         </div>
 
         <div className="flex flex-col gap-3.5 border-t border-[#222] pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles size={11} className="text-blue-400 animate-pulse" />
+              HDR Environment Reflections
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-[#666] font-semibold font-mono">ENABLE</span>
+              <input 
+                type="checkbox" 
+                checked={settings.hdrEnvironmentEnabled ?? false}
+                onChange={(e) => updateSettings({ hdrEnvironmentEnabled: e.target.checked })}
+                className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+              />
+            </div>
+          </div>
+
+          {(settings.hdrEnvironmentEnabled ?? false) && (
+            <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-gray-300">Environment Source</span>
+                <div className="flex rounded overflow-hidden border border-[#2A2A2A] bg-black">
+                  <button
+                    onClick={() => updateSettings({ hdrEnvironmentType: 'preset' })}
+                    className={cn(
+                      "px-2 py-0.5 text-[8px] font-bold uppercase transition-colors cursor-pointer",
+                      settings.hdrEnvironmentType !== 'custom'
+                        ? "bg-blue-600 text-white"
+                        : "text-gray-400 hover:text-white"
+                    )}
+                  >
+                    Presets
+                  </button>
+                  <button
+                    onClick={() => updateSettings({ hdrEnvironmentType: 'custom' })}
+                    className={cn(
+                      "px-2 py-0.5 text-[8px] font-bold uppercase transition-colors cursor-pointer",
+                      settings.hdrEnvironmentType === 'custom'
+                        ? "bg-blue-600 text-white"
+                        : "text-gray-400 hover:text-white"
+                    )}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+
+              {settings.hdrEnvironmentType !== 'custom' ? (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[8px] text-[#666] font-semibold uppercase tracking-wider">Reflection Studio Preset</label>
+                  <select
+                    value={settings.hdrPreset || 'studio'}
+                    onChange={(e) => updateSettings({ hdrPreset: e.target.value as any })}
+                    className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-blue-500 outline-none"
+                  >
+                    <option value="studio">Studio Light (Royal Esplanade)</option>
+                    <option value="apartment">Apartment (High Contrast Interior)</option>
+                    <option value="lobby">Lobby (Soft Indoor Reflections)</option>
+                    <option value="city">City Plaza (Dusk Urban Sky)</option>
+                    <option value="forest">Forest (Organic Leaves Filter)</option>
+                    <option value="sunset">Sunset (Warm Golden Sky)</option>
+                    <option value="warehouse">Warehouse (Industrial Lighting)</option>
+                    <option value="park">Park (Natural Daylight Reflections)</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[8px] text-[#666] font-semibold uppercase tracking-wider">Custom .hdr Reflection File</label>
+                  <MediaAssetPicker
+                    type="image"
+                    accept=".hdr"
+                    value={settings.hdrEnvironmentUrl || ''}
+                    onChange={(url) => updateSettings({ hdrEnvironmentUrl: url })}
+                    placeholder="Upload or paste custom .hdr URL..."
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-[10px] border-t border-[#222]/40 pt-2 mt-0.5">
+                <span className="text-[#666]">Draw HDR Map as Sky Background</span>
+                <input 
+                  type="checkbox" 
+                  checked={settings.hdrBackgroundEnabled ?? false}
+                  onChange={(e) => updateSettings({ hdrBackgroundEnabled: e.target.checked })}
+                  className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3.5 border-t border-[#222] pt-4">
           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Global Atmosphere</span>
           
           <div className="bg-[#1A1A1A]/40 border border-[#222] p-3 rounded-lg flex flex-col gap-3">
@@ -3403,6 +3494,147 @@ export function InspectorPanel({ width }: { width?: number }) {
                 <div className="border-t border-[#222] pt-3.5 mt-1">
                   <ModelMaterialEditor obj={obj} handlePropertyChange={handlePropertyChange} />
                 </div>
+
+                {/* --- MODEL SUB-OBJECT TRANSFORM & VISIBILITY OVERRIDES --- */}
+                {obj.properties?.selectedSubObjectPath && (
+                  <div className="border-t border-[#222] pt-3.5 mt-3.5 flex flex-col gap-3 bg-black/10 p-2.5 rounded border border-[#222]/50">
+                    {(() => {
+                      const path = obj.properties.selectedSubObjectPath;
+                      const rootNode = obj.properties.discoveredSubObjects;
+                      
+                      const findSubObjectByPath = (node: any, targetPath: string): any => {
+                        if (!node) return null;
+                        if (node.id === targetPath) return node;
+                        if (node.children) {
+                          for (const child of node.children) {
+                            const found = findSubObjectByPath(child, targetPath);
+                            if (found) return found;
+                          }
+                        }
+                        return null;
+                      };
+                      
+                      const subNode = findSubObjectByPath(rootNode, path);
+                      if (!subNode) return null;
+                      
+                      const overrides = obj.properties.subObjectOverrides || {};
+                      const nodeOverride = overrides[path] || {};
+                      
+                      const visible = nodeOverride.visible !== undefined ? nodeOverride.visible : subNode.visible;
+                      const pos = nodeOverride.position || [0, 0, 0];
+                      const rot = nodeOverride.rotation || [0, 0, 0];
+                      const scl = nodeOverride.scale || [1, 1, 1];
+                      
+                      const handleOverrideChange = (field: string, idx: number, val: number) => {
+                        let arr = nodeOverride[field] ? [...nodeOverride[field]] : (field === 'scale' ? [1, 1, 1] : [0, 0, 0]);
+                        arr[idx] = val;
+                        handlePropertyChange('subObjectOverrides', {
+                          ...overrides,
+                          [path]: {
+                            ...nodeOverride,
+                            [field]: arr
+                          }
+                        });
+                      };
+                      
+                      const handleVisibilityChange = (v: boolean) => {
+                        handlePropertyChange('subObjectOverrides', {
+                          ...overrides,
+                          [path]: {
+                            ...nodeOverride,
+                            visible: v
+                          }
+                        });
+                      };
+                      
+                      return (
+                        <>
+                          <div className="flex items-center justify-between border-b border-[#222]/50 pb-2">
+                            <div className="flex flex-col">
+                              <span className="text-[8px] font-bold text-blue-400 uppercase tracking-wider">Sub-Object Node</span>
+                              <span className="text-[10px] font-semibold text-gray-200 truncate max-w-[130px] italic">
+                                {subNode.name}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handlePropertyChange('selectedSubObjectPath', null)}
+                              className="text-[8px] font-bold bg-[#222] text-gray-400 hover:text-white px-1.5 py-0.5 rounded transition-colors uppercase border border-[#2A2A2A] cursor-pointer"
+                            >
+                              Deselect
+                            </button>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[#666] text-[10px]">Node Visibility</span>
+                            <input 
+                              type="checkbox" 
+                              checked={visible !== false}
+                              onChange={(e) => handleVisibilityChange(e.target.checked)}
+                              className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+                            />
+                          </div>
+                          
+                          {/* Position Override */}
+                          <div className="flex flex-col gap-1 border-t border-[#222]/40 pt-2 mt-0.5">
+                            <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider">Local Position Offset</span>
+                            <div className="grid grid-cols-3 gap-1">
+                              {['X', 'Y', 'Z'].map((axis, i) => (
+                                <div key={axis} className="flex items-center bg-black/40 rounded border border-[#222] px-1 py-0.5">
+                                  <span className="text-[8px] font-bold text-gray-500 mr-1">{axis}</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.05"
+                                    value={pos[i] ?? 0}
+                                    onChange={(e) => handleOverrideChange('position', i, parseFloat(e.target.value) || 0)}
+                                    className="bg-transparent text-white text-[9px] font-mono outline-none w-full border-none p-0"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Rotation Override */}
+                          <div className="flex flex-col gap-1 border-t border-[#222]/40 pt-2 mt-0.5">
+                            <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider">Local Rotation (Deg)</span>
+                            <div className="grid grid-cols-3 gap-1">
+                              {['X', 'Y', 'Z'].map((axis, i) => (
+                                <div key={axis} className="flex items-center bg-black/40 rounded border border-[#222] px-1 py-0.5">
+                                  <span className="text-[8px] font-bold text-amber-500 mr-1">{axis}</span>
+                                  <input 
+                                    type="number" 
+                                    step="1"
+                                    value={rot[i] ?? 0}
+                                    onChange={(e) => handleOverrideChange('rotation', i, parseFloat(e.target.value) || 0)}
+                                    className="bg-transparent text-white text-[9px] font-mono outline-none w-full border-none p-0"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Scale Override */}
+                          <div className="flex flex-col gap-1 border-t border-[#222]/40 pt-2 mt-0.5">
+                            <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider">Local Scale Modifier</span>
+                            <div className="grid grid-cols-3 gap-1">
+                              {['X', 'Y', 'Z'].map((axis, i) => (
+                                <div key={axis} className="flex items-center bg-black/40 rounded border border-[#222] px-1 py-0.5">
+                                  <span className="text-[8px] font-bold text-emerald-500 mr-1">{axis}</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.05"
+                                    value={scl[i] ?? 1}
+                                    onChange={(e) => handleOverrideChange('scale', i, parseFloat(e.target.value) || 1)}
+                                    className="bg-transparent text-white text-[9px] font-mono outline-none w-full border-none p-0"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 

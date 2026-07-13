@@ -244,7 +244,10 @@ export const generateAFrameScene = (state: any) => {
         const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;
         const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: repeat"`;
         const wireframeAttr = ` model-wireframe="enabled: ${obj.properties.wireframe ?? false}"`;
-        entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}></a-entity>\n`;
+        const matOverridesStr = JSON.stringify(obj.properties.materialOverrides || {}).replace(/"/g, '&quot;');
+        const subOverridesStr = JSON.stringify(obj.properties.subObjectOverrides || {}).replace(/"/g, '&quot;');
+        const overridesAttr = ` model-overrides="materials: ${matOverridesStr}; subObjects: ${subOverridesStr}"`;
+        entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}${overridesAttr}></a-entity>\n`;
       } else if (obj.type === 'audio') {
         const soundUrl = obj.properties.soundUrl || '';
         if (soundUrl) audioAssetUrls.add(soundUrl);
@@ -368,6 +371,7 @@ export const generateAFrameScene = (state: any) => {
     
     <!-- Core WebAR SDKs & A-Frame Runtime -->
     <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/RGBELoader.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
     <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -664,6 +668,195 @@ export const generateAFrameScene = (state: any) => {
               node.material.wireframe = enabled;
             }
           });
+        }
+      });
+
+      AFRAME.registerComponent('model-overrides', {
+        schema: {
+          materials: {type: 'string', default: '{}'},
+          subObjects: {type: 'string', default: '{}'}
+        },
+        init: function() {
+          this.el.addEventListener('model-loaded', () => {
+            this.applyOverrides();
+          });
+          // Fallback if model is already loaded
+          if (this.el.getObject3D('mesh')) {
+            this.applyOverrides();
+          }
+        },
+        update: function() {
+          this.applyOverrides();
+        },
+        applyOverrides: function() {
+          const obj3d = this.el.getObject3D('mesh') || this.el.object3D;
+          if (!obj3d) return;
+
+          let mats = {};
+          let subs = {};
+          try {
+            mats = JSON.parse(this.data.materials);
+          } catch(e) {}
+          try {
+            subs = JSON.parse(this.data.subObjects);
+          } catch(e) {}
+
+          // Apply Material Overrides by material name
+          obj3d.traverse(node => {
+            if (node.isMesh && node.material) {
+              const nodeMats = Array.isArray(node.material) ? node.material : [node.material];
+              nodeMats.forEach((mat, idx) => {
+                if (mat && mat.name && mats[mat.name]) {
+                  const ovr = mats[mat.name];
+                  
+                  // Clone to prevent shared cache pollution
+                  let targetMat = mat;
+                  if (!mat.__clonedForOverride) {
+                    targetMat = mat.clone();
+                    targetMat.__clonedForOverride = true;
+                    if (Array.isArray(node.material)) {
+                      node.material[idx] = targetMat;
+                    } else {
+                      node.material = targetMat;
+                    }
+                  }
+
+                  if (ovr.color) targetMat.color.set(ovr.color);
+                  if (ovr.roughness !== undefined) targetMat.roughness = ovr.roughness;
+                  if (ovr.metalness !== undefined) targetMat.metalness = ovr.metalness;
+                  if (ovr.opacity !== undefined) {
+                    targetMat.opacity = ovr.opacity;
+                    targetMat.transparent = ovr.opacity < 1;
+                  }
+                  if (ovr.emissive) targetMat.emissive.set(ovr.emissive);
+                  
+                  // Handle texture overrides
+                  if (ovr.textureUrl) {
+                    const loader = new THREE.TextureLoader();
+                    loader.load(ovr.textureUrl, (texture) => {
+                      texture.colorSpace = 'srgb';
+                      targetMat.map = texture;
+                      targetMat.needsUpdate = true;
+                    });
+                  }
+                }
+              });
+            }
+          });
+
+          // Helper to find node by index path
+          const findNodeByIndexPath = (root, indexPath) => {
+            const indices = indexPath.split('-').map(Number);
+            let current = root;
+            for (let i = 1; i < indices.length; i++) {
+              const idx = indices[i];
+              if (!current.children || idx >= current.children.length) return null;
+              current = current.children[idx];
+            }
+            return current;
+          };
+
+          // Apply Sub-object Overrides (visibility, transform, etc.)
+          Object.keys(subs).forEach(indexPath => {
+            const node = findNodeByIndexPath(obj3d, indexPath);
+            if (node) {
+              const ovr = subs[indexPath];
+              if (ovr.visible !== undefined) {
+                node.visible = ovr.visible;
+              }
+              if (ovr.position) {
+                node.position.set(ovr.position[0], ovr.position[1], ovr.position[2]);
+              }
+              if (ovr.rotation) {
+                node.rotation.set(
+                  THREE.MathUtils.degToRad(ovr.rotation[0]),
+                  THREE.MathUtils.degToRad(ovr.rotation[1]),
+                  THREE.MathUtils.degToRad(ovr.rotation[2])
+                );
+              }
+              if (ovr.scale) {
+                node.scale.set(ovr.scale[0], ovr.scale[1], ovr.scale[2]);
+              }
+            }
+          });
+        }
+      });
+
+      AFRAME.registerComponent('hdr-environment', {
+        schema: {
+          enabled: {type: 'boolean', default: false},
+          type: {type: 'string', default: 'preset'},
+          preset: {type: 'string', default: 'studio'},
+          url: {type: 'string', default: ''},
+          showBackground: {type: 'boolean', default: false}
+        },
+        init: function() {
+          this.applyHDREnvironment();
+        },
+        update: function() {
+          this.applyHDREnvironment();
+        },
+        applyHDREnvironment: function() {
+          if (!this.data.enabled) return;
+          const sceneEl = this.el;
+          const scene = sceneEl.object3D;
+          const renderer = sceneEl.renderer;
+          if (!renderer) {
+            sceneEl.addEventListener('render-target-loaded', () => {
+              this.applyHDREnvironment();
+            });
+            return;
+          }
+
+          let url = '';
+          if (this.data.type === 'custom' && this.data.url) {
+            url = this.data.url;
+          } else {
+            const presetUrls = {
+              studio: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+              apartment: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+              lobby: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+              city: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+              forest: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/venice_sunset_1k.hdr',
+              sunset: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/venice_sunset_1k.hdr',
+              warehouse: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+              park: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/equirectangular/venice_sunset_1k.hdr'
+            };
+            url = presetUrls[this.data.preset] || presetUrls.studio;
+          }
+
+          if (!url) return;
+
+          const RGBELoaderClass = THREE.RGBELoader || (window.THREE && window.THREE.RGBELoader);
+          if (!RGBELoaderClass) {
+            console.warn('[HDR] RGBELoader not found, retrying...');
+            setTimeout(() => this.applyHDREnvironment(), 500);
+            return;
+          }
+
+          try {
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            
+            const rgbeLoader = new RGBELoaderClass();
+            rgbeLoader.load(url, (texture) => {
+              const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+              
+              if (this.data.showBackground) {
+                scene.background = envMap;
+              }
+              scene.environment = envMap;
+              
+              texture.dispose();
+              pmremGenerator.dispose();
+              
+              console.log('[HDR] Environment map reflections applied successfully:', url);
+            }, undefined, (err) => {
+              console.error('[HDR] Failed to load HDR environment map:', err);
+            });
+          } catch (e) {
+            console.error('[HDR] Error setting up environment generator:', e);
+          }
         }
       });
 
@@ -975,7 +1168,8 @@ export const generateAFrameScene = (state: any) => {
     <!-- WebAR Scene Rendering Engine -->
     <template id="scene-template">
       <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: 1; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5}; uiScanning: no;" 
-               embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+               embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false"
+               ${settings.hdrEnvironmentEnabled ? `hdr-environment="enabled: true; type: ${settings.hdrEnvironmentType || 'preset'}; preset: ${settings.hdrPreset || 'studio'}; url: ${settings.hdrEnvironmentUrl || ''}; showBackground: ${settings.hdrBackgroundEnabled ?? false}"` : ''}>
         
         <a-assets>
           ${Array.from(audioAssetUrls).map((url, i) => `<audio id="audio-asset-${i}" src="${url}" preload="auto"></audio>`).join('\n          ')}

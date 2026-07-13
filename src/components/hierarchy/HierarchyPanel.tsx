@@ -177,6 +177,111 @@ export function HierarchyPanel({ width }: { width?: number }) {
     setCollapsedIds({});
   };
 
+  const renderSubObjectNode = (modelId: string, node: any, depth: number): React.ReactNode => {
+    if (!node) return null;
+
+    const indexPath = node.id;
+    const modelObj = objects[modelId];
+    if (!modelObj) return null;
+
+    const isSubObjectSelected = modelObj.properties?.selectedSubObjectPath === indexPath;
+    const isSubCollapsed = !!collapsedIds[`${modelId}-${indexPath}`];
+    const hasSubChildren = node.children && node.children.length > 0;
+
+    const overridenVisibility = modelObj.properties?.subObjectOverrides?.[indexPath]?.visible !== undefined
+      ? modelObj.properties.subObjectOverrides[indexPath].visible
+      : node.visible;
+
+    const toggleSubCollapse = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCollapsedIds(prev => ({ ...prev, [`${modelId}-${indexPath}`]: !prev[`${modelId}-${indexPath}`] }));
+    };
+
+    const handleSubObjectClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      selectObject(modelId);
+      updateObject(modelId, {
+        properties: {
+          ...modelObj.properties,
+          selectedSubObjectPath: indexPath
+        }
+      });
+    };
+
+    const toggleSubVisibility = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const currentOverrides = modelObj.properties?.subObjectOverrides || {};
+      const isCurrentlyVisible = overridenVisibility !== false;
+      
+      updateObject(modelId, {
+        properties: {
+          ...modelObj.properties,
+          subObjectOverrides: {
+            ...currentOverrides,
+            [indexPath]: {
+              ...currentOverrides[indexPath],
+              visible: !isCurrentlyVisible
+            }
+          }
+        }
+      });
+    };
+
+    return (
+      <div key={`${modelId}-${indexPath}`}>
+        <div
+          className={cn(
+            "flex items-center gap-1.5 p-1 cursor-pointer text-[10px] font-mono select-none border-l-2 group transition-colors",
+            isSubObjectSelected ? "bg-blue-950/40 border-blue-400 text-blue-200 font-medium" : "border-transparent text-gray-500 hover:bg-[#1A1A1A] hover:text-[#CCC]"
+          )}
+          style={{ paddingLeft: `${depth * 10 + 12}px` }}
+          onClick={handleSubObjectClick}
+        >
+          {/* Collapse button */}
+          <div
+            className="w-4 h-4 flex items-center justify-center hover:bg-[#2A2A2A] rounded transition-colors text-gray-600 hover:text-gray-400"
+            onClick={toggleSubCollapse}
+          >
+            {hasSubChildren && (isSubCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />)}
+          </div>
+
+          <Circle size={8} className={cn("shrink-0", isSubObjectSelected ? "text-blue-400" : "text-gray-600")} />
+
+          <span className="truncate flex-1 min-w-0 pr-1 italic select-none">
+            {node.name}
+          </span>
+
+          {/* Visibility Toggle */}
+          <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+            <button
+              onClick={toggleSubVisibility}
+              className={cn(
+                "p-0.5 rounded hover:bg-[#2A2A2A] transition-colors",
+                overridenVisibility === false ? "text-orange-400" : "text-[#555] hover:text-white"
+              )}
+              title={overridenVisibility !== false ? "Hide sub-object" : "Show sub-object"}
+            >
+              {overridenVisibility !== false ? <EyeOff size={10} /> : <Eye size={10} />}
+            </button>
+          </div>
+
+          {/* Static indicator if hidden */}
+          {overridenVisibility === false && (
+            <div className="shrink-0 group-hover:hidden ml-auto">
+              <EyeOff size={9} className="text-orange-400/80 mr-0.5" />
+            </div>
+          )}
+        </div>
+
+        {hasSubChildren && !isSubCollapsed && (
+          <div className="flex flex-col">
+            {node.children.map((child: any) => renderSubObjectNode(modelId, child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderItem = (id: string, depth = 0) => {
     const obj = objects[id];
     if (!obj) return null;
@@ -303,6 +408,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
         {hasChildren && !isCollapsed && (
           <div className="flex flex-col">
             {obj.children.map(childId => renderItem(childId, depth + 1))}
+          </div>
+        )}
+
+        {obj.type === 'model' && obj.properties?.discoveredSubObjects && !isCollapsed && (
+          <div className="flex flex-col border-l border-neutral-800/40 ml-3.5 my-0.5">
+            {obj.properties.discoveredSubObjects.children?.map((child: any) => 
+              renderSubObjectNode(id, child, depth + 1)
+            )}
           </div>
         )}
       </div>

@@ -43,6 +43,11 @@ export interface ProjectSettings {
   bloomIntensity?: number;
   bloomRadius?: number;
   bloomThreshold?: number;
+  hdrEnvironmentEnabled?: boolean;
+  hdrEnvironmentType?: 'preset' | 'custom';
+  hdrPreset?: 'studio' | 'apartment' | 'lobby' | 'city' | 'forest' | 'sunset' | 'warehouse' | 'park';
+  hdrEnvironmentUrl?: string;
+  hdrBackgroundEnabled?: boolean;
 }
 
 export interface HistorySnapshot {

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html, Environment } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
@@ -250,6 +250,32 @@ function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; is
   );
 }
 
+// Helper function to recursively traverse and build a clean model tree of sub-objects
+function buildSubObjectTree(node: any, indexPath: string = '0'): any {
+  const nodeName = node.name || `${node.type || 'Node'}_${indexPath}`;
+  
+  const children: any[] = [];
+  if (node.children) {
+    node.children.forEach((child: any, idx: number) => {
+      // Traverse meshes, groups and standard 3D objects to build the hierarchy
+      if (child.isMesh || child.isGroup || child.type === 'Object3D') {
+        const childTree = buildSubObjectTree(child, `${indexPath}-${idx}`);
+        if (childTree) {
+          children.push(childTree);
+        }
+      }
+    });
+  }
+
+  return {
+    id: indexPath,
+    name: nodeName,
+    type: node.isMesh ? 'Mesh' : 'Group',
+    visible: node.visible,
+    children: children.length > 0 ? children : undefined
+  };
+}
+
 // Robust GLTF / GLB 3D Model with Full Animation Clip Mixer support
 function GLTFModel({ url, properties, id }: { url: string; properties: any; id: string }) {
   const group = useRef<THREE.Group>(null);
@@ -440,6 +466,81 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
       }
     });
   }, [clonedScene, materialOverrides]);
+
+  // Discover and store model's sub-object tree structure in state
+  useEffect(() => {
+    if (clonedScene) {
+      const tree = buildSubObjectTree(clonedScene, '0');
+      const currentSubObjs = useEditorStore.getState().objects[id]?.properties.discoveredSubObjects;
+      if (!currentSubObjs || JSON.stringify(currentSubObjs) !== JSON.stringify(tree)) {
+        useEditorStore.getState().updateObject(id, {
+          properties: {
+            ...useEditorStore.getState().objects[id]?.properties,
+            discoveredSubObjects: tree
+          }
+        });
+      }
+    }
+  }, [clonedScene, id]);
+
+  // Apply sub-object overrides (visibility, position, rotation, scale)
+  useEffect(() => {
+    const overrides = properties.subObjectOverrides || {};
+    
+    // Helper to find node by index path
+    const findNodeByIndexPath = (root: any, indexPath: string): any => {
+      const indices = indexPath.split('-').map(Number);
+      let current = root;
+      for (let i = 1; i < indices.length; i++) {
+        const idx = indices[i];
+        if (!current.children || idx >= current.children.length) return null;
+        current = current.children[idx];
+      }
+      return current;
+    };
+
+    // First back up original states and restore them
+    clonedScene.traverse((node: any) => {
+      if (node.isMesh || node.isGroup || node.type === 'Object3D') {
+        if (node.userData.__originalVisible === undefined) {
+          node.userData.__originalVisible = node.visible;
+          node.userData.__originalPosition = node.position.clone();
+          node.userData.__originalRotation = node.rotation.clone();
+          node.userData.__originalScale = node.scale.clone();
+        }
+
+        // Restore original values
+        node.visible = node.userData.__originalVisible;
+        node.position.copy(node.userData.__originalPosition);
+        node.rotation.copy(node.userData.__originalRotation);
+        node.scale.copy(node.userData.__originalScale);
+      }
+    });
+
+    // Now apply active overrides
+    Object.keys(overrides).forEach((indexPath) => {
+      const node = findNodeByIndexPath(clonedScene, indexPath);
+      if (node) {
+        const ovr = overrides[indexPath];
+        if (ovr.visible !== undefined) {
+          node.visible = ovr.visible;
+        }
+        if (ovr.position) {
+          node.position.set(ovr.position[0], ovr.position[1], ovr.position[2]);
+        }
+        if (ovr.rotation) {
+          node.rotation.set(
+            THREE.MathUtils.degToRad(ovr.rotation[0]),
+            THREE.MathUtils.degToRad(ovr.rotation[1]),
+            THREE.MathUtils.degToRad(ovr.rotation[2])
+          );
+        }
+        if (ovr.scale) {
+          node.scale.set(ovr.scale[0], ovr.scale[1], ovr.scale[2]);
+        }
+      }
+    });
+  }, [clonedScene, properties.subObjectOverrides]);
 
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
   const animationPlaying = properties.animationPlaying !== false;
@@ -1999,6 +2100,14 @@ export function Viewport() {
                 
                 <ambientLight intensity={0.6} />
                 <directionalLight position={[10, 10, 5]} intensity={1.2} />
+
+                {settings.hdrEnvironmentEnabled && (
+                  <Environment 
+                    files={settings.hdrEnvironmentType === 'custom' ? settings.hdrEnvironmentUrl : undefined} 
+                    preset={settings.hdrEnvironmentType !== 'custom' ? (settings.hdrPreset || 'studio') : undefined}
+                    background={settings.hdrBackgroundEnabled ?? false}
+                  />
+                )}
                 
                 {rootObjects.map(id => (
                   <ObjectRenderer key={id} id={id} />
@@ -2219,6 +2328,14 @@ export function Viewport() {
         onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
       >
         <color attach="background" args={['#222224']} />
+        
+        {settings.hdrEnvironmentEnabled && (
+          <Environment 
+            files={settings.hdrEnvironmentType === 'custom' ? settings.hdrEnvironmentUrl : undefined} 
+            preset={settings.hdrEnvironmentType !== 'custom' ? (settings.hdrPreset || 'studio') : undefined}
+            background={settings.hdrBackgroundEnabled ?? false}
+          />
+        )}
         
         <ambientLight color={ambientColor} intensity={ambientIntensity} />
         <directionalLight 
