@@ -282,6 +282,7 @@ export const generateAFrameScene = (state: any) => {
         height: 100%;
         overflow: hidden;
       }
+      .a-enter-vr, .a-enter-ar { display: none !important; }
       a-scene {
         width: 100%;
         height: 100%;
@@ -391,20 +392,16 @@ export const generateAFrameScene = (state: any) => {
           // Restore un-animated channels to prevent stale transitions
           this.el.object3D.position.y = this.initialY;
           this.el.object3D.position.z = this.initialZ;
-          if (spinAxis !== 'x') this.el.object3D.rotation.x = this.initialRotX;
-          if (spinAxis !== 'y') this.el.object3D.rotation.y = this.initialRotY;
-          if (spinAxis !== 'z') this.el.object3D.rotation.z = this.initialRotZ;
+          this.el.object3D.rotation.set(this.initialRotX, this.initialRotY, this.initialRotZ);
 
           if (rule === 'hover') {
             this.el.object3D.position.z = this.initialZ + Math.sin(t * 3) * 0.2;
           } else if (rule === 'spin') {
-            if (spinAxis === 'x') {
-              this.el.object3D.rotation.x = this.initialRotX + t * 0.8;
-            } else if (spinAxis === 'y') {
-              this.el.object3D.rotation.y = this.initialRotY + t * 0.8;
-            } else {
-              this.el.object3D.rotation.z = this.initialRotZ + t * 0.8;
-            }
+            const localAxis = new THREE.Vector3();
+            if (spinAxis === 'x') localAxis.set(1, 0, 0);
+            else if (spinAxis === 'y') localAxis.set(0, 1, 0);
+            else localAxis.set(0, 0, 1);
+            this.el.object3D.rotateOnAxis(localAxis, t * 1.5);
           } else if (rule === 'pulse') {
             const scaleVal = 1 + Math.sin(t * 4.5) * 0.08;
             this.el.object3D.scale.set(
@@ -447,9 +444,11 @@ export const generateAFrameScene = (state: any) => {
             if (b.trigger === 'onStart') {
               self.executeBehavior(b);
             } else if (b.trigger === 'onTap') {
-              const tapHandler = () => self.executeBehavior(b);
+              const tapHandler = (e) => {
+                if (e.type === 'touchstart') return; // ignore native touchstart if it ever fires
+                self.executeBehavior(b);
+              };
               el.addEventListener('click', tapHandler);
-              el.addEventListener('touchstart', tapHandler);
             }
           });
         },
@@ -517,25 +516,14 @@ export const generateAFrameScene = (state: any) => {
             case 'spin':
               const spinEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
               if (spinEl) {
-                spinEl.setAttribute('animation', {
-                  property: 'rotation',
-                  to: '0 360 0',
-                  dur: 2000,
-                  easing: 'linear',
-                  loop: true
-                });
+                spinEl.setAttribute('live-behavior', 'rule: spin');
               }
               break;
             case 'transform':
               const tfEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
               if (tfEl && b.propertyName && b.propertyValue) {
                 let valStr = b.propertyValue.trim().replace(/,/g, ' ');
-                tfEl.setAttribute('animation__transform_' + Date.now(), {
-                  property: b.propertyName,
-                  to: valStr,
-                  dur: 1000,
-                  easing: 'easeOutQuad'
-                });
+                tfEl.setAttribute(b.propertyName, valStr);
               }
               break;
             case 'material':
@@ -730,22 +718,23 @@ export const generateAFrameScene = (state: any) => {
 
       // Global touch/click interaction helper to unlock audio context on mobile browsers
       const unlockAudioContext = function () {
-        const sceneEl = document.querySelector('a-scene');
-        if (sceneEl && sceneEl.audioListener && sceneEl.audioListener.context) {
-          if (sceneEl.audioListener.context.state === 'suspended') {
-            sceneEl.audioListener.context.resume().then(() => {
-              console.log('AudioContext successfully unlocked via global interaction!');
-              document.removeEventListener('click', unlockAudioContext);
-              document.removeEventListener('touchstart', unlockAudioContext);
-            }).catch(err => console.log('Context unlock failed:', err));
-          } else {
+        const audioCtx = THREE.AudioContext.getContext();
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().then(() => {
+            console.log('AudioContext successfully unlocked via global interaction!');
             document.removeEventListener('click', unlockAudioContext);
             document.removeEventListener('touchstart', unlockAudioContext);
-          }
+            document.removeEventListener('touchend', unlockAudioContext);
+          }).catch(err => console.log('Context unlock failed:', err));
+        } else if (audioCtx && audioCtx.state === 'running') {
+            document.removeEventListener('click', unlockAudioContext);
+            document.removeEventListener('touchstart', unlockAudioContext);
+            document.removeEventListener('touchend', unlockAudioContext);
         }
       };
-      document.addEventListener('click', unlockAudioContext);
-      document.addEventListener('touchstart', unlockAudioContext);
+      document.addEventListener('click', unlockAudioContext, { passive: true });
+      document.addEventListener('touchstart', unlockAudioContext, { passive: true });
+      document.addEventListener('touchend', unlockAudioContext, { passive: true });
     </script>
   </head>
   <body>
@@ -963,8 +952,8 @@ export const generateAFrameScene = (state: any) => {
 
         <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-camera>
         
-        <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>
-        <a-light type="ambient" intensity="0.9"></a-light>
+        <a-light type="ambient" color="${settings.ambientColor || '#ffffff'}" intensity="${settings.ambientIntensity ?? 0.5}"></a-light>
+        <a-light type="directional" color="${settings.directionalColor || '#ffffff'}" intensity="${settings.directionalIntensity ?? 1.0}" position="${settings.directionalPosition ? settings.directionalPosition.join(' ') : '1 2 1'}" castShadow="${settings.shadowsEnabled !== false}"></a-light>
 
         ${settings.ambientSoundUrl ? `
         <a-sound src="${settings.ambientSoundUrl}" autoplay="true" loop="true" position="0 0 0" volume="1"></a-sound>

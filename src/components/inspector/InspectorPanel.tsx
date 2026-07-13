@@ -219,9 +219,12 @@ import {
   EyeOff,
   Magnet,
   Sun,
+  Sunset,
   Sliders,
   Search,
   ChevronDown,
+  ChevronRight,
+  Edit2,
   Lightbulb,
   Folder,
   FolderMinus,
@@ -589,6 +592,39 @@ function InspectorSection({ title, defaultOpen = true, children, rightElement }:
   );
 }
 
+const LIGHTING_PRESETS = {
+  studio: {
+    name: 'Studio',
+    icon: Sparkles,
+    ambientColor: '#ffffff',
+    ambientIntensity: 0.6,
+    directionalColor: '#ffffff',
+    directionalIntensity: 1.2,
+    directionalPosition: [10, 10, 5],
+    description: 'Clean neutral white studio lights'
+  },
+  daylight: {
+    name: 'Daylight',
+    icon: Sun,
+    ambientColor: '#e0f2fe',
+    ambientIntensity: 0.5,
+    directionalColor: '#fef08a',
+    directionalIntensity: 1.5,
+    directionalPosition: [8, 12, 8],
+    description: 'Bright warm sunlight & cool sky fill'
+  },
+  sunset: {
+    name: 'Sunset',
+    icon: Sunset,
+    ambientColor: '#312e81',
+    ambientIntensity: 0.3,
+    directionalColor: '#f97316',
+    directionalIntensity: 2.0,
+    directionalPosition: [12, 5, 4],
+    description: 'Warm dramatic golden hour glow'
+  }
+} as const;
+
 export function InspectorPanel({ width }: { width?: number }) {
   const { 
     objects, 
@@ -616,6 +652,15 @@ export function InspectorPanel({ width }: { width?: number }) {
   const [materialTab, setMaterialTab] = useState<'presets' | 'base' | 'specular' | 'emissive' | 'transmission' | 'textures'>('presets');
   const [fontSearch, setFontSearch] = useState('');
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
+  const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({});
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+
+  const toggleRuleExpansion = (ruleId: string) => {
+    setExpandedRules(prev => ({
+      ...prev,
+      [ruleId]: prev[ruleId] === undefined ? false : !prev[ruleId]
+    }));
+  };
 
   const handleAddLightObject = (lightType: 'point' | 'spot' | 'directional') => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -661,6 +706,7 @@ export function InspectorPanel({ width }: { width?: number }) {
     const behaviors = obj.properties.visualBehaviors || [];
     const newBehavior = {
       id: Math.random().toString(36).substring(2, 9),
+      name: 'New Rule',
       trigger: 'onTap',
       action: 'toast',
       toastMessage: 'Triggered Event Action!',
@@ -669,6 +715,8 @@ export function InspectorPanel({ width }: { width?: number }) {
       targetObjectId: '',
       proximityDistance: 2.0
     };
+    
+    setExpandedRules(prev => ({ ...prev, [newBehavior.id]: true }));
     updateObject(selectedObjectId, {
       properties: {
         ...obj.properties,
@@ -802,6 +850,51 @@ export function InspectorPanel({ width }: { width?: number }) {
           <p className="text-[9px] text-[#888] leading-relaxed">
             Configure global ambient environment illumination, primary direct sunlight, and spawn dynamic 3D light objects with custom colors, distance limits, and intensities.
           </p>
+        </div>
+
+        <div className="flex flex-col gap-2 bg-[#1A1A1A]/20 p-2.5 rounded-lg border border-[#222]/60">
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Atmosphere Presets</span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(Object.keys(LIGHTING_PRESETS) as Array<keyof typeof LIGHTING_PRESETS>).map((key) => {
+              const preset = LIGHTING_PRESETS[key];
+              const IconComp = preset.icon;
+              const isSelected = settings.lightingPreset === key || (
+                settings.ambientColor === preset.ambientColor &&
+                settings.ambientIntensity === preset.ambientIntensity &&
+                settings.directionalColor === preset.directionalColor &&
+                settings.directionalIntensity === preset.directionalIntensity
+              );
+
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    updateSettings({
+                      lightingPreset: key,
+                      ambientColor: preset.ambientColor,
+                      ambientIntensity: preset.ambientIntensity,
+                      directionalColor: preset.directionalColor,
+                      directionalIntensity: preset.directionalIntensity,
+                      directionalPosition: preset.directionalPosition as unknown as [number, number, number],
+                    });
+                  }}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-2 rounded-lg border transition-all cursor-pointer text-center group",
+                    isSelected 
+                      ? "bg-blue-600/10 border-blue-500 text-blue-400 font-bold" 
+                      : "bg-[#111] border-[#222] text-gray-400 hover:bg-[#222] hover:text-white"
+                  )}
+                  title={preset.description}
+                >
+                  <IconComp size={15} className={cn(
+                    "mb-1 group-hover:scale-110 transition-transform duration-100",
+                    isSelected ? "text-blue-400" : "text-gray-400 group-hover:text-white"
+                  )} />
+                  <span className="text-[9px] font-semibold leading-none">{preset.name}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -1355,19 +1448,17 @@ export function InspectorPanel({ width }: { width?: number }) {
         >
           <div className="grid grid-cols-4 gap-2 text-[10px] font-mono">
             <span className="text-[#666] flex items-center">POS</span>
-            <input type="number" step="0.1" disabled={obj.locked} value={obj.position[0]} onChange={(e) => handleVectorChange('position', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-red-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={obj.position[1]} onChange={(e) => handleVectorChange('position', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-green-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={obj.position[2]} onChange={(e) => handleVectorChange('position', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-blue-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-
+            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[0] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-red-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[1] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-green-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[2] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-blue-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
             <span className="text-[#666] flex items-center">ROT</span>
-            <input type="number" step="1" disabled={obj.locked} value={obj.rotation[0]} onChange={(e) => handleVectorChange('rotation', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="1" disabled={obj.locked} value={obj.rotation[1]} onChange={(e) => handleVectorChange('rotation', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="1" disabled={obj.locked} value={obj.rotation[2]} onChange={(e) => handleVectorChange('rotation', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-
+            <input type="number" step="1" disabled={obj.locked} value={Number((obj.rotation[0] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('rotation', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="1" disabled={obj.locked} value={Number((obj.rotation[1] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('rotation', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="1" disabled={obj.locked} value={Number((obj.rotation[2] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('rotation', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
             <span className="text-[#666] flex items-center">SCL</span>
-            <input type="number" step="0.1" disabled={obj.locked} value={obj.scale[0]} onChange={(e) => handleVectorChange('scale', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={obj.scale[1]} onChange={(e) => handleVectorChange('scale', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={obj.scale[2]} onChange={(e) => handleVectorChange('scale', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.scale[0] ?? 1).toFixed(2))} onChange={(e) => handleVectorChange('scale', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.scale[1] ?? 1).toFixed(2))} onChange={(e) => handleVectorChange('scale', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
+            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.scale[2] ?? 1).toFixed(2))} onChange={(e) => handleVectorChange('scale', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
           </div>
 
           {/* Snapping Configurations */}
@@ -1571,35 +1662,73 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
-                  {(obj.properties.visualBehaviors || []).map((b: any) => (
-                    <div key={b.id} className="bg-[#181818] border border-[#262626] rounded-lg p-2.5 flex flex-col gap-2 relative">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-bold text-blue-400 font-mono uppercase tracking-wider flex items-center gap-1">
-                          ⚡ Rule
-                        </span>
-                        <button 
-                          onClick={() => handleRemoveBehavior(b.id)}
-                          className="text-[#555] hover:text-red-400 transition-colors p-1 rounded hover:bg-black/25"
-                          title="Remove Rule"
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Trigger</label>
-                        <select
-                          value={b.trigger}
-                          onChange={(e) => handleUpdateBehavior(b.id, { trigger: e.target.value })}
-                          className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                        >
-                          <option value="onTap">👆 On Tap (Mouse Click)</option>
-                          <option value="onProximity">📐 On Proximity (Distance)</option>
-                          <option value="onStart">🚀 On Start / Loaded</option>
-                          <option value="onTargetFound">👁 MindAR Target Found</option>
-                          <option value="onTargetLost">🙈 MindAR Target Lost</option>
-                        </select>
-                      </div>
+                  {(obj.properties.visualBehaviors || []).map((b: any) => {
+                    const isExpanded = expandedRules[b.id] ?? true;
+                    return (
+                      <div key={b.id} className="bg-[#181818] border border-[#262626] rounded-lg p-2 flex flex-col gap-2 relative">
+                        <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => toggleRuleExpansion(b.id)}>
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => toggleRuleExpansion(b.id)} className="text-[#888] hover:text-white transition-colors">
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                            <span className="text-[9px] font-bold text-blue-400 font-mono uppercase tracking-wider flex items-center gap-1">
+                              ⚡ {editingRuleId === b.id ? (
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  defaultValue={b.name || 'Rule'}
+                                  onBlur={(e) => {
+                                    handleUpdateBehavior(b.id, { name: e.target.value });
+                                    setEditingRuleId(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleUpdateBehavior(b.id, { name: e.currentTarget.value });
+                                      setEditingRuleId(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingRuleId(null);
+                                    }
+                                  }}
+                                  className="bg-black/50 text-white px-1 border border-blue-500 rounded outline-none"
+                                />
+                              ) : (
+                                <span onDoubleClick={() => setEditingRuleId(b.id)}>{b.name || 'Rule'}</span>
+                              )}
+                            </span>
+                            {editingRuleId !== b.id && (
+                              <button onClick={() => setEditingRuleId(b.id)} className="text-[#555] hover:text-white p-1 ml-1" title="Rename Rule">
+                                <Edit2 size={10} />
+                              </button>
+                            )}
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveBehavior(b.id);
+                            }}
+                            className="text-[#555] hover:text-red-400 transition-colors p-1 rounded hover:bg-black/25"
+                            title="Remove Rule"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                        
+                        {isExpanded && (
+                          <div className="flex flex-col gap-2 mt-1 border-t border-[#222] pt-2">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Trigger</label>
+                              <select
+                                value={b.trigger}
+                                onChange={(e) => handleUpdateBehavior(b.id, { trigger: e.target.value })}
+                                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                              >
+                                <option value="onTap">👆 On Tap (Mouse Click)</option>
+                                <option value="onProximity">📐 On Proximity (Distance)</option>
+                                <option value="onStart">🚀 On Start / Loaded</option>
+                                <option value="onTargetFound">👁 MindAR Target Found</option>
+                                <option value="onTargetLost">🙈 MindAR Target Lost</option>
+                              </select>
+                            </div>
 
                       {b.trigger === 'onProximity' && (
                         <div className="flex flex-col gap-1">
@@ -1774,8 +1903,11 @@ export function InspectorPanel({ width }: { width?: number }) {
                           </select>
                         </div>
                       )}
-                    </div>
-                  ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

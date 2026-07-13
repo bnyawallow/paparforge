@@ -35,6 +35,7 @@ export interface ProjectSettings {
   publishedProjectId?: string;
   publishedProjectUrl?: string;
   ambientSoundUrl?: string;
+  lightingPreset?: 'studio' | 'daylight' | 'sunset';
 }
 
 export interface HistorySnapshot {

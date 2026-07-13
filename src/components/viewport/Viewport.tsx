@@ -1082,28 +1082,23 @@ function ObjectRenderer({ id }: { id: string }) {
     } else {
       meshRef.current.position.z = obj.position[2];
     }
+    meshRef.current.position.x = obj.position[0];
     meshRef.current.position.y = obj.position[1];
 
-    // 2. Continuous spin
+    // 2. Continuous spin around its own local axis
     const spinAxis = obj.properties.spinAxis || 'z';
+    meshRef.current.rotation.set(
+      THREE.MathUtils.degToRad(obj.rotation[0]),
+      THREE.MathUtils.degToRad(obj.rotation[1]),
+      THREE.MathUtils.degToRad(obj.rotation[2])
+    );
     if (behavior === 'spin') {
-      if (spinAxis === 'x') {
-        meshRef.current.rotation.x = THREE.MathUtils.degToRad(obj.rotation[0]) + t * 0.8;
-      } else if (spinAxis === 'y') {
-        meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]) + t * 0.8;
-      } else {
-        meshRef.current.rotation.z = THREE.MathUtils.degToRad(obj.rotation[2]) + t * 0.8;
-      }
-    } else {
-      if (spinAxis === 'x') meshRef.current.rotation.x = THREE.MathUtils.degToRad(obj.rotation[0]);
-      if (spinAxis === 'y') meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]);
-      if (spinAxis === 'z') meshRef.current.rotation.z = THREE.MathUtils.degToRad(obj.rotation[2]);
+      const localAxis = new THREE.Vector3();
+      if (spinAxis === 'x') localAxis.set(1, 0, 0);
+      else if (spinAxis === 'y') localAxis.set(0, 1, 0);
+      else localAxis.set(0, 0, 1);
+      meshRef.current.rotateOnAxis(localAxis, t * 1.5);
     }
-    
-    // Always reset other axes to avoid accumulating rotation on unselected axes
-    if (spinAxis !== 'x') meshRef.current.rotation.x = THREE.MathUtils.degToRad(obj.rotation[0]);
-    if (spinAxis !== 'y') meshRef.current.rotation.y = THREE.MathUtils.degToRad(obj.rotation[1]);
-    if (spinAxis !== 'z') meshRef.current.rotation.z = THREE.MathUtils.degToRad(obj.rotation[2]);
 
     // 3. Rhythmic size pulse
     if (behavior === 'pulse') {
@@ -1347,6 +1342,7 @@ function ObjectRenderer({ id }: { id: string }) {
       name={id}
       position={obj.position}
       rotation={rotation}
+      rotation-order="YXZ"
       scale={obj.scale}
       onClick={handleInteract}
       raycast={obj.properties.ignoreClicks ? () => null : undefined}
