@@ -224,7 +224,8 @@ import {
   ChevronDown,
   Lightbulb,
   Folder,
-  FolderMinus
+  FolderMinus,
+  MousePointerClick
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
@@ -568,6 +569,25 @@ const SOUND_OPTIONS = [
   { value: '/sounds/robot_beep.wav', label: '🤖 Robot Beep' },
   { value: '/sounds/forest_ambient.wav', label: '🌲 Forest Ambient' },
 ];
+
+function InspectorSection({ title, defaultOpen = true, children, rightElement }: { title: React.ReactNode, defaultOpen?: boolean, children: React.ReactNode, rightElement?: React.ReactNode }) {
+  return (
+    <details className="group [&_summary::-webkit-details-marker]:hidden border-t border-[#222] pt-4 first:border-0 first:pt-0" open={defaultOpen}>
+      <summary className="cursor-pointer list-none flex items-center justify-between select-none mb-3">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#888] uppercase tracking-wider">
+          {title}
+        </div>
+        <div className="flex items-center gap-2">
+          {rightElement}
+          <ChevronDown className="w-3 h-3 text-[#555] transition-transform group-open:-rotate-180" />
+        </div>
+      </summary>
+      <div className="flex flex-col gap-3 animate-in slide-in-from-top-1 fade-in duration-200">
+        {children}
+      </div>
+    </details>
+  );
+}
 
 export function InspectorPanel({ width }: { width?: number }) {
   const { 
@@ -1277,43 +1297,62 @@ export function InspectorPanel({ width }: { width?: number }) {
           )}
         </div>
 
-        {/* Lock / Unlock Toggle Panel */}
-        <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-          <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
-            {obj.locked ? (
-              <>
-                <Lock size={12} className="text-red-400 animate-pulse" />
-                <span className="text-red-400 font-semibold text-[11px]">Transform Locked</span>
-              </>
-            ) : (
-              <>
-                <Unlock size={12} className="text-[#666]" />
-                <span className="text-[11px]">Transform Unlocked</span>
-              </>
-            )}
-          </span>
-          <button
-            onClick={() => updateObject(selectedObjectId, { locked: !obj.locked })}
-            className={cn(
-              "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all tracking-wider border",
-              obj.locked 
-                ? "bg-red-500/10 border-red-500/30 hover:bg-red-500/20 text-red-400" 
-                : "bg-[#222] border-[#333] hover:border-[#444] text-[#888] hover:text-white"
-            )}
-            title={obj.locked ? "Unlock transforms" : "Lock transforms to prevent accidental movement"}
-          >
-            {obj.locked ? "Unlock" : "Lock"}
-          </button>
+        <div className="flex flex-col gap-2">
+          {/* Lock / Unlock Toggle Panel */}
+          <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+            <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
+              {obj.locked ? (
+                <>
+                  <Lock size={12} className="text-red-400 animate-pulse" />
+                  <span className="text-red-400 font-semibold text-[11px]">Transform Locked</span>
+                </>
+              ) : (
+                <>
+                  <Unlock size={12} className="text-[#666]" />
+                  <span className="text-[11px]">Transform Unlocked</span>
+                </>
+              )}
+            </span>
+            <button
+              onClick={() => updateObject(selectedObjectId, { locked: !obj.locked })}
+              className={cn(
+                "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all tracking-wider border",
+                obj.locked 
+                  ? "bg-red-500/10 border-red-500/30 hover:bg-red-500/20 text-red-400" 
+                  : "bg-[#222] border-[#333] hover:border-[#444] text-[#888] hover:text-white"
+              )}
+              title={obj.locked ? "Unlock transforms" : "Lock transforms to prevent accidental movement"}
+            >
+              {obj.locked ? "Unlock" : "Lock"}
+            </button>
+          </div>
+
+          {/* Ignore Clicks Toggle Panel */}
+          <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+            <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Ignore pointer events on this object (raycast pass-through)">
+              <MousePointerClick size={12} className={obj.properties.ignoreClicks ? "text-[#555]" : "text-blue-400"} />
+              <span className="text-[11px]">Receive Tap Events</span>
+            </span>
+            <button
+              onClick={() => handlePropertyChange('ignoreClicks', !obj.properties.ignoreClicks)}
+              className={cn(
+                "w-8 h-4 rounded-full transition-colors relative",
+                !obj.properties.ignoreClicks ? "bg-blue-600" : "bg-[#333]"
+              )}
+            >
+              <div className={cn(
+                "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
+                !obj.properties.ignoreClicks ? "left-[18px]" : "left-0.5"
+              )} />
+            </button>
+          </div>
         </div>
 
         {/* Transform Component */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">Transform</span>
-            {obj.locked && (
-              <span className="text-[9px] font-mono text-red-400/80 uppercase">Locked</span>
-            )}
-          </div>
+        <InspectorSection 
+          title="Transform" 
+          rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase">Locked</span>}
+        >
           <div className="grid grid-cols-4 gap-2 text-[10px] font-mono">
             <span className="text-[#666] flex items-center">POS</span>
             <input type="number" step="0.1" disabled={obj.locked} value={obj.position[0]} onChange={(e) => handleVectorChange('position', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-red-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
@@ -1409,15 +1448,18 @@ export function InspectorPanel({ width }: { width?: number }) {
               )}
             </div>
           </div>
-        </div>
+        </InspectorSection>
 
         {/* AR Properties / Interactivity Panel */}
-        <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
-          <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider flex items-center gap-1">
-            <Sparkles size={11} className="text-orange-400 animate-pulse" />
-            AR Interactivity Traits
-          </span>
-
+        <InspectorSection 
+          title={
+            <>
+              <Sparkles size={11} className="text-orange-400 animate-pulse" />
+              AR Interactivity Traits
+            </>
+          }
+          defaultOpen={false}
+        >
           <div className="flex flex-col gap-4">
             {/* 1. Behavior Dropdown */}
             <div className="flex flex-col gap-1">
@@ -1464,14 +1506,26 @@ export function InspectorPanel({ width }: { width?: number }) {
                   Audio click Response
                 </span>
                 {obj.properties.soundUrl && (
-                  <button
-                    onClick={() => playPreviewSound(obj.properties.soundUrl)}
-                    className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded text-[8px] uppercase font-bold transition-colors"
-                    title="Play Preview Sound"
-                  >
-                    <Play size={8} className="fill-pink-400/20" />
-                    <span>Test Play</span>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => playPreviewSound(obj.properties.soundUrl)}
+                      className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded text-[8px] uppercase font-bold transition-colors"
+                      title="Play Preview Sound"
+                    >
+                      <Play size={8} className="fill-pink-400/20" />
+                      <span>Test Play</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handlePropertyChange('soundUrl', undefined);
+                        handlePropertyChange('soundName', undefined);
+                      }}
+                      className="text-[#666] hover:text-red-400 transition-colors p-0.5 rounded hover:bg-black/25"
+                      title="Remove Sound"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
                 )}
               </div>
               <MediaAssetPicker 
@@ -1486,24 +1540,30 @@ export function InspectorPanel({ width }: { width?: number }) {
               />
             </div>
           </div>
-        </div>
+        </InspectorSection>
 
         {/* No-Code Event Triggers & Actions */}
         {obj.type !== 'imageTarget' && (
-          <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider flex items-center gap-1.5">
+          <InspectorSection
+            title={
+              <>
                 <Zap size={11} className="text-blue-400 fill-blue-500/20" />
                 No-Code Events
-              </span>
+              </>
+            }
+            defaultOpen={false}
+            rightElement={
               <button
-                onClick={handleAddBehavior}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleAddBehavior();
+                }}
                 className="text-[9px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-500/10 px-2 py-1 rounded hover:bg-blue-500/15 transition-all"
               >
                 <Plus size={10} /> Add Event
               </button>
-            </div>
-
+            }
+          >
             <div className="flex flex-col gap-2.5">
               {(obj.properties.visualBehaviors || []).length === 0 ? (
                 <div className="border border-[#222] border-dashed rounded p-3 text-center text-[9px] text-[#555]">
@@ -1719,7 +1779,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
               )}
             </div>
-          </div>
+          </InspectorSection>
         )}
 
         {/* Custom Code Script Editor Section */}
@@ -1767,8 +1827,7 @@ export function InspectorPanel({ width }: { width?: number }) {
         )}
 
         {/* Core Geometry & Media Specific Custom UI */}
-        <div className="flex flex-col gap-4 border-t border-[#222] pt-4">
-          <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">Entity Parameters</span>
+        <InspectorSection title="Entity Parameters">
           
           <div className="flex flex-col gap-4">
             {/* --- 1. PRIMITIVES SECTION --- */}
@@ -2951,10 +3010,48 @@ export function InspectorPanel({ width }: { width?: number }) {
                     className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
                   />
                 </div>
+                
+                {/* Advanced MindAR Tracking Settings */}
+                <div className="flex flex-col gap-2 border-t border-[#222] pt-3">
+                  <span className="text-[9px] font-bold text-[#888] uppercase tracking-wider">Advanced Tracking Settings</span>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-[#666]">Filter Min CF (Jitter Reduction)</label>
+                    <input 
+                      type="number" 
+                      step="0.0001"
+                      value={obj.properties.filterMinCF ?? 0.0001}
+                      onChange={(e) => handlePropertyChange('filterMinCF', parseFloat(e.target.value))}
+                      className="bg-[#0A0A0A] text-[9px] font-mono p-1.5 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-[#666]">Filter Beta (Speed vs Accuracy)</label>
+                    <input 
+                      type="number" 
+                      step="0.001"
+                      value={obj.properties.filterBeta ?? 0.001}
+                      onChange={(e) => handlePropertyChange('filterBeta', parseFloat(e.target.value))}
+                      className="bg-[#0A0A0A] text-[9px] font-mono p-1.5 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-[#666]">Miss Tolerance (Frames before lost)</label>
+                    <input 
+                      type="number" 
+                      step="1"
+                      value={obj.properties.missTolerance ?? 5}
+                      onChange={(e) => handlePropertyChange('missTolerance', parseInt(e.target.value, 10))}
+                      className="bg-[#0A0A0A] text-[9px] font-mono p-1.5 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        </div>
+        </InspectorSection>
       </div>
 
         {/* Quick Add Interactions section */}

@@ -93,6 +93,10 @@ export const generateAFrameScene = (state: any) => {
   const imageTargetObj = Object.values(objects).find((o: any) => o.type === 'imageTarget') as any;
   const targetImageUrl = imageTargetObj?.properties?.textureUrl || '';
   let entitiesHtml = '';
+  const audioAssetUrls = new Set<string>();
+  if (settings.ambientSoundUrl) {
+    audioAssetUrls.add(settings.ambientSoundUrl);
+  }
 
     const buildEntity = (id: string, depth = 0): string => {
       const obj = objects[id];
@@ -105,6 +109,7 @@ export const generateAFrameScene = (state: any) => {
       let isClickable = false;
       
       if (obj.properties.soundUrl) {
+        audioAssetUrls.add(obj.properties.soundUrl);
         // Safe string escaping
         const escapedUrl = obj.properties.soundUrl.replace(/"/g, '&quot;');
         customComponents += ` sound-on-click data-sound-url="${escapedUrl}"`;
@@ -119,6 +124,12 @@ export const generateAFrameScene = (state: any) => {
         if (hasTap) {
           isClickable = true;
         }
+        
+        obj.properties.visualBehaviors.forEach((b: any) => {
+          if (b.action === 'playSound' && b.soundPreset) {
+            audioAssetUrls.add(b.soundPreset);
+          }
+        });
       }
       
       if (obj.properties.scriptCode && (obj.properties.scriptEnabled ?? true)) {
@@ -138,6 +149,10 @@ export const generateAFrameScene = (state: any) => {
 
       if (obj.type === 'button') {
         isClickable = true;
+      }
+
+      if (obj.properties.ignoreClicks) {
+        isClickable = false;
       }
 
       const classAttr = isClickable ? ' class="clickable"' : '';
@@ -220,6 +235,7 @@ export const generateAFrameScene = (state: any) => {
         entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}></a-entity>\n`;
       } else if (obj.type === 'audio') {
         const soundUrl = obj.properties.soundUrl || '';
+        if (soundUrl) audioAssetUrls.add(soundUrl);
         const volume = obj.properties.volume ?? 0.5;
         const autoplay = obj.properties.autoplay ?? false;
         const loop = obj.properties.loop ?? true;
@@ -505,31 +521,33 @@ export const generateAFrameScene = (state: any) => {
                 });
               }
               break;
-            case 'transform': {
-              const targetElT = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
-              if (targetElT) {
-                const vals = (b.propertyValue || '0,0,0').split(',').map(v => parseFloat(v) || 0);
-                if (b.propertyName === 'position') {
-                  targetElT.setAttribute('position', vals.join(' '));
-                } else if (b.propertyName === 'rotation') {
-                  targetElT.setAttribute('rotation', vals.join(' '));
-                } else if (b.propertyName === 'scale') {
-                  targetElT.setAttribute('scale', vals.join(' '));
-                }
+            case 'transform':
+              const tfEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (tfEl && b.propertyName && b.propertyValue) {
+                let valStr = b.propertyValue.trim().replace(/,/g, ' ');
+                tfEl.setAttribute('animation__transform_' + Date.now(), {
+                  property: b.propertyName,
+                  to: valStr,
+                  dur: 1000,
+                  easing: 'easeOutQuad'
+                });
               }
               break;
-            }
-            case 'material': {
-              const targetElM = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
-              if (targetElM) {
+            case 'material':
+              const matEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (matEl && b.propertyName && b.propertyValue) {
                 if (b.propertyName === 'color') {
-                  targetElM.setAttribute('material', 'color', b.propertyValue);
+                  matEl.setAttribute('animation__color_' + Date.now(), {
+                    property: 'material.color',
+                    to: b.propertyValue,
+                    dur: 1000,
+                    easing: 'easeOutQuad'
+                  });
                 } else if (b.propertyName === 'texture') {
-                  targetElM.setAttribute('material', 'src', b.propertyValue);
+                  matEl.setAttribute('material', 'src', b.propertyValue);
                 }
               }
               break;
-            }
           }
         }
       });
@@ -934,9 +952,13 @@ export const generateAFrameScene = (state: any) => {
 
     <!-- WebAR Scene Rendering Engine -->
     <template id="scene-template">
-      <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: 1; filterMinCF:0.0001; filterBeta:0.001; uiScanning: no;" 
+      <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: 1; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5}; uiScanning: no;" 
                embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         
+        <a-assets>
+          ${Array.from(audioAssetUrls).map((url, i) => `<audio id="audio-asset-${i}" src="${url}" preload="auto"></audio>`).join('\n          ')}
+        </a-assets>
+
         <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-camera>
         
         <a-light type="directional" intensity="0.6" position="1 2 1"></a-light>

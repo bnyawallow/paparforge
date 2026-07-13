@@ -1349,6 +1349,7 @@ function ObjectRenderer({ id }: { id: string }) {
       rotation={rotation}
       scale={obj.scale}
       onClick={handleInteract}
+      raycast={obj.properties.ignoreClicks ? () => null : undefined}
     >
       {renderGeometry()}
       {obj.children.map(childId => (
