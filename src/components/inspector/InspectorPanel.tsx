@@ -3822,6 +3822,67 @@ export function InspectorPanel({ width }: { width?: number }) {
                         />
                       </div>
                       <div className="flex items-center justify-between mt-1">
+                        <label className="text-[10px] text-[#888] font-medium">Show Address Bar</label>
+                        <input 
+                          type="checkbox" 
+                          checked={obj.properties.showAddressBar ?? true} 
+                          onChange={(e) => handlePropertyChange('showAddressBar', e.target.checked)}
+                          className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <label className="text-[10px] text-[#888] font-medium">Full Screen with Margins</label>
+                        <input 
+                          type="checkbox" 
+                          checked={obj.properties.fullScreenWithMargins ?? false} 
+                          onChange={(e) => handlePropertyChange('fullScreenWithMargins', e.target.checked)}
+                          className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5"
+                        />
+                      </div>
+                      {obj.properties.fullScreenWithMargins && (
+                        <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                          <label className="text-[10px] text-cyan-400 font-bold tracking-wider">FULL SCREEN MARGINS (PX)</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-[#666] font-medium">Top Margin</label>
+                              <input 
+                                type="number"
+                                value={obj.properties.marginTop ?? 20}
+                                onChange={(e) => handlePropertyChange('marginTop', parseInt(e.target.value) || 0)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-[#666] font-medium">Bottom Margin</label>
+                              <input 
+                                type="number"
+                                value={obj.properties.marginBottom ?? 20}
+                                onChange={(e) => handlePropertyChange('marginBottom', parseInt(e.target.value) || 0)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-[#666] font-medium">Left Margin</label>
+                              <input 
+                                type="number"
+                                value={obj.properties.marginLeft ?? 20}
+                                onChange={(e) => handlePropertyChange('marginLeft', parseInt(e.target.value) || 0)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-[#666] font-medium">Right Margin</label>
+                              <input 
+                                type="number"
+                                value={obj.properties.marginRight ?? 20}
+                                onChange={(e) => handlePropertyChange('marginRight', parseInt(e.target.value) || 0)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-1">
                         <label className="text-[10px] text-[#888] font-medium">Show Custom Border</label>
                         <input 
                           type="checkbox" 
@@ -3853,7 +3914,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </>
                   )}
 
-                  {obj.type !== 'overlay2d' && (
+                  {obj.type !== 'overlay2d' && !(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
                     <div className="flex gap-2 mt-2">
                       <div className="flex flex-col gap-1 flex-1">
                         <label className="text-[10px] text-[#666] font-medium">Top (px - legacy)</label>
@@ -3879,55 +3940,57 @@ export function InspectorPanel({ width }: { width?: number }) {
                   )}
 
                   {/* Alignment & Responsive Layout Anchor */}
-                  <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
-                    <label className="text-[10px] text-cyan-400 font-bold tracking-wider">RESPONSIVE ANCHORING</label>
-                    
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] text-[#666] font-medium">Screen/Parent Alignment</label>
-                      <select
-                        value={obj.properties.alignment || 'none'}
-                        onChange={(e) => handlePropertyChange('alignment', e.target.value)}
-                        className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                      >
-                        <option value="none">Manual / Free Drag</option>
-                        <option value="top-left">Top Left</option>
-                        <option value="top-center">Top Center</option>
-                        <option value="top-right">Top Right</option>
-                        <option value="center-left">Center Left</option>
-                        <option value="center">Center / Focal Anchor</option>
-                        <option value="center-right">Center Right</option>
-                        <option value="bottom-left">Bottom Left</option>
-                        <option value="bottom-center">Bottom Center</option>
-                        <option value="bottom-right">Bottom Right</option>
-                      </select>
-                    </div>
-
-                    {obj.properties.alignment !== 'none' && (
-                      <div className="flex gap-2 mt-1">
-                        <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] text-[#666] font-medium">Offset X (px)</label>
-                          <input 
-                            type="number"
-                            value={obj.properties.offsetX || 0}
-                            onChange={(e) => handlePropertyChange('offsetX', parseInt(e.target.value) || 0)}
-                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] text-[#666] font-medium">Offset Y (px)</label>
-                          <input 
-                            type="number"
-                            value={obj.properties.offsetY || 0}
-                            onChange={(e) => handlePropertyChange('offsetY', parseInt(e.target.value) || 0)}
-                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                          />
-                        </div>
+                  {!(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
+                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                      <label className="text-[10px] text-cyan-400 font-bold tracking-wider">RESPONSIVE ANCHORING</label>
+                      
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Screen/Parent Alignment</label>
+                        <select
+                          value={obj.properties.alignment || 'none'}
+                          onChange={(e) => handlePropertyChange('alignment', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="none">Manual / Free Drag</option>
+                          <option value="top-left">Top Left</option>
+                          <option value="top-center">Top Center</option>
+                          <option value="top-right">Top Right</option>
+                          <option value="center-left">Center Left</option>
+                          <option value="center">Center / Focal Anchor</option>
+                          <option value="center-right">Center Right</option>
+                          <option value="bottom-left">Bottom Left</option>
+                          <option value="bottom-center">Bottom Center</option>
+                          <option value="bottom-right">Bottom Right</option>
+                        </select>
                       </div>
-                    )}
-                  </div>
+
+                      {obj.properties.alignment !== 'none' && (
+                        <div className="flex gap-2 mt-1">
+                          <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-[10px] text-[#666] font-medium">Offset X (px)</label>
+                            <input 
+                              type="number"
+                              value={obj.properties.offsetX || 0}
+                              onChange={(e) => handlePropertyChange('offsetX', parseInt(e.target.value) || 0)}
+                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-[10px] text-[#666] font-medium">Offset Y (px)</label>
+                            <input 
+                              type="number"
+                              value={obj.properties.offsetY || 0}
+                              onChange={(e) => handlePropertyChange('offsetY', parseInt(e.target.value) || 0)}
+                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Width & Height Dimensions with Custom Types */}
-                  {obj.type !== 'overlay2d' && (
+                  {obj.type !== 'overlay2d' && !(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
                     <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
                       <label className="text-[10px] text-cyan-400 font-bold tracking-wider">SCALING & DIMENSIONS</label>
                       

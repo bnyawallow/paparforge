@@ -109,8 +109,17 @@ export function HierarchyPanel({ width }: { width?: number }) {
     }
 
     const is2DOverlay = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(type);
+    const is2DUIElement = ['overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(type);
     let parentId = null;
-    if (!is2DOverlay) {
+    
+    if (is2DUIElement) {
+      if (selectedObjectId && objects[selectedObjectId] && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(objects[selectedObjectId].type)) {
+        parentId = selectedObjectId;
+      } else {
+        const activeOverlay2d = Object.values(objects).find(o => o.type === 'overlay2d');
+        if (activeOverlay2d) parentId = activeOverlay2d.id;
+      }
+    } else if (!is2DOverlay) {
       parentId = selectedObjectId;
       if (!parentId) {
         const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');

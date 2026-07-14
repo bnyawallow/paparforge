@@ -2078,7 +2078,7 @@ export function Viewport() {
 
   if (isPreviewMode) {
     return (
-      <div className="w-full h-full bg-[#0a0a0a] flex items-center justify-center p-4 select-none relative overflow-hidden">
+      <div className={`w-full h-full bg-[#0a0a0a] flex items-center justify-center ${showBezel ? 'p-4' : 'p-0'} select-none relative overflow-hidden`}>
         <style>{`
           @keyframes scan-laser {
             0%, 100% { top: 20%; opacity: 0.1; }
@@ -2120,7 +2120,7 @@ export function Viewport() {
         {/* Bezel Device wrapper vs Full Bleed wrapper */}
         <div className={showBezel 
           ? "relative w-[340px] h-[680px] md:w-[360px] md:h-[720px] bg-[#111] border-[10px] border-[#252525] rounded-[50px] shadow-2xl flex flex-col overflow-hidden border-t-[16px] border-b-[16px] ring-2 ring-white/5"
-          : "relative w-full h-full bg-black overflow-hidden rounded-lg border border-[#222]"
+          : "relative w-full h-full bg-black overflow-hidden"
         }>
           {showBezel && (
             /* Camera notch */
@@ -2178,6 +2178,9 @@ export function Viewport() {
                 <BloomEffect />
               </Canvas>
             </div>
+
+            {/* 2D Overlay Renderer for Preview Mode */}
+            <Overlay2DRenderer isPreviewMode={true} />
 
             {/* Simulated Smartphone HUD overlays */}
             <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-4 pt-6 pb-6">

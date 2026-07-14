@@ -27,8 +27,48 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.json')) {
+      addToast('Please select or drop a valid .json project file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = event.target?.result as string;
+        const importedId = importProject(json);
+        if (importedId) {
+          addToast('Project imported and loaded successfully');
+          onClose();
+        } else {
+          addToast('Failed to import: Invalid project file format');
+        }
+      } catch (err) {
+        addToast('Failed to read project file');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const templates = [
     {
@@ -270,7 +310,24 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
           </div>
 
           {/* Right Side: Existing Projects List */}
-          <div className="flex-1 p-6 overflow-y-auto flex flex-col space-y-4">
+          <div 
+            className="flex-1 p-6 overflow-y-auto flex flex-col space-y-4 relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {isDraggingFile && (
+              <div className="absolute inset-2 border-2 border-dashed border-blue-500/50 bg-[#141414]/95 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-3 z-30 pointer-events-none animate-in fade-in duration-100">
+                <div className="p-4 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20 animate-bounce">
+                  <FileUp size={28} />
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-bold text-white uppercase tracking-wider">Drop Project JSON Here</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Release to import and restore this .json scene configuration</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#999] flex items-center gap-1.5">
                 <Folder size={14} />
