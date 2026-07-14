@@ -3702,6 +3702,175 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
               </div>
             )}
+
+            {/* --- 9. 2D OVERLAY PROPERTIES --- */}
+            {(obj.type === 'overlay2d' || obj.type === 'overlayText' || obj.type === 'overlayButton' || obj.type === 'overlayImage') && (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 p-3 bg-cyan-900/10 border border-cyan-500/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full"></span>
+                    <span className="text-[10px] font-bold text-cyan-400 tracking-wider">2D Overlay Properties</span>
+                  </div>
+                  
+                  {obj.type === 'overlay2d' && (
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-[#666] font-medium">Background Color</label>
+                      <input 
+                        type="color" 
+                        value={obj.properties.backgroundColor || '#000000'}
+                        onChange={(e) => handlePropertyChange('backgroundColor', e.target.value)}
+                        className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                      />
+                    </div>
+                  )}
+
+                  {obj.type === 'overlayText' && (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Text</label>
+                        <textarea
+                          value={obj.properties.text || ''}
+                          onChange={(e) => handlePropertyChange('text', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none resize-none h-16"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-[#666] font-medium">Color</label>
+                        <input 
+                          type="color" 
+                          value={obj.properties.color || '#ffffff'}
+                          onChange={(e) => handlePropertyChange('color', e.target.value)}
+                          className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Font Size</label>
+                        <input 
+                          type="number"
+                          value={obj.properties.fontSize || 24}
+                          onChange={(e) => handlePropertyChange('fontSize', parseInt(e.target.value))}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {obj.type === 'overlayButton' && (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Label</label>
+                        <input
+                          type="text"
+                          value={obj.properties.text || ''}
+                          onChange={(e) => handlePropertyChange('text', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Action URL</label>
+                        <input
+                          type="text"
+                          value={obj.properties.url || ''}
+                          onChange={(e) => handlePropertyChange('url', e.target.value)}
+                          placeholder="https://"
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Button Color</label>
+                        <input 
+                          type="color" 
+                          value={obj.properties.color || '#3b82f6'}
+                          onChange={(e) => handlePropertyChange('color', e.target.value)}
+                          className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Text Color</label>
+                        <input 
+                          type="color" 
+                          value={obj.properties.textColor || '#ffffff'}
+                          onChange={(e) => handlePropertyChange('textColor', e.target.value)}
+                          className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {obj.type === 'overlayImage' && (
+                    <div className="flex flex-col gap-1">
+                      <MediaAssetPicker 
+                        value={obj.properties.textureUrl || ''}
+                        onChange={(url) => handlePropertyChange('textureUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        label="Image URL"
+                      />
+                    </div>
+                  )}
+
+                  {obj.type !== 'overlay2d' && (
+                    <>
+                      <div className="flex gap-2 mt-2">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Top (px)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.top || 0}
+                            onChange={(e) => handlePropertyChange('top', parseFloat(e.target.value))}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Left (px)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.left || 0}
+                            onChange={(e) => handlePropertyChange('left', parseFloat(e.target.value))}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                      {obj.type === 'overlayImage' && (
+                         <div className="flex gap-2 mt-2">
+                          <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-[10px] text-[#666] font-medium">Width (px)</label>
+                            <input 
+                              type="number"
+                              value={obj.properties.width || 200}
+                              onChange={(e) => handlePropertyChange('width', parseFloat(e.target.value))}
+                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-[10px] text-[#666] font-medium">Height (px)</label>
+                            <input 
+                              type="number"
+                              value={obj.properties.height || 200}
+                              onChange={(e) => handlePropertyChange('height', parseFloat(e.target.value))}
+                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-cyan-500/10">
+                    <label className="text-[10px] text-[#666] font-medium">Opacity</label>
+                    <input 
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={obj.properties.opacity ?? 1.0}
+                      onChange={(e) => handlePropertyChange('opacity', parseFloat(e.target.value))}
+                      className="accent-cyan-500 w-24 h-1 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </InspectorSection>
       </div>

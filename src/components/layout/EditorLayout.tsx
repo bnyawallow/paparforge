@@ -178,6 +178,7 @@ export function EditorLayout() {
   return (
     <div className="flex flex-col h-screen bg-[#0F0F0F] text-[#E0E0E0] font-sans overflow-hidden">
       <Toolbar />
+      <AssetBrowser />
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col overflow-hidden bg-[#111111]">
           {/* Top segment: Hierarchy Panel and Viewport (3D Editor) side-by-side */}
@@ -208,14 +209,15 @@ export function EditorLayout() {
               <Viewport />
             </div>
           </div>
-          {/* Bottom segment: AssetBrowser or ScriptEditorPanel */}
-          {!isPreviewMode && (
+
+          {/* Bottom segment: ScriptEditorPanel */}
+          {!isPreviewMode && editingScriptObjectId && (
             <>
               {/* Resize handle bar */}
               <div 
                 onMouseDown={startResizeBottom}
                 className="h-1 bg-[#222] hover:bg-blue-500 cursor-row-resize transition-all shrink-0 z-40 relative group"
-                title="Drag to resize assets panel"
+                title="Drag to resize script panel"
               >
                 <div className="absolute inset-x-0 -top-1 -bottom-1 cursor-row-resize"></div>
                 {/* Visual grab indicators in the center of the bar */}
@@ -226,7 +228,7 @@ export function EditorLayout() {
                 </div>
               </div>
               <div style={{ height: `${bottomHeight}px` }} className="shrink-0 flex flex-col overflow-hidden">
-                {editingScriptObjectId ? <ScriptEditorPanel /> : <AssetBrowser />}
+                <ScriptEditorPanel />
               </div>
             </>
           )}

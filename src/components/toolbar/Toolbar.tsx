@@ -128,6 +128,14 @@ export function Toolbar() {
 
           <div className="flex items-center gap-1 border-l border-[#2A2A2A] pl-6">
             <button 
+              onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
+              className="p-1.5 hover:bg-[#1A1A1A] rounded-lg text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-2"
+              title="Open Assets Library"
+            >
+              <FolderOpen size={14} />
+              <span className="hidden sm:inline">Assets Library</span>
+            </button>
+            <button 
               onClick={() => undo()} 
               disabled={past.length === 0 || isPreviewMode}
               className="p-2 hover:bg-[#1A1A1A] disabled:opacity-25 disabled:cursor-not-allowed rounded text-[#888] hover:text-white transition-all hover:scale-105 active:scale-95 duration-100" 

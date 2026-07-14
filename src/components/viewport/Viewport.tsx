@@ -5,6 +5,7 @@ import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, Gizm
 import { useEditorStore } from '../../store/useEditorStore';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
+import { Overlay2DRenderer } from "./Overlay2DRenderer";
 import { BloomEffect } from './BloomEffect';
 import { 
   Maximize, 
@@ -1698,6 +1699,7 @@ function TransformController() {
 
   return (
     <TransformControls
+      key={target.uuid}
       ref={controlsRef}
       object={target}
       mode={transformMode}
@@ -2375,6 +2377,7 @@ export function Viewport() {
         <OrbitControls makeDefault />
         <BloomEffect />
       </Canvas>
+      <Overlay2DRenderer isPreviewMode={false} />
 
       <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-[#141414]/90 p-1.5 rounded-lg border border-[#2A2A2A] shadow-2xl backdrop-blur-md">
         {/* Transform Mode & Space Buttons Group */}

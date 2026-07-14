@@ -566,7 +566,9 @@ export function AssetBrowser() {
     objects,
     updateObject,
     updateSettings,
-    settings
+    settings,
+    isAssetBrowserOpen,
+    setIsAssetBrowserOpen
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -588,6 +590,8 @@ export function AssetBrowser() {
       inputRef.current.select();
     }
   }, [editingId]);
+
+  if (!isAssetBrowserOpen) return null;
 
   const showToast = (message: string) => {
     setNotification(message);
@@ -791,7 +795,14 @@ export function AssetBrowser() {
   };
 
   return (
-    <div className="h-full border-t border-[#2A2A2A] bg-[#111111] flex flex-col relative select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-8">
+      <div className="w-full h-full max-w-7xl max-h-[90vh] rounded-2xl overflow-hidden border border-[#2A2A2A] bg-[#111111] flex flex-col relative select-none shadow-2xl">
+        <button 
+          onClick={() => setIsAssetBrowserOpen(false)}
+          className="absolute top-2 right-4 z-50 text-gray-400 hover:text-white"
+        >
+          ✕
+        </button>
       {/* Toast Notification popup */}
       {notification && (
         <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg border border-blue-500/20 z-50 flex items-center gap-1.5 animate-bounce">
@@ -1386,6 +1397,7 @@ export function AssetBrowser() {
         </div>
       </div>
       {showMarkerManager && <MarkerManagerModal onClose={() => setShowMarkerManager(false)} />}
+      </div>
     </div>
   );
 }

@@ -462,6 +462,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   gridSnapIncrement: 0.1,
   rotationSnapEnabled: false,
   rotationSnapIncrement: 15,
+  
+  isAssetBrowserOpen: false,
+  overlayGridEnabled: false,
+  overlayGridSize: 50,
 
   // Camera & View modes
   cameraType: 'perspective',
@@ -538,13 +542,15 @@ export const useEditorStore = create<EditorState>((set) => ({
       }
     };
     removeRecursive(id);
+    
+    const isSelectedDeleted = state.selectedObjectId && !newObjects[state.selectedObjectId];
 
     return {
       objects: newObjects,
       rootObjects: state.rootObjects.filter(rootId => rootId !== id),
-      selectedObjectId: state.selectedObjectId === id ? null : state.selectedObjectId,
-      selectedObjectIds: state.selectedObjectIds.includes(id) ? state.selectedObjectIds.filter(x => x !== id) : state.selectedObjectIds,
-      selectedObjectRef: state.selectedObjectId === id ? null : state.selectedObjectRef,
+      selectedObjectId: isSelectedDeleted ? null : state.selectedObjectId,
+      selectedObjectIds: state.selectedObjectIds.filter(x => newObjects[x]),
+      selectedObjectRef: isSelectedDeleted ? null : state.selectedObjectRef,
       past: newPast,
       future: [], // Clear redo stack on new action
       hasUnsavedChanges: true
@@ -1511,6 +1517,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   setGridSnapIncrement: (increment) => set({ gridSnapIncrement: increment }),
   setRotationSnapEnabled: (enabled) => set({ rotationSnapEnabled: enabled }),
   setRotationSnapIncrement: (increment) => set({ rotationSnapIncrement: increment }),
+
+  setIsAssetBrowserOpen: (open) => set({ isAssetBrowserOpen: open }),
+  setOverlayGridEnabled: (enabled) => set({ overlayGridEnabled: enabled }),
+  setOverlayGridSize: (size) => set({ overlayGridSize: size }),
 
   setCameraType: (cameraType) => set({ cameraType }),
   setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),

@@ -95,6 +95,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
     } else if (type === 'youtube') {
       newObj.properties = { videoId: 'dQw4w9WgXcQ' };
       newObj.scale = [1.6, 0.9, 1];
+    } else if (type === 'overlay2d') {
+      newObj.properties = { backgroundColor: '#000000', opacity: 0.0 };
+    } else if (type === 'overlayText') {
+      newObj.properties = { text: 'Overlay Text', color: '#ffffff', fontSize: 24, top: 20, left: 20 };
+    } else if (type === 'overlayButton') {
+      newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: '', top: 20, left: 20, paddingX: 16, paddingY: 8, borderRadius: 8 };
+    } else if (type === 'overlayImage') {
+      newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', top: 20, left: 20, width: 200, height: 200, opacity: 1.0 };
     }
 
     let parentId = selectedObjectId;
@@ -297,6 +305,10 @@ export function HierarchyPanel({ width }: { width?: number }) {
     else if (obj.type === 'youtube') Icon = Youtube;
     else if (obj.type === 'button') Icon = Link2;
     else if (obj.type === 'text') Icon = Type;
+    else if (obj.type === 'overlay2d') Icon = FolderPlus;
+    else if (obj.type === 'overlayText') Icon = Type;
+    else if (obj.type === 'overlayButton') Icon = Link2;
+    else if (obj.type === 'overlayImage') Icon = ImageIcon;
 
     const toggleCollapse = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -653,6 +665,47 @@ export function HierarchyPanel({ width }: { width?: number }) {
                 </div>
               </div>
 
+              {/* Group 4: 2D Overlay */}
+              <div className="flex flex-col gap-1.5 mt-2">
+                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-cyan-500/60 rounded-full"></span>
+                  2D Overlay HUD
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    onClick={() => { handleAddObject('overlay2d'); setIsAddDropdownOpen(false); }}
+                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+                    title="Add 2D Canvas Container"
+                  >
+                    <FolderPlus size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
+                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Canvas</span>
+                  </button>
+                  <button
+                    onClick={() => { handleAddObject('overlayText'); setIsAddDropdownOpen(false); }}
+                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+                    title="Add 2D Overlay Text"
+                  >
+                    <Type size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
+                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Text</span>
+                  </button>
+                  <button
+                    onClick={() => { handleAddObject('overlayButton'); setIsAddDropdownOpen(false); }}
+                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+                    title="Add 2D Overlay Button"
+                  >
+                    <Link2 size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
+                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Button</span>
+                  </button>
+                  <button
+                    onClick={() => { handleAddObject('overlayImage'); setIsAddDropdownOpen(false); }}
+                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+                    title="Add 2D Overlay Image"
+                  >
+                    <ImageIcon size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
+                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Image</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </>
         )}
