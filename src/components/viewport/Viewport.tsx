@@ -1645,6 +1645,44 @@ function ObjectRenderer({ id }: { id: string }) {
   );
 }
 
+function ProjectedPositionsUpdater() {
+  const { scene, camera, size } = useThree();
+  const objects = useEditorStore(state => state.objects);
+  
+  useFrame(() => {
+    const proj: Record<string, { x: number; y: number; visible: boolean }> = {};
+    const tempV = new THREE.Vector3();
+    
+    Object.keys(objects).forEach(id => {
+      const obj3d = scene.getObjectByName(id);
+      if (obj3d) {
+        obj3d.getWorldPosition(tempV);
+        tempV.project(camera);
+        const isBehind = tempV.z > 1;
+        
+        const x = (tempV.x * 0.5 + 0.5) * size.width;
+        const y = (-(tempV.y * 0.5) + 0.5) * size.height;
+        
+        proj[id] = { x, y, visible: !isBehind };
+      }
+    });
+    
+    (useEditorStore.getState() as any).projectedPositions = proj;
+  });
+  
+  return null;
+}
+
+function isObjectInScene(obj: THREE.Object3D | null | undefined, scene: THREE.Scene): boolean {
+  if (!obj) return false;
+  let current: THREE.Object3D | null = obj;
+  while (current) {
+    if (current === scene) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
 function TransformController() {
   const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
@@ -1691,7 +1729,29 @@ function TransformController() {
     };
   }, [target]);
 
-  if (!target || !target.parent || !selectedObjectId || isPreviewMode || !obj || !obj.visible) return null;
+  // Safely attach/detach the object in a layout effect to avoid rendering race conditions with Drei
+  React.useLayoutEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    if (target && target.parent && isObjectInScene(target, scene)) {
+      try {
+        controls.attach(target);
+      } catch (err) {
+        console.warn('Failed to attach object to TransformControls:', err);
+      }
+    } else {
+      controls.detach();
+    }
+
+    return () => {
+      if (controls) {
+        controls.detach();
+      }
+    };
+  }, [target, scene]);
+
+  if (!target || !target.parent || !selectedObjectId || isPreviewMode || !obj || !obj.visible || !isObjectInScene(target, scene)) return null;
 
   // Hide gizmo if the selected object is locked
   const isLocked = obj.locked;
@@ -1701,7 +1761,6 @@ function TransformController() {
     <TransformControls
       key={target.uuid}
       ref={controlsRef}
-      object={target}
       mode={transformMode}
       space={transformSpace}
       onMouseUp={handleTransform}
@@ -2369,6 +2428,7 @@ export function Viewport() {
         ))}
 
         <TransformController />
+        <ProjectedPositionsUpdater />
 
         <GizmoHelper alignment="bottom-left" margin={[80, 80]}>
           <GizmoViewport axisColors={['#ef4444', '#10b981', '#3b82f6']} labelColor="white" />

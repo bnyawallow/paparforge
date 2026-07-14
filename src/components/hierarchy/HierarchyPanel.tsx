@@ -24,7 +24,8 @@ import {
   Volume2,
   Lightbulb,
   MousePointer,
-  Video
+  Video,
+  Globe
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
@@ -96,22 +97,28 @@ export function HierarchyPanel({ width }: { width?: number }) {
       newObj.properties = { videoId: 'dQw4w9WgXcQ' };
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'overlay2d') {
-      newObj.properties = { backgroundColor: '#000000', opacity: 0.0 };
+      newObj.properties = { backgroundColor: '#000000', opacity: 0.0, alignment: 'none', width: 100, widthType: '%', height: 100, heightType: '%' };
     } else if (type === 'overlayText') {
-      newObj.properties = { text: 'Overlay Text', color: '#ffffff', fontSize: 24, top: 20, left: 20 };
+      newObj.properties = { text: 'Overlay Text', color: '#ffffff', fontSize: 24, top: 20, left: 20, alignment: 'none', width: 200, widthType: 'px', height: 40, heightType: 'px' };
     } else if (type === 'overlayButton') {
-      newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: '', top: 20, left: 20, paddingX: 16, paddingY: 8, borderRadius: 8 };
+      newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: '', top: 20, left: 20, paddingX: 16, paddingY: 8, borderRadius: 8, alignment: 'none', width: 120, widthType: 'px', height: 40, heightType: 'px' };
     } else if (type === 'overlayImage') {
-      newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', top: 20, left: 20, width: 200, height: 200, opacity: 1.0 };
+      newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', top: 20, left: 20, width: 200, widthType: 'px', height: 200, heightType: 'px', opacity: 1.0, alignment: 'none' };
+    } else if (type === 'overlayEmbed') {
+      newObj.properties = { url: 'https://wikipedia.org', top: 20, left: 20, width: 400, widthType: 'px', height: 300, heightType: 'px', opacity: 1.0, alignment: 'none', borderRadius: 12, borderEnabled: true, borderColor: '#2563eb' };
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
+    const is2DOverlay = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(type);
+    let parentId = null;
+    if (!is2DOverlay) {
+      parentId = selectedObjectId;
+      if (!parentId) {
+        const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+        if (imageTarget) parentId = imageTarget.id;
+      }
     }
 
-    newObj.parentId = parentId || null;
+    newObj.parentId = parentId;
     addObject(newObj, parentId || undefined);
   };
 
@@ -309,6 +316,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
     else if (obj.type === 'overlayText') Icon = Type;
     else if (obj.type === 'overlayButton') Icon = Link2;
     else if (obj.type === 'overlayImage') Icon = ImageIcon;
+    else if (obj.type === 'overlayEmbed') Icon = Globe;
 
     const toggleCollapse = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -704,6 +712,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
                     <ImageIcon size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
                     <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Image</span>
                   </button>
+                  <button
+                    onClick={() => { handleAddObject('overlayEmbed'); setIsAddDropdownOpen(false); }}
+                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
+                    title="Add Secure Responsive Web Embed Container"
+                  >
+                    <Globe size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
+                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Embed</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -711,7 +727,18 @@ export function HierarchyPanel({ width }: { width?: number }) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-1">
+      <div 
+        className="flex-1 overflow-y-auto p-1 min-h-[200px]"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const draggedId = e.dataTransfer.getData('text/plain');
+          if (draggedId) {
+            moveObject(draggedId, 'root');
+          }
+        }}
+      >
         {rootObjects.map(id => renderItem(id))}
       </div>
     </aside>

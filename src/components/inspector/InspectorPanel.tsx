@@ -3704,7 +3704,7 @@ export function InspectorPanel({ width }: { width?: number }) {
             )}
 
             {/* --- 9. 2D OVERLAY PROPERTIES --- */}
-            {(obj.type === 'overlay2d' || obj.type === 'overlayText' || obj.type === 'overlayButton' || obj.type === 'overlayImage') && (
+            {(obj.type === 'overlay2d' || obj.type === 'overlayText' || obj.type === 'overlayButton' || obj.type === 'overlayImage' || obj.type === 'overlayEmbed') && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2 p-3 bg-cyan-900/10 border border-cyan-500/20 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
@@ -3809,52 +3809,199 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </div>
                   )}
 
-                  {obj.type !== 'overlay2d' && (
+                  {obj.type === 'overlayEmbed' && (
                     <>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Embed Web URL</label>
+                        <input
+                          type="text"
+                          value={obj.properties.url || ''}
+                          onChange={(e) => handlePropertyChange('url', e.target.value)}
+                          placeholder="https://wikipedia.org"
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <label className="text-[10px] text-[#888] font-medium">Show Custom Border</label>
+                        <input 
+                          type="checkbox" 
+                          checked={obj.properties.borderEnabled ?? true} 
+                          onChange={(e) => handlePropertyChange('borderEnabled', e.target.checked)}
+                          className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5"
+                        />
+                      </div>
+                      {obj.properties.borderEnabled !== false && (
+                        <div className="flex items-center justify-between mt-1">
+                          <label className="text-[10px] text-[#666] font-medium">Border Color</label>
+                          <input 
+                            type="color" 
+                            value={obj.properties.borderColor || '#2563eb'}
+                            onChange={(e) => handlePropertyChange('borderColor', e.target.value)}
+                            className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Border Radius (px)</label>
+                        <input 
+                          type="number"
+                          value={obj.properties.borderRadius ?? 12}
+                          onChange={(e) => handlePropertyChange('borderRadius', parseInt(e.target.value) || 0)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {obj.type !== 'overlay2d' && (
+                    <div className="flex gap-2 mt-2">
+                      <div className="flex flex-col gap-1 flex-1">
+                        <label className="text-[10px] text-[#666] font-medium">Top (px - legacy)</label>
+                        <input 
+                          type="number"
+                          value={obj.properties.top || 0}
+                          onChange={(e) => handlePropertyChange('top', parseFloat(e.target.value))}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          disabled={obj.properties.alignment !== 'none'}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 flex-1">
+                        <label className="text-[10px] text-[#666] font-medium">Left (px - legacy)</label>
+                        <input 
+                          type="number"
+                          value={obj.properties.left || 0}
+                          onChange={(e) => handlePropertyChange('left', parseFloat(e.target.value))}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          disabled={obj.properties.alignment !== 'none'}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alignment & Responsive Layout Anchor */}
+                  <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                    <label className="text-[10px] text-cyan-400 font-bold tracking-wider">RESPONSIVE ANCHORING</label>
+                    
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-[#666] font-medium">Screen/Parent Alignment</label>
+                      <select
+                        value={obj.properties.alignment || 'none'}
+                        onChange={(e) => handlePropertyChange('alignment', e.target.value)}
+                        className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                      >
+                        <option value="none">Manual / Free Drag</option>
+                        <option value="top-left">Top Left</option>
+                        <option value="top-center">Top Center</option>
+                        <option value="top-right">Top Right</option>
+                        <option value="center-left">Center Left</option>
+                        <option value="center">Center / Focal Anchor</option>
+                        <option value="center-right">Center Right</option>
+                        <option value="bottom-left">Bottom Left</option>
+                        <option value="bottom-center">Bottom Center</option>
+                        <option value="bottom-right">Bottom Right</option>
+                      </select>
+                    </div>
+
+                    {obj.properties.alignment !== 'none' && (
+                      <div className="flex gap-2 mt-1">
                         <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] text-[#666] font-medium">Top (px)</label>
+                          <label className="text-[10px] text-[#666] font-medium">Offset X (px)</label>
                           <input 
                             type="number"
-                            value={obj.properties.top || 0}
-                            onChange={(e) => handlePropertyChange('top', parseFloat(e.target.value))}
+                            value={obj.properties.offsetX || 0}
+                            onChange={(e) => handlePropertyChange('offsetX', parseInt(e.target.value) || 0)}
                             className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                           />
                         </div>
                         <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] text-[#666] font-medium">Left (px)</label>
+                          <label className="text-[10px] text-[#666] font-medium">Offset Y (px)</label>
                           <input 
                             type="number"
-                            value={obj.properties.left || 0}
-                            onChange={(e) => handlePropertyChange('left', parseFloat(e.target.value))}
+                            value={obj.properties.offsetY || 0}
+                            onChange={(e) => handlePropertyChange('offsetY', parseInt(e.target.value) || 0)}
                             className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                           />
                         </div>
                       </div>
-                      {obj.type === 'overlayImage' && (
-                         <div className="flex gap-2 mt-2">
-                          <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-[10px] text-[#666] font-medium">Width (px)</label>
-                            <input 
-                              type="number"
-                              value={obj.properties.width || 200}
-                              onChange={(e) => handlePropertyChange('width', parseFloat(e.target.value))}
-                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-[10px] text-[#666] font-medium">Height (px)</label>
-                            <input 
-                              type="number"
-                              value={obj.properties.height || 200}
-                              onChange={(e) => handlePropertyChange('height', parseFloat(e.target.value))}
-                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                            />
-                          </div>
+                    )}
+                  </div>
+
+                  {/* Width & Height Dimensions with Custom Types */}
+                  {obj.type !== 'overlay2d' && (
+                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                      <label className="text-[10px] text-cyan-400 font-bold tracking-wider">SCALING & DIMENSIONS</label>
+                      
+                      <div className="flex gap-2">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Width</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.width !== undefined ? obj.properties.width : (obj.type === 'overlayImage' ? 200 : 150)}
+                            onChange={(e) => handlePropertyChange('width', parseFloat(e.target.value))}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
                         </div>
-                      )}
-                    </>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Width Unit</label>
+                          <select
+                            value={obj.properties.widthType || 'px'}
+                            onChange={(e) => handlePropertyChange('widthType', e.target.value)}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          >
+                            <option value="px">px (Pixels)</option>
+                            <option value="%">% (Percentage)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-1">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Height</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.height !== undefined ? obj.properties.height : (obj.type === 'overlayImage' ? 200 : 40)}
+                            onChange={(e) => handlePropertyChange('height', parseFloat(e.target.value))}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Height Unit</label>
+                          <select
+                            value={obj.properties.heightType || 'px'}
+                            onChange={(e) => handlePropertyChange('heightType', e.target.value)}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          >
+                            <option value="px">px (Pixels)</option>
+                            <option value="%">% (Percentage)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   )}
+
+                  {/* 3D Parent Anchoring Status / Controls */}
+                  <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10 text-[10px]">
+                    <label className="text-[10px] text-cyan-400 font-bold tracking-wider">3D TARGET BINDING</label>
+                    {obj.parentId ? (
+                      <div className="flex flex-col gap-1 bg-[#1A1A1A] p-2 rounded border border-[#262626]">
+                        <span className="text-gray-400">Anchored to 3D object:</span>
+                        <span className="font-bold text-white truncate">{objects[obj.parentId]?.name || 'Unknown Object'}</span>
+                        <button 
+                          onClick={() => {
+                            useEditorStore.getState().moveObject(obj.id, 'root');
+                          }}
+                          className="mt-1 px-2 py-1 bg-red-950/40 hover:bg-red-900/40 border border-red-500/30 text-red-400 rounded hover:text-red-200 transition-colors text-[9px] font-medium text-center"
+                        >
+                          Detach / Move to Viewport Root
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1 text-gray-500 italic bg-[#141414] p-2 rounded border border-dashed border-[#222]">
+                        Not bound to any 3D object (anchored relative to Camera Viewport).
+                        <span className="text-[8px] text-gray-600 mt-0.5">Drag under a 3D target in the Hierarchy panel to bind.</span>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-cyan-500/10">
                     <label className="text-[10px] text-[#666] font-medium">Opacity</label>

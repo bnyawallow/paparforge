@@ -3,7 +3,7 @@ export type Vector3Data = [number, number, number];
 export interface SceneObject {
   id: string;
   name: string;
-  type: 'group' | 'box' | 'plane' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'overlay2d' | 'overlayText' | 'overlayButton' | 'overlayImage';
+  type: 'group' | 'box' | 'plane' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'overlay2d' | 'overlayText' | 'overlayButton' | 'overlayImage' | 'overlayEmbed';
   position: Vector3Data;
   rotation: Vector3Data; // Euler angles in degrees
   scale: Vector3Data;

@@ -112,7 +112,7 @@ export const generateAFrameScene = (state: any) => {
       const obj = objects[id];
       if (!obj || !obj.visible) return '';
       // Skip 2D overlays in A-Frame 3D scene
-      if (['overlay2d', 'overlayText', 'overlayButton', 'overlayImage'].includes(obj.type)) return '';
+      if (['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(obj.type)) return '';
 
 
       const indent = '  '.repeat(depth + 3);
@@ -285,34 +285,95 @@ export const generateAFrameScene = (state: any) => {
     
     let overlayHtml = '';
     const overlayObjects = Object.values(objects).filter((obj: any) => 
-      ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage'].includes(obj.type) && obj.visible !== false
+      ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(obj.type) && obj.visible !== false
     );
 
     if (overlayObjects.length > 0) {
       overlayHtml += `<div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1000; overflow: hidden;">\n`;
       overlayObjects.forEach((obj: any) => {
         const props = obj.properties || {};
-        const pointerEvents = 'auto'; // allow clicks
-        
-        let styleStr = `position: absolute; pointer-events: ${pointerEvents}; box-sizing: border-box; `;
-        
-        if (obj.type === 'overlay2d') {
-          styleStr += `top: 0; left: 0; right: 0; bottom: 0; background-color: ${props.backgroundColor || '#000'}; opacity: ${props.opacity ?? 0.5};`;
-          overlayHtml += `  <div id="${obj.id}" style="${styleStr}"></div>\n`;
+        const alignment = props.alignment || 'none';
+        const widthType = props.widthType || 'px';
+        const heightType = props.heightType || 'px';
+        const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : 150);
+        const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : 40);
+        const widthStr = widthType === '%' ? `${widthVal}%` : `${widthVal}px`;
+        const heightStr = heightType === '%' ? `${heightVal}%` : `${heightVal}px`;
+        const opacity = props.opacity ?? 1;
+        const offsetX = props.offsetX || 0;
+        const offsetY = props.offsetY || 0;
+
+        let styleStr = `position: absolute; pointer-events: auto; box-sizing: border-box; width: ${widthStr}; height: ${heightStr}; opacity: ${opacity}; `;
+
+        if (obj.parentId) {
+          // Anchored and dynamically updated by 'projected-overlay' component
+          styleStr += `display: none; `;
+          entitiesHtml += `      <a-entity id="${obj.id}-projector" projected-overlay="target: #${obj.parentId}; alignment: ${alignment}; offsetX: ${offsetX}; offsetY: ${offsetY};"></a-entity>\n`;
         } else {
-          styleStr += `top: ${props.top !== undefined ? props.top + 'px' : '0'}; left: ${props.left !== undefined ? props.left + 'px' : '0'}; opacity: ${props.opacity ?? 1}; `;
-          
-          if (obj.type === 'overlayText') {
-            styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; white-space: pre-wrap; font-family: sans-serif;`;
-            overlayHtml += `  <div id="${obj.id}" style="${styleStr}">${props.text || 'Text'}</div>\n`;
-          } else if (obj.type === 'overlayButton') {
-            styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border-radius: ${props.borderRadius || 8}px; border: none; cursor: pointer;`;
-            const onClickAttr = props.url ? ` onclick="window.open('${props.url}', '_blank')"` : '';
-            overlayHtml += `  <button id="${obj.id}" style="${styleStr}"${onClickAttr}>${props.text || 'Button'}</button>\n`;
-          } else if (obj.type === 'overlayImage') {
-            styleStr += `width: ${props.width || 200}px; height: ${props.height || 200}px; object-fit: cover;`;
-            overlayHtml += `  <img id="${obj.id}" src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${styleStr}" />\n`;
+          // Anchored to full-screen camera view edges
+          if (alignment === 'none') {
+            styleStr += `top: ${props.top !== undefined ? props.top + 'px' : '20px'}; left: ${props.left !== undefined ? props.left + 'px' : '20px'}; `;
+          } else {
+            switch (alignment) {
+              case 'top-left':
+                styleStr += `top: ${offsetY}px; left: ${offsetX}px; `;
+                break;
+              case 'top-center':
+                styleStr += `top: ${offsetY}px; left: 50%; transform: translateX(-50%) translateX(${offsetX}px); `;
+                break;
+              case 'top-right':
+                styleStr += `top: ${offsetY}px; right: ${offsetX}px; `;
+                break;
+              case 'center-left':
+                styleStr += `top: 50%; left: ${offsetX}px; transform: translateY(-50%) translateY(${offsetY}px); `;
+                break;
+              case 'center':
+                styleStr += `top: 50%; left: 50%; transform: translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px); `;
+                break;
+              case 'center-right':
+                styleStr += `top: 50%; right: ${offsetX}px; transform: translateY(-50%) translateY(${offsetY}px); `;
+                break;
+              case 'bottom-left':
+                styleStr += `bottom: ${offsetY}px; left: ${offsetX}px; `;
+                break;
+              case 'bottom-center':
+                styleStr += `bottom: ${offsetY}px; left: 50%; transform: translateX(-50%) translateX(${offsetX}px); `;
+                break;
+              case 'bottom-right':
+                styleStr += `bottom: ${offsetY}px; right: ${offsetX}px; `;
+                break;
+            }
           }
+        }
+
+        const overlayId = obj.parentId ? `${obj.id}-overlay` : obj.id;
+
+        if (obj.type === 'overlay2d') {
+          let backgroundStyle = `position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: ${props.backgroundColor || '#000'}; opacity: ${props.opacity ?? 0.5}; pointer-events: auto;`;
+          overlayHtml += `  <div id="${overlayId}" style="${backgroundStyle}"></div>\n`;
+        } else if (obj.type === 'overlayText') {
+          styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; white-space: pre-wrap; font-family: sans-serif; display: flex; align-items: center; justify-content: ${alignment.includes('center') ? 'center' : (alignment.includes('right') ? 'flex-end' : 'flex-start')};`;
+          overlayHtml += `  <div id="${overlayId}" style="${styleStr}">${props.text || 'Text'}</div>\n`;
+        } else if (obj.type === 'overlayButton') {
+          styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border-radius: ${props.borderRadius || 8}px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;`;
+          const onClickAttr = props.url ? ` onclick="window.open('${props.url}', '_blank')"` : '';
+          overlayHtml += `  <button id="${overlayId}" style="${styleStr}"${onClickAttr}>${props.text || 'Button'}</button>\n`;
+        } else if (obj.type === 'overlayImage') {
+          styleStr += `object-fit: cover;`;
+          overlayHtml += `  <img id="${overlayId}" src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${styleStr}" />\n`;
+        } else if (obj.type === 'overlayEmbed') {
+          const showBorder = props.borderEnabled ?? true;
+          styleStr += `background-color: #111; border-radius: ${props.borderRadius || 12}px; overflow: hidden; display: flex; flex-direction: column; `;
+          if (showBorder) {
+            styleStr += `border: 2px solid ${props.borderColor || '#2563eb'}; `;
+          }
+          overlayHtml += `  <div id="${overlayId}" style="${styleStr}">\n`;
+          overlayHtml += `    <div style="background-color: #1a1a1a; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #222; font-family: monospace; font-size: 10px; color: #aaa; flex-shrink: 0;">\n`;
+          overlayHtml += `      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${props.url || 'No URL'}</span>\n`;
+          overlayHtml += `      <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #10b981;"></span>\n`;
+          overlayHtml += `    </div>\n`;
+          overlayHtml += `    <iframe src="${props.url || 'https://wikipedia.org'}" style="flex: 1; border: none; width: 100%; height: 100%;" sandbox="allow-scripts allow-same-origin allow-forms" referrerpolicy="no-referrer"></iframe>\n`;
+          overlayHtml += `  </div>\n`;
         }
       });
       overlayHtml += `</div>\n`;
@@ -977,6 +1038,67 @@ export const generateAFrameScene = (state: any) => {
             if (window.isDuplicateClick && window.isDuplicateClick(this.el)) return;
             playSound();
           });
+        }
+      });
+
+      // Real-time 3D projected overlay alignment system
+      AFRAME.registerComponent('projected-overlay', {
+        schema: {
+          target: { type: 'selector' },
+          alignment: { type: 'string', default: 'none' },
+          offsetX: { type: 'number', default: 0 },
+          offsetY: { type: 'number', default: 0 }
+        },
+        init: function() {
+          this.overlayEl = document.getElementById(this.el.id.replace('-projector', '-overlay'));
+          this.camera = document.querySelector('[camera]')?.components?.camera?.camera;
+        },
+        tick: function() {
+          if (!this.overlayEl) return;
+          if (!this.camera) {
+            this.camera = document.querySelector('[camera]')?.components?.camera?.camera;
+            return;
+          }
+          if (!this.data.target) return;
+          
+          var targetObj = this.data.target.object3D;
+          if (!targetObj) return;
+
+          var tempV = new THREE.Vector3();
+          targetObj.getWorldPosition(tempV);
+          
+          tempV.project(this.camera);
+          
+          if (tempV.z > 1) {
+            this.overlayEl.style.display = 'none';
+            return;
+          }
+          
+          this.overlayEl.style.display = 'flex';
+          var x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
+          var y = (-(tempV.y * 0.5) + 0.5) * window.innerHeight;
+          
+          this.overlayEl.style.left = x + 'px';
+          this.overlayEl.style.top = y + 'px';
+          
+          var ox = this.data.offsetX;
+          var oy = this.data.offsetY;
+          var alignment = this.data.alignment;
+          
+          var tx = -50, ty = -50;
+          switch (alignment) {
+            case 'top-left': tx = -100; ty = -100; break;
+            case 'top-center': tx = -50; ty = -100; break;
+            case 'top-right': tx = 0; ty = -100; break;
+            case 'center-left': tx = -100; ty = -50; break;
+            case 'center': tx = -50; ty = -50; break;
+            case 'center-right': tx = 0; ty = -50; break;
+            case 'bottom-left': tx = -100; ty = 0; break;
+            case 'bottom-center': tx = -50; ty = 0; break;
+            case 'bottom-right': tx = 0; ty = 0; break;
+            default: tx = 0; ty = 0; break;
+          }
+          this.overlayEl.style.transform = 'translate(' + (tx + ox) + '%, ' + (ty + oy) + '%)';
         }
       });
 

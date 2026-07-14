@@ -815,9 +815,52 @@ export const useEditorStore = create<EditorState>((set) => ({
   moveObject: (draggedId, targetId) => set((state) => {
     const newObjects = { ...state.objects };
     const draggedObj = newObjects[draggedId];
-    const targetObj = newObjects[targetId];
 
-    if (!draggedObj || !targetObj) return state;
+    if (!draggedObj) return state;
+
+    if (targetId === 'root') {
+      if (!draggedObj.parentId) return state; // Already at root
+
+      // Save snapshot before mutating hierarchy
+      const snapshot = createSnapshot(state);
+      let newPast = [...state.past, snapshot];
+      if (newPast.length > 50) {
+        newPast = newPast.slice(1);
+      }
+
+      // Reset update cooldown
+      lastEditedObjectId = null;
+      lastSnapshotTime = 0;
+
+      // Remove from old parent
+      if (draggedObj.parentId && newObjects[draggedObj.parentId]) {
+        newObjects[draggedObj.parentId] = {
+          ...newObjects[draggedObj.parentId],
+          children: newObjects[draggedObj.parentId].children.filter(id => id !== draggedId)
+        };
+      }
+
+      const newRootObjects = [...state.rootObjects];
+      if (!newRootObjects.includes(draggedId)) {
+        newRootObjects.push(draggedId);
+      }
+
+      newObjects[draggedId] = {
+        ...draggedObj,
+        parentId: null
+      };
+
+      return {
+        objects: newObjects,
+        rootObjects: newRootObjects,
+        past: newPast,
+        future: [],
+        hasUnsavedChanges: true
+      };
+    }
+
+    const targetObj = newObjects[targetId];
+    if (!targetObj) return state;
     if (draggedId === targetId) return state;
 
     // Prevent cyclic drops
