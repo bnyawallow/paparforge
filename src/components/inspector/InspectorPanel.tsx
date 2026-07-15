@@ -43,6 +43,47 @@ interface MediaAssetPickerProps {
   label?: string;
 }
 
+interface LocalUrlInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}
+
+function LocalUrlInput({ value, onChange, placeholder = "https://wikipedia.org" }: LocalUrlInputProps) {
+  const [localVal, setLocalVal] = useState(value);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (localVal !== value) {
+      onChange(localVal);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (localVal !== value) {
+        onChange(localVal);
+      }
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={localVal}
+      onChange={(e) => setLocalVal(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+    />
+  );
+}
+
 export function MediaAssetPicker({ value, onChange, type, accept, placeholder = "Paste URL or Select...", label }: MediaAssetPickerProps) {
   const [uploading, setUploading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -226,6 +267,9 @@ import {
   Moon,
   Search,
   ChevronDown,
+  ChevronUp,
+  ChevronsUp,
+  ChevronsDown,
   ChevronRight,
   Edit2,
   Lightbulb,
@@ -820,6 +864,8 @@ export function InspectorPanel({ width }: { width?: number }) {
   };
 
   const obj = selectedObjectId ? objects[selectedObjectId] : null;
+  const parentObj = obj?.parentId ? objects[obj.parentId] : null;
+  const isParentAutoLayout = parentObj && parentObj.type === 'overlay2d' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
   const handleVectorChange = (prop: 'position' | 'rotation' | 'scale', index: number, value: string) => {
     if (!obj) return;
@@ -1507,7 +1553,7 @@ export function InspectorPanel({ width }: { width?: number }) {
   return (
     <aside 
       style={{ width: width ? `${width}px` : '288px' }}
-      className="border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-hidden"
+      className="border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-hidden relative z-30"
     >
       {/* Tab Switcher */}
       <div className="flex border-b border-[#2A2A2A] shrink-0 bg-[#0F0F0F]">
@@ -1694,13 +1740,13 @@ export function InspectorPanel({ width }: { width?: number }) {
               <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
             </div>
           </div>
-          {obj.type === 'group' && (
+          {(obj.type === 'group' || (obj.type === 'overlay2d' && obj.name === 'HUD Group')) && (
             <button
               onClick={() => ungroupObject(selectedObjectId)}
               className="flex items-center justify-center gap-1.5 p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider transition-colors"
             >
               <FolderMinus size={12} />
-              Ungroup Objects
+              Ungroup HUD Elements
             </button>
           )}
         </div>
@@ -3713,15 +3759,143 @@ export function InspectorPanel({ width }: { width?: number }) {
                   </div>
                   
                   {obj.type === 'overlay2d' && (
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] text-[#666] font-medium">Background Color</label>
-                      <input 
-                        type="color" 
-                        value={obj.properties.backgroundColor || '#000000'}
-                        onChange={(e) => handlePropertyChange('backgroundColor', e.target.value)}
-                        className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
-                      />
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-[#666] font-medium">Background Color</label>
+                        <input 
+                          type="color" 
+                          value={obj.properties.backgroundColor || '#000000'}
+                          onChange={(e) => handlePropertyChange('backgroundColor', e.target.value)}
+                          className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[#666]">Opacity</span>
+                          <span className="text-cyan-400 font-mono">{(obj.properties.opacity ?? 0.5).toFixed(2)}</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="1" 
+                          step="0.01" 
+                          value={obj.properties.opacity ?? 0.5} 
+                          onChange={(e) => handlePropertyChange('opacity', parseFloat(e.target.value))}
+                          className="accent-cyan-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[#666]">Backdrop Blur (px)</span>
+                          <span className="text-cyan-400 font-mono">{obj.properties.blur ?? 0}</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="20" 
+                          step="1" 
+                          value={obj.properties.blur ?? 0} 
+                          onChange={(e) => handlePropertyChange('blur', parseInt(e.target.value, 10))}
+                          className="accent-cyan-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Auto Layout section */}
+                      <div className="border-t border-cyan-500/10 mt-3 pt-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">Auto Layout Flow</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] text-[#666] font-medium">Alignment Flow</label>
+                          <div className="flex bg-[#0A0A0A] p-0.5 rounded border border-[#222]">
+                            {(['none', 'row', 'column'] as const).map((mode) => (
+                              <button
+                                key={mode}
+                                onClick={() => handlePropertyChange('layoutMode', mode)}
+                                className={cn(
+                                  "px-2 py-1 text-[9px] font-bold rounded uppercase transition-all cursor-pointer",
+                                  (obj.properties.layoutMode || 'none') === mode
+                                    ? "bg-cyan-600 text-white font-extrabold shadow-sm"
+                                    : "text-[#666] hover:text-gray-300"
+                                )}
+                              >
+                                {mode === 'none' ? 'Free' : mode}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {(obj.properties.layoutMode === 'row' || obj.properties.layoutMode === 'column') && (
+                          <>
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] text-[#666] font-medium">Padding (px)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={obj.properties.layoutPadding ?? 16}
+                                  onChange={(e) => handlePropertyChange('layoutPadding', Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] text-[#666] font-medium">Gap (px)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={obj.properties.layoutGap ?? 8}
+                                  onChange={(e) => handlePropertyChange('layoutGap', Math.max(0, parseInt(e.target.value) || 0))}
+                                  className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-1">
+                              <label className="text-[10px] text-[#666] font-medium">Cross Align</label>
+                              <select
+                                value={obj.properties.layoutAlignItems || 'center'}
+                                onChange={(e) => handlePropertyChange('layoutAlignItems', e.target.value)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                              >
+                                <option value="flex-start">Start</option>
+                                <option value="center">Center</option>
+                                <option value="flex-end">End</option>
+                                <option value="stretch">Stretch</option>
+                              </select>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] text-[#666] font-medium">Main Align</label>
+                              <select
+                                value={obj.properties.layoutJustifyContent || 'flex-start'}
+                                onChange={(e) => handlePropertyChange('layoutJustifyContent', e.target.value)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                              >
+                                <option value="flex-start">Start</option>
+                                <option value="center">Center</option>
+                                <option value="flex-end">End</option>
+                                <option value="space-between">Space Between</option>
+                                <option value="space-around">Space Around</option>
+                              </select>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] text-[#666] font-medium">Wrap Content</label>
+                              <select
+                                value={obj.properties.layoutWrap || 'nowrap'}
+                                onChange={(e) => handlePropertyChange('layoutWrap', e.target.value)}
+                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                              >
+                                <option value="nowrap">No Wrap</option>
+                                <option value="wrap">Wrap</option>
+                              </select>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
                   )}
 
                   {obj.type === 'overlayText' && (
@@ -3768,12 +3942,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                       </div>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Action URL</label>
-                        <input
-                          type="text"
+                        <LocalUrlInput
                           value={obj.properties.url || ''}
-                          onChange={(e) => handlePropertyChange('url', e.target.value)}
+                          onChange={(val) => handlePropertyChange('url', val)}
                           placeholder="https://"
-                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         />
                       </div>
                       <div className="flex items-center justify-between mt-1">
@@ -3813,12 +3985,9 @@ export function InspectorPanel({ width }: { width?: number }) {
                     <>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Embed Web URL</label>
-                        <input
-                          type="text"
+                        <LocalUrlInput
                           value={obj.properties.url || ''}
-                          onChange={(e) => handlePropertyChange('url', e.target.value)}
-                          placeholder="https://wikipedia.org"
-                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          onChange={(val) => handlePropertyChange('url', val)}
                         />
                       </div>
                       <div className="flex items-center justify-between mt-1">
@@ -3915,27 +4084,34 @@ export function InspectorPanel({ width }: { width?: number }) {
                   )}
 
                   {obj.type !== 'overlay2d' && !(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
-                    <div className="flex gap-2 mt-2">
-                      <div className="flex flex-col gap-1 flex-1">
-                        <label className="text-[10px] text-[#666] font-medium">Top (px - legacy)</label>
-                        <input 
-                          type="number"
-                          value={obj.properties.top || 0}
-                          onChange={(e) => handlePropertyChange('top', parseFloat(e.target.value))}
-                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                          disabled={obj.properties.alignment !== 'none'}
-                        />
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      <div className="flex gap-2">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Top (px - legacy)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.top || 0}
+                            onChange={(e) => handlePropertyChange('top', parseFloat(e.target.value))}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={obj.properties.alignment !== 'none' || isParentAutoLayout}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Left (px - legacy)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.left || 0}
+                            onChange={(e) => handlePropertyChange('left', parseFloat(e.target.value))}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={obj.properties.alignment !== 'none' || isParentAutoLayout}
+                          />
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1 flex-1">
-                        <label className="text-[10px] text-[#666] font-medium">Left (px - legacy)</label>
-                        <input 
-                          type="number"
-                          value={obj.properties.left || 0}
-                          onChange={(e) => handlePropertyChange('left', parseFloat(e.target.value))}
-                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                          disabled={obj.properties.alignment !== 'none'}
-                        />
-                      </div>
+                      {isParentAutoLayout && (
+                        <span className="text-[9px] text-amber-500/80 mt-1 italic">
+                          Position auto-managed by parent's Auto-Layout Flow ({parentObj.properties.layoutMode.toUpperCase()})
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -4064,6 +4240,74 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <span className="text-[8px] text-gray-600 mt-0.5">Drag under a 3D target in the Hierarchy panel to bind.</span>
                       </div>
                     )}
+                  </div>
+
+                  {/* Z-Index & Layering Management Tool */}
+                  <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                    <label className="text-[10px] text-cyan-400 font-bold tracking-wider">LAYERING & Z-INDEX</label>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-gray-400">Current Layer (Z-Index)</span>
+                      <input 
+                        type="number"
+                        min="0"
+                        max="1000000"
+                        value={obj.properties.zIndex ?? 1}
+                        onChange={(e) => handlePropertyChange('zIndex', parseInt(e.target.value, 10) || 0)}
+                        className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-20 border border-[#222] text-white focus:border-cyan-500 outline-none font-mono text-center"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 mt-1">
+                      <button
+                        title="Send to Back"
+                        onClick={() => {
+                          const current2DObjects = Object.values(objects).filter((o: any) =>
+                            ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type)
+                          );
+                          const minZ = current2DObjects.reduce((min, o) => Math.min(min, o.properties.zIndex ?? 1), 1);
+                          handlePropertyChange('zIndex', Math.max(0, minZ - 10));
+                        }}
+                        className="flex flex-col items-center justify-center py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] border border-[#222] rounded transition-all text-[#AAA] hover:text-white"
+                      >
+                        <ChevronsDown size={14} />
+                        <span className="text-[7px] mt-0.5 font-semibold uppercase">Back</span>
+                      </button>
+                      <button
+                        title="Send Backward"
+                        onClick={() => {
+                          const currentZ = obj.properties.zIndex ?? 1;
+                          handlePropertyChange('zIndex', Math.max(0, currentZ - 1));
+                        }}
+                        className="flex flex-col items-center justify-center py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] border border-[#222] rounded transition-all text-[#AAA] hover:text-white"
+                      >
+                        <ChevronDown size={14} />
+                        <span className="text-[7px] mt-0.5 font-semibold uppercase">Down</span>
+                      </button>
+                      <button
+                        title="Bring Forward"
+                        onClick={() => {
+                          const currentZ = obj.properties.zIndex ?? 1;
+                          handlePropertyChange('zIndex', currentZ + 1);
+                        }}
+                        className="flex flex-col items-center justify-center py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] border border-[#222] rounded transition-all text-[#AAA] hover:text-white"
+                      >
+                        <ChevronUp size={14} />
+                        <span className="text-[7px] mt-0.5 font-semibold uppercase">Up</span>
+                      </button>
+                      <button
+                        title="Bring to Front"
+                        onClick={() => {
+                          const current2DObjects = Object.values(objects).filter((o: any) =>
+                            ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type)
+                          );
+                          const maxZ = current2DObjects.reduce((max, o) => Math.max(max, o.properties.zIndex ?? 1), 1);
+                          handlePropertyChange('zIndex', maxZ + 10);
+                        }}
+                        className="flex flex-col items-center justify-center py-1.5 bg-[#1F1F1F] hover:bg-[#2A2A2A] border border-[#222] rounded transition-all text-[#AAA] hover:text-white"
+                      >
+                        <ChevronsUp size={14} />
+                        <span className="text-[7px] mt-0.5 font-semibold uppercase">Front</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-cyan-500/10">

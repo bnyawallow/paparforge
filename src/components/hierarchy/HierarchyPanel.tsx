@@ -25,10 +25,15 @@ import {
   Lightbulb,
   MousePointer,
   Video,
-  Globe
+  Globe,
+  Sparkles,
+  LayoutGrid,
+  Layers,
+  ArrowRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
+import { PREBUILT_TEMPLATES, instantiateTemplate } from '../../utils/prebuiltTemplates';
 
 export function HierarchyPanel({ width }: { width?: number }) {
   const { 
@@ -48,6 +53,9 @@ export function HierarchyPanel({ width }: { width?: number }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<'hierarchy' | 'library'>('hierarchy');
+  const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -162,8 +170,13 @@ export function HierarchyPanel({ width }: { width?: number }) {
     e.stopPropagation();
     setDragOverId(null);
     const draggedId = e.dataTransfer.getData('text/plain');
-    if (draggedId && draggedId !== targetId) {
-      moveObject(draggedId, targetId);
+    if (draggedId) {
+      if (draggedId.startsWith('template:')) {
+        const templateId = draggedId.replace('template:', '');
+        instantiateTemplate(templateId, targetId);
+      } else if (draggedId !== targetId) {
+        moveObject(draggedId, targetId);
+      }
     }
   };
 
@@ -199,6 +212,26 @@ export function HierarchyPanel({ width }: { width?: number }) {
 
   const handleExpandAll = () => {
     setCollapsedIds({});
+  };
+
+  const toggleLockRecursive = (itemId: string, newLockedState: boolean) => {
+    updateObject(itemId, { locked: newLockedState });
+    const childIds = Object.values(objects)
+      .filter((o: any) => o.parentId === itemId)
+      .map((o: any) => o.id);
+    childIds.forEach(childId => {
+      toggleLockRecursive(childId, newLockedState);
+    });
+  };
+
+  const toggleVisibilityRecursive = (itemId: string, newVisibleState: boolean) => {
+    updateObject(itemId, { visible: newVisibleState });
+    const childIds = Object.values(objects)
+      .filter((o: any) => o.parentId === itemId)
+      .map((o: any) => o.id);
+    childIds.forEach(childId => {
+      toggleVisibilityRecursive(childId, newVisibleState);
+    });
   };
 
   const renderSubObjectNode = (modelId: string, node: any, depth: number): React.ReactNode => {
@@ -386,13 +419,13 @@ export function HierarchyPanel({ width }: { width?: number }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                updateObject(id, { locked: !obj.locked });
+                toggleLockRecursive(id, !obj.locked);
               }}
               className={cn(
                 "p-1 rounded hover:bg-[#2A2A2A] transition-colors",
                 obj.locked ? "text-red-400 opacity-100" : "text-[#555] hover:text-white"
               )}
-              title={obj.locked ? "Unlock object transforms" : "Lock object transforms"}
+              title={obj.locked ? "Unlock object transforms and children" : "Lock object transforms and children"}
             >
               {obj.locked ? <Lock size={11} /> : <Unlock size={11} />}
             </button>
@@ -401,13 +434,13 @@ export function HierarchyPanel({ width }: { width?: number }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                updateObject(id, { visible: !obj.visible });
+                toggleVisibilityRecursive(id, !obj.visible);
               }}
               className={cn(
                 "p-1 rounded hover:bg-[#2A2A2A] transition-colors",
                 !obj.visible ? "text-orange-400 opacity-100" : "text-[#555] hover:text-white"
               )}
-              title={obj.visible ? "Hide object" : "Show object"}
+              title={obj.visible ? "Hide object and children" : "Show object and children"}
             >
               {obj.visible ? <EyeOff size={11} /> : <Eye size={11} />}
             </button>
@@ -454,9 +487,39 @@ export function HierarchyPanel({ width }: { width?: number }) {
   return (
     <aside 
       style={{ width: width ? `${width}px` : '240px' }}
-      className="border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0"
+      className="border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0 relative z-30"
     >
-      <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
+      {/* Visual Tab Bar */}
+      <div className="flex border-b border-[#2A2A2A] bg-[#0E0E0E] shrink-0 select-none">
+        <button
+          onClick={() => setActiveTab('hierarchy')}
+          className={cn(
+            "flex-1 py-2.5 text-[10px] uppercase tracking-wider font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+            activeTab === 'hierarchy' 
+              ? "border-cyan-500 text-cyan-400 bg-cyan-950/5 font-semibold" 
+              : "border-transparent text-[#666] hover:text-[#999]"
+          )}
+        >
+          <Layers size={11} className={activeTab === 'hierarchy' ? 'text-cyan-400' : 'text-[#666]'} />
+          <span>Hierarchy</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('library')}
+          className={cn(
+            "flex-1 py-2.5 text-[10px] uppercase tracking-wider font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+            activeTab === 'library' 
+              ? "border-cyan-500 text-cyan-400 bg-cyan-950/5 font-semibold" 
+              : "border-transparent text-[#666] hover:text-[#999]"
+          )}
+        >
+          <Sparkles size={11} className={activeTab === 'library' ? 'text-cyan-400' : 'text-[#666]'} />
+          <span>Templates</span>
+        </button>
+      </div>
+
+      {activeTab === 'hierarchy' ? (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
         <span className="text-[10px] uppercase tracking-widest font-bold text-[#666]">Hierarchy</span>
         <div className="flex items-center gap-2">
           <button 
@@ -477,7 +540,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
       </div>
 
       {/* Selection context actions (Group / Ungroup) */}
-      {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && objects[selectedObjectId]?.type === 'group'))) && (
+      {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group'))))) && (
         <div className="p-2 border-b border-[#2A2A2A] bg-[#1a1a1a] flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
           {selectedObjectIds.length > 1 && (
             <button
@@ -489,7 +552,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
               <span>Group ({selectedObjectIds.length})</span>
             </button>
           )}
-          {selectedObjectId && objects[selectedObjectId]?.type === 'group' && (
+          {selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group')) && (
             <button
               onClick={() => ungroupObject(selectedObjectId)}
               className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-amber-600/25 hover:bg-amber-600/35 border border-amber-500/35 text-amber-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
@@ -744,12 +807,128 @@ export function HierarchyPanel({ width }: { width?: number }) {
           e.stopPropagation();
           const draggedId = e.dataTransfer.getData('text/plain');
           if (draggedId) {
-            moveObject(draggedId, 'root');
+            if (draggedId.startsWith('template:')) {
+              const templateId = draggedId.replace('template:', '');
+              instantiateTemplate(templateId);
+            } else {
+              moveObject(draggedId, 'root');
+            }
           }
         }}
       >
         {rootObjects.map(id => renderItem(id))}
       </div>
+        </div>
+      ) : (
+        /* Library Tab View */
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Filters Bar */}
+          <div className="p-2 border-b border-[#2A2A2A] bg-[#111] flex flex-col gap-2 shrink-0 select-none">
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search templates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#181818] border border-[#2A2A2A] rounded-md px-2 py-1 text-[11px] text-[#DDD] focus:border-cyan-500 focus:outline-none"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1.5 text-[#555] hover:text-white text-[9px] font-bold"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Category Selectors */}
+            <div className="flex bg-[#161616] p-0.5 rounded-lg border border-[#222]">
+              {(['All', '2D HUD', '3D Scene'] as const).map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setFilterType(cat)}
+                  className={cn(
+                    "flex-1 py-1 text-[9px] font-bold tracking-wider rounded-md uppercase transition-all cursor-pointer",
+                    filterType === cat
+                      ? "bg-[#252525] text-cyan-400 border border-cyan-500/10"
+                      : "text-[#555] hover:text-[#999]"
+                  )}
+                >
+                  {cat === 'All' ? 'All' : cat === '2D HUD' ? '2D' : '3D'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Library Cards Grid */}
+          <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-2 bg-[#121212]">
+            {PREBUILT_TEMPLATES.filter(t => {
+              const matchesFilter = filterType === 'All' || t.type === filterType;
+              const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                    t.description.toLowerCase().includes(searchQuery.toLowerCase());
+              return matchesFilter && matchesSearch;
+            }).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                <LayoutGrid size={24} className="text-[#333] mb-2 animate-pulse" />
+                <span className="text-[10px] text-[#444] font-semibold uppercase tracking-wider">No templates found</span>
+              </div>
+            ) : (
+              PREBUILT_TEMPLATES.filter(t => {
+                const matchesFilter = filterType === 'All' || t.type === filterType;
+                const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                      t.description.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesFilter && matchesSearch;
+              }).map(t => (
+                <div
+                  key={t.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', `template:${t.id}`);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  className="group relative flex flex-col p-3 bg-[#1A1A1A]/80 hover:bg-[#202020] border border-[#262626] hover:border-cyan-500/30 rounded-xl transition-all duration-200 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-cyan-950/10 hover:shadow-lg"
+                  title="Drag this item onto the hierarchy tree or viewport canvas, or click to add."
+                >
+                  {/* Category Indicator Badge */}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={cn(
+                      "text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-widest",
+                      t.type === '2D HUD' 
+                        ? "bg-cyan-950/40 text-cyan-400 border border-cyan-500/20" 
+                        : "bg-indigo-950/40 text-indigo-400 border border-indigo-500/20"
+                    )}>
+                      {t.type}
+                    </span>
+                    <span className="text-[8px] font-mono text-[#555] group-hover:text-cyan-500/60 transition-colors">
+                      {t.objectType}
+                    </span>
+                  </div>
+
+                  {/* Title & Desc */}
+                  <h3 className="text-xs font-bold text-[#E2E2E2] group-hover:text-white transition-colors">{t.name}</h3>
+                  <p className="text-[10px] text-[#777] leading-relaxed mt-1 group-hover:text-[#A0A0A0] transition-colors">{t.description}</p>
+
+                  {/* Drag to Placement Prompt & Quick Add Button */}
+                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[#262626]/60">
+                    <span className="text-[8px] text-[#444] group-hover:text-[#666] font-semibold tracking-wider flex items-center gap-1">
+                      Drag to canvas or hierarchy
+                    </span>
+                    <button
+                      onClick={() => instantiateTemplate(t.id)}
+                      className="px-2.5 py-1 bg-[#222] hover:bg-cyan-500 text-[#999] hover:text-slate-950 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer hover:shadow-md hover:scale-102"
+                    >
+                      <span>Add</span>
+                      <ArrowRight size={10} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

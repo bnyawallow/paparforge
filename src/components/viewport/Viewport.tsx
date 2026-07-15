@@ -2442,7 +2442,7 @@ export function Viewport() {
       </Canvas>
       <Overlay2DRenderer isPreviewMode={false} />
 
-      <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-[#141414]/90 p-1.5 rounded-lg border border-[#2A2A2A] shadow-2xl backdrop-blur-md">
+      <div className="absolute bottom-4 right-4 z-40 flex items-center gap-2 bg-[#141414]/90 p-1.5 rounded-lg border border-[#2A2A2A] shadow-2xl backdrop-blur-md pointer-events-auto">
         {/* Transform Mode & Space Buttons Group */}
         <div className="flex gap-1 border-r border-[#2A2A2A] pr-2 mr-1">
           <button 

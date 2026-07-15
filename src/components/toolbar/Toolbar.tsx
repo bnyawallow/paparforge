@@ -62,7 +62,7 @@ export function Toolbar() {
 
   return (
     <>
-      <div className="h-14 border-b border-[#2A2A2A] bg-[#141414] flex items-center justify-between px-4 shrink-0">
+      <div className="h-14 border-b border-[#2A2A2A] bg-[#141414] flex items-center justify-between px-4 shrink-0 relative z-30">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/10">AF</div>

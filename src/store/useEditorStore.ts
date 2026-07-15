@@ -646,58 +646,140 @@ export const useEditorStore = create<EditorState>((set) => ({
     lastEditedObjectId = null;
     lastSnapshotTime = 0;
 
-    let sumX = 0, sumY = 0, sumZ = 0;
-    let count = 0;
-    topSelectedIds.forEach(id => {
-      const obj = state.objects[id];
-      if (obj) {
-        sumX += obj.position[0];
-        sumY += obj.position[1];
-        sumZ += obj.position[2];
-        count++;
-      }
+    // Check if the selection consists of 2D overlays
+    const is2DSelection = topSelectedIds.every(id => {
+      const o = state.objects[id];
+      return o && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type);
     });
 
-    const centerX = count > 0 ? sumX / count : 0;
-    const centerY = count > 0 ? sumY / count : 0;
-    const centerZ = count > 0 ? sumZ / count : 0;
-
     const groupId = uuidv4();
-    const groupName = "Grouped Objects";
-    
+    let groupObj: SceneObject;
+    const newObjects = { ...state.objects };
+
     const firstParentId = state.objects[topSelectedIds[0]]?.parentId || null;
     const allShareSameParent = topSelectedIds.every(id => state.objects[id]?.parentId === firstParentId);
     const groupParentId = allShareSameParent ? firstParentId : null;
 
-    const groupObj: SceneObject = {
-      id: groupId,
-      name: groupName,
-      type: 'group',
-      position: [centerX, centerY, centerZ],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1],
-      visible: true,
-      children: [...topSelectedIds],
-      parentId: groupParentId,
-      properties: {}
-    };
+    if (is2DSelection) {
+      // 2D Layout Grouping
+      let minLeft = Infinity;
+      let minTop = Infinity;
+      let maxRight = -Infinity;
+      let maxBottom = -Infinity;
 
-    const newObjects = { ...state.objects, [groupId]: groupObj };
+      topSelectedIds.forEach(id => {
+        const child = state.objects[id];
+        if (child) {
+          const cl = child.properties?.left !== undefined ? child.properties.left : 20;
+          const ct = child.properties?.top !== undefined ? child.properties.top : 20;
+          const cw = child.properties?.width !== undefined ? child.properties.width : (child.type === 'overlayImage' ? 200 : (child.type === 'overlayEmbed' ? 400 : 150));
+          const ch = child.properties?.height !== undefined ? child.properties.height : (child.type === 'overlayImage' ? 200 : (child.type === 'overlayEmbed' ? 300 : 40));
 
-    topSelectedIds.forEach(id => {
-      const child = newObjects[id];
-      if (child) {
-        newObjects[id] = {
-          ...child,
-          parentId: groupId,
-          position: [
-            child.position[0] - centerX,
-            child.position[1] - centerY,
-            child.position[2] - centerZ
-          ]
-        };
+          if (cl < minLeft) minLeft = cl;
+          if (ct < minTop) minTop = ct;
+          if (cl + cw > maxRight) maxRight = cl + cw;
+          if (ct + ch > maxBottom) maxBottom = ct + ch;
+        }
+      });
+
+      if (minLeft === Infinity) {
+        minLeft = 20;
+        minTop = 20;
+        maxRight = 170;
+        maxBottom = 60;
       }
-    });
+
+      const groupW = maxRight - minLeft;
+      const groupH = maxBottom - minTop;
+
+      groupObj = {
+        id: groupId,
+        name: "HUD Group",
+        type: 'overlay2d',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [...topSelectedIds],
+        parentId: groupParentId,
+        properties: {
+          backgroundColor: '#000000',
+          opacity: 0.0, // Transparent container acting as folder
+          alignment: 'none',
+          left: minLeft,
+          top: minTop,
+          width: groupW,
+          height: groupH,
+          widthType: 'px',
+          heightType: 'px'
+        }
+      };
+
+      newObjects[groupId] = groupObj;
+
+      topSelectedIds.forEach(id => {
+        const child = newObjects[id];
+        if (child) {
+          newObjects[id] = {
+            ...child,
+            parentId: groupId,
+            properties: {
+              ...child.properties,
+              left: (child.properties?.left !== undefined ? child.properties.left : 20) - minLeft,
+              top: (child.properties?.top !== undefined ? child.properties.top : 20) - minTop,
+              alignment: 'none'
+            }
+          };
+        }
+      });
+    } else {
+      // Standard 3D Grouping
+      let sumX = 0, sumY = 0, sumZ = 0;
+      let count = 0;
+      topSelectedIds.forEach(id => {
+        const obj = state.objects[id];
+        if (obj) {
+          sumX += obj.position[0];
+          sumY += obj.position[1];
+          sumZ += obj.position[2];
+          count++;
+        }
+      });
+
+      const centerX = count > 0 ? sumX / count : 0;
+      const centerY = count > 0 ? sumY / count : 0;
+      const centerZ = count > 0 ? sumZ / count : 0;
+
+      groupObj = {
+        id: groupId,
+        name: "Grouped Objects",
+        type: 'group',
+        position: [centerX, centerY, centerZ],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [...topSelectedIds],
+        parentId: groupParentId,
+        properties: {}
+      };
+
+      newObjects[groupId] = groupObj;
+
+      topSelectedIds.forEach(id => {
+        const child = newObjects[id];
+        if (child) {
+          newObjects[id] = {
+            ...child,
+            parentId: groupId,
+            position: [
+              child.position[0] - centerX,
+              child.position[1] - centerY,
+              child.position[2] - centerZ
+            ]
+          };
+        }
+      });
+    }
 
     let newRootObjects = [...state.rootObjects];
     if (groupParentId && newObjects[groupParentId]) {
@@ -743,7 +825,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   ungroupObject: (groupId) => set((state) => {
     const groupObj = state.objects[groupId];
-    if (!groupObj || groupObj.type !== 'group') return state;
+    if (!groupObj || (groupObj.type !== 'group' && groupObj.type !== 'overlay2d')) return state;
 
     const snapshot = createSnapshot(state);
     let newPast = [...state.past, snapshot];
@@ -757,21 +839,37 @@ export const useEditorStore = create<EditorState>((set) => ({
     const newObjects = { ...state.objects };
     const childIds = [...groupObj.children];
     const parentId = groupObj.parentId;
+    const is2DUngroup = groupObj.type === 'overlay2d';
 
     delete newObjects[groupId];
 
     childIds.forEach(childId => {
       const child = newObjects[childId];
       if (child) {
-        newObjects[childId] = {
-          ...child,
-          parentId: parentId,
-          position: [
-            child.position[0] + groupObj.position[0],
-            child.position[1] + groupObj.position[1],
-            child.position[2] + groupObj.position[2]
-          ]
-        };
+        if (is2DUngroup) {
+          const groupLeft = groupObj.properties?.left || 0;
+          const groupTop = groupObj.properties?.top || 0;
+          newObjects[childId] = {
+            ...child,
+            parentId: parentId,
+            properties: {
+              ...child.properties,
+              left: (child.properties?.left !== undefined ? child.properties.left : 20) + groupLeft,
+              top: (child.properties?.top !== undefined ? child.properties.top : 20) + groupTop,
+              alignment: 'none'
+            }
+          };
+        } else {
+          newObjects[childId] = {
+            ...child,
+            parentId: parentId,
+            position: [
+              child.position[0] + groupObj.position[0],
+              child.position[1] + groupObj.position[1],
+              child.position[2] + groupObj.position[2]
+            ]
+          };
+        }
       }
     });
 

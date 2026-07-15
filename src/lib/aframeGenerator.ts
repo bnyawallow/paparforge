@@ -301,8 +301,8 @@ export const generateAFrameScene = (state: any) => {
       const alignment = props.alignment || 'none';
       const widthType = props.widthType || 'px';
       const heightType = props.heightType || 'px';
-      const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : 150);
-      const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : 40);
+      const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 400 : 150));
+      const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 300 : 40));
       const widthStr = widthType === '%' ? `${widthVal}%` : `${widthVal}px`;
       const heightStr = heightType === '%' ? `${heightVal}%` : `${heightVal}px`;
       const opacity = props.opacity ?? 1;
@@ -364,6 +364,19 @@ export const generateAFrameScene = (state: any) => {
         }
       }
 
+      styleStr += `z-index: ${props.zIndex ?? 1}; `;
+
+      const scaleX = obj.scale ? (obj.scale[0] ?? 1) : 1;
+      const scaleY = obj.scale ? (obj.scale[1] ?? 1) : 1;
+      if (scaleX !== 1 || scaleY !== 1) {
+        if (styleStr.includes('transform:')) {
+          styleStr = styleStr.replace(/transform:\s*([^;]+);/, (match, p1) => `transform: ${p1} scale(${scaleX}, ${scaleY});`);
+        } else {
+          styleStr += `transform: scale(${scaleX}, ${scaleY}); `;
+        }
+        styleStr += `transform-origin: center center; `;
+      }
+
       const overlayId = (obj.parentId && !parentIs2D) ? `${obj.id}-overlay` : obj.id;
       
       // Render recursive child HTML
@@ -403,7 +416,7 @@ export const generateAFrameScene = (state: any) => {
           embedHtml += `      <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #10b981;"></span>\n`;
           embedHtml += `    </div>\n`;
         }
-        embedHtml += `    <div style="flex: 1; width: 100%; height: 100%; position: relative; overflow: hidden;">\n`;
+        embedHtml += `    <div style="flex: 1; width: 100%; height: 100%; position: relative; overflow: hidden; min-h: 0;">\n`;
         embedHtml += `      <iframe src="${props.url || 'https://wikipedia.org'}" style="position: absolute; inset: 0; border: none; width: 100%; height: 100%;" sandbox="allow-scripts allow-same-origin allow-forms" referrerpolicy="no-referrer"></iframe>\n`;
         embedHtml += `    </div>\n`;
         embedHtml += `${childrenHtml}\n`;

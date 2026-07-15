@@ -5,6 +5,7 @@ import { Settings, Grid3X3, Check, Globe, ExternalLink, X } from 'lucide-react';
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
   const { objects, selectedObjectId, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize } = useEditorStore();
   const [showGridSettings, setShowGridSettings] = React.useState(false);
+  const [activeSnapLines, setActiveSnapLines] = React.useState<Array<{ type: 'v' | 'h'; coord: number }>>([]);
   const [draggingObj, setDraggingObj] = React.useState<{
     id: string;
     startX: number;
@@ -14,6 +15,17 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
     isAligned: boolean;
     startOffsetX: number;
     startOffsetY: number;
+  } | null>(null);
+
+  const [resizingObj, setResizingObj] = React.useState<{
+    id: string;
+    edge: string;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    startLeft: number;
+    startTop: number;
   } | null>(null);
 
   // High-frequency frame loop to update positions of 2D elements anchored to 3D targets
@@ -34,6 +46,13 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (draggingObj) {
+        const dragObj = useEditorStore.getState().objects[draggingObj.id];
+        const dragParentObj = dragObj?.parentId ? useEditorStore.getState().objects[dragObj.parentId] : null;
+        const dragParentIsAutoLayout = dragParentObj && dragParentObj.type === 'overlay2d' && ['row', 'column'].includes(dragParentObj.properties?.layoutMode || '');
+        if (dragParentIsAutoLayout) {
+          return;
+        }
+
         const deltaX = e.clientX - draggingObj.startX;
         const deltaY = e.clientY - draggingObj.startY;
 
@@ -48,7 +67,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
           updateObject(draggingObj.id, {
             properties: {
-              ...objects[draggingObj.id].properties,
+              ...useEditorStore.getState().objects[draggingObj.id].properties,
               offsetX: newOffsetX,
               offsetY: newOffsetY
             }
@@ -56,28 +75,182 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
         } else {
           let newLeft = draggingObj.startLeft + deltaX;
           let newTop = draggingObj.startTop + deltaY;
-          
-          if (overlayGridEnabled) {
+
+          const dragId = draggingObj.id;
+          const dragObj = useEditorStore.getState().objects[dragId];
+          const dragProps = dragObj?.properties || {};
+          const dragWidth = dragProps.width !== undefined ? dragProps.width : (dragObj.type === 'overlayImage' ? 200 : (dragObj.type === 'overlayEmbed' ? 400 : 150));
+          const dragHeight = dragProps.height !== undefined ? dragProps.height : (dragObj.type === 'overlayImage' ? 200 : (dragObj.type === 'overlayEmbed' ? 300 : 40));
+
+          // Retrieve parent width/height if parenting is active
+          let parentW = 0;
+          let parentH = 0;
+          if (dragObj?.parentId) {
+            const parentObj = useEditorStore.getState().objects[dragObj.parentId];
+            if (parentObj && parentObj.type === 'overlay2d') {
+              parentW = parentObj.properties?.width || 0;
+              parentH = parentObj.properties?.height || 0;
+            }
+          }
+
+          // Filter for snap candidates at same hierarchical level
+          const isDescendant = (childId: string, parentId: string): boolean => {
+            let curr = useEditorStore.getState().objects[childId];
+            while (curr && curr.parentId) {
+              if (curr.parentId === parentId) return true;
+              curr = useEditorStore.getState().objects[curr.parentId];
+            }
+            return false;
+          };
+
+          const otherOverlays = Object.values(useEditorStore.getState().objects).filter((o: any) => 
+            ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type) &&
+            o.id !== dragId && 
+            o.visible !== false &&
+            !isDescendant(o.id, dragId) && 
+            o.parentId === dragObj.parentId
+          );
+
+          let bestDeltaX = 8; // Snap threshold
+          let bestSnapX: number | null = null;
+          let bestLineX: number | null = null;
+
+          let bestDeltaY = 8;
+          let bestSnapY: number | null = null;
+          let bestLineY: number | null = null;
+
+          const targetsX: number[] = [];
+          const targetsY: number[] = [];
+
+          if (parentW > 0) {
+            targetsX.push(0, parentW / 2, parentW);
+          }
+          if (parentH > 0) {
+            targetsY.push(0, parentH / 2, parentH);
+          }
+
+          otherOverlays.forEach((o: any) => {
+            const oLeft = o.properties?.left ?? 20;
+            const oWidth = o.properties?.width ?? (o.type === 'overlayImage' ? 200 : (o.type === 'overlayEmbed' ? 400 : 150));
+            targetsX.push(oLeft, oLeft + oWidth / 2, oLeft + oWidth);
+
+            const oTop = o.properties?.top ?? 20;
+            const oHeight = o.properties?.height ?? (o.type === 'overlayImage' ? 200 : (o.type === 'overlayEmbed' ? 300 : 40));
+            targetsY.push(oTop, oTop + oHeight / 2, oTop + oHeight);
+          });
+
+          // Horizontal/Vertical snapping checks
+          targetsX.forEach(tx => {
+            const dLeft = Math.abs(newLeft - tx);
+            if (dLeft < bestDeltaX) {
+              bestDeltaX = dLeft;
+              bestSnapX = tx;
+              bestLineX = tx;
+            }
+            const dCenter = Math.abs(newLeft + dragWidth / 2 - tx);
+            if (dCenter < bestDeltaX) {
+              bestDeltaX = dCenter;
+              bestSnapX = tx - dragWidth / 2;
+              bestLineX = tx;
+            }
+            const dRight = Math.abs(newLeft + dragWidth - tx);
+            if (dRight < bestDeltaX) {
+              bestDeltaX = dRight;
+              bestSnapX = tx - dragWidth;
+              bestLineX = tx;
+            }
+          });
+
+          targetsY.forEach(ty => {
+            const dTop = Math.abs(newTop - ty);
+            if (dTop < bestDeltaY) {
+              bestDeltaY = dTop;
+              bestSnapY = ty;
+              bestLineY = ty;
+            }
+            const dCenterY = Math.abs(newTop + dragHeight / 2 - ty);
+            if (dCenterY < bestDeltaY) {
+              bestDeltaY = dCenterY;
+              bestSnapY = ty - dragHeight / 2;
+              bestLineY = ty;
+            }
+            const dBottom = Math.abs(newTop + dragHeight - ty);
+            if (dBottom < bestDeltaY) {
+              bestDeltaY = dBottom;
+              bestSnapY = ty - dragHeight;
+              bestLineY = ty;
+            }
+          });
+
+          const lines: Array<{ type: 'v' | 'h'; coord: number }> = [];
+          if (bestSnapX !== null) {
+            newLeft = bestSnapX;
+            if (bestLineX !== null) lines.push({ type: 'v', coord: bestLineX });
+          }
+          if (bestSnapY !== null) {
+            newTop = bestSnapY;
+            if (bestLineY !== null) lines.push({ type: 'h', coord: bestLineY });
+          }
+
+          setActiveSnapLines(lines);
+
+          if (overlayGridEnabled && bestSnapX === null && bestSnapY === null) {
             newLeft = Math.round(newLeft / overlayGridSize) * overlayGridSize;
             newTop = Math.round(newTop / overlayGridSize) * overlayGridSize;
           }
 
           updateObject(draggingObj.id, {
             properties: {
-              ...objects[draggingObj.id].properties,
+              ...useEditorStore.getState().objects[draggingObj.id].properties,
               left: newLeft,
               top: newTop
             }
           });
         }
       }
+
+      if (resizingObj) {
+        const deltaX = e.clientX - resizingObj.startX;
+        const deltaY = e.clientY - resizingObj.startY;
+
+        let newWidth = resizingObj.startWidth;
+        let newHeight = resizingObj.startHeight;
+        let newLeft = resizingObj.startLeft;
+        let newTop = resizingObj.startTop;
+
+        if (resizingObj.edge.includes('e')) newWidth += deltaX;
+        if (resizingObj.edge.includes('w')) {
+          newWidth -= deltaX;
+          newLeft += deltaX;
+        }
+        if (resizingObj.edge.includes('s')) newHeight += deltaY;
+        if (resizingObj.edge.includes('n')) {
+          newHeight -= deltaY;
+          newTop += deltaY;
+        }
+
+        newWidth = Math.max(10, newWidth);
+        newHeight = Math.max(10, newHeight);
+
+        updateObject(resizingObj.id, {
+          properties: {
+            ...useEditorStore.getState().objects[resizingObj.id].properties,
+            width: newWidth,
+            height: newHeight,
+            left: newLeft,
+            top: newTop
+          }
+        });
+      }
     };
 
     const handleMouseUp = () => {
       setDraggingObj(null);
+      setResizingObj(null);
+      setActiveSnapLines([]);
     };
 
-    if (draggingObj) {
+    if (draggingObj || resizingObj) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
@@ -85,20 +258,20 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingObj, overlayGridEnabled, overlayGridSize, updateObject, objects]);
+  }, [draggingObj, resizingObj, overlayGridEnabled, overlayGridSize, updateObject]);
 
-  const overlayObjects = Object.values(objects).filter((obj: any) => 
+  const overlayObjects = Object.values(useEditorStore.getState().objects).filter((obj: any) => 
     ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(obj.type) && obj.visible !== false
   );
 
-  const selectedObj = selectedObjectId ? objects[selectedObjectId] : null;
+  const selectedObj = selectedObjectId ? useEditorStore.getState().objects[selectedObjectId] : null;
   const is2DSelected = selectedObj && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(selectedObj.type);
 
   const handleAlign = (alignment: string) => {
     if (!selectedObjectId) return;
     updateObject(selectedObjectId, {
       properties: {
-        ...objects[selectedObjectId].properties,
+        ...useEditorStore.getState().objects[selectedObjectId].properties,
         alignment,
         offsetX: 0,
         offsetY: 0
@@ -127,11 +300,14 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
     const alignment = props.alignment || 'none';
     const widthType = props.widthType || 'px';
     const heightType = props.heightType || 'px';
-    const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : 150);
-    const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : 40);
+    const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 400 : (obj.type === 'overlay2d' ? 500 : 150)));
+    const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 300 : (obj.type === 'overlay2d' ? 400 : 40)));
     const widthStr = widthType === '%' ? `${widthVal}%` : `${widthVal}px`;
     const heightStr = heightType === '%' ? `${heightVal}%` : `${heightVal}px`;
     const opacity = props.opacity ?? 1;
+
+    const parentObj = obj.parentId ? useEditorStore.getState().objects[obj.parentId] : null;
+    const isAutoLayoutActive = parentObj && parentObj.type === 'overlay2d' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
     if (obj.type === 'overlayEmbed' && props.fullScreenWithMargins) {
       const topM = props.marginTop ?? 20;
@@ -150,20 +326,34 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
+        zIndex: props.zIndex ?? 1,
       };
     }
 
     const baseStyle: React.CSSProperties = {
-      position: 'absolute',
+      position: isAutoLayoutActive ? 'relative' : 'absolute',
       opacity,
       width: widthStr,
       height: heightStr,
       boxSizing: 'border-box',
       display: 'flex',
       flexDirection: 'column',
+      zIndex: props.zIndex ?? 1,
     };
 
-    if (parentProjected) {
+    if (obj.type === 'overlay2d' && ['row', 'column'].includes(props.layoutMode || '')) {
+      baseStyle.display = 'flex';
+      baseStyle.flexDirection = props.layoutMode;
+      baseStyle.padding = `${props.layoutPadding ?? 16}px`;
+      baseStyle.gap = `${props.layoutGap ?? 8}px`;
+      baseStyle.alignItems = props.layoutAlignItems || 'center';
+      baseStyle.justifyContent = props.layoutJustifyContent || 'flex-start';
+      baseStyle.flexWrap = props.layoutWrap || 'nowrap';
+    }
+
+    if (isAutoLayoutActive) {
+      // Position is managed automatically by the flex layout
+    } else if (parentProjected) {
       baseStyle.left = `${parentProjected.x}px`;
       baseStyle.top = `${parentProjected.y}px`;
       baseStyle.display = parentProjected.visible ? 'flex' : 'none';
@@ -257,12 +447,23 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       }
     }
 
+    const scaleX = obj.scale?.[0] ?? 1;
+    const scaleY = obj.scale?.[1] ?? 1;
+    if (scaleX !== 1 || scaleY !== 1) {
+      if (baseStyle.transform) {
+        baseStyle.transform += ` scale(${scaleX}, ${scaleY})`;
+      } else {
+        baseStyle.transform = `scale(${scaleX}, ${scaleY})`;
+      }
+      baseStyle.transformOrigin = 'center center';
+    }
+
     return baseStyle;
   };
 
   return (
     <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
-      {!isPreviewMode && overlayGridEnabled && (
+      {!isPreviewMode && is2DSelected && overlayGridEnabled && (
         <div 
           className="absolute inset-0 pointer-events-none opacity-20"
           style={{
@@ -271,7 +472,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           }}
         ></div>
       )}
-      {!isPreviewMode && overlayObjects.length > 0 && (
+      {!isPreviewMode && is2DSelected && overlayObjects.length > 0 && (
         <div className="absolute top-4 right-4 pointer-events-auto z-50">
           <div className="relative">
             <button 
@@ -376,18 +577,77 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             e.stopPropagation();
             selectObject(obj.id);
             
-            if (obj.type !== 'overlay2d') {
-              setDraggingObj({
-                id: obj.id,
-                startX: e.clientX,
-                startY: e.clientY,
-                startTop: props.top || 0,
-                startLeft: props.left || 0,
-                isAligned: alignment !== 'none' || !!obj.parentId,
-                startOffsetX: props.offsetX || 0,
-                startOffsetY: props.offsetY || 0,
-              });
-            }
+            setDraggingObj({
+              id: obj.id,
+              startX: e.clientX,
+              startY: e.clientY,
+              startTop: props.top || 0,
+              startLeft: props.left || 0,
+              isAligned: alignment !== 'none' || !!obj.parentId,
+              startOffsetX: props.offsetX || 0,
+              startOffsetY: props.offsetY || 0,
+            });
+          };
+
+          const handleResizeMouseDown = (e: React.MouseEvent, edge: string) => {
+            if (isPreviewMode) return;
+            e.stopPropagation();
+            selectObject(obj.id);
+
+            const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 400 : (obj.type === 'overlay2d' ? 500 : 150)));
+            const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 300 : (obj.type === 'overlay2d' ? 400 : 40)));
+            
+            setResizingObj({
+              id: obj.id,
+              edge,
+              startX: e.clientX,
+              startY: e.clientY,
+              startWidth: widthVal,
+              startHeight: heightVal,
+              startLeft: props.left || 0,
+              startTop: props.top || 0
+            });
+          };
+
+          const renderResizeHandles = () => {
+            if (isPreviewMode || !isSelected) return null;
+            const edges = ['nw', 'ne', 'se', 'sw', 'n', 's', 'e', 'w'];
+            return edges.map(handle => {
+              const handleStyle: React.CSSProperties = {
+                position: 'absolute',
+                width: '10px',
+                height: '10px',
+                backgroundColor: 'white',
+                border: '1px solid #06b6d4',
+                zIndex: 60,
+              };
+              
+              if (handle.includes('n')) handleStyle.top = '-5px';
+              if (handle.includes('s')) handleStyle.bottom = '-5px';
+              if (handle.includes('e')) handleStyle.right = '-5px';
+              if (handle.includes('w')) handleStyle.left = '-5px';
+
+              if (handle === 'n' || handle === 's') {
+                handleStyle.left = 'calc(50% - 5px)';
+                handleStyle.cursor = 'ns-resize';
+              } else if (handle === 'e' || handle === 'w') {
+                handleStyle.top = 'calc(50% - 5px)';
+                handleStyle.cursor = 'ew-resize';
+              } else if (handle === 'nw' || handle === 'se') {
+                handleStyle.cursor = 'nwse-resize';
+              } else {
+                handleStyle.cursor = 'nesw-resize';
+              }
+
+              return (
+                <div 
+                  key={handle}
+                  onMouseDown={(e) => handleResizeMouseDown(e, handle)}
+                  style={handleStyle}
+                  className="rounded-sm"
+                />
+              );
+            });
           };
 
           const computedStyle = getOverlayStyle(obj, parentProjected);
@@ -412,15 +672,19 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             return (
               <div 
                 key={obj.id} 
+                id={obj.id}
                 style={{ 
                   ...activeStyle,
                   backgroundColor: bgStyle,
                   opacity: 1.0, // Prevent children from inheriting transparency
                   pointerEvents: 'auto',
-                  overflow: 'hidden',
+                  overflow: 'visible',
+                  backdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
+                  WebkitBackdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
                 }}
                 onMouseDown={handleMouseDown}
               >
+                {renderResizeHandles()}
                 {children.map((child: any) => renderOverlayObject(child))}
               </div>
             );
@@ -430,6 +694,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             return (
               <div 
                 key={obj.id} 
+                id={obj.id}
                 style={{ 
                   ...activeStyle, 
                   color: props.color || '#fff', 
@@ -441,6 +706,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 }}
                 onMouseDown={handleMouseDown}
               >
+                {renderResizeHandles()}
                 {props.text || 'Text'}
                 {children.map((child: any) => renderOverlayObject(child))}
               </div>
@@ -451,6 +717,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             return (
               <button 
                 key={obj.id} 
+                id={obj.id}
                 style={{ 
                   ...activeStyle, 
                   backgroundColor: props.color || '#3b82f6', 
@@ -470,6 +737,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   }
                 }}
               >
+                {renderResizeHandles()}
                 {props.text || 'Button'}
                 {children.map((child: any) => renderOverlayObject(child))}
               </button>
@@ -480,12 +748,14 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             return (
               <div 
                 key={obj.id} 
+                id={obj.id}
                 style={{ 
                   ...activeStyle, 
                   cursor: !isPreviewMode ? 'move' : 'default',
                 }}
                 onMouseDown={handleMouseDown}
               >
+                {renderResizeHandles()}
                 <img 
                   src={props.textureUrl || 'https://via.placeholder.com/200'}
                   alt={obj.name}
@@ -503,19 +773,29 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             return (
               <div 
                 key={obj.id} 
+                id={obj.id}
                 style={{ 
                   ...activeStyle, 
-                  backgroundColor: '#111', 
-                  borderRadius: `${props.borderRadius || 12}px`,
-                  overflow: 'hidden',
-                  border: (!isPreviewMode && isSelected) ? activeStyle.border : (showBorder ? `2px solid ${props.borderColor || '#2563eb'}` : (activeStyle.border || 'none')),
-                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
+                  backgroundColor: 'transparent',
+                  overflow: 'visible', // Changed to visible for resize handles
+                  border: 'none',
                   cursor: !isPreviewMode ? 'move' : 'default',
                   position: activeStyle.position || 'absolute',
                 }}
                 onMouseDown={handleMouseDown}
               >
-                {showAddressBar && (
+                {renderResizeHandles()}
+                <div 
+                  className="w-full h-full flex flex-col"
+                  style={{
+                    backgroundColor: '#111', 
+                    borderRadius: `${props.borderRadius || 12}px`,
+                    overflow: 'hidden',
+                    border: (!isPreviewMode && isSelected) ? activeStyle.border : (showBorder ? `2px solid ${props.borderColor || '#2563eb'}` : (activeStyle.border || 'none')),
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  {showAddressBar && (
                   <div className="bg-[#1a1a1a] px-3 py-1.5 flex items-center justify-between border-b border-[#222] select-none text-[10px] text-gray-400 font-mono shrink-0 z-10">
                     <div className="flex items-center gap-1.5 overflow-hidden flex-1 mr-2">
                       <Globe size={12} className="text-cyan-400 shrink-0 animate-pulse" />
@@ -560,17 +840,19 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   </button>
                 )}
                 
-                <div className="flex-1 w-full h-full relative bg-white overflow-hidden">
+                <div className="flex-1 w-full h-full relative bg-white overflow-hidden min-h-0">
                   <iframe 
+                    key={props.url || 'default-embed'}
                     src={props.url || 'https://wikipedia.org'} 
                     title={obj.name}
-                    className="w-full h-full border-none"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    className="absolute inset-0 w-full h-full border-none"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
                     referrerPolicy="no-referrer"
                   />
                   {!isPreviewMode && (
                     <div className="absolute inset-0 bg-transparent pointer-events-auto cursor-move" />
                   )}
+                </div>
                 </div>
                 {children.map((child: any) => renderOverlayObject(child))}
               </div>
@@ -582,7 +864,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
         const rootOverlayObjects = overlayObjects.filter((obj: any) => {
           if (!obj.parentId) return true;
-          const parentObj = objects[obj.parentId];
+          const parentObj = useEditorStore.getState().objects[obj.parentId];
           if (!parentObj) return true;
           const parentIs2D = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(parentObj.type);
           return !parentIs2D;
@@ -590,6 +872,21 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
         return rootOverlayObjects.map((obj: any) => renderOverlayObject(obj));
       })()}
+
+      {activeSnapLines.map((line, i) => (
+        <div
+          key={i}
+          className="absolute bg-cyan-400 pointer-events-none z-50 shadow-[0_0_4px_#22d3ee]"
+          style={{
+            left: line.type === 'v' ? `${line.coord}px` : 0,
+            right: line.type === 'v' ? undefined : 0,
+            top: line.type === 'h' ? `${line.coord}px` : 0,
+            bottom: line.type === 'h' ? undefined : 0,
+            width: line.type === 'v' ? '1.5px' : '100%',
+            height: line.type === 'h' ? '1.5px' : '100%',
+          }}
+        />
+      ))}
     </div>
   );
 }
