@@ -1778,6 +1778,68 @@ const VIDEO_URLS = {
 
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
+
+  // Audio unlocker for browser autoplay policies in iframe
+  useEffect(() => {
+    const unlockAudio = () => {
+      // 1. Resume standard Three.js AudioContext
+      try {
+        const audioCtx = THREE.AudioContext.getContext() as any;
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().then(() => {
+            console.log('THREE.AudioContext resumed successfully');
+          });
+        }
+      } catch (e) {
+        console.warn('THREE.AudioContext resume failed:', e);
+      }
+
+      // 2. Resume web AudioContext
+      try {
+        const { AudioContext, webkitAudioContext } = window as any;
+        const ContextClass = AudioContext || webkitAudioContext;
+        if (ContextClass) {
+          const tempCtx = new ContextClass();
+          if (tempCtx.state === 'suspended') {
+            tempCtx.resume();
+          }
+        }
+      } catch (e) {
+        console.warn('Web AudioContext resume failed:', e);
+      }
+
+      // 3. Play a quick silent sound to unlock HTML5 Audio elements
+      try {
+        const silentAudio = new Audio();
+        // A minimal valid base64 1-pixel WAV audio string
+        silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA';
+        silentAudio.volume = 0;
+        silentAudio.play()
+          .then(() => {
+            console.log('HTML5 Audio successfully unlocked on user gesture inside iframe');
+            // Clean up once unlocked
+            window.removeEventListener('click', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+          })
+          .catch(err => {
+            console.log('HTML5 Audio unlock failed:', err);
+          });
+      } catch (e) {
+        console.warn('HTML5 Audio unlock execution failed:', e);
+      }
+    };
+
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
+
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
   
   useEffect(() => {
     const originalLog = console.log;
