@@ -756,7 +756,28 @@ export function AssetBrowser() {
         });
         showToast(`Attached Sound "${asset.name}" to Selected Object "${objects[selectedObjectId].name}".`);
       } else {
-        showToast(`Playing sound preview: ${asset.name}. Select a Scene Object to attach it!`);
+        // Create an Audio node in the scene and attach the asset
+        const newObj: any = {
+          id: uuidv4(),
+          name: asset.name.replace(/\.[^/.]+$/, ""), // strip extension
+          type: 'audio',
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          visible: true,
+          children: [],
+          parentId: null,
+          properties: {
+            soundUrl: asset.url,
+            soundName: asset.name,
+            autoplay: false,
+            playing: false,
+            loop: true,
+            volume: 0.5
+          }
+        };
+        addObject(newObj);
+        showToast(`Created audio node "${newObj.name}" in the scene.`);
       }
     } else if (asset.type === 'behavior') {
       if (selectedObjectId && objects[selectedObjectId]) {

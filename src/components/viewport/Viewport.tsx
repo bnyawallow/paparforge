@@ -1779,6 +1779,58 @@ const VIDEO_URLS = {
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
 
+  const { 
+    addObject, 
+    objects, 
+    settings,
+    gridSnapEnabled, 
+    gridSnapIncrement,
+    setGridSnapEnabled,
+    setGridSnapIncrement,
+    rotationSnapEnabled,
+    rotationSnapIncrement,
+    setRotationSnapEnabled,
+    setRotationSnapIncrement,
+    cameraType,
+    setCameraType,
+    wireframeEnabled,
+    setWireframeEnabled,
+    isPreviewMode
+  } = useEditorStore();
+
+  const objectsRef = useRef(objects);
+  useEffect(() => {
+    objectsRef.current = objects;
+  }, [objects]);
+
+  // Dedicated preloader effect to pre-cache all custom sounds on mount, project load, or preview entry
+  useEffect(() => {
+    try {
+      const soundUrls = new Set<string>();
+      Object.values(objects || {}).forEach((obj: any) => {
+        if (obj.properties?.soundUrl) {
+          soundUrls.add(obj.properties.soundUrl);
+        }
+        if (obj.properties?.visualBehaviors) {
+          obj.properties.visualBehaviors.forEach((b: any) => {
+            if (b.action === 'playSound' && b.soundPreset) {
+              soundUrls.add(b.soundPreset);
+            }
+          });
+        }
+      });
+
+      soundUrls.forEach((url) => {
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.src = url;
+        console.log(`Preloading scene sound: ${url}`);
+      });
+    } catch (e) {
+      console.warn('Preloading scene sounds failed:', e);
+    }
+  }, [objects, isPreviewMode]);
+
   // Audio unlocker for browser autoplay policies in iframe
   useEffect(() => {
     const unlockAudio = () => {
@@ -1828,6 +1880,41 @@ export function Viewport() {
       } catch (e) {
         console.warn('HTML5 Audio unlock execution failed:', e);
       }
+
+      // 4. Preload and pre-activate all custom audio clips in the scene so browser allows them to play
+      try {
+        const soundUrls = new Set<string>();
+        Object.values(objectsRef.current || {}).forEach((obj: any) => {
+          if (obj.properties?.soundUrl) {
+            soundUrls.add(obj.properties.soundUrl);
+          }
+          if (obj.properties?.visualBehaviors) {
+            obj.properties.visualBehaviors.forEach((b: any) => {
+              if (b.action === 'playSound' && b.soundPreset) {
+                soundUrls.add(b.soundPreset);
+              }
+            });
+          }
+        });
+
+        soundUrls.forEach((url) => {
+          const sfx = new Audio(url);
+          sfx.volume = 0;
+          sfx.muted = true;
+          sfx.play()
+            .then(() => {
+              sfx.pause();
+              sfx.muted = false;
+              sfx.volume = 1;
+              console.log(`Pre-activated audio cache for URL: ${url}`);
+            })
+            .catch(err => {
+              console.warn(`Audio pre-activation failed for URL: ${url}`, err);
+            });
+        });
+      } catch (e) {
+        console.warn('Custom audios pre-activation failed:', e);
+      }
     };
 
     window.addEventListener('click', unlockAudio);
@@ -1863,26 +1950,8 @@ export function Viewport() {
   const setTransformMode = useEditorStore(state => state.setTransformMode);
   const transformSpace = useEditorStore(state => state.transformSpace);
   const setTransformSpace = useEditorStore(state => state.setTransformSpace);
-  const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const toasts = useEditorStore(state => state.toasts);
   const arVideoPlaying = useEditorStore(state => state.arVideoPlaying);
-  const { 
-    addObject, 
-    objects, 
-    settings,
-    gridSnapEnabled, 
-    gridSnapIncrement,
-    setGridSnapEnabled,
-    setGridSnapIncrement,
-    rotationSnapEnabled,
-    rotationSnapIncrement,
-    setRotationSnapEnabled,
-    setRotationSnapIncrement,
-    cameraType,
-    setCameraType,
-    wireframeEnabled,
-    setWireframeEnabled
-  } = useEditorStore();
 
   const [showBezel, setShowBezel] = useState(true);
   const [bgType, setBgType] = useState<'office' | 'livingroom' | 'techlab' | 'webcam'>('office');

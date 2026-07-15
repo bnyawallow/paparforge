@@ -4322,6 +4322,99 @@ export function InspectorPanel({ width }: { width?: number }) {
                       className="accent-cyan-500 w-24 h-1 cursor-pointer"
                     />
                   </div>
+
+                  {/* Drop Shadow Settings */}
+                  <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-neutral-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-gray-400">Enable Drop Shadow</span>
+                      <input
+                        type="checkbox"
+                        checked={obj.properties.dropShadowEnabled ?? false}
+                        onChange={(e) => handlePropertyChange('dropShadowEnabled', e.target.checked)}
+                        className="rounded bg-[#111] border-[#333] text-cyan-500 focus:ring-cyan-500 cursor-pointer h-3.5 w-3.5"
+                      />
+                    </div>
+
+                    {obj.properties.dropShadowEnabled && (
+                      <div className="flex flex-col gap-2 bg-black/25 p-2 rounded-lg border border-neutral-800 mt-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {/* Offset X & Y */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] text-[#666] font-medium block mb-1">Offset X</label>
+                            <input
+                              type="number"
+                              value={obj.properties.dropShadowOffsetX ?? 0}
+                              onChange={(e) => handlePropertyChange('dropShadowOffsetX', parseInt(e.target.value) ?? 0)}
+                              className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded px-1.5 py-1 text-[10px] text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[#666] font-medium block mb-1">Offset Y</label>
+                            <input
+                              type="number"
+                              value={obj.properties.dropShadowOffsetY ?? 4}
+                              onChange={(e) => handlePropertyChange('dropShadowOffsetY', parseInt(e.target.value) ?? 4)}
+                              className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded px-1.5 py-1 text-[10px] text-white"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Blur Radius */}
+                        <div className="flex items-center justify-between gap-2 mt-1">
+                          <label className="text-[9px] text-[#666] font-medium">Blur Radius</label>
+                          <div className="flex items-center gap-2 flex-1 justify-end">
+                            <input
+                              type="range"
+                              min="0"
+                              max="40"
+                              step="1"
+                              value={obj.properties.dropShadowBlur ?? 8}
+                              onChange={(e) => handlePropertyChange('dropShadowBlur', parseInt(e.target.value))}
+                              className="accent-cyan-500 w-20 h-1 cursor-pointer"
+                            />
+                            <span className="text-[9px] text-gray-400 font-mono w-6 text-right">
+                              {obj.properties.dropShadowBlur ?? 8}px
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Shadow Opacity */}
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[9px] text-[#666] font-medium">Shadow Opacity</label>
+                          <div className="flex items-center gap-2 flex-1 justify-end">
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={obj.properties.dropShadowOpacity ?? 0.3}
+                              onChange={(e) => handlePropertyChange('dropShadowOpacity', parseFloat(e.target.value))}
+                              className="accent-cyan-500 w-20 h-1 cursor-pointer"
+                            />
+                            <span className="text-[9px] text-gray-400 font-mono w-6 text-right">
+                              {Math.round((obj.properties.dropShadowOpacity ?? 0.3) * 100)}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Shadow Color */}
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[9px] text-[#666] font-medium">Shadow Color</label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="color"
+                              value={obj.properties.dropShadowColor ?? '#000000'}
+                              onChange={(e) => handlePropertyChange('dropShadowColor', e.target.value)}
+                              className="w-5 h-5 bg-transparent border-0 rounded cursor-pointer"
+                            />
+                            <span className="text-[9px] text-gray-400 font-mono uppercase">
+                              {obj.properties.dropShadowColor ?? '#000000'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

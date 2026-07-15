@@ -961,6 +961,96 @@ export const useEditorStore = create<EditorState>((set) => ({
     if (!targetObj) return state;
     if (draggedId === targetId) return state;
 
+    const isDragged2D = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(draggedObj.type);
+    const isTarget2D = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(targetObj.type);
+
+    if (isDragged2D && isTarget2D) {
+      // Create history snapshot
+      const snapshot = createSnapshot(state);
+      let newPast = [...state.past, snapshot];
+      if (newPast.length > 50) {
+        newPast = newPast.slice(1);
+      }
+
+      // Reset update cooldown
+      lastEditedObjectId = null;
+      lastSnapshotTime = 0;
+
+      // Remove from old parent children list
+      if (draggedObj.parentId && newObjects[draggedObj.parentId]) {
+        newObjects[draggedObj.parentId] = {
+          ...newObjects[draggedObj.parentId],
+          children: newObjects[draggedObj.parentId].children.filter(id => id !== draggedId)
+        };
+      }
+
+      let newRootObjects = [...state.rootObjects];
+      if (!draggedObj.parentId) {
+        newRootObjects = newRootObjects.filter(id => id !== draggedId);
+      }
+
+      // Find target's parent and target list
+      const targetParentId = targetObj.parentId;
+      if (targetParentId && newObjects[targetParentId]) {
+        const parentChildren = [...newObjects[targetParentId].children];
+        const targetIdx = parentChildren.indexOf(targetId);
+        // Insert draggedId at target's index to put it there and shift others down
+        if (targetIdx !== -1) {
+          parentChildren.splice(targetIdx, 0, draggedId);
+        } else {
+          parentChildren.push(draggedId);
+        }
+        newObjects[targetParentId] = {
+          ...newObjects[targetParentId],
+          children: parentChildren
+        };
+      } else {
+        // If target is at root
+        const targetIdx = newRootObjects.indexOf(targetId);
+        if (targetIdx !== -1) {
+          newRootObjects.splice(targetIdx, 0, draggedId);
+        } else {
+          newRootObjects.push(draggedId);
+        }
+      }
+
+      // Update dragged object parent
+      newObjects[draggedId] = {
+        ...draggedObj,
+        parentId: targetParentId
+      };
+
+      // Re-assign z-indexes of all 2D siblings under this parent to maintain top-down layering
+      const siblings = targetParentId ? newObjects[targetParentId].children : newRootObjects;
+      const overlaySiblings = siblings.filter(id => {
+        const o = newObjects[id];
+        return o && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type);
+      });
+
+      overlaySiblings.forEach((childId, idx) => {
+        const child = newObjects[childId];
+        if (child) {
+          // Topmost visual items get highest z-index
+          const newZ = (overlaySiblings.length - idx) * 10;
+          newObjects[childId] = {
+            ...child,
+            properties: {
+              ...child.properties,
+              zIndex: newZ
+            }
+          };
+        }
+      });
+
+      return {
+        objects: newObjects,
+        rootObjects: newRootObjects,
+        past: newPast,
+        future: [],
+        hasUnsavedChanges: true
+      };
+    }
+
     // Prevent cyclic drops
     let current = targetObj;
     while (current.parentId) {

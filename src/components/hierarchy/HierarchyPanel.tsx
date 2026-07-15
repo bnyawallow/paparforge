@@ -58,7 +58,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'hierarchy' | 'layers' | 'library'>('hierarchy');
+  const [activeTab, setActiveTab] = useState<'hierarchy' | 'library'>('hierarchy');
   const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
@@ -185,31 +185,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
     }
   };
 
-  const handleLayerDrop = (draggedId: string, targetId: string) => {
-    // 1. Get all 2D overlay objects sorted by current Z-index descending
-    const list = Object.values(objects)
-      .filter((o: any) => ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type))
-      .sort((a, b) => (b.properties?.zIndex ?? 0) - (a.properties?.zIndex ?? 0));
-      
-    const draggedIdx = list.findIndex(o => o.id === draggedId);
-    const targetIdx = list.findIndex(o => o.id === targetId);
-    if (draggedIdx === -1 || targetIdx === -1 || draggedIdx === targetIdx) return;
-    
-    // 2. Reorder array
-    const [draggedItem] = list.splice(draggedIdx, 1);
-    list.splice(targetIdx, 0, draggedItem);
-    
-    // 3. Reassign clean descending zIndex values so the topmost item (index 0) gets the highest zIndex
-    list.forEach((item, index) => {
-      const newZIndex = (list.length - index) * 10;
-      updateObject(item.id, {
-        properties: {
-          ...item.properties,
-          zIndex: newZIndex
-        }
-      });
-    });
-  };
+
 
   const startEditing = (id: string, currentName: string) => {
     setEditingId(id);
@@ -548,18 +524,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
           <LayoutGrid size={11} className={activeTab === 'hierarchy' ? 'text-cyan-400' : 'text-[#666]'} />
           <span>Hierarchy</span>
         </button>
-        <button
-          onClick={() => setActiveTab('layers')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] uppercase tracking-wider font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-            activeTab === 'layers' 
-              ? "border-cyan-500 text-cyan-400 bg-cyan-950/5 font-semibold" 
-              : "border-transparent text-[#666] hover:text-[#999]"
-          )}
-        >
-          <Layers size={11} className={activeTab === 'layers' ? 'text-cyan-400' : 'text-[#666]'} />
-          <span>2D Layers</span>
-        </button>
+
         <button
           onClick={() => setActiveTab('library')}
           className={cn(
@@ -878,152 +843,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
         </div>
       )}
 
-      {activeTab === 'layers' && (
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#121212]">
-          <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-[#666]">2D Layer Order (Z-Index)</span>
-            <span className="text-[8px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded uppercase">
-              Top down
-            </span>
-          </div>
 
-          <div className="p-2 border-b border-[#2A2A2A] bg-[#181818] text-[10px] text-gray-500 flex flex-col gap-1 shrink-0 select-none">
-            <p className="leading-normal">
-              Drag layers up or down to adjust their stacking depth (Z-Index).
-            </p>
-            <p className="text-[9px] text-[#FFD93D] leading-normal font-medium">
-              Top items render on top of lower items.
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-            {Object.values(objects).filter((o: any) => 
-              ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type)
-            ).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 px-4 text-center border border-dashed border-[#222] rounded-lg mt-4">
-                <Layers size={24} className="text-[#333] mb-2" />
-                <span className="text-[10px] text-[#555] font-semibold">No 2D Overlay elements found</span>
-                <p className="text-[8px] text-[#444] mt-1 leading-normal max-w-[160px]">
-                  Add a 2D Canvas, Text, Button, or Image from the hierarchy tab to see layers.
-                </p>
-              </div>
-            ) : (
-              Object.values(objects)
-                .filter((o: any) => ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type))
-                .sort((a, b) => (b.properties?.zIndex ?? 0) - (a.properties?.zIndex ?? 0))
-                .map((obj) => {
-                  const isSelected = selectedObjectIds.includes(obj.id);
-                  const dragOver = dragOverId === obj.id;
-                  
-                  let TypeIcon = Layers;
-                  if (obj.type === 'overlayText') TypeIcon = Type;
-                  else if (obj.type === 'overlayButton') TypeIcon = Link2;
-                  else if (obj.type === 'overlayImage') TypeIcon = ImageIcon;
-                  else if (obj.type === 'overlayEmbed') TypeIcon = Globe;
-                  
-                  return (
-                    <div
-                      key={obj.id}
-                      draggable={!isPreviewMode}
-                      onDragStart={(e) => {
-                        e.stopPropagation();
-                        e.dataTransfer.setData('text/plain', `layer:${obj.id}`);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDragOverId(obj.id);
-                      }}
-                      onDragLeave={() => {
-                        setDragOverId(null);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDragOverId(null);
-                        const data = e.dataTransfer.getData('text/plain');
-                        if (data && data.startsWith('layer:')) {
-                          const draggedId = data.replace('layer:', '');
-                          if (draggedId !== obj.id) {
-                            handleLayerDrop(draggedId, obj.id);
-                          }
-                        }
-                      }}
-                      onClick={() => selectObject(obj.id)}
-                      className={cn(
-                        "flex items-center gap-2 p-2 bg-[#1A1A1A] border rounded-lg cursor-pointer transition-all group select-none relative",
-                        isSelected 
-                          ? "border-cyan-500/80 bg-cyan-950/20 text-cyan-200" 
-                          : "border-[#242424] text-[#999] hover:bg-[#222] hover:text-[#CCC]",
-                        dragOver && "border-blue-500 bg-blue-950/30 scale-[1.02] shadow-md border-dashed"
-                      )}
-                    >
-                      {/* Drag Handle */}
-                      {!isPreviewMode && (
-                        <div className="cursor-grab active:cursor-grabbing text-gray-600 group-hover:text-gray-400 p-0.5">
-                          <GripVertical size={11} />
-                        </div>
-                      )}
-
-                      <TypeIcon size={12} className={cn("shrink-0", isSelected ? "text-cyan-400" : "text-gray-500")} />
-                      
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                        <span className="text-[10px] font-bold truncate">
-                          {obj.name}
-                        </span>
-                        <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider">
-                          {obj.type.replace('overlay', '2D ')}
-                        </span>
-                      </div>
-
-                      {/* Z-Index Badge */}
-                      <div className="shrink-0 flex items-center gap-1.5">
-                        <span className="text-[9px] font-mono font-black px-1.5 py-0.5 bg-black/40 border border-[#2B2B2B] text-gray-400 rounded-md">
-                          Z: {obj.properties?.zIndex ?? 1}
-                        </span>
-                        
-                        {/* Layer Actions */}
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateObject(obj.id, {
-                                properties: {
-                                  ...obj.properties,
-                                  zIndex: (obj.properties?.zIndex ?? 1) + 10
-                                }
-                              });
-                            }}
-                            className="p-1 hover:bg-[#2A2A2A] rounded text-[#777] hover:text-cyan-400 transition-colors"
-                            title="Bring Forward (+10)"
-                          >
-                            <ArrowUp size={10} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateObject(obj.id, {
-                                properties: {
-                                  ...obj.properties,
-                                  zIndex: Math.max(0, (obj.properties?.zIndex ?? 1) - 10)
-                                }
-                              });
-                            }}
-                            className="p-1 hover:bg-[#2A2A2A] rounded text-[#777] hover:text-cyan-400 transition-colors"
-                            title="Send Backward (-10)"
-                          >
-                            <ArrowDown size={10} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        </div>
-      )}
 
       {activeTab === 'library' && (
         /* Library Tab View */

@@ -458,6 +458,23 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       baseStyle.transformOrigin = 'center center';
     }
 
+    if (props.dropShadowEnabled) {
+      const dx = props.dropShadowOffsetX ?? 0;
+      const dy = props.dropShadowOffsetY ?? 4;
+      const blur = props.dropShadowBlur ?? 8;
+      const color = props.dropShadowColor ?? '#000000';
+      const opacity = props.dropShadowOpacity ?? 0.3;
+      
+      let shadowColor = color;
+      if (color.startsWith('#') && color.length === 7) {
+        const r = parseInt(color.substring(1, 3), 16);
+        const g = parseInt(color.substring(3, 5), 16);
+        const b = parseInt(color.substring(5, 7), 16);
+        shadowColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+      baseStyle.filter = `drop-shadow(${dx}px ${dy}px ${blur}px ${shadowColor})`;
+    }
+
     return baseStyle;
   };
 
