@@ -203,7 +203,13 @@ export const generateAFrameScene = (state: any) => {
         const fontStr = obj.properties.fontUrl ? ` font: ${obj.properties.fontUrl};` : '';
         const sizeStr = ` fontSize: ${obj.properties.fontSize ?? 0.25};`;
         const maxWidthStr = ` maxWidth: ${obj.properties.maxWidth ?? 4};`;
-        entity += `${indent}  <a-entity troika-text="value: ${obj.properties.text || 'Text Node'}; align: ${obj.properties.textAlign || 'center'}; color: ${obj.properties.color || '#ffffff'};${fontStr}${sizeStr}${maxWidthStr}"></a-entity>\n`;
+        const alignStr = ` align: ${obj.properties.textAlign || 'center'};`;
+        const lineHeightStr = ` lineHeight: ${obj.properties.lineHeight ?? 1.2};`;
+        const letterSpacingStr = ` letterSpacing: ${obj.properties.letterSpacing ?? 0};`;
+        const outlineColorStr = ` outlineColor: ${obj.properties.outlineColor || '#000000'};`;
+        const outlineWidthStr = ` outlineWidth: ${obj.properties.outlineWidth ?? 0.01};`;
+        const outlineOpacityStr = ` outlineOpacity: ${obj.properties.outlineOpacity ?? 1};`;
+        entity += `${indent}  <a-entity troika-text="value: ${obj.properties.text || 'Text Node'}; color: ${obj.properties.color || '#ffffff'};${fontStr}${sizeStr}${maxWidthStr}${alignStr}${lineHeightStr}${letterSpacingStr}${outlineColorStr}${outlineWidthStr}${outlineOpacityStr}"></a-entity>\n`;
       } else if (obj.type === 'image') {
         entity += `${indent}  <a-image src="${obj.properties.textureUrl || ''}" material="${buildMaterialAttr(obj.properties, true)}"></a-image>\n`;
       } else if (obj.type === 'video') {
@@ -390,8 +396,18 @@ export const generateAFrameScene = (state: any) => {
         backgroundStyle += `background-color: ${bgStyle}; overflow: hidden;`;
         return `  <div id="${overlayId}" style="${backgroundStyle}">${childrenHtml}</div>`;
       } else if (obj.type === 'overlayText') {
-        const alignSelf = alignment.includes('center') ? 'center' : (alignment.includes('right') ? 'flex-end' : 'flex-start');
-        styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; white-space: pre-wrap; font-family: sans-serif; display: flex; flex-direction: column; align-items: ${alignSelf}; justify-content: center;`;
+        const textAlignment = props.textAlign || 'left';
+        const alignSelf = textAlignment === 'center' ? 'center' : (textAlignment === 'right' ? 'flex-end' : (textAlignment === 'justify' ? 'stretch' : 'flex-start'));
+        const fontFamily = props.fontFamily ? `'${props.fontFamily}', sans-serif` : 'sans-serif';
+        const fontWeight = props.fontWeight || 'normal';
+        const letterSpacing = props.letterSpacing !== undefined ? `${props.letterSpacing}px` : 'normal';
+        const whiteSpace = props.whiteSpace || 'pre-wrap';
+        const lineHeight = props.lineHeight !== undefined ? `${props.lineHeight}` : 'normal';
+        const textTransform = props.textTransform || 'none';
+        const textDecoration = props.textDecoration || 'none';
+        const fontStyle = props.fontStyle || 'normal';
+
+        styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; text-align: ${textAlignment}; white-space: ${whiteSpace}; font-family: ${fontFamily}; font-weight: ${fontWeight}; letter-spacing: ${letterSpacing}; line-height: ${lineHeight}; text-transform: ${textTransform}; text-decoration: ${textDecoration}; font-style: ${fontStyle}; display: flex; flex-direction: column; align-items: ${alignSelf}; justify-content: center;`;
         return `  <div id="${overlayId}" style="${styleStr}">${props.text || 'Text'}${childrenHtml}</div>`;
       } else if (obj.type === 'overlayButton') {
         styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border-radius: ${props.borderRadius || 8}px; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold;`;
@@ -442,6 +458,38 @@ export const generateAFrameScene = (state: any) => {
       overlayHtml += `</div>\n`;
     }
 
+    // Parse Google Font family name from its @fontsource unpkg url (e.g. "space-grotesk" -> "Space Grotesk")
+    const getFontFamilyNameFromUrl = (url: string): string => {
+      if (!url) return '';
+      const match = url.match(/@fontsource\/([^/]+)/);
+      if (match && match[1]) {
+        return match[1]
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      }
+      return '';
+    };
+
+    // Gather all custom fonts used in the scene
+    const fontsToLoad = new Set<string>();
+    Object.values(objects).forEach((obj: any) => {
+      if (obj.properties?.fontFamily) {
+        fontsToLoad.add(obj.properties.fontFamily);
+      }
+      if (obj.properties?.fontUrl) {
+        const parsedName = getFontFamilyNameFromUrl(obj.properties.fontUrl);
+        if (parsedName) fontsToLoad.add(parsedName);
+      }
+    });
+
+    let googleFontsLinksHtml = '';
+    fontsToLoad.forEach(family => {
+      if (family && family !== 'sans-serif' && family !== 'serif' && family !== 'monospace' && family !== 'Default (Inter)') {
+        googleFontsLinksHtml += `    <link href="https://fonts.googleapis.com/css2?family=${family.replace(/\s+/g, '+')}:wght@100;300;400;500;600;700;900&display=swap" rel="stylesheet">\n`;
+      }
+    });
+
     return `<!DOCTYPE html>
 <html>
   <head>
@@ -449,6 +497,8 @@ export const generateAFrameScene = (state: any) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>${settings.projectName} - Published WebAR</title>
+
+${googleFontsLinksHtml}
 
     <style>
       html, body {
@@ -562,16 +612,12 @@ export const generateAFrameScene = (state: any) => {
         schema: {
           color: {type: 'color', is: 'uniform', default: '#ffffff'},
           src: {type: 'map', is: 'uniform'},
-          roughness: {type: 'number', default: 0.5},
-          metalness: {type: 'number', default: 0.1},
           opacity: {type: 'number', is: 'uniform', default: 1.0},
           transparent: {type: 'boolean', default: false}
         },
         init: function (data) {
           this.material = new THREE.MeshToonMaterial({
             color: new THREE.Color(data.color),
-            roughness: data.roughness,
-            metalness: data.metalness,
             opacity: data.opacity,
             transparent: data.transparent || data.opacity < 1
           });
@@ -579,8 +625,6 @@ export const generateAFrameScene = (state: any) => {
         },
         update: function (data) {
           this.material.color.set(data.color);
-          this.material.roughness = data.roughness;
-          this.material.metalness = data.metalness;
           this.material.opacity = data.opacity;
           this.material.transparent = data.transparent || data.opacity < 1;
           AFRAME.utils.material.updateMap(this, data);

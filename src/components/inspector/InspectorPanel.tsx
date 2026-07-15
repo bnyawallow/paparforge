@@ -275,12 +275,17 @@ import {
   Lightbulb,
   Folder,
   FolderMinus,
-  MousePointerClick
+  MousePointerClick,
+  Type,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
 
-const FONT_LIBRARY = [
+export const FONT_LIBRARY = [
   { name: 'Default (Inter)', url: '' },
   { name: 'Roboto', url: 'https://unpkg.com/@fontsource/roboto/files/roboto-latin-400-normal.woff' },
   { name: 'Open Sans', url: 'https://unpkg.com/@fontsource/open-sans/files/open-sans-latin-400-normal.woff' },
@@ -759,7 +764,43 @@ export function InspectorPanel({ width }: { width?: number }) {
     updateSettings
   } = useEditorStore();
 
-  const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting'>('inspector');
+  const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography'>('inspector');
+
+  const [textStyles, setTextStyles] = useState<Array<{
+    id: string;
+    name: string;
+    fontFamily: string;
+    fontWeight: string;
+    fontSize: number;
+    letterSpacing: number;
+  }>>(() => {
+    const saved = localStorage.getItem('ar_forge_text_styles');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved text styles:', e);
+      }
+    }
+    return [
+      { id: 'style-header', name: 'Header Bold', fontFamily: 'sans-serif', fontWeight: 'bold', fontSize: 32, letterSpacing: 1 },
+      { id: 'style-subheader', name: 'Subheader Medium', fontFamily: 'sans-serif', fontWeight: 'semibold', fontSize: 20, letterSpacing: 0.5 },
+      { id: 'style-body', name: 'Body Regular', fontFamily: 'sans-serif', fontWeight: 'normal', fontSize: 14, letterSpacing: 0 },
+      { id: 'style-caption', name: 'Caption Light', fontFamily: 'sans-serif', fontWeight: '300', fontSize: 12, letterSpacing: -0.2 }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ar_forge_text_styles', JSON.stringify(textStyles));
+  }, [textStyles]);
+
+  const [newStyleName, setNewStyleName] = useState('New Custom Style');
+  const [newFontFamily, setNewFontFamily] = useState('sans-serif');
+  const [newFontWeight, setNewFontWeight] = useState('normal');
+  const [newFontSize, setNewFontSize] = useState(24);
+  const [newLetterSpacing, setNewLetterSpacing] = useState(0);
+  const [checkedHudIds, setCheckedHudIds] = useState<Record<string, boolean>>({});
+
   const [materialTab, setMaterialTab] = useState<'presets' | 'base' | 'specular' | 'emissive' | 'transmission' | 'textures'>('presets');
   const [selectedMaterialCategory, setSelectedMaterialCategory] = useState<string>('All');
   const [fontSearch, setFontSearch] = useState('');
@@ -943,6 +984,280 @@ export function InspectorPanel({ width }: { width?: number }) {
       handlePropertyChange('soundUrl', '/sounds/cyber_click.wav');
       handlePropertyChange('soundName', 'Cyber Click');
     }
+  };
+
+  const renderTypographyPanel = () => {
+    // Find all 2D HUD text components in the active scene
+    const textHUDComponents = Object.values(objects).filter(
+      (o: any) => o.type === 'overlayText'
+    );
+
+    const handleCreateStyle = () => {
+      if (!newStyleName.trim()) return;
+      const id = 'style-' + Math.random().toString(36).substring(2, 9);
+      const newStyle = {
+        id,
+        name: newStyleName,
+        fontFamily: newFontFamily,
+        fontWeight: newFontWeight,
+        fontSize: newFontSize,
+        letterSpacing: newLetterSpacing
+      };
+      setTextStyles(prev => [...prev, newStyle]);
+      setNewStyleName('New Custom Style');
+    };
+
+    const handleDeleteStyle = (id: string) => {
+      setTextStyles(prev => prev.filter(s => s.id !== id));
+    };
+
+    const applyStyleToComponents = (style: typeof textStyles[0], targetIds: string[]) => {
+      if (targetIds.length === 0) {
+        alert("Please select or check some 2D Text components first.");
+        return;
+      }
+
+      // Batch update these components using updateObject
+      targetIds.forEach(id => {
+        const component = objects[id];
+        if (component) {
+          updateObject(id, {
+            properties: {
+              ...component.properties,
+              fontFamily: style.fontFamily,
+              fontWeight: style.fontWeight,
+              fontSize: style.fontSize,
+              letterSpacing: style.letterSpacing
+            }
+          });
+        }
+      });
+    };
+
+    // Gather currently selected text component IDs in the editor
+    const selectedTextIds = (selectedObjectIds || []).concat(selectedObjectId ? [selectedObjectId] : [])
+      .filter(id => objects[id]?.type === 'overlayText');
+
+    // Gather checked component IDs
+    const checkedIds = Object.keys(checkedHudIds).filter(id => checkedHudIds[id] && objects[id]?.type === 'overlayText');
+
+    return (
+      <div className="p-4 flex flex-col gap-5">
+        {/* Intro */}
+        <div className="bg-[#1A1A1A] p-3 rounded-lg border border-[#222]">
+          <h3 className="text-[11px] font-bold text-white flex items-center gap-1.5 mb-1">
+            <Type size={12} className="text-cyan-400" />
+            Typography Studio
+          </h3>
+          <p className="text-[9px] text-[#888] leading-relaxed">
+            Create, save, and batch-apply consistent typography styles (font-family, weight, size, letter-spacing) to multiple 2D HUD text components at once.
+          </p>
+        </div>
+
+        {/* Existing / Saved Styles */}
+        <div className="flex flex-col gap-2 bg-[#1A1A1A]/20 p-2.5 rounded-lg border border-[#222]/60">
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Saved Text Styles</span>
+          
+          <div className="flex flex-col gap-2 mt-1">
+            {textStyles.map((style) => (
+              <div 
+                key={style.id}
+                className="bg-[#161616] p-2.5 rounded border border-[#262626] flex flex-col gap-2 hover:border-[#333] transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-semibold text-white">{style.name}</span>
+                    <span className="text-[8px] text-gray-400 font-mono">
+                      {style.fontFamily} • {style.fontWeight} • {style.fontSize}px • {style.letterSpacing}px
+                    </span>
+                  </div>
+                  {/* Delete button if not default styles */}
+                  {!['style-header', 'style-subheader', 'style-body', 'style-caption'].includes(style.id) && (
+                    <button
+                      onClick={() => handleDeleteStyle(style.id)}
+                      className="text-[#666] hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-all cursor-pointer"
+                      title="Delete Style"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Apply controls */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#222]">
+                  <button
+                    onClick={() => {
+                      applyStyleToComponents(style, selectedTextIds);
+                    }}
+                    className="py-1 px-1.5 bg-[#222] hover:bg-[#2A2A2A] text-gray-300 hover:text-white rounded border border-[#2D2D30] transition-colors text-[9px] font-medium text-center flex items-center justify-center gap-1 cursor-pointer"
+                    title={selectedTextIds.length > 0 ? `Apply to ${selectedTextIds.length} selected text components` : "Select text components in preview first"}
+                  >
+                    Apply Selected ({selectedTextIds.length})
+                  </button>
+                  <button
+                    onClick={() => {
+                      applyStyleToComponents(style, checkedIds);
+                    }}
+                    className="py-1 px-1.5 bg-cyan-950/20 hover:bg-cyan-900/30 border border-cyan-500/20 text-cyan-400 rounded transition-colors text-[9px] font-bold text-center flex items-center justify-center gap-1 cursor-pointer"
+                    title={checkedIds.length > 0 ? `Apply to ${checkedIds.length} checked text components` : "Check some components below first"}
+                  >
+                    Apply Checked ({checkedIds.length})
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 2D Text components checklist */}
+        <div className="flex flex-col gap-2 bg-[#1A1A1A]/20 p-2.5 rounded-lg border border-[#222]/60">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">HUD Text Elements</span>
+            {textHUDComponents.length > 0 && (
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => {
+                    const next: Record<string, boolean> = {};
+                    textHUDComponents.forEach(c => { next[c.id] = true; });
+                    setCheckedHudIds(next);
+                  }}
+                  className="text-[8px] text-cyan-400 hover:underline cursor-pointer"
+                >
+                  All
+                </button>
+                <span className="text-[8px] text-[#444]">|</span>
+                <button
+                  onClick={() => setCheckedHudIds({})}
+                  className="text-[8px] text-gray-400 hover:underline cursor-pointer"
+                >
+                  None
+                </button>
+              </div>
+            )}
+          </div>
+
+          {textHUDComponents.length === 0 ? (
+            <span className="text-[9px] text-[#666] italic py-1 text-center">No 2D HUD text components in the scene.</span>
+          ) : (
+            <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto mt-1 border border-[#222] bg-[#0A0A0A] rounded p-1.5">
+              {textHUDComponents.map((comp) => {
+                const isChecked = !!checkedHudIds[comp.id];
+                const isSel = selectedTextIds.includes(comp.id);
+                return (
+                  <label 
+                    key={comp.id}
+                    className={`flex items-center justify-between p-1 rounded hover:bg-white/5 cursor-pointer text-[9px] transition-colors ${isSel ? 'border border-blue-500/30 bg-blue-500/5' : ''}`}
+                  >
+                    <div className="flex items-center gap-1.5 truncate mr-2">
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          setCheckedHudIds(prev => ({
+                            ...prev,
+                            [comp.id]: e.target.checked
+                          }));
+                        }}
+                        className="rounded bg-[#111] border-[#333] text-cyan-500 focus:ring-cyan-500 cursor-pointer h-3 w-3"
+                      />
+                      <span className="font-medium text-gray-300 truncate">{comp.name}</span>
+                    </div>
+                    <span className="text-[8px] font-mono text-gray-600 shrink-0">
+                      {comp.properties?.fontSize || 24}px
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Create Custom Style Form */}
+        <div className="flex flex-col gap-3 bg-[#1A1A1A]/50 border border-[#222] p-3 rounded-lg">
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Create Custom Text Style</span>
+          
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-[#666] font-medium">Style Name</label>
+            <input 
+              type="text"
+              value={newStyleName}
+              onChange={(e) => setNewStyleName(e.target.value)}
+              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+              placeholder="e.g. Elegant Display Header"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-[10px] text-[#666] font-medium">Font Family</label>
+              <select
+                value={newFontFamily}
+                onChange={(e) => setNewFontFamily(e.target.value)}
+                className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+              >
+                <option value="sans-serif">sans-serif (Inter)</option>
+                <option value="serif">serif (Georgia)</option>
+                <option value="monospace">monospace (Courier)</option>
+                {FONT_LIBRARY.filter(f => f.url).map(f => (
+                  <option key={f.name} value={f.name}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-[10px] text-[#666] font-medium">Font Weight</label>
+              <select
+                value={newFontWeight}
+                onChange={(e) => setNewFontWeight(e.target.value)}
+                className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+              >
+                <option value="normal">Normal</option>
+                <option value="medium">Medium (500)</option>
+                <option value="semibold">Semibold (600)</option>
+                <option value="bold">Bold</option>
+                <option value="100">Thin (100)</option>
+                <option value="300">Light (300)</option>
+                <option value="900">Heavy (900)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-[10px] text-[#666] font-medium">Font Size: {newFontSize}px</label>
+              <input 
+                type="range"
+                min="8"
+                max="120"
+                value={newFontSize}
+                onChange={(e) => setNewFontSize(parseInt(e.target.value))}
+                className="w-full h-1 bg-[#222] rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-[10px] text-[#666] font-medium">Letter Spacing: {newLetterSpacing}px</label>
+              <input 
+                type="range"
+                min="-5"
+                max="20"
+                step="0.5"
+                value={newLetterSpacing}
+                onChange={(e) => setNewLetterSpacing(parseFloat(e.target.value))}
+                className="w-full h-1 bg-[#222] rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleCreateStyle}
+            disabled={!newStyleName.trim()}
+            className="mt-1 py-2 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-500/30 hover:border-cyan-400 text-cyan-400 hover:text-cyan-200 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-all text-[10px] font-bold text-center flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <PlusCircle size={12} />
+            Save Text Style Preset
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const renderLightingPanel = () => {
@@ -1581,11 +1896,25 @@ export function InspectorPanel({ width }: { width?: number }) {
           <Lightbulb size={11} className={activePanelTab === 'lighting' ? "text-yellow-400" : "text-[#666]"} />
           Lighting
         </button>
+        <button
+          onClick={() => setActivePanelTab('typography')}
+          className={cn(
+            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+            activePanelTab === 'typography' 
+              ? "text-cyan-400 border-cyan-500 bg-[#141414]" 
+              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Type size={11} className={activePanelTab === 'typography' ? "text-cyan-400" : "text-[#666]"} />
+          Typography
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {activePanelTab === 'lighting' ? (
           renderLightingPanel()
+        ) : activePanelTab === 'typography' ? (
+          renderTypographyPanel()
         ) : (
           !selectedObjectId || !objects[selectedObjectId] ? (
             <div className="p-4 flex flex-col gap-6">
@@ -3013,6 +3342,63 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
 
                 <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-[#666] font-medium">Text Alignment</label>
+                  <div className="flex bg-[#0A0A0A] p-0.5 rounded border border-[#222]">
+                    {[
+                      { value: 'left', icon: <AlignLeft size={11} /> },
+                      { value: 'center', icon: <AlignCenter size={11} /> },
+                      { value: 'right', icon: <AlignRight size={11} /> },
+                      { value: 'justify', icon: <AlignJustify size={11} /> },
+                    ].map((align) => (
+                      <button
+                        key={align.value}
+                        onClick={() => handlePropertyChange('textAlign', align.value)}
+                        className={cn(
+                          "flex-1 py-1 flex items-center justify-center rounded transition-all cursor-pointer",
+                          (obj.properties.textAlign || 'center') === align.value
+                            ? "bg-blue-500/20 text-blue-400 font-bold"
+                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {align.icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Line Height</span>
+                    <span className="text-gray-400 font-mono">{(obj.properties.lineHeight ?? 1.2).toFixed(1)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0.5" 
+                    max="3.0" 
+                    step="0.1" 
+                    value={obj.properties.lineHeight ?? 1.2} 
+                    onChange={(e) => handlePropertyChange('lineHeight', parseFloat(e.target.value))}
+                    className="accent-blue-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#666]">Letter Spacing</span>
+                    <span className="text-gray-400 font-mono">{(obj.properties.letterSpacing ?? 0).toFixed(2)}</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-0.1" 
+                    max="0.5" 
+                    step="0.01" 
+                    value={obj.properties.letterSpacing ?? 0} 
+                    onChange={(e) => handlePropertyChange('letterSpacing', parseFloat(e.target.value))}
+                    className="accent-blue-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10px]">
                     <span className="text-[#666]">Max Width (m)</span>
                     <span className="text-gray-400 font-mono">{obj.properties.maxWidth ?? 4.0}m</span>
@@ -3918,13 +4304,138 @@ export function InspectorPanel({ width }: { width?: number }) {
                         />
                       </div>
                       <div className="flex flex-col gap-1 mt-1">
-                        <label className="text-[10px] text-[#666] font-medium">Font Size</label>
+                        <label className="text-[10px] text-[#666] font-medium">Font Size (px)</label>
                         <input 
                           type="number"
                           value={obj.properties.fontSize || 24}
-                          onChange={(e) => handlePropertyChange('fontSize', parseInt(e.target.value))}
+                          onChange={(e) => handlePropertyChange('fontSize', parseInt(e.target.value) || 24)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         />
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Font Family</label>
+                        <select
+                          value={obj.properties.fontFamily || 'sans-serif'}
+                          onChange={(e) => handlePropertyChange('fontFamily', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="sans-serif">sans-serif (Inter)</option>
+                          <option value="serif">serif (Georgia)</option>
+                          <option value="monospace">monospace (Courier)</option>
+                          {FONT_LIBRARY.filter(f => f.url).map(f => (
+                            <option key={f.name} value={f.name}>{f.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Font Weight</label>
+                        <select
+                          value={obj.properties.fontWeight || 'normal'}
+                          onChange={(e) => handlePropertyChange('fontWeight', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="normal">Normal (400)</option>
+                          <option value="medium">Medium (500)</option>
+                          <option value="semibold">Semibold (600)</option>
+                          <option value="bold">Bold (700)</option>
+                          <option value="100">Thin (100)</option>
+                          <option value="300">Light (300)</option>
+                          <option value="900">Heavy (900)</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Text Alignment</label>
+                        <div className="flex bg-[#0A0A0A] p-0.5 rounded border border-[#222]">
+                          {[
+                            { value: 'left', icon: <AlignLeft size={11} /> },
+                            { value: 'center', icon: <AlignCenter size={11} /> },
+                            { value: 'right', icon: <AlignRight size={11} /> },
+                            { value: 'justify', icon: <AlignJustify size={11} /> },
+                          ].map((align) => (
+                            <button
+                              key={align.value}
+                              onClick={() => handlePropertyChange('textAlign', align.value)}
+                              className={cn(
+                                "flex-1 py-1 flex items-center justify-center rounded transition-all cursor-pointer",
+                                (obj.properties.textAlign || 'left') === align.value
+                                  ? "bg-cyan-500/20 text-cyan-400 font-bold"
+                                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                              )}
+                            >
+                              {align.icon}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Text Wrap</label>
+                        <select
+                          value={obj.properties.whiteSpace || 'pre-wrap'}
+                          onChange={(e) => handlePropertyChange('whiteSpace', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="pre-wrap">Word Wrap (Default)</option>
+                          <option value="nowrap">No Wrap (Truncate/Scroll)</option>
+                          <option value="pre">Preserve Spacing (Raw)</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Line Height</label>
+                        <input 
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="3.0"
+                          value={obj.properties.lineHeight !== undefined ? obj.properties.lineHeight : 1.2}
+                          onChange={(e) => handlePropertyChange('lineHeight', parseFloat(e.target.value) || 1.2)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Letter Spacing (px)</label>
+                        <input 
+                          type="number"
+                          step="0.5"
+                          value={obj.properties.letterSpacing !== undefined ? obj.properties.letterSpacing : 0}
+                          onChange={(e) => handlePropertyChange('letterSpacing', parseFloat(e.target.value) || 0)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Text Transform</label>
+                        <select
+                          value={obj.properties.textTransform || 'none'}
+                          onChange={(e) => handlePropertyChange('textTransform', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="none">None (As Written)</option>
+                          <option value="uppercase">UPPERCASE (ALL CAPS)</option>
+                          <option value="lowercase">lowercase</option>
+                          <option value="capitalize">Capitalize Words</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Text Decoration</label>
+                        <select
+                          value={obj.properties.textDecoration || 'none'}
+                          onChange={(e) => handlePropertyChange('textDecoration', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="none">None</option>
+                          <option value="underline">Underline</option>
+                          <option value="line-through">Strikethrough</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Font Style</label>
+                        <select
+                          value={obj.properties.fontStyle || 'normal'}
+                          onChange={(e) => handlePropertyChange('fontStyle', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="normal">Normal</option>
+                          <option value="italic">Italic</option>
+                        </select>
                       </div>
                     </>
                   )}
@@ -4214,6 +4725,16 @@ export function InspectorPanel({ width }: { width?: number }) {
                             <option value="%">% (Percentage)</option>
                           </select>
                         </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2 pt-1 border-t border-neutral-800/50">
+                        <span className="text-[10px] text-[#888] font-medium">Lock Aspect Ratio (Shift key scales proportionally)</span>
+                        <input
+                          type="checkbox"
+                          checked={obj.properties.aspectRatioLocked ?? false}
+                          onChange={(e) => handlePropertyChange('aspectRatioLocked', e.target.checked)}
+                          className="rounded bg-[#111] border-[#333] text-cyan-500 focus:ring-cyan-500 cursor-pointer h-3.5 w-3.5"
+                        />
                       </div>
                     </div>
                   )}

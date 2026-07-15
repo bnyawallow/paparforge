@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { Settings, Grid3X3, Check, Globe, ExternalLink, X } from 'lucide-react';
+import { FONT_LIBRARY } from '../inspector/InspectorPanel';
 
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
   const { objects, selectedObjectId, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize } = useEditorStore();
@@ -26,6 +27,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
     startHeight: number;
     startLeft: number;
     startTop: number;
+    aspectRatio: number;
   } | null>(null);
 
   // High-frequency frame loop to update positions of 2D elements anchored to 3D targets
@@ -42,6 +44,37 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       active = false;
     };
   }, []);
+
+  // Dynamic Font Loader for 2D UI and 3D text
+  React.useEffect(() => {
+    const fontsToLoad = new Set<string>();
+    
+    Object.values(objects).forEach((obj: any) => {
+      const family = obj.properties?.fontFamily;
+      if (family && family !== 'sans-serif' && family !== 'serif' && family !== 'monospace') {
+        fontsToLoad.add(family);
+      }
+      
+      const fontUrl = obj.properties?.fontUrl;
+      if (fontUrl) {
+        const found = FONT_LIBRARY.find(f => f.url === fontUrl);
+        if (found && found.name && found.name !== 'Default (Inter)') {
+          fontsToLoad.add(found.name);
+        }
+      }
+    });
+
+    fontsToLoad.forEach(family => {
+      const id = `font-link-${family.replace(/\s+/g, '-').toLowerCase()}`;
+      if (!document.getElementById(id)) {
+        const link = document.createElement('link');
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/\s+/g, '+')}:wght@100;300;400;500;600;700;900&display=swap`;
+        document.head.appendChild(link);
+      }
+    });
+  }, [objects]);
 
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -227,6 +260,32 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
         if (resizingObj.edge.includes('n')) {
           newHeight -= deltaY;
           newTop += deltaY;
+        }
+
+        // Apply aspect ratio lock constraint if holding Shift or enabled in properties
+        const targetObj = useEditorStore.getState().objects[resizingObj.id];
+        const aspectLocked = e.shiftKey || !!targetObj?.properties?.aspectRatioLocked;
+        if (aspectLocked && resizingObj.aspectRatio) {
+          if (resizingObj.edge === 'e' || resizingObj.edge === 'w') {
+            newHeight = newWidth / resizingObj.aspectRatio;
+          } else if (resizingObj.edge === 's' || resizingObj.edge === 'n') {
+            newWidth = newHeight * resizingObj.aspectRatio;
+          } else {
+            // Corner handles: use the larger of the two dimension changes to scale proportionally
+            const wChange = Math.abs(newWidth - resizingObj.startWidth);
+            const hChange = Math.abs(newHeight - resizingObj.startHeight);
+            if (wChange > hChange) {
+              newHeight = newWidth / resizingObj.aspectRatio;
+              if (resizingObj.edge.includes('n')) {
+                newTop = resizingObj.startTop + (resizingObj.startHeight - newHeight);
+              }
+            } else {
+              newWidth = newHeight * resizingObj.aspectRatio;
+              if (resizingObj.edge.includes('w')) {
+                newLeft = resizingObj.startLeft + (resizingObj.startWidth - newWidth);
+              }
+            }
+          }
         }
 
         newWidth = Math.max(10, newWidth);
@@ -622,7 +681,8 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               startWidth: widthVal,
               startHeight: heightVal,
               startLeft: props.left || 0,
-              startTop: props.top || 0
+              startTop: props.top || 0,
+              aspectRatio: heightVal > 0 ? widthVal / heightVal : 1
             });
           };
 
@@ -716,9 +776,17 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   ...activeStyle, 
                   color: props.color || '#fff', 
                   fontSize: `${props.fontSize || 24}px`,
-                  whiteSpace: 'pre-wrap',
+                  fontFamily: props.fontFamily || 'sans-serif',
+                  fontWeight: props.fontWeight || 'normal',
+                  letterSpacing: props.letterSpacing !== undefined ? `${props.letterSpacing}px` : 'normal',
+                  textAlign: props.textAlign || 'left',
+                  whiteSpace: props.whiteSpace || 'pre-wrap',
+                  lineHeight: props.lineHeight !== undefined ? `${props.lineHeight}` : 'normal',
+                  textTransform: props.textTransform || 'none',
+                  textDecoration: props.textDecoration || 'none',
+                  fontStyle: props.fontStyle || 'normal',
                   cursor: !isPreviewMode ? 'move' : 'default',
-                  alignItems: alignment.includes('center') ? 'center' : (alignment.includes('right') ? 'flex-end' : 'flex-start'),
+                  alignItems: props.textAlign === 'center' ? 'center' : (props.textAlign === 'right' ? 'flex-end' : (props.textAlign === 'justify' ? 'stretch' : 'flex-start')),
                   justifyContent: 'center',
                 }}
                 onMouseDown={handleMouseDown}
