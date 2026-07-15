@@ -26,7 +26,7 @@ import {
   MousePointer,
   Video,
   Globe,
-  Sparkles,
+  Sparkles, Zap,
   LayoutGrid,
   Layers,
   ArrowRight,
@@ -415,9 +415,16 @@ export function HierarchyPanel({ width }: { width?: number }) {
               onDoubleClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className={cn("truncate flex-1 min-w-0 pr-1", obj.locked && "opacity-60 italic")}>
-              {obj.name}
-            </span>
+            <div className="flex-1 min-w-0 flex items-center pr-1 overflow-hidden">
+              <span className={cn("truncate", obj.locked && "opacity-60 italic")}>
+                {obj.name}
+              </span>
+              {obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0 && (
+                <div title="Contains No-Code Actions" className="ml-1.5 shrink-0">
+                  <Zap size={10} className="text-yellow-400 fill-yellow-400/20" />
+                </div>
+              )}
+            </div>
           )}
 
           {/* Action Overlay: Lock & Eye */}

@@ -164,6 +164,10 @@ export const generateAFrameScene = (state: any) => {
         isClickable = true;
       }
 
+      if (!obj.properties.ignoreClicks && obj.properties.cursor) {
+        customComponents += ` custom-cursor="${obj.properties.cursor}"`;
+      }
+
       if (obj.properties.ignoreClicks) {
         isClickable = false;
       }
@@ -385,6 +389,12 @@ export const generateAFrameScene = (state: any) => {
 
       const overlayId = (obj.parentId && !parentIs2D) ? `${obj.id}-overlay` : obj.id;
       
+      let animClass = '';
+      const anim = props.hudAnimation;
+      if (anim && anim !== 'none') {
+        animClass = `anim-${anim}`;
+      }
+
       // Render recursive child HTML
       const children = overlayObjects.filter((o: any) => o.parentId === obj.id);
       const childrenHtml = children.map(c => buildOverlayHtml(c)).join('\n');
@@ -394,7 +404,7 @@ export const generateAFrameScene = (state: any) => {
         let backgroundStyle = styleStr;
         const bgStyle = bgCol.startsWith('#') ? hexToRgba(bgCol, opacity) : bgCol;
         backgroundStyle += `background-color: ${bgStyle}; overflow: hidden;`;
-        return `  <div id="${overlayId}" style="${backgroundStyle}">${childrenHtml}</div>`;
+        return `  <div id="${overlayId}" class="${animClass}" style="${backgroundStyle}">${childrenHtml}</div>`;
       } else if (obj.type === 'overlayText') {
         const textAlignment = props.textAlign || 'left';
         const alignSelf = textAlignment === 'center' ? 'center' : (textAlignment === 'right' ? 'flex-end' : (textAlignment === 'justify' ? 'stretch' : 'flex-start'));
@@ -406,17 +416,16 @@ export const generateAFrameScene = (state: any) => {
         const textTransform = props.textTransform || 'none';
         const textDecoration = props.textDecoration || 'none';
         const fontStyle = props.fontStyle || 'normal';
-
         styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; text-align: ${textAlignment}; white-space: ${whiteSpace}; font-family: ${fontFamily}; font-weight: ${fontWeight}; letter-spacing: ${letterSpacing}; line-height: ${lineHeight}; text-transform: ${textTransform}; text-decoration: ${textDecoration}; font-style: ${fontStyle}; display: flex; flex-direction: column; align-items: ${alignSelf}; justify-content: center;`;
-        return `  <div id="${overlayId}" style="${styleStr}">${props.text || 'Text'}${childrenHtml}</div>`;
+        return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}">${props.text || 'Text'}${childrenHtml}</div>`;
       } else if (obj.type === 'overlayButton') {
         styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border-radius: ${props.borderRadius || 8}px; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold;`;
         const onClickAttr = props.url ? ` onclick="window.open('${props.url}', '_blank')"` : '';
-        return `  <button id="${overlayId}" style="${styleStr}"${onClickAttr}>${props.text || 'Button'}${childrenHtml}</button>`;
+        return `  <button id="${overlayId}" class="${animClass}" style="${styleStr}"${onClickAttr}">${props.text || 'Button'}${childrenHtml}</button>`;
       } else if (obj.type === 'overlayImage') {
         styleStr += `position: absolute; overflow: hidden;`;
         let imgStyle = `width: 100%; height: 100%; object-fit: cover; pointer-events: none;`;
-        return `  <div id="${overlayId}" style="${styleStr}"><img src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${imgStyle}" />${childrenHtml}</div>`;
+        return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}"><img src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${imgStyle}" />${childrenHtml}</div>`;
       } else if (obj.type === 'overlayEmbed') {
         const showBorder = props.borderEnabled ?? true;
         const showAddressBar = props.showAddressBar ?? true;
@@ -425,7 +434,7 @@ export const generateAFrameScene = (state: any) => {
           styleStr += `border: 2px solid ${props.borderColor || '#2563eb'}; `;
         }
         
-        let embedHtml = `  <div id="${overlayId}" style="${styleStr}">\n`;
+        let embedHtml = `  <div id="${overlayId}" class="${animClass}" style="${styleStr}">\n`;
         if (showAddressBar) {
           embedHtml += `    <div style="background-color: #1a1a1a; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #222; font-family: monospace; font-size: 10px; color: #aaa; flex-shrink: 0; z-index: 10;">\n`;
           embedHtml += `      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${props.url || 'No URL'}</span>\n`;
@@ -522,6 +531,22 @@ ${googleFontsLinksHtml}
         left: 0 !important;
         z-index: -2 !important;
       }
+      /* Custom HUD Transition Animations */
+      .anim-fade-in { animation: fadeIn 0.5s ease-out forwards; opacity: 0; }
+      .anim-slide-up { animation: slideUp 0.5s ease-out forwards; opacity: 0; transform: translateY(20px); }
+      .anim-slide-down { animation: slideDown 0.5s ease-out forwards; opacity: 0; transform: translateY(-20px); }
+      .anim-slide-left { animation: slideLeft 0.5s ease-out forwards; opacity: 0; transform: translateX(20px); }
+      .anim-slide-right { animation: slideRight 0.5s ease-out forwards; opacity: 0; transform: translateX(-20px); }
+      .anim-zoom-in { animation: zoomIn 0.5s ease-out forwards; opacity: 0; transform: scale(0.5); }
+      .anim-bounce { animation: bounceIn 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; transform: scale(0.5); }
+
+      @keyframes fadeIn { to { opacity: 1; } }
+      @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+      @keyframes slideDown { to { opacity: 1; transform: translateY(0); } }
+      @keyframes slideLeft { to { opacity: 1; transform: translateX(0); } }
+      @keyframes slideRight { to { opacity: 1; transform: translateX(0); } }
+      @keyframes zoomIn { to { opacity: 1; transform: scale(1); } }
+      @keyframes bounceIn { 50% { opacity: 1; transform: scale(1.1); } 100% { opacity: 1; transform: scale(1); } }
     </style>
 
     <!-- Global Mobile Console Logger Interceptor -->
@@ -716,6 +741,10 @@ ${googleFontsLinksHtml}
                 self.executeBehavior(b);
               };
               el.addEventListener('click', tapHandler);
+            } else if (b.trigger === 'onHoverEnter') {
+              el.addEventListener('mouseenter', () => self.executeBehavior(b));
+            } else if (b.trigger === 'onHoverExit') {
+              el.addEventListener('mouseleave', () => self.executeBehavior(b));
             }
           });
         },
@@ -1288,6 +1317,18 @@ ${googleFontsLinksHtml}
           this.el.addEventListener('click', () => {
             if (window.isDuplicateClick && window.isDuplicateClick(this.el)) return;
             playSound();
+          });
+        }
+      });
+
+      AFRAME.registerComponent('custom-cursor', {
+        schema: { type: 'string', default: 'pointer' },
+        init: function() {
+          this.el.addEventListener('mouseenter', () => {
+            document.body.style.cursor = this.data;
+          });
+          this.el.addEventListener('mouseleave', () => {
+            document.body.style.cursor = 'auto';
           });
         }
       });

@@ -1670,6 +1670,33 @@ function ObjectRenderer({ id }: { id: string }) {
       rotation-order="YXZ"
       scale={obj.scale}
       onClick={handleInteract}
+      onPointerOver={(e) => {
+        if (isPreviewMode) {
+          e.stopPropagation();
+          if (obj.properties.cursor && !obj.properties.ignoreClicks) {
+            document.body.style.cursor = obj.properties.cursor;
+          }
+          const behaviors = obj.properties.visualBehaviors || [];
+          behaviors.forEach((b: any) => {
+            if (b.trigger === 'onHoverEnter') {
+              executeBehaviorAction(b);
+            }
+          });
+        }
+      }}
+      onPointerOut={(e) => {
+        if (isPreviewMode) {
+          if (obj.properties.cursor && !obj.properties.ignoreClicks) {
+            document.body.style.cursor = 'auto';
+          }
+          const behaviors = obj.properties.visualBehaviors || [];
+          behaviors.forEach((b: any) => {
+            if (b.trigger === 'onHoverExit') {
+              executeBehaviorAction(b);
+            }
+          });
+        }
+      }}
       raycast={obj.properties.ignoreClicks ? () => null : undefined}
     >
       {renderGeometry()}

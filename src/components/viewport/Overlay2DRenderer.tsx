@@ -648,6 +648,23 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           const isSelected = selectedObjectId === obj.id;
           const parentProjected = obj.parentId ? (projectedPositions[obj.parentId] || null) : null;
 
+          const getAnimClass = () => {
+            if (!isPreviewMode) return '';
+            const anim = props.hudAnimation;
+            if (!anim || anim === 'none') return '';
+            switch (anim) {
+              case 'fade-in': return 'animate-in fade-in duration-500';
+              case 'slide-up': return 'animate-in fade-in slide-in-from-bottom-8 duration-500';
+              case 'slide-down': return 'animate-in fade-in slide-in-from-top-8 duration-500';
+              case 'slide-left': return 'animate-in fade-in slide-in-from-right-8 duration-500';
+              case 'slide-right': return 'animate-in fade-in slide-in-from-left-8 duration-500';
+              case 'zoom-in': return 'animate-in fade-in zoom-in-50 duration-500';
+              case 'bounce': return 'animate-bounce';
+              default: return '';
+            }
+          };
+          const animClass = getAnimClass();
+
           const handleMouseDown = (e: React.MouseEvent) => {
             if (isPreviewMode) return;
             e.stopPropagation();
@@ -750,6 +767,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               <div 
                 key={obj.id} 
                 id={obj.id}
+                className={animClass}
                 style={{ 
                   ...activeStyle,
                   backgroundColor: bgStyle,
@@ -772,6 +790,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               <div 
                 key={obj.id} 
                 id={obj.id}
+                className={animClass}
                 style={{ 
                   ...activeStyle, 
                   color: props.color || '#fff', 
@@ -803,6 +822,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               <button 
                 key={obj.id} 
                 id={obj.id}
+                className={animClass}
                 style={{ 
                   ...activeStyle, 
                   backgroundColor: props.color || '#3b82f6', 
@@ -834,6 +854,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               <div 
                 key={obj.id} 
                 id={obj.id}
+                className={animClass}
                 style={{ 
                   ...activeStyle, 
                   cursor: !isPreviewMode ? 'move' : 'default',
@@ -859,6 +880,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               <div 
                 key={obj.id} 
                 id={obj.id}
+                className={animClass}
                 style={{ 
                   ...activeStyle, 
                   backgroundColor: 'transparent',

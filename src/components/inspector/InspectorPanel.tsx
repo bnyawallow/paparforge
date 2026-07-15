@@ -2145,6 +2145,27 @@ export function InspectorPanel({ width }: { width?: number }) {
               )} />
             </button>
           </div>
+          
+          {/* Mouse Cursor Selector */}
+          {!obj.properties.ignoreClicks && (
+            <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
+                <span className="text-[11px]">Custom AR Cursor</span>
+              </span>
+              <select
+                value={obj.properties.cursor || 'pointer'}
+                onChange={(e) => handlePropertyChange('cursor', e.target.value)}
+                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1 focus:border-blue-500 outline-none w-28"
+              >
+                <option value="pointer">👆 Default Tap</option>
+                <option value="grab">🖐️ Grab</option>
+                <option value="zoom-in">🔍 Zoom</option>
+                <option value="crosshair">🎯 Target</option>
+                <option value="help">❓ Help</option>
+                <option value="not-allowed">🚫 Blocked</option>
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Transform Component */}
@@ -2429,6 +2450,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                                 className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
                               >
                                 <option value="onTap">👆 On Tap (Mouse Click)</option>
+                                <option value="onHoverEnter">🖱️ On Hover Enter</option>
+                                <option value="onHoverExit">🖱️ On Hover Exit</option>
                                 <option value="onProximity">📐 On Proximity (Distance)</option>
                                 <option value="onStart">🚀 On Start / Loaded</option>
                                 <option value="onTargetFound">👁 MindAR Target Found</option>
@@ -2459,7 +2482,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                         >
                           <option value="toast">💬 Show HUD Toast</option>
                           <option value="openUrl">🌐 Open Web URL</option>
-                          <option value="playSound">🔊 Play Audio Preset</option>
+                          <option value="playSound">🔊 Play Sound Effect</option>
                           <option value="playVideo">🎬 Play Video Panel</option>
                           <option value="toggleVisibility">👁 Toggle Visibility</option>
                           <option value="setVisibility">👁 Set Visibility (Show/Hide)</option>
@@ -4179,6 +4202,27 @@ export function InspectorPanel({ width }: { width?: number }) {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full"></span>
                     <span className="text-[10px] font-bold text-cyan-400 tracking-wider">2D Overlay Properties</span>
+                  </div>
+                  
+                  {/* Transition Animation */}
+                  <div className="flex flex-col gap-1 border-b border-cyan-500/10 pb-3 mb-1">
+                    <label className="text-[10px] text-[#888] font-medium flex items-center justify-between">
+                      <span>Entrance Animation</span>
+                    </label>
+                    <select
+                      value={obj.properties.hudAnimation || 'none'}
+                      onChange={(e) => handlePropertyChange('hudAnimation', e.target.value)}
+                      className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-cyan-500 outline-none w-full"
+                    >
+                      <option value="none">No Animation</option>
+                      <option value="fade-in">Fade In</option>
+                      <option value="slide-up">Slide Up</option>
+                      <option value="slide-down">Slide Down</option>
+                      <option value="slide-left">Slide Left</option>
+                      <option value="slide-right">Slide Right</option>
+                      <option value="zoom-in">Zoom In</option>
+                      <option value="bounce">Bounce</option>
+                    </select>
                   </div>
                   
                   {obj.type === 'overlay2d' && (

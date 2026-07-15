@@ -201,53 +201,14 @@ export function EditorLayout() {
                 </div>
               </div>
             )}
-            <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center bg-[#0a0a0a]">
-              {isPreviewMode && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 bg-[#1A1A1A] border border-[#333] rounded-lg z-50 shadow-xl">
-                  <button
-                    onClick={() => setPreviewDevice('mobile')}
-                    className={`p-2 rounded-md transition-colors ${previewDevice === 'mobile' ? 'bg-[#333] text-white' : 'text-[#888] hover:text-white hover:bg-[#222]'}`}
-                    title="Mobile View (375x812)"
-                  >
-                    <Smartphone size={16} />
-                  </button>
-                  <button
-                    onClick={() => setPreviewDevice('tablet')}
-                    className={`p-2 rounded-md transition-colors ${previewDevice === 'tablet' ? 'bg-[#333] text-white' : 'text-[#888] hover:text-white hover:bg-[#222]'}`}
-                    title="Tablet View (768x1024)"
-                  >
-                    <Tablet size={16} />
-                  </button>
-                  <button
-                    onClick={() => setPreviewDevice('desktop')}
-                    className={`p-2 rounded-md transition-colors ${previewDevice === 'desktop' ? 'bg-[#333] text-white' : 'text-[#888] hover:text-white hover:bg-[#222]'}`}
-                    title="Desktop View (Full Screen)"
-                  >
-                    <Monitor size={16} />
-                  </button>
-                </div>
-              )}
+            <div className="flex-1 relative overflow-hidden">
               {!isPreviewMode && (
                 <div 
                   className="absolute inset-0 opacity-10 pointer-events-none" 
                   style={{ backgroundImage: 'radial-gradient(#666 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                 ></div>
               )}
-              
-              <div 
-                className={`transition-all duration-300 ease-in-out relative ${
-                  isPreviewMode && previewDevice !== 'desktop' 
-                    ? 'border-8 border-[#333] rounded-[2rem] overflow-hidden shadow-2xl mx-auto my-auto' 
-                    : 'w-full h-full'
-                }`}
-                style={
-                  isPreviewMode && previewDevice === 'mobile' ? { width: '375px', height: '812px', maxHeight: '90vh' } :
-                  isPreviewMode && previewDevice === 'tablet' ? { width: '768px', height: '1024px', maxHeight: '90vh' } :
-                  { width: '100%', height: '100%' }
-                }
-              >
-                <Viewport />
-              </div>
+              <Viewport />
             </div>
           </div>
 
