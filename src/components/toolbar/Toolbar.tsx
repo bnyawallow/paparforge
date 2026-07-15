@@ -179,10 +179,10 @@ export function Toolbar() {
                   ? "bg-emerald-600 text-white shadow-md font-bold" 
                   : "text-[#666] hover:text-[#CCC] hover:bg-[#1A1A1A]"
               }`}
-              title="Switch to Interactive AR Live Preview Mode"
+              title="Switch to Interactive AR Preview Mode"
             >
               <Camera size={13} />
-              Live Preview
+              Preview
             </button>
           </div>
 

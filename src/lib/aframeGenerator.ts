@@ -761,11 +761,10 @@ ${googleFontsLinksHtml}
               }
               break;
             case 'playSound':
-              const playUrl = b.soundPreset || '/sounds/success_chime.wav';
-              const soundEntity = document.createElement('a-entity');
-              soundEntity.setAttribute('sound', 'src: url(' + playUrl + '); autoplay: true; volume: 0.5');
-              this.el.appendChild(soundEntity);
-              setTimeout(() => { if(soundEntity.parentNode) soundEntity.parentNode.removeChild(soundEntity); }, 5000);
+              const playUrl = b.soundPreset || b.url || 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+              const audio = new Audio(playUrl);
+              audio.volume = 0.5;
+              audio.play().catch(e => console.error('Audio play failed:', e));
               break;
             case 'playVideo':
               showARVideo({
@@ -776,8 +775,109 @@ ${googleFontsLinksHtml}
             case 'toggleVisibility':
               const targetEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
               if (targetEl) {
-                const visible = targetEl.getAttribute('visible') !== false;
-                targetEl.setAttribute('visible', !visible);
+                if (targetEl.tagName && (targetEl.tagName.toLowerCase() === 'a-entity' || targetEl.tagName.toLowerCase().startsWith('a-'))) {
+                  const currentVisible = targetEl.getAttribute('visible');
+                  const visible = currentVisible !== false && currentVisible !== 'false';
+                  targetEl.setAttribute('visible', !visible);
+                } else {
+                  // 2D DOM element
+                  const isHidden = targetEl.style.display === 'none' || targetEl.style.visibility === 'hidden' || targetEl.style.opacity === '0';
+                  if (isHidden) {
+                    targetEl.style.display = targetEl.dataset.originalDisplay || 'flex';
+                    targetEl.style.opacity = '1';
+                    targetEl.style.pointerEvents = 'auto';
+                  } else {
+                    targetEl.dataset.originalDisplay = targetEl.style.display;
+                    targetEl.style.display = 'none';
+                    targetEl.style.opacity = '0';
+                    targetEl.style.pointerEvents = 'none';
+                  }
+                }
+              }
+              break;
+            case 'setVisibility': {
+              const setVisEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (setVisEl) {
+                const targetState = b.visibleState !== 'false';
+                if (setVisEl.tagName && (setVisEl.tagName.toLowerCase() === 'a-entity' || setVisEl.tagName.toLowerCase().startsWith('a-'))) {
+                  setVisEl.setAttribute('visible', targetState);
+                } else {
+                  if (targetState) {
+                    setVisEl.style.display = setVisEl.dataset.originalDisplay || 'flex';
+                    setVisEl.style.opacity = '1';
+                    setVisEl.style.pointerEvents = 'auto';
+                  } else {
+                    setVisEl.dataset.originalDisplay = setVisEl.style.display;
+                    setVisEl.style.display = 'none';
+                    setVisEl.style.opacity = '0';
+                    setVisEl.style.pointerEvents = 'none';
+                  }
+                }
+              }
+              break;
+            }
+            case 'scaleUp': {
+              const scaleEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (scaleEl && scaleEl.tagName && (scaleEl.tagName.toLowerCase() === 'a-entity' || scaleEl.tagName.toLowerCase().startsWith('a-'))) {
+                const currentScale = scaleEl.getAttribute('scale') || {x: 1, y: 1, z: 1};
+                const s = typeof currentScale === 'string'
+                  ? currentScale.split(' ').map(parseFloat)
+                  : [currentScale.x, currentScale.y, currentScale.z];
+                scaleEl.setAttribute('scale', {
+                  x: (s[0] || 1) * 1.25,
+                  y: (s[1] || 1) * 1.25,
+                  z: (s[2] || 1) * 1.25
+                });
+              }
+              break;
+            }
+            case 'scaleDown': {
+              const scaleEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (scaleEl && scaleEl.tagName && (scaleEl.tagName.toLowerCase() === 'a-entity' || scaleEl.tagName.toLowerCase().startsWith('a-'))) {
+                const currentScale = scaleEl.getAttribute('scale') || {x: 1, y: 1, z: 1};
+                const s = typeof currentScale === 'string'
+                  ? currentScale.split(' ').map(parseFloat)
+                  : [currentScale.x, currentScale.y, currentScale.z];
+                scaleEl.setAttribute('scale', {
+                  x: (s[0] || 1) * 0.8,
+                  y: (s[1] || 1) * 0.8,
+                  z: (s[2] || 1) * 0.8
+                });
+              }
+              break;
+            }
+            case 'playModelAnimation': {
+              const animEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  modelEl.setAttribute('animation-mixer', 'timeScale', 1);
+                }
+              }
+              break;
+            }
+            case 'pauseModelAnimation': {
+              const animEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  modelEl.setAttribute('animation-mixer', 'timeScale', 0);
+                }
+              }
+              break;
+            }
+            case 'pauseScanning':
+              const sceneEl = document.querySelector('a-scene');
+              if (sceneEl && sceneEl.systems['mindar-image-system']) {
+                sceneEl.systems['mindar-image-system'].pause();
+                showToast('Tracking Paused');
+              }
+              break;
+            case 'resumeScanning':
+              const sceneEl2 = document.querySelector('a-scene');
+              if (sceneEl2 && sceneEl2.systems['mindar-image-system']) {
+                sceneEl2.systems['mindar-image-system'].unpause();
+                showToast('Tracking Resumed');
               }
               break;
             case 'spin':
@@ -836,8 +936,23 @@ ${googleFontsLinksHtml}
             toggleVisibility: (targetId) => {
               const targetEl = document.getElementById(targetId);
               if (targetEl) {
-                const visible = targetEl.getAttribute('visible') !== false;
-                targetEl.setAttribute('visible', !visible);
+                if (targetEl.tagName && (targetEl.tagName.toLowerCase() === 'a-entity' || targetEl.tagName.toLowerCase().startsWith('a-'))) {
+                  const currentVisible = targetEl.getAttribute('visible');
+                  const visible = currentVisible !== false && currentVisible !== 'false';
+                  targetEl.setAttribute('visible', !visible);
+                } else {
+                  const isHidden = targetEl.style.display === 'none' || targetEl.style.visibility === 'hidden' || targetEl.style.opacity === '0';
+                  if (isHidden) {
+                    targetEl.style.display = targetEl.dataset.originalDisplay || 'flex';
+                    targetEl.style.opacity = '1';
+                    targetEl.style.pointerEvents = 'auto';
+                  } else {
+                    targetEl.dataset.originalDisplay = targetEl.style.display;
+                    targetEl.style.display = 'none';
+                    targetEl.style.opacity = '0';
+                    targetEl.style.pointerEvents = 'none';
+                  }
+                }
               }
             },
             getObject: (targetId) => {
@@ -846,10 +961,9 @@ ${googleFontsLinksHtml}
             },
             playSound: (url) => {
               const playUrl = url || '/sounds/cyber_click.wav';
-              const soundEntity = document.createElement('a-entity');
-              soundEntity.setAttribute('sound', 'src: url(' + playUrl + '); autoplay: true; volume: 0.5');
-              el.appendChild(soundEntity);
-              setTimeout(() => { if(soundEntity.parentNode) soundEntity.parentNode.removeChild(soundEntity); }, 5000);
+              const audio = new Audio(playUrl);
+              audio.volume = 0.5;
+              audio.play().catch(e => console.error('Audio play failed:', e));
             },
             showToast: (msg) => {
               showToast(msg);
@@ -1262,12 +1376,12 @@ ${googleFontsLinksHtml}
   </head>
   <body>
     ${overlayHtml}
-    <!-- Target Compilation Overlay -->
+    <!-- WebAR Loading Screen -->
     <div id="compiler-overlay" style="position: fixed; inset: 0; background: #0E0E0E; z-index: 10000010 !important; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; transition: opacity 0.4s ease-in-out; color: white;">
       <div style="background: #181818; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 20px; width: 85%; max-width: 320px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
         <div style="width: 50px; height: 50px; border-radius: 25px; border: 3px solid rgba(251, 191, 36, 0.15); border-top-color: #fbbf24; animation: spinLoader 1s linear infinite;"></div>
         <div>
-          <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.05em;">WebAR Compiling</h2>
+          <h2 id="loading-title" style="margin: 0; font-size: 14px; font-weight: 600; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.05em;">Initializing WebAR</h2>
           <p id="compiler-status" style="margin: 8px 0 0 0; font-size: 10px; opacity: 0.7; line-height: 1.4;">Downloading target image features...</p>
         </div>
         <!-- Progress bar container -->
@@ -1590,6 +1704,14 @@ ${entitiesHtml}
 
         scene.addEventListener('arReady', (event) => {
           console.log('[MINDAR] AR Engine is ready and camera feed is active!');
+          const compilerOverlay = document.getElementById('compiler-overlay');
+          if (compilerOverlay) {
+            compilerOverlay.style.opacity = '0';
+            setTimeout(() => {
+              compilerOverlay.style.display = 'none';
+            }, 400);
+          }
+          showScanningOverlay();
         });
 
         scene.addEventListener('arError', (event) => {
@@ -1694,14 +1816,10 @@ ${entitiesHtml}
         try {
           const mindUrl = await compileTargetImage(imageUrl);
           
-          // Hide compiler overlay with a smooth fade
-          const compilerOverlay = document.getElementById('compiler-overlay');
-          if (compilerOverlay) {
-            compilerOverlay.style.opacity = '0';
-            setTimeout(() => {
-              compilerOverlay.style.display = 'none';
-            }, 400);
-          }
+          const statusText = document.getElementById('compiler-status');
+          if (statusText) statusText.innerText = 'Starting AR Engine...';
+          const loadingTitle = document.getElementById('loading-title');
+          if (loadingTitle) loadingTitle.innerText = 'Initializing WebAR';
           
           console.log('[STAGE] Injecting MindAR A-Frame scene...');
           

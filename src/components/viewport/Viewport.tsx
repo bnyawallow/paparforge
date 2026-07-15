@@ -1212,6 +1212,41 @@ function ObjectRenderer({ id }: { id: string }) {
           useEditorStore.getState().updateObject(id, { visible: !obj?.visible });
         }
         break;
+      case 'setVisibility':
+        const svTargetId = b.targetObjectId || id;
+        const svTarget = useEditorStore.getState().objects[svTargetId];
+        if (svTarget) {
+          useEditorStore.getState().updateObject(svTargetId, { visible: b.visibleState !== 'false' });
+        }
+        break;
+      case 'scaleUp':
+        const suTargetId = b.targetObjectId || id;
+        const suTarget = useEditorStore.getState().objects[suTargetId];
+        if (suTarget) {
+          useEditorStore.getState().updateObject(suTargetId, { scale: [suTarget.scale[0] * 1.25, suTarget.scale[1] * 1.25, suTarget.scale[2] * 1.25] });
+        }
+        break;
+      case 'scaleDown':
+        const sdTargetId = b.targetObjectId || id;
+        const sdTarget = useEditorStore.getState().objects[sdTargetId];
+        if (sdTarget) {
+          useEditorStore.getState().updateObject(sdTargetId, { scale: [sdTarget.scale[0] * 0.8, sdTarget.scale[1] * 0.8, sdTarget.scale[2] * 0.8] });
+        }
+        break;
+      case 'playModelAnimation':
+        const pmaTargetId = b.targetObjectId || id;
+        const pmaTarget = useEditorStore.getState().objects[pmaTargetId];
+        if (pmaTarget && pmaTarget.type === 'model') {
+          useEditorStore.getState().updateObject(pmaTargetId, { properties: { ...pmaTarget.properties, animationPlaying: true, animationSpeed: 1.0 } });
+        }
+        break;
+      case 'pauseModelAnimation':
+        const pmaPauseTargetId = b.targetObjectId || id;
+        const pmaPauseTarget = useEditorStore.getState().objects[pmaPauseTargetId];
+        if (pmaPauseTarget && pmaPauseTarget.type === 'model') {
+          useEditorStore.getState().updateObject(pmaPauseTargetId, { properties: { ...pmaPauseTarget.properties, animationPlaying: false, animationSpeed: 0.0 } });
+        }
+        break;
       case 'spin':
         const targetId = b.targetObjectId || id;
         const targetObj = useEditorStore.getState().objects[targetId];
@@ -2240,13 +2275,15 @@ export function Viewport() {
         </div>
         
         {/* Debug Log Overlay */}
-        <div className="absolute bottom-4 left-4 right-4 z-40 pointer-events-none flex flex-col gap-1.5">
-          {debugLogs.map(log => (
-            <div key={log.id} className="bg-black/70 border border-[#333] px-3 py-2 rounded shadow text-[11px] font-mono text-yellow-400 animate-in fade-in slide-in-from-bottom-2 self-start backdrop-blur-sm">
-              <span className="opacity-50 mr-2 text-white">🐞 TOUCH EVENT:</span> {log.message}
-            </div>
-          ))}
-        </div>
+        {!isPreviewMode && (
+          <div className="absolute bottom-4 left-4 right-4 z-40 pointer-events-none flex flex-col gap-1.5">
+            {debugLogs.map(log => (
+              <div key={log.id} className="bg-black/70 border border-[#333] px-3 py-2 rounded shadow text-[11px] font-mono text-yellow-400 animate-in fade-in slide-in-from-bottom-2 self-start backdrop-blur-sm">
+                <span className="opacity-50 mr-2 text-white">🐞 TOUCH EVENT:</span> {log.message}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Bezel Device wrapper vs Full Bleed wrapper */}
         <div className={showBezel 

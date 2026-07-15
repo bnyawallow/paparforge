@@ -882,6 +882,22 @@ export function InspectorPanel({ width }: { width?: number }) {
     if (!selectedObjectId || !objects[selectedObjectId]) return;
     const obj = objects[selectedObjectId];
     const behaviors = obj.properties.visualBehaviors || [];
+
+    // Validation for actions assigned to incompatible objects
+    if (updates.action || updates.targetObjectId) {
+      const b = behaviors.find((b: any) => b.id === id);
+      const action = updates.action || b?.action;
+      const targetId = updates.targetObjectId !== undefined ? updates.targetObjectId : b?.targetObjectId;
+      const targetObj = targetId ? objects[targetId] : obj;
+      
+      if (action === 'playModelAnimation' || action === 'pauseModelAnimation') {
+        if (targetObj && targetObj.type !== 'model') {
+          // Warning via window.alert since useEditorStore may not have toast easily accessible here, or better yet, maybe just alert for now.
+          window.alert(`Warning: '${action === 'playModelAnimation' ? 'Play Model Animation' : 'Pause Model Animation'}' action requires a 3D Model object. '${targetObj.name}' is a ${targetObj.type}.`);
+        }
+      }
+    }
+
     const updated = behaviors.map((b: any) => b.id === id ? { ...b, ...updates } : b);
     updateObject(selectedObjectId, {
       properties: {
@@ -2446,9 +2462,16 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <option value="playSound">🔊 Play Audio Preset</option>
                           <option value="playVideo">🎬 Play Video Panel</option>
                           <option value="toggleVisibility">👁 Toggle Visibility</option>
+                          <option value="setVisibility">👁 Set Visibility (Show/Hide)</option>
+                          <option value="scaleUp">➕ Scale Up (Larger)</option>
+                          <option value="scaleDown">➖ Scale Down (Smaller)</option>
+                          <option value="playModelAnimation">🎬 Play Model Animation</option>
+                          <option value="pauseModelAnimation">⏸ Pause Model Animation</option>
                           <option value="spin">🔄 Make Spin Animation</option>
                           <option value="transform">📐 Set Transform (Pos/Rot/Scale)</option>
                           <option value="material">🎨 Set Material (Color/Texture)</option>
+                          <option value="pauseScanning">⏸ Pause AR Scanning</option>
+                          <option value="resumeScanning">▶️ Resume AR Scanning</option>
                         </select>
                       </div>
 
@@ -2578,7 +2601,21 @@ export function InspectorPanel({ width }: { width?: number }) {
                         </>
                       )}
 
-                      {(b.action === 'toggleVisibility' || b.action === 'spin' || b.action === 'transform' || b.action === 'material') && (
+                      {b.action === 'setVisibility' && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Visibility State</label>
+                          <select
+                            value={b.visibleState ?? 'true'}
+                            onChange={(e) => handleUpdateBehavior(b.id, { visibleState: e.target.value })}
+                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                          >
+                            <option value="true">👁 Show (Visible)</option>
+                            <option value="false">🙈 Hide (Invisible)</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {(b.action === 'toggleVisibility' || b.action === 'setVisibility' || b.action === 'scaleUp' || b.action === 'scaleDown' || b.action === 'playModelAnimation' || b.action === 'pauseModelAnimation' || b.action === 'spin' || b.action === 'transform' || b.action === 'material') && (
                         <div className="flex flex-col gap-1">
                           <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Object</label>
                           <select
