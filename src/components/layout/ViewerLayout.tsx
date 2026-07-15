@@ -15,20 +15,41 @@ export function ViewerLayout() {
       
       try {
         setLoading(true);
-        if (!SupabaseService.isConfigured()) {
-          setError('Supabase is not configured. Please set up your environment variables.');
-          setLoading(false);
-          return;
+        let projectData: any = null;
+
+        // 1. Try loading from Supabase if configured
+        if (SupabaseService.isConfigured()) {
+          try {
+            projectData = await SupabaseService.loadProject(projectId);
+          } catch (err) {
+            console.warn('Supabase fetch failed, falling back to local storage:', err);
+          }
         }
-        
-        const projectData = await SupabaseService.loadProject(projectId);
+
+        // 2. Fallback to local storage if Supabase failed, returned null, or is not configured
+        if (!projectData) {
+          try {
+            const localKey = `ar_forge_project_${projectId}`;
+            const localDataStr = localStorage.getItem(localKey);
+            if (localDataStr) {
+              projectData = JSON.parse(localDataStr);
+              console.log('Successfully loaded project from local storage:', projectId);
+            }
+          } catch (localErr) {
+            console.error('Local storage fetch failed:', localErr);
+          }
+        }
         
         if (projectData) {
           // Generate the AR scene from the saved project data
           const html = generateAFrameScene(projectData);
           setHtmlContent(html);
         } else {
-          setError('Project not found or contains no data.');
+          if (!SupabaseService.isConfigured()) {
+            setError('Project not found in local storage, and Supabase is not configured. Please verify the project ID or save the project in the editor.');
+          } else {
+            setError('Project not found or contains no data.');
+          }
         }
       } catch (err: any) {
         console.error('Error fetching project:', err);

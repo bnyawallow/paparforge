@@ -557,6 +557,36 @@ export const generateAFrameScene = (state: any) => {
         return false;
       };
 
+      // Register custom Toon shader for elements using shader: toon
+      AFRAME.registerShader('toon', {
+        schema: {
+          color: {type: 'color', is: 'uniform', default: '#ffffff'},
+          src: {type: 'map', is: 'uniform'},
+          roughness: {type: 'number', default: 0.5},
+          metalness: {type: 'number', default: 0.1},
+          opacity: {type: 'number', is: 'uniform', default: 1.0},
+          transparent: {type: 'boolean', default: false}
+        },
+        init: function (data) {
+          this.material = new THREE.MeshToonMaterial({
+            color: new THREE.Color(data.color),
+            roughness: data.roughness,
+            metalness: data.metalness,
+            opacity: data.opacity,
+            transparent: data.transparent || data.opacity < 1
+          });
+          AFRAME.utils.material.updateMap(this, data);
+        },
+        update: function (data) {
+          this.material.color.set(data.color);
+          this.material.roughness = data.roughness;
+          this.material.metalness = data.metalness;
+          this.material.opacity = data.opacity;
+          this.material.transparent = data.transparent || data.opacity < 1;
+          AFRAME.utils.material.updateMap(this, data);
+        }
+      });
+
       // 0. Continuous Interactive Live Behaviors (Spin, Hover, Pulse)
       AFRAME.registerComponent('live-behavior', {
         schema: {
