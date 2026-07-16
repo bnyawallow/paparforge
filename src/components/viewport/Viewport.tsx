@@ -1194,6 +1194,10 @@ function ObjectRenderer({ id }: { id: string }) {
         const playUrl = b.soundPreset || '/sounds/success_chime.wav';
         const sfx = new Audio(playUrl);
         sfx.volume = 0.5;
+        if (b.soundLoop) {
+          sfx.loop = true;
+          // You might want a way to stop it, but for now we just loop it
+        }
         sfx.play().catch(e => console.log('Audio preset play failed', e));
         break;
       case 'playVideo':
@@ -1201,6 +1205,13 @@ function ObjectRenderer({ id }: { id: string }) {
           title: `${obj ? obj.name : 'Object'} Response Video`,
           url: b.url || 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761'
         });
+        break;
+      case 'startBehavior':
+        if (b.targetObjectId) {
+          useEditorStore.getState().updateObject(b.targetObjectId, { behavior: b.behaviorRule || 'spin' });
+        } else if (obj) {
+          useEditorStore.getState().updateObject(obj.id, { behavior: b.behaviorRule || 'spin' });
+        }
         break;
       case 'toggleVisibility':
         if (b.targetObjectId) {
@@ -1398,46 +1409,80 @@ function ObjectRenderer({ id }: { id: string }) {
     // Skip updating position/rotation/scale when actively transforming this selected object
     if (isSelected && isTransformDragging) return;
 
+    
     const behavior = obj.properties.behavior;
     const t = state.clock.getElapsedTime();
+    const dt = state.clock.getDelta();
 
-    // 1. Position hover levitation along Z axis (perpendicular to horizontal XY ground plane)
-    if (behavior === 'hover') {
-      meshRef.current.position.z = obj.position[2] + Math.sin(t * 3) * 0.2;
-    } else {
-      meshRef.current.position.z = obj.position[2];
-    }
-    meshRef.current.position.x = obj.position[0];
-    meshRef.current.position.y = obj.position[1];
-
-    // 2. Continuous spin around its own local axis
-    const spinAxis = obj.properties.spinAxis || 'z';
+    // Reset rotation before applying behaviors
     meshRef.current.rotation.set(
       THREE.MathUtils.degToRad(obj.rotation[0]),
       THREE.MathUtils.degToRad(obj.rotation[1]),
       THREE.MathUtils.degToRad(obj.rotation[2])
     );
-    if (behavior === 'spin') {
-      const localAxis = new THREE.Vector3();
-      if (spinAxis === 'x') localAxis.set(1, 0, 0);
-      else if (spinAxis === 'y') localAxis.set(0, 1, 0);
-      else localAxis.set(0, 0, 1);
-      meshRef.current.rotateOnAxis(localAxis, t * 1.5);
+    // Reset scale before applying behaviors
+    meshRef.current.scale.set(obj.scale[0], obj.scale[1], obj.scale[2]);
+
+    // Position updates
+    meshRef.current.position.set(obj.position[0], obj.position[1], obj.position[2]);
+
+    if (behavior === 'hover') {
+      meshRef.current.position.z += Math.sin(t * 3) * 0.2;
+    } else if (behavior === 'bounce') {
+      meshRef.current.position.z += Math.abs(Math.sin(t * 4)) * 0.5;
+    } else if (behavior === 'shake') {
+      meshRef.current.position.x += (Math.random() - 0.5) * 0.1;
+      meshRef.current.position.y += (Math.random() - 0.5) * 0.1;
+    } else if (behavior === 'orbit') {
+      const radius = 2;
+      meshRef.current.position.x += Math.cos(t) * radius;
+      meshRef.current.position.y += Math.sin(t) * radius;
     }
 
-    // 3. Rhythmic size pulse
+    const spinAxis = obj.properties.spinAxis || 'z';
+    const localAxis = new THREE.Vector3();
+    if (spinAxis === 'x') localAxis.set(1, 0, 0);
+    else if (spinAxis === 'y') localAxis.set(0, 1, 0);
+    else localAxis.set(0, 0, 1);
+
+    if (behavior === 'spin') {
+      meshRef.current.rotateOnAxis(localAxis, t * 1.5);
+    } else if (behavior === 'spin-fast') {
+      meshRef.current.rotateOnAxis(localAxis, t * 6.0);
+    } else if (behavior === 'pendulum') {
+      meshRef.current.rotateOnAxis(localAxis, Math.sin(t * 2) * 0.5);
+    } else if (behavior === 'look-at-camera') {
+      meshRef.current.lookAt(state.camera.position);
+    }
+
     if (behavior === 'pulse') {
       const scaleVal = 1 + Math.sin(t * 4.5) * 0.08;
-      meshRef.current.scale.set(
-        obj.scale[0] * scaleVal,
-        obj.scale[1] * scaleVal,
-        obj.scale[2] * scaleVal
-      );
-    } else {
-      meshRef.current.scale.set(obj.scale[0], obj.scale[1], obj.scale[2]);
+      meshRef.current.scale.multiplyScalar(scaleVal);
+    } else if (behavior === 'scale-up') {
+      const scaleVal = Math.min(1 + t * 0.5, 2.0); // Caps at 2.0
+      meshRef.current.scale.multiplyScalar(scaleVal);
+    } else if (behavior === 'scale-down') {
+      const scaleVal = Math.max(1 - t * 0.2, 0.1); // Caps at 0.1
+      meshRef.current.scale.multiplyScalar(scaleVal);
+    }
+    
+    // Opacity/Fade is tricky since we'd need to access the material, which might be complex if it's an imported model.
+    // Assuming simple mesh or we can traverse.
+    if (behavior === 'fade-in' || behavior === 'fade-out') {
+      meshRef.current.traverse((child) => {
+        if (child.isMesh && child.material) {
+          child.material.transparent = true;
+          if (behavior === 'fade-in') {
+            child.material.opacity = Math.min(t * 0.5, 1.0);
+          } else {
+            child.material.opacity = Math.max(1.0 - t * 0.5, 0.0);
+          }
+        }
+      });
     }
 
-    // 4. Run Custom Script update callback loop
+    // Draggable behavior is complex in standard r3f without drei/DragControls, so we will skip it for now or implement a simplified version.
+// 4. Run Custom Script update callback loop
     if (isPreviewMode && scriptCallbacksRef.current.onUpdate && (obj.properties.scriptEnabled ?? true)) {
       try {
         scriptCallbacksRef.current.onUpdate(t, state.clock.getDelta());

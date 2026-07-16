@@ -26,6 +26,47 @@ const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
     { name: 'Success Chime ✨', url: '/sounds/success_chime.wav' },
     { name: 'Robot Beep 🤖', url: '/sounds/robot_beep.wav' },
     { name: 'Forest Ambient 🌲', url: '/sounds/forest_ambient.wav' },
+    
+    // New UI/Feedback Sounds
+    { name: 'Soft Click 🖱️', url: '/sounds/ui/click_soft.wav' },
+    { name: 'Hard Click 🖱️', url: '/sounds/ui/click_hard.wav' },
+    { name: 'Error Buzz ❌', url: '/sounds/ui/error_buzz.wav' },
+    { name: 'Success Bell ✅', url: '/sounds/ui/success_bell.wav' },
+    { name: 'Notification 💬', url: '/sounds/ui/notification.wav' },
+    { name: 'Pop 💥', url: '/sounds/ui/pop.wav' },
+    { name: 'Swoosh 💨', url: '/sounds/ui/swoosh.wav' },
+    { name: 'Whoosh 💨', url: '/sounds/ui/whoosh.wav' },
+    { name: 'Magic Wand 🪄', url: '/sounds/ui/magic_wand.wav' },
+    { name: 'Arcade Coin 🪙', url: '/sounds/ui/arcade_coin.wav' },
+    { name: 'Level Up 🆙', url: '/sounds/ui/level_up.wav' },
+    { name: 'Game Over 💀', url: '/sounds/ui/game_over.wav' },
+
+    // Ambient & Atmospheric
+    { name: 'Ocean Waves 🌊', url: '/sounds/ambient/ocean_waves.wav' },
+    { name: 'Light Rain 🌧️', url: '/sounds/ambient/rain_light.wav' },
+    { name: 'Thunder ⚡', url: '/sounds/ambient/thunder.wav' },
+    { name: 'Howling Wind 🌬️', url: '/sounds/ambient/wind_howl.wav' },
+    { name: 'Campfire 🔥', url: '/sounds/ambient/fire_crackle.wav' },
+    { name: 'Space Drone 🚀', url: '/sounds/ambient/space_drone.wav' },
+    { name: 'City Traffic 🏙️', url: '/sounds/ambient/city_traffic.wav' },
+
+    // Object Sounds
+    { name: 'Door Open 🚪', url: '/sounds/objects/door_open.wav' },
+    { name: 'Door Close 🚪', url: '/sounds/objects/door_close.wav' },
+    { name: 'Glass Break 🥛', url: '/sounds/objects/glass_break.wav' },
+    { name: 'Metal Clank 🔨', url: '/sounds/objects/metal_clank.wav' },
+    { name: 'Wood Thud 🪵', url: '/sounds/objects/wood_thud.wav' },
+    
+    // Sci-fi & Magic
+    { name: 'Laser Pew 🔫', url: '/sounds/fx/laser_pew.wav' },
+    { name: 'Teleport ✨', url: '/sounds/fx/teleport.wav' },
+    { name: 'Energy Hum ⚡', url: '/sounds/fx/energy_hum.wav' },
+    { name: 'Shield Up 🛡️', url: '/sounds/fx/shield_up.wav' },
+    
+    // Instrument/Musical
+    { name: 'Piano Chord 🎹', url: '/sounds/music/piano_chord.wav' },
+    { name: 'Guitar Strum 🎸', url: '/sounds/music/guitar_strum.wav' },
+    { name: 'Drum Beat 🥁', url: '/sounds/music/drum_beat.wav' },
   ],
   video: [
     { name: 'Abstract Tunnel 🌀', url: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761' },
@@ -679,6 +720,17 @@ const BEHAVIOR_OPTIONS = [
   { value: 'spin', label: '🔄 Continuous Spin' },
   { value: 'hover', label: '🎈 Gentle Float' },
   { value: 'pulse', label: '💓 Rhythmic Pulse' },
+  { value: 'bounce', label: '🏀 Bounce' },
+  { value: 'shake', label: '📳 Shake' },
+  { value: 'spin-fast', label: '🌀 Fast Spin' },
+  { value: 'pendulum', label: '🕰️ Pendulum Swing' },
+  { value: 'orbit', label: '🌍 Orbit' },
+  { value: 'draggable', label: '🖐️ Draggable' },
+  { value: 'fade-in', label: '👻 Fade In (On Load)' },
+  { value: 'fade-out', label: '👻 Fade Out' },
+  { value: 'scale-up', label: '📈 Scale Up' },
+  { value: 'scale-down', label: '📉 Scale Down' },
+  { value: 'look-at-camera', label: '👁️ Look At Camera' }
 ];
 
 const SOUND_OPTIONS = [
@@ -687,6 +739,47 @@ const SOUND_OPTIONS = [
   { value: '/sounds/success_chime.wav', label: '✨ Success Chime' },
   { value: '/sounds/robot_beep.wav', label: '🤖 Robot Beep' },
   { value: '/sounds/forest_ambient.wav', label: '🌲 Forest Ambient' },
+  
+  // New UI/Feedback Sounds
+  { value: '/sounds/ui/click_soft.wav', label: '🖱️ Soft Click' },
+  { value: '/sounds/ui/click_hard.wav', label: '🖱️ Hard Click' },
+  { value: '/sounds/ui/error_buzz.wav', label: '❌ Error Buzz' },
+  { value: '/sounds/ui/success_bell.wav', label: '✅ Success Bell' },
+  { value: '/sounds/ui/notification.wav', label: '💬 Notification' },
+  { value: '/sounds/ui/pop.wav', label: '💥 Pop' },
+  { value: '/sounds/ui/swoosh.wav', label: '💨 Swoosh' },
+  { value: '/sounds/ui/whoosh.wav', label: '💨 Whoosh' },
+  { value: '/sounds/ui/magic_wand.wav', label: '🪄 Magic Wand' },
+  { value: '/sounds/ui/arcade_coin.wav', label: '🪙 Arcade Coin' },
+  { value: '/sounds/ui/level_up.wav', label: '🆙 Level Up' },
+  { value: '/sounds/ui/game_over.wav', label: '💀 Game Over' },
+
+  // Ambient & Atmospheric
+  { value: '/sounds/ambient/ocean_waves.wav', label: '🌊 Ocean Waves' },
+  { value: '/sounds/ambient/rain_light.wav', label: '🌧️ Light Rain' },
+  { value: '/sounds/ambient/thunder.wav', label: '⚡ Thunder' },
+  { value: '/sounds/ambient/wind_howl.wav', label: '🌬️ Howling Wind' },
+  { value: '/sounds/ambient/fire_crackle.wav', label: '🔥 Campfire' },
+  { value: '/sounds/ambient/space_drone.wav', label: '🚀 Space Drone' },
+  { value: '/sounds/ambient/city_traffic.wav', label: '🏙️ City Traffic' },
+
+  // Object Sounds
+  { value: '/sounds/objects/door_open.wav', label: '🚪 Door Open' },
+  { value: '/sounds/objects/door_close.wav', label: '🚪 Door Close' },
+  { value: '/sounds/objects/glass_break.wav', label: '🥛 Glass Break' },
+  { value: '/sounds/objects/metal_clank.wav', label: '🔨 Metal Clank' },
+  { value: '/sounds/objects/wood_thud.wav', label: '🪵 Wood Thud' },
+  
+  // Sci-fi & Magic
+  { value: '/sounds/fx/laser_pew.wav', label: '🔫 Laser Pew' },
+  { value: '/sounds/fx/teleport.wav', label: '✨ Teleport' },
+  { value: '/sounds/fx/energy_hum.wav', label: '⚡ Energy Hum' },
+  { value: '/sounds/fx/shield_up.wav', label: '🛡️ Shield Up' },
+  
+  // Instrument/Musical
+  { value: '/sounds/music/piano_chord.wav', label: '🎹 Piano Chord' },
+  { value: '/sounds/music/guitar_strum.wav', label: '🎸 Guitar Strum' },
+  { value: '/sounds/music/drum_beat.wav', label: '🥁 Drum Beat' },
 ];
 
 function InspectorSection({ title, defaultOpen = true, children, rightElement }: { title: React.ReactNode, defaultOpen?: boolean, children: React.ReactNode, rightElement?: React.ReactNode }) {
@@ -2483,6 +2576,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <option value="toast">💬 Show HUD Toast</option>
                           <option value="openUrl">🌐 Open Web URL</option>
                           <option value="playSound">🔊 Play Sound Effect</option>
+                          <option value="startBehavior">🏃 Start Behavior (Fade/Scale/etc)</option>
                           <option value="playVideo">🎬 Play Video Panel</option>
                           <option value="toggleVisibility">👁 Toggle Visibility</option>
                           <option value="setVisibility">👁 Set Visibility (Show/Hide)</option>
@@ -2550,27 +2644,55 @@ export function InspectorPanel({ width }: { width?: number }) {
                       )}
 
                       {b.action === 'playSound' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Audio Sound</label>
-                          <select
-                            value={b.soundPreset}
-                            onChange={(e) => handleUpdateBehavior(b.id, { soundPreset: e.target.value })}
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                          >
-                            <optgroup label="Presets">
-                              {SOUND_OPTIONS.filter(opt => opt.value !== '').map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Custom Audio Assets">
-                              {useEditorStore.getState().assets.filter(a => a.type === 'audio').map(a => (
-                                <option key={a.id} value={a.url}>{a.name}</option>
-                              ))}
-                            </optgroup>
-                          </select>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Audio Sound</label>
+                            <select
+                              value={b.soundPreset}
+                              onChange={(e) => handleUpdateBehavior(b.id, { soundPreset: e.target.value })}
+                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                            >
+                              <optgroup label="Presets">
+                                {SOUND_OPTIONS.filter(opt => opt.value !== '').map(opt => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Custom Audio Assets">
+                                {useEditorStore.getState().assets.filter(a => a.type === 'audio').map(a => (
+                                  <option key={a.id} value={a.url}>{a.name}</option>
+                                ))}
+                              </optgroup>
+                            </select>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] text-[#888] flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={b.soundLoop ?? false}
+                                onChange={(e) => handleUpdateBehavior(b.id, { soundLoop: e.target.checked })}
+                                className="accent-cyan-500 rounded-sm bg-black/50 border-[#333]"
+                              />
+                              Loop Sound
+                            </label>
+                          </div>
                         </div>
                       )}
 
+                      {b.action === 'startBehavior' && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Behavior</label>
+                          <select
+                            value={b.behaviorRule ?? 'spin'}
+                            onChange={(e) => handleUpdateBehavior(b.id, { behaviorRule: e.target.value })}
+                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                          >
+                            {BEHAVIOR_OPTIONS.filter(o => o.value !== '').map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      
                       {b.action === 'transform' && (
                         <>
                           <div className="flex flex-col gap-1">
