@@ -261,7 +261,8 @@ export const generateAFrameScene = (state: any) => {
       } else if (obj.type === 'model') {
         const activeAnim = obj.properties.activeAnimation || '*';
         const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;
-        const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: repeat"`;
+        const loopAnim = obj.properties.loopAnimation !== false;
+        const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: ${loopAnim ? 'repeat' : 'once'}"`;
         const wireframeAttr = ` model-wireframe="enabled: ${obj.properties.wireframe ?? false}"`;
         const matOverridesStr = JSON.stringify(obj.properties.materialOverrides || {}).replace(/"/g, '&quot;');
         const subOverridesStr = JSON.stringify(obj.properties.subObjectOverrides || {}).replace(/"/g, '&quot;');
@@ -327,7 +328,10 @@ export const generateAFrameScene = (state: any) => {
       const parentObj = obj.parentId ? objects[obj.parentId] : null;
       const parentIs2D = parentObj && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(parentObj.type);
 
-      let styleStr = `position: absolute; pointer-events: auto; box-sizing: border-box; width: ${widthStr}; height: ${heightStr}; `;
+      const isInteractive = ['overlayButton', 'overlayEmbed'].includes(obj.type);
+      const peStr = isInteractive ? 'auto' : 'none';
+
+      let styleStr = `position: absolute; pointer-events: ${peStr}; box-sizing: border-box; width: ${widthStr}; height: ${heightStr}; `;
       if (obj.type !== 'overlay2d') {
         styleStr += `opacity: ${opacity}; `;
       }
@@ -337,7 +341,7 @@ export const generateAFrameScene = (state: any) => {
         const bottomM = props.marginBottom ?? 20;
         const leftM = props.marginLeft ?? 20;
         const rightM = props.marginRight ?? 20;
-        styleStr = `position: absolute; pointer-events: auto; box-sizing: border-box; opacity: ${opacity}; top: ${topM}px; bottom: ${bottomM}px; left: ${leftM}px; right: ${rightM}px; width: auto; height: auto; display: flex; flex-direction: column; `;
+        styleStr = `position: absolute; pointer-events: ${peStr}; box-sizing: border-box; opacity: ${opacity}; top: ${topM}px; bottom: ${bottomM}px; left: ${leftM}px; right: ${rightM}px; width: auto; height: auto; display: flex; flex-direction: column; `;
       } else if (obj.parentId && !parentIs2D) {
         // Anchored to a 3D object (projected)
         styleStr += `display: none; `;

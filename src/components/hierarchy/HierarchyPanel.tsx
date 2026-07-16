@@ -52,13 +52,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
     addObject,
     duplicateObject,
     removeObject,
-    isPreviewMode
+    isPreviewMode,
+    settings,
+    updateSettings
   } = useEditorStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'hierarchy' | 'library'>('hierarchy');
   const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -215,11 +216,17 @@ export function HierarchyPanel({ width }: { width?: number }) {
         newCollapsed[id] = true;
       }
     });
-    setCollapsedIds(newCollapsed);
+    updateSettings({ collapsedHierarchyIds: newCollapsed });
   };
 
   const handleExpandAll = () => {
-    setCollapsedIds({});
+    const newCollapsed: Record<string, boolean> = {};
+    Object.keys(objects).forEach(id => {
+      if (objects[id].children.length > 0) {
+        newCollapsed[id] = false;
+      }
+    });
+    updateSettings({ collapsedHierarchyIds: newCollapsed });
   };
 
   const toggleLockRecursive = (itemId: string, newLockedState: boolean) => {
@@ -250,7 +257,10 @@ export function HierarchyPanel({ width }: { width?: number }) {
     if (!modelObj) return null;
 
     const isSubObjectSelected = modelObj.properties?.selectedSubObjectPath === indexPath;
-    const isSubCollapsed = !!collapsedIds[`${modelId}-${indexPath}`];
+    const subCollapsedKey = `${modelId}-${indexPath}`;
+    const isSubCollapsed = settings.collapsedHierarchyIds
+      ? (settings.collapsedHierarchyIds[subCollapsedKey] ?? true)
+      : true;
     const hasSubChildren = node.children && node.children.length > 0;
 
     const overridenVisibility = modelObj.properties?.subObjectOverrides?.[indexPath]?.visible !== undefined
@@ -259,7 +269,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
 
     const toggleSubCollapse = (e: React.MouseEvent) => {
       e.stopPropagation();
-      setCollapsedIds(prev => ({ ...prev, [`${modelId}-${indexPath}`]: !prev[`${modelId}-${indexPath}`] }));
+      const currentCollapsed = settings.collapsedHierarchyIds || {};
+      const nextCollapsedState = !(currentCollapsed[subCollapsedKey] ?? true);
+      updateSettings({
+        collapsedHierarchyIds: {
+          ...currentCollapsed,
+          [subCollapsedKey]: nextCollapsedState
+        }
+      });
     };
 
     const handleSubObjectClick = (e: React.MouseEvent) => {
@@ -354,7 +371,9 @@ export function HierarchyPanel({ width }: { width?: number }) {
     const isSelected = selectedObjectIds.includes(id);
     const isDragOver = dragOverId === id;
     const hasChildren = obj.children.length > 0;
-    const isCollapsed = !!collapsedIds[id];
+    const isCollapsed = settings.collapsedHierarchyIds 
+      ? (settings.collapsedHierarchyIds[id] ?? true)
+      : true;
 
     let Icon = Box;
     if (obj.type === 'imageTarget') Icon = ImageIcon;
@@ -370,7 +389,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
 
     const toggleCollapse = (e: React.MouseEvent) => {
       e.stopPropagation();
-      setCollapsedIds(prev => ({ ...prev, [id]: !prev[id] }));
+      const currentCollapsed = settings.collapsedHierarchyIds || {};
+      const nextCollapsedState = !(currentCollapsed[id] ?? true);
+      updateSettings({
+        collapsedHierarchyIds: {
+          ...currentCollapsed,
+          [id]: nextCollapsedState
+        }
+      });
     };
 
     return (
@@ -420,11 +446,52 @@ export function HierarchyPanel({ width }: { width?: number }) {
               <span className={cn("truncate", obj.locked && "opacity-60 italic")}>
                 {obj.name}
               </span>
-              {obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0 && (
-                <div title="Contains No-Code Actions" className="ml-1.5 shrink-0">
-                  <Zap size={10} className="text-yellow-400 fill-yellow-400/20" />
-                </div>
-              )}
+              {obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0 && (() => {
+                const behaviors = obj.properties.visualBehaviors || [];
+                let hasAudio = false;
+                let hasVisibility = false;
+                let hasAnimation = false;
+                let hasInteraction = false;
+
+                behaviors.forEach((b: any) => {
+                  const act = b.action;
+                  if (act === 'playSound') {
+                    hasAudio = true;
+                  } else if (act === 'toggleVisibility' || act === 'setVisibility') {
+                    hasVisibility = true;
+                  } else if (['playModelAnimation', 'pauseModelAnimation', 'spin', 'startBehavior', 'scaleUp', 'scaleDown', 'transform'].includes(act)) {
+                    hasAnimation = true;
+                  } else {
+                    hasInteraction = true;
+                  }
+                });
+
+                let iconColorClass = "text-yellow-400 fill-yellow-400/20";
+                let iconTitle = "Contains No-Code Actions";
+
+                if (hasAudio && hasVisibility) {
+                  iconColorClass = "text-purple-400 fill-purple-400/20";
+                  iconTitle = "Contains Audio & Visibility Actions";
+                } else if (hasVisibility) {
+                  iconColorClass = "text-blue-400 fill-blue-400/20";
+                  iconTitle = "Contains Visibility Actions";
+                } else if (hasAudio) {
+                  iconColorClass = "text-green-400 fill-green-400/20";
+                  iconTitle = "Contains Audio Actions";
+                } else if (hasAnimation) {
+                  iconColorClass = "text-emerald-400 fill-emerald-400/20";
+                  iconTitle = "Contains Animation Actions";
+                } else if (hasInteraction) {
+                  iconColorClass = "text-cyan-400 fill-cyan-400/20";
+                  iconTitle = "Contains Interaction Actions";
+                }
+
+                return (
+                  <div title={iconTitle} className="ml-1.5 shrink-0">
+                    <Zap size={10} className={cn("fill-current", iconColorClass)} />
+                  </div>
+                );
+              })()}
             </div>
           )}
 

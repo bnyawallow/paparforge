@@ -859,6 +859,7 @@ export function InspectorPanel({ width }: { width?: number }) {
   } = useEditorStore();
 
   const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography'>('inspector');
+  const [linkAxes, setLinkAxes] = useState(false);
 
   const [textStyles, setTextStyles] = useState<Array<{
     id: string;
@@ -1027,13 +1028,25 @@ export function InspectorPanel({ width }: { width?: number }) {
         if (objects[id]) {
            const o = objects[id];
            const v = [...o[prop]] as Vector3Data;
-           v[index] = numValue;
+           if (linkAxes) {
+             v[0] = numValue;
+             v[1] = numValue;
+             v[2] = numValue;
+           } else {
+             v[index] = numValue;
+           }
            updateObject(id, { [prop]: v });
         }
       });
     } else {
       const newVec = [...obj[prop]] as Vector3Data;
-      newVec[index] = numValue;
+      if (linkAxes) {
+        newVec[0] = numValue;
+        newVec[1] = numValue;
+        newVec[2] = numValue;
+      } else {
+        newVec[index] = numValue;
+      }
       updateObject(selectedObjectId!, { [prop]: newVec });
     }
   };
@@ -2268,6 +2281,19 @@ export function InspectorPanel({ width }: { width?: number }) {
           rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase">Locked</span>}
         >
           <div className="grid grid-cols-4 gap-2 text-[10px] font-mono">
+            <div className="flex items-center gap-2 col-span-4 border-b border-[#222]/40 pb-2 mb-1">
+              <input
+                type="checkbox"
+                id="link-axes"
+                checked={linkAxes}
+                onChange={(e) => setLinkAxes(e.target.checked)}
+                className="w-3.5 h-3.5 rounded bg-[#0A0A0A] border border-[#222] text-blue-500 focus:ring-0 cursor-pointer"
+              />
+              <label htmlFor="link-axes" className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider cursor-pointer select-none flex items-center gap-1.5">
+                🔗 Edit Axes Uniformly
+              </label>
+            </div>
+
             <span className="text-[#666] flex items-center">POS</span>
             <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[0] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-red-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
             <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[1] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-green-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
@@ -4079,6 +4105,22 @@ export function InspectorPanel({ width }: { width?: number }) {
                     {obj.properties.animationPlaying !== false ? 'Playing' : 'Paused'}
                   </button>
                 </div>
+
+                {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 && (
+                  <div className="flex items-center justify-between text-[11px] mt-1 border-t border-black/10 pt-2.5">
+                    <span className="text-[#888] font-semibold">Loop Animation</span>
+                    <button
+                      onClick={() => handlePropertyChange('loopAnimation', obj.properties.loopAnimation === false ? true : false)}
+                      className={`px-3 py-1 rounded text-[9px] font-bold uppercase transition-all ${
+                        obj.properties.loopAnimation !== false
+                          ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                          : 'bg-[#222] text-[#888] border border-[#333]'
+                      }`}
+                    >
+                      {obj.properties.loopAnimation !== false ? 'Looping' : 'Once'}
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-1.5 border-t border-black/10 pt-2.5">
                   <div className="flex justify-between text-[10px]">

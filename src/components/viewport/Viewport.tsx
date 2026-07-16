@@ -545,9 +545,12 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     });
   }, [clonedScene, properties.subObjectOverrides]);
 
+  const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
   const animationPlaying = properties.animationPlaying !== false;
+  const actualAnimationPlaying = isPreviewMode && animationPlaying;
   const animationSpeed = properties.animationSpeed ?? 1.0;
+  const loopAnimation = properties.loopAnimation !== false;
 
   useEffect(() => {
     if (!actions) return;
@@ -560,7 +563,17 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     if (action) {
       action.reset();
       action.setEffectiveTimeScale(animationSpeed);
-      if (animationPlaying) {
+      
+      // Handle looping configuration
+      if (loopAnimation) {
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.clampWhenFinished = false;
+      } else {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+      }
+
+      if (actualAnimationPlaying) {
         action.play();
       } else {
         action.play().paused = true;
@@ -571,14 +584,23 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
       if (fallbackAction) {
         fallbackAction.reset();
         fallbackAction.setEffectiveTimeScale(animationSpeed);
-        if (animationPlaying) {
+        
+        if (loopAnimation) {
+          fallbackAction.setLoop(THREE.LoopRepeat, Infinity);
+          fallbackAction.clampWhenFinished = false;
+        } else {
+          fallbackAction.setLoop(THREE.LoopOnce, 1);
+          fallbackAction.clampWhenFinished = true;
+        }
+
+        if (actualAnimationPlaying) {
           fallbackAction.play();
         } else {
           fallbackAction.play().paused = true;
         }
       }
     }
-  }, [actions, activeAnimation, animationPlaying, animationSpeed]);
+  }, [actions, activeAnimation, actualAnimationPlaying, animationSpeed, loopAnimation]);
 
   return <primitive ref={group} object={clonedScene} />;
 }
@@ -1502,11 +1524,6 @@ function ObjectRenderer({ id }: { id: string }) {
     // Skip updating position/rotation/scale when actively transforming this selected object
     if (isSelected && isTransformDragging) return;
 
-    
-    const behavior = obj.properties.behavior;
-    const t = state.clock.getElapsedTime();
-    const dt = state.clock.getDelta();
-
     // Reset rotation before applying behaviors
     meshRef.current.rotation.set(
       THREE.MathUtils.degToRad(obj.rotation[0]),
@@ -1518,6 +1535,13 @@ function ObjectRenderer({ id }: { id: string }) {
 
     // Position updates
     meshRef.current.position.set(obj.position[0], obj.position[1], obj.position[2]);
+
+    // Don't display interactive behavior animations in the editor view, only in preview/publish mode
+    if (!isPreviewMode) return;
+
+    const behavior = obj.properties.behavior;
+    const t = state.clock.getElapsedTime();
+    const dt = state.clock.getDelta();
 
     if (behavior === 'hover') {
       meshRef.current.position.z += Math.sin(t * 3) * 0.2;

@@ -48,6 +48,7 @@ export interface ProjectSettings {
   hdrPreset?: 'studio' | 'apartment' | 'lobby' | 'city' | 'forest' | 'sunset' | 'warehouse' | 'park';
   hdrEnvironmentUrl?: string;
   hdrBackgroundEnabled?: boolean;
+  collapsedHierarchyIds?: Record<string, boolean>;
 }
 
 export interface HistorySnapshot {

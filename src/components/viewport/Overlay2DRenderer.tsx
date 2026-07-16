@@ -744,10 +744,11 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             });
           };
 
+          const isInteractive = ['overlayButton', 'overlayEmbed'].includes(obj.type);
           const computedStyle = getOverlayStyle(obj, parentProjected);
           const activeStyle: React.CSSProperties = {
             ...computedStyle,
-            pointerEvents: 'auto',
+            pointerEvents: !isPreviewMode ? 'auto' : (isInteractive ? 'auto' : 'none'),
             border: !isPreviewMode 
               ? (isSelected ? '2px solid #06b6d4' : '1px dashed rgba(255, 255, 255, 0.25)') 
               : undefined,
@@ -772,7 +773,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   ...activeStyle,
                   backgroundColor: bgStyle,
                   opacity: 1.0, // Prevent children from inheriting transparency
-                  pointerEvents: 'auto',
+                  pointerEvents: activeStyle.pointerEvents,
                   overflow: 'visible',
                   backdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
                   WebkitBackdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
