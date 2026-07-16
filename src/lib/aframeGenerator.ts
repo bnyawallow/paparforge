@@ -497,6 +497,41 @@ export const generateAFrameScene = (state: any) => {
       }
     });
 
+    const soundUrls = new Set<string>();
+    Object.values(objects).forEach((obj: any) => {
+      if (obj.properties?.soundUrl) {
+        soundUrls.add(obj.properties.soundUrl);
+      }
+      if (obj.properties?.visualBehaviors) {
+        obj.properties.visualBehaviors.forEach((b: any) => {
+          if (b.action === 'playSound' && (b.soundPreset || b.url)) {
+            soundUrls.add(b.soundPreset || b.url);
+          }
+        });
+      }
+    });
+
+    let audioPreloadScript = `<script>
+      window.__audioCache = {};
+      const urlsToPreload = ${JSON.stringify(Array.from(soundUrls))};
+      urlsToPreload.forEach(url => {
+        const audio = new Audio(url);
+        audio.preload = 'auto';
+        audio.volume = 0;
+        audio.muted = true;
+        window.__audioCache[url] = audio;
+      });
+      function unlockAudio() {
+        Object.values(window.__audioCache).forEach(audio => {
+           audio.muted = false;
+        });
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+      }
+      document.addEventListener('click', unlockAudio, { once: true });
+      document.addEventListener('touchstart', unlockAudio, { once: true });
+    </script>`;
+
     let googleFontsLinksHtml = '';
     fontsToLoad.forEach(family => {
       if (family && family !== 'sans-serif' && family !== 'serif' && family !== 'monospace' && family !== 'Default (Inter)') {
@@ -513,6 +548,7 @@ export const generateAFrameScene = (state: any) => {
     <title>${settings.projectName} - Published WebAR</title>
 
 ${googleFontsLinksHtml}
+${audioPreloadScript}
 
     <style>
       html, body {
@@ -889,8 +925,15 @@ ${googleFontsLinksHtml}
               break;
             case 'playSound':
               const playUrl = b.soundPreset || b.url || 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
-              const audio = new Audio(playUrl);
+              if (!window.__audioCache) window.__audioCache = {};
+              if (!window.__audioCache[playUrl]) {
+                const a = new Audio(playUrl);
+                a.preload = 'auto';
+                window.__audioCache[playUrl] = a;
+              }
+              const audio = window.__audioCache[playUrl];
               audio.volume = 0.5;
+              audio.currentTime = 0;
               if (b.soundLoop) audio.loop = true;
               audio.play().catch(e => console.error('Audio play failed:', e));
               break;

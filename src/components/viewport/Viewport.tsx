@@ -1,3 +1,4 @@
+import { playCachedAudio, globalAudioCache } from '../../lib/audioManager';
 import React, { useRef, useState, useEffect, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -1042,7 +1043,8 @@ function AudioNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const audio = new Audio(soundUrl);
+    if (!globalAudioCache[soundUrl]) globalAudioCache[soundUrl] = new Audio(soundUrl);
+    const audio = globalAudioCache[soundUrl];
     audio.loop = loop;
     audio.volume = volume;
     audioRef.current = audio;
@@ -1192,13 +1194,7 @@ function ObjectRenderer({ id }: { id: string }) {
         break;
       case 'playSound':
         const playUrl = b.soundPreset || '/sounds/success_chime.wav';
-        const sfx = new Audio(playUrl);
-        sfx.volume = 0.5;
-        if (b.soundLoop) {
-          sfx.loop = true;
-          // You might want a way to stop it, but for now we just loop it
-        }
-        sfx.play().catch(e => console.log('Audio preset play failed', e));
+        playCachedAudio(playUrl, b.soundLoop, 0.5);
         break;
       case 'playVideo':
         useEditorStore.getState().setARVideoPlaying({
@@ -1555,9 +1551,7 @@ function ObjectRenderer({ id }: { id: string }) {
 
     // Standard Audio playback on click if a sound asset is attached
     if (obj.properties.soundUrl) {
-      const sfx = new Audio(obj.properties.soundUrl);
-      sfx.volume = 0.5;
-      sfx.play().catch(err => console.log('Interactive SFX playback failed:', err));
+      playCachedAudio(obj.properties.soundUrl, false, 0.5);
     }
 
     // Button redirect in live preview
@@ -1928,9 +1922,11 @@ export function Viewport() {
       });
 
       soundUrls.forEach((url) => {
-        const audio = new Audio();
-        audio.preload = 'auto';
-        audio.src = url;
+        if (!globalAudioCache[url]) {
+          const audio = new Audio(url);
+          audio.preload = 'auto';
+          globalAudioCache[url] = audio;
+        }
         console.log(`Preloading scene sound: ${url}`);
       });
     } catch (e) {
@@ -2005,7 +2001,8 @@ export function Viewport() {
         });
 
         soundUrls.forEach((url) => {
-          const sfx = new Audio(url);
+          if (!globalAudioCache[url]) globalAudioCache[url] = new Audio(url);
+          const sfx = globalAudioCache[url];
           sfx.volume = 0;
           sfx.muted = true;
           sfx.play()

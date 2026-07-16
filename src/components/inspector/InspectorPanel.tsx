@@ -1,3 +1,4 @@
+import { playCachedAudio } from '../../lib/audioManager';
 import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { fileToDataUrl } from '../../lib/fileUtils';

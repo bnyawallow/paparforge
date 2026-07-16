@@ -1,5 +1,7 @@
+import { playCachedAudio } from '../../lib/audioManager';
 import React, { useRef, useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { instantiateTemplate, PREBUILT_TEMPLATES } from '../../utils/prebuiltTemplates';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { v4 as uuidv4 } from 'uuid';
 import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
@@ -9,7 +11,7 @@ import {
   Box, 
   FileCode, 
   Upload, 
-  Trash2, 
+  Trash2, X, 
   Edit2, 
   Music, 
   Zap, 
@@ -22,7 +24,9 @@ import {
   Info,
   Play,
   Search,
-  Sun
+  Sun,
+  Globe,
+  Folder
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 
@@ -553,7 +557,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting';
+type CategoryTab = 'templates' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting';
 
 export function AssetBrowser() {
   const { 
@@ -572,7 +576,9 @@ export function AssetBrowser() {
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<CategoryTab>('uploads');
+  const [activeTab, setActiveTab] = useState<CategoryTab>('templates');
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [templateFilterTag, setTemplateFilterTag] = useState('all');
   const [selectedAudioCategory, setSelectedAudioCategory] = useState<string>('All');
   const [selectedLightingCategory, setSelectedLightingCategory] = useState<string>('All');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -742,9 +748,7 @@ export function AssetBrowser() {
       }
     } else if (asset.type === 'audio') {
       // Play a quick audio preview
-      const preview = new Audio(asset.url);
-      preview.volume = 0.4;
-      preview.play().catch(err => console.log('Audio playback preview failed', err));
+      // playCachedAudio(asset.url, false, 0.4);
 
       if (selectedObjectId && objects[selectedObjectId]) {
         updateObject(selectedObjectId, {
@@ -815,15 +819,78 @@ export function AssetBrowser() {
     }
   };
 
+
+  const TEMPLATES = [
+    { id: 't-box', type: 'box', name: 'Cube', icon: Box, color: 'text-blue-400', desc: 'Standard 3D Cube', tags: ['3d', 'primitive'] },
+    { id: 't-sphere', type: 'sphere', name: 'Sphere', icon: Box, color: 'text-indigo-400', desc: 'Standard 3D Sphere', tags: ['3d', 'primitive'] },
+    { id: 't-plane', type: 'plane', name: 'Plane', icon: Box, color: 'text-slate-400', desc: '2D Billboard Plane', tags: ['3d', 'primitive'] },
+    { id: 't-cylinder', type: 'cylinder', name: 'Cylinder', icon: Box, color: 'text-emerald-400', desc: '3D Cylinder', tags: ['3d', 'primitive'] },
+    { id: 't-cone', type: 'cone', name: 'Cone', icon: Box, color: 'text-amber-400', desc: '3D Cone', tags: ['3d', 'primitive'] },
+    { id: 't-torus', type: 'torus', name: 'Torus', icon: Box, color: 'text-rose-400', desc: '3D Torus (Donut)', tags: ['3d', 'primitive'] },
+    { id: 't-text', type: 'text', name: '3D Text', icon: Box, color: 'text-white', desc: '3D Billboard Text', tags: ['3d', 'ui'] },
+    { id: 't-image', type: 'image', name: 'Image Board', icon: ImageIcon, color: 'text-green-400', desc: 'Flat Image Billboard', tags: ['2d', 'media'] },
+    { id: 't-video', type: 'video', name: 'Video Board', icon: Video, color: 'text-purple-400', desc: 'Flat Video Billboard', tags: ['2d', 'media'] },
+    { id: 't-audio', type: 'audio', name: 'Sound Node', icon: Music, color: 'text-pink-400', desc: 'Ambient Sound Emitter', tags: ['audio', 'media'] },
+    { id: 't-youtube', type: 'youtube', name: 'YouTube Panel', icon: Video, color: 'text-red-500', desc: 'Curved YouTube Player', tags: ['2d', 'media'] },
+    { id: 't-button', type: 'button', name: 'AR Button', icon: Zap, color: 'text-blue-500', desc: 'Clickable AR Button', tags: ['3d', 'ui'] },
+    { id: 't-web', type: 'web', name: 'Web View', icon: Globe, color: 'text-cyan-400', desc: 'Curved Web Browser Panel', tags: ['2d', 'ui'] },
+    { id: 't-particles', type: 'particles', name: 'Particles', icon: Sparkles, color: 'text-purple-400', desc: 'Particle Emitter System', tags: ['3d', 'vfx'] },
+    { id: 't-group', type: 'group', name: 'Group', icon: Folder, color: 'text-orange-400', desc: 'Empty Transform Group', tags: ['logic'] },
+  ];
+
+  const handleAddTemplate = (type: string) => {
+    const newObj: any = {
+      id: uuidv4(),
+      name: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+      type,
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [],
+      parentId: null,
+      properties: {}
+    };
+    if (type === 'box') {
+      newObj.properties = { color: '#ffffff', roughness: 0.5, metalness: 0.1, opacity: 1.0, wireframe: false };
+    } else if (type === 'sphere') {
+      newObj.properties = { color: '#ffffff', roughness: 0.4, metalness: 0.1, opacity: 1.0, wireframe: false };
+    } else if (type === 'plane') {
+      newObj.properties = { color: '#666666', roughness: 0.8, doubleSided: true };
+    } else if (type === 'cylinder') {
+      newObj.properties = { color: '#ffffff', roughness: 0.5, metalness: 0.2 };
+    } else if (type === 'cone') {
+      newObj.properties = { color: '#ffffff', roughness: 0.5, metalness: 0.2 };
+    } else if (type === 'torus') {
+      newObj.properties = { color: '#3b82f6', roughness: 0.3, metalness: 0.4 };
+    } else if (type === 'text') {
+      newObj.properties = { text: 'Hello AR', color: '#ffffff', fontSize: 0.25, maxWidth: 4.0, textAlign: 'center' };
+    } else if (type === 'image') {
+      newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600', opacity: 1.0, doubleSided: true };
+    } else if (type === 'video') {
+      newObj.properties = { videoUrl: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761', playing: true, loop: true, muted: true, volume: 0.5 };
+      newObj.scale = [1.6, 0.9, 1];
+    } else if (type === 'audio') {
+      newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: false, playing: false, loop: true, volume: 0.5 };
+    } else if (type === 'light') {
+      newObj.properties = { lightType: 'point', color: '#ffedd5', intensity: 3.0, distance: 12.0 };
+      newObj.position = [0, 2, 0];
+    } else if (type === 'button') {
+      newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: 'https://example.com' };
+      newObj.scale = [1, 0.3, 0.05];
+    } else if (type === 'youtube') {
+      newObj.properties = { videoId: 'dQw4w9WgXcQ' };
+    } else if (type === 'overlay2d') {
+      newObj.name = 'HUD Group';
+    }
+    useEditorStore.getState().addObject(newObj);
+    showToast(`Added ${newObj.name}`);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-8">
-      <div className="w-full h-full max-w-7xl max-h-[90vh] rounded-2xl overflow-hidden border border-[#2A2A2A] bg-[#111111] flex flex-col relative select-none shadow-2xl">
-        <button 
-          onClick={() => setIsAssetBrowserOpen(false)}
-          className="absolute top-2 right-4 z-50 text-gray-400 hover:text-white"
-        >
-          ✕
-        </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 sm:p-8 animate-in fade-in duration-200">
+      <div className="w-full h-full max-w-6xl max-h-[85vh] rounded-2xl overflow-hidden border border-white/10 bg-[#0f0f0f]/95 backdrop-blur-3xl flex flex-col relative select-none shadow-[0_0_100px_rgba(0,0,0,0.5)] ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
+        
       {/* Toast Notification popup */}
       {notification && (
         <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg border border-blue-500/20 z-50 flex items-center gap-1.5 animate-bounce">
@@ -833,10 +900,10 @@ export function AssetBrowser() {
       )}
 
       {/* Header bar */}
-      <div className="h-9 border-b border-[#2A2A2A] bg-[#161616] flex items-center px-4 justify-between shrink-0">
+      <div className="h-14 border-b border-white/10 bg-black/20 flex items-center px-6 justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Layers size={14} className="text-blue-500" />
-          <span className="text-xs font-semibold text-[#CCC]">AR Assets Studio</span>
+          <span className="text-sm font-black tracking-wide text-white">AR ASSET STUDIO</span>
         </div>
         
         {/* Upload & Marker Buttons */}
@@ -865,82 +932,180 @@ export function AssetBrowser() {
             onChange={handleFileChange}
           />
         </div>
+        <button onClick={() => setIsAssetBrowserOpen(false)} className="ml-4 p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+          <X size={20} />
+        </button>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Nav categories */}
-        <div className="w-40 bg-[#141414] border-r border-[#2A2A2A] flex flex-col py-1 overflow-y-auto shrink-0 font-sans text-xs">
-          <button 
-            onClick={() => setActiveTab('uploads')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'uploads' ? 'bg-[#222] text-white border-l-2 border-blue-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
-          >
-            <Upload size={13} className="text-gray-400" />
-            <span>My Uploads</span>
-            <span className="ml-auto bg-[#2A2A2A] text-[#888] text-[9px] px-1.5 py-0.5 rounded-full font-mono">
-              {assets.length}
-            </span>
-          </button>
+        <div className="w-56 bg-white/5 border-r border-white/10 flex flex-col py-3 overflow-y-auto shrink-0 font-sans text-sm gap-1 px-2">
 
-          <div className="border-t border-[#222] my-1 mx-2"></div>
-          <span className="px-3 py-1 text-[9px] font-bold text-yellow-500 uppercase tracking-wider flex items-center gap-1">
-            <Sparkles size={10} />
-            3D Discover Web
-          </span>
+          <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2 mb-1">Creation</div>
+          <button 
+            onClick={() => setActiveTab('templates')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'templates' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Plus size={16} className={activeTab === 'templates' ? 'text-white' : 'text-emerald-400'} />
+            <span className="font-medium">Primitives & UI</span>
+          </button>
+          <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-1">Library</div>
+
+          <button onClick={() => setActiveTab('uploads')} className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'uploads' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}>
+    <Upload size={16} className={activeTab === 'uploads' ? 'text-white' : 'text-gray-400'} />
+    <span className="font-medium">My Uploads</span>
+    <span className="ml-auto bg-black/40 text-xs px-2 py-0.5 rounded-full font-mono">{assets.length}</span>
+  </button>
+
+          
+          
 
           <button 
             onClick={() => setActiveTab('sketchfab')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'sketchfab' ? 'bg-[#222] text-white border-l-2 border-yellow-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'sketchfab' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <Search size={13} className="text-yellow-400" />
-            <span>Sketchfab / CC</span>
+            <Search size={16} className={activeTab === "sketchfab" ? "text-white" : "text-yellow-400"} />
+            <span className="font-medium">Sketchfab / CC</span>
           </button>
 
-          <div className="border-t border-[#222] my-1 mx-2"></div>
-          <span className="px-3 py-1 text-[9px] font-bold text-[#555] uppercase tracking-wider">Presets Library</span>
+          
+          
 
           <button 
-            onClick={() => setActiveTab('models')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'models' ? 'bg-[#222] text-white border-l-2 border-blue-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+            onClick={() => setActiveTab('templates')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'templates' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <Box size={13} className="text-blue-400" />
-            <span>3D Models</span>
+            <Sparkles size={16} className={activeTab === "templates" ? "text-white" : "text-emerald-400"} />
+            <span className="font-medium">Templates & Primitives</span>
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('models')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'models' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Box size={16} className={activeTab === "models" ? "text-white" : "text-blue-400"} />
+            <span className="font-medium">3D Models</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('markers')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'markers' ? 'bg-[#222] text-white border-l-2 border-blue-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'markers' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <ImageIcon size={13} className="text-green-400" />
-            <span>AR Markers</span>
+            <ImageIcon size={16} className={activeTab === "markers" ? "text-white" : "text-green-400"} />
+            <span className="font-medium">AR Markers</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('audio')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'audio' ? 'bg-[#222] text-white border-l-2 border-blue-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'audio' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <Music size={13} className="text-pink-400" />
-            <span>Audio & SFX</span>
+            <Music size={16} className={activeTab === "audio" ? "text-white" : "text-pink-400"} />
+            <span className="font-medium">Audio & SFX</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('behaviors')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'behaviors' ? 'bg-[#222] text-white border-l-2 border-blue-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'behaviors' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <Zap size={13} className="text-orange-400" />
-            <span>Behaviors</span>
+            <Zap size={16} className={activeTab === "behaviors" ? "text-white" : "text-orange-400"} />
+            <span className="font-medium">Behaviors</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('lighting')}
-            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${activeTab === 'lighting' ? 'bg-[#222] text-white border-l-2 border-yellow-500' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'lighting' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <Sun size={13} className="text-yellow-400" />
-            <span>Lighting Presets</span>
+            <Sun size={16} className={activeTab === "lighting" ? "text-white" : "text-yellow-400"} />
+            <span className="font-medium">Lighting Presets</span>
           </button>
         </div>
 
         {/* Assets Grid */}
-        <div className="flex-1 overflow-y-auto p-4 bg-[#0A0A0A]">
+        <div className="flex-1 overflow-y-auto p-6 bg-black/40">
+
+          {/* TEMPLATES TAB */}
+          {activeTab === 'templates' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-6 px-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2"><Plus className="text-emerald-400" /> Primitives & Templates</h3>
+                <p className="text-sm text-gray-400 mt-1">Quickly add standard 3D geometries, UI elements, and logical nodes to your scene.</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 content-start overflow-y-auto pr-2 pb-20">
+                
+                
+                {/* Search & Filter Bar */}
+                <div className="col-span-full mb-4 flex gap-4">
+                  <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search templates and primitives..." 
+                      className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      value={templateSearchQuery}
+                      onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    {['all', '3d', '2d', 'ui', 'media', 'primitive', 'logic', 'complex'].map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => setTemplateFilterTag(tag)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${templateFilterTag === tag ? 'bg-emerald-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'}`}
+                      >
+                        {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Prebuilt Advanced Templates */}
+                {PREBUILT_TEMPLATES.filter(t => {
+                  const matchSearch = t.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) || t.description.toLowerCase().includes(templateSearchQuery.toLowerCase());
+                  const matchTag = templateFilterTag === 'all' || (t.tags && t.tags.includes(templateFilterTag));
+                  return matchSearch && matchTag;
+                }).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { instantiateTemplate(t.id); setIsAssetBrowserOpen(false); }}
+                    className="flex flex-col p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-left gap-2 shadow-sm hover:shadow-emerald-500/10 col-span-2 sm:col-span-3 md:col-span-2 lg:col-span-2"
+                  >
+                    <h3 className="text-sm font-bold text-emerald-400 group-hover:text-emerald-300 flex items-center gap-2">
+                      <Sparkles size={16} /> {t.name}
+                    </h3>
+                    <p className="text-[10px] text-gray-400 leading-snug line-clamp-3">{t.description}</p>
+                    <div className="mt-auto pt-2 flex flex-wrap gap-1">
+                      {t.tags?.map(tag => (
+                        <span key={tag} className="text-[8px] uppercase tracking-wider font-bold bg-white/5 px-2 py-0.5 rounded text-gray-300">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                ))}
+
+                {TEMPLATES.filter(t => {
+                  const matchSearch = t.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) || t.desc.toLowerCase().includes(templateSearchQuery.toLowerCase());
+                  const matchTag = templateFilterTag === 'all' || t.tags.includes(templateFilterTag);
+                  return matchSearch && matchTag;
+                }).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { handleAddTemplate(t.type); setIsAssetBrowserOpen(false); }}
+                    className="flex flex-col items-center p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-center gap-3 shadow-sm hover:shadow-emerald-500/10"
+                  >
+                    <div className="p-3 bg-black/40 rounded-xl group-hover:bg-black/60 shadow-inner">
+                      <t.icon size={28} className={`${t.color} group-hover:scale-110 transition-transform`} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">{t.name}</h4>
+                      <p className="text-[10px] text-gray-400 mt-1 leading-tight">{t.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           
           {/* UPLOADS TAB */}
           {activeTab === 'uploads' && (

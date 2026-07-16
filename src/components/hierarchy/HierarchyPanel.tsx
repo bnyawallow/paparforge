@@ -515,453 +515,105 @@ export function HierarchyPanel({ width }: { width?: number }) {
   return (
     <aside 
       style={{ width: width ? `${width}px` : '240px' }}
-      className="border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0 relative z-30"
+      className="border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0 relative z-30 animate-in fade-in"
     >
-      {/* Visual Tab Bar */}
-      <div className="flex border-b border-[#2A2A2A] bg-[#0E0E0E] shrink-0 select-none">
-        <button
-          onClick={() => setActiveTab('hierarchy')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] uppercase tracking-wider font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-            activeTab === 'hierarchy' 
-              ? "border-cyan-500 text-cyan-400 bg-cyan-950/5 font-semibold" 
-              : "border-transparent text-[#666] hover:text-[#999]"
-          )}
-        >
-          <LayoutGrid size={11} className={activeTab === 'hierarchy' ? 'text-cyan-400' : 'text-[#666]'} />
-          <span>Hierarchy</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('library')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] uppercase tracking-wider font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 cursor-pointer",
-            activeTab === 'library' 
-              ? "border-cyan-500 text-cyan-400 bg-cyan-950/5 font-semibold" 
-              : "border-transparent text-[#666] hover:text-[#999]"
-          )}
-        >
-          <Sparkles size={11} className={activeTab === 'library' ? 'text-cyan-400' : 'text-[#666]'} />
-          <span>Templates</span>
-        </button>
-      </div>
-
-      {activeTab === 'hierarchy' && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
-        <span className="text-[10px] uppercase tracking-widest font-bold text-[#666]">Hierarchy</span>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={handleCollapseAll}
-            className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
-            title="Collapse All Nodes"
-          >
-            <FolderMinus size={13} />
-          </button>
-          <button 
-            onClick={handleExpandAll}
-            className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
-            title="Expand All Nodes"
-          >
-            <FolderPlus size={13} />
-          </button>
-        </div>
-      </div>
-
-      {/* Selection context actions (Group / Ungroup) */}
-      {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group'))))) && (
-        <div className="p-2 border-b border-[#2A2A2A] bg-[#1a1a1a] flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
-          {selectedObjectIds.length > 1 && (
-            <button
-              onClick={() => groupSelection()}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-blue-600/25 hover:bg-blue-600/35 border border-blue-500/35 text-blue-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-              title="Group selected elements together"
-            >
-              <Folder size={11} className="shrink-0" />
-              <span>Group ({selectedObjectIds.length})</span>
-            </button>
-          )}
-          {selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group')) && (
-            <button
-              onClick={() => ungroupObject(selectedObjectId)}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-amber-600/25 hover:bg-amber-600/35 border border-amber-500/35 text-amber-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-              title="Dissolve group back to individual entities"
-            >
-              <FolderMinus size={11} className="shrink-0" />
-              <span>Ungroup</span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Add Component Action Sub-header */}
-      <div className="p-2 border-b border-[#2A2A2A] bg-[#181818] shrink-0 relative">
-        <button
-          onClick={() => setIsAddDropdownOpen(!isAddDropdownOpen)}
-          disabled={isPreviewMode}
-          className="flex items-center justify-between w-full px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] active:bg-[#1E1E1E] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 disabled:cursor-not-allowed rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
-          title={isPreviewMode ? "Creator disabled in Live Preview" : "Insert 3D Mesh, Media or Interaction element"}
-        >
-          <span className="flex items-center gap-1.5">
-            <Plus size={14} className="text-blue-500 stroke-[3]" />
-            <span>Add Component</span>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Hierarchy Toolbar (Header) */}
+        <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
+          <span className="text-[10px] uppercase tracking-widest font-bold text-[#E5E5E5] flex items-center gap-1.5">
+            <Layers size={11} className="text-blue-400" />
+            <span>Scene Hierarchy</span>
           </span>
-          <ChevronDown size={11} className={`text-[#666] transition-transform duration-150 ${isAddDropdownOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        {isAddDropdownOpen && !isPreviewMode && (
-          <>
-            {/* Backdrop handler to close popover */}
-            <div className="fixed inset-0 z-40" onClick={() => setIsAddDropdownOpen(false)} />
-            <div className="absolute top-11 left-2 w-[280px] bg-[#121212]/95 border border-[#262626] rounded-xl shadow-2xl p-3 z-50 flex flex-col gap-3.5 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150 select-none">
-              
-              {/* Popover Header */}
-              <div className="flex items-center justify-between border-b border-[#222] pb-1.5">
-                <span className="text-[9px] uppercase font-black tracking-wider text-[#666]">Asset Library</span>
-                <span className="text-[8px] font-mono text-blue-400 bg-blue-500/15 border border-blue-500/20 px-1.5 py-0.5 rounded font-bold uppercase">14 Nodes</span>
-              </div>
-
-              {/* Group 1: 3D Primitives */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-blue-500/60 rounded-full"></span>
-                  3D Geometries
-                </span>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    onClick={() => { handleAddObject('box'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-[#3b82f6]/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add cube with standard/textured materials"
-                  >
-                    <Box size={13} className="text-blue-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Cube</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('sphere'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-[#6366f1]/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add sphere geometry"
-                  >
-                    <Circle size={13} className="text-indigo-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Sphere</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('cylinder'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-[#14b8a6]/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add cylinder geometry"
-                  >
-                    <Box size={13} className="text-teal-400 rotate-45 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Cylinder</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('cone'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-[#06b6d4]/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add cone geometry"
-                  >
-                    <Play size={12} className="text-cyan-400 -rotate-90 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Cone</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('torus'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-[#d946ef]/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add torus (donut) geometry"
-                  >
-                    <Disc size={13} className="text-fuchsia-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Torus</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('plane'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-[#8b5cf6]/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add plane billboard"
-                  >
-                    <Box size={13} className="text-violet-400 scale-y-[0.35] group-hover:scale-y-[0.4] group-hover:scale-x-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Plane</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Group 2: Multimedia */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-fuchsia-500/60 rounded-full"></span>
-                  Multimedia HUD
-                </span>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    onClick={() => { handleAddObject('text'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-pink-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add 3D billboard text Node"
-                  >
-                    <Type size={13} className="text-pink-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">3D Text</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('image'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-emerald-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add flat textured image billboard"
-                  >
-                    <ImageIcon size={13} className="text-emerald-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Image</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('video'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-orange-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add 3D plane with running video texture"
-                  >
-                    <Video size={13} className="text-orange-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Video</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('audio'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-rose-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add ambient sound emitter Node"
-                  >
-                    <Volume2 size={13} className="text-rose-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Audio</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('youtube'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-red-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add virtual curved YouTube video display"
-                  >
-                    <Youtube size={13} className="text-red-500 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">YouTube</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Group 3: Logic & Interaction */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-yellow-500/60 rounded-full"></span>
-                  Interaction & Logic
-                </span>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    onClick={() => { handleAddObject('button'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-amber-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add clickable AR button with custom links"
-                  >
-                    <MousePointer size={13} className="text-amber-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Button</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('light'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-yellow-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add custom light source (point, spot, directional)"
-                  >
-                    <Lightbulb size={13} className="text-yellow-400 group-hover:scale-110 transition-transform duration-100 animate-pulse" style={{ animationDuration: '3s' }} />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Light</span>
-                  </button>
-
-                  <button
-                    onClick={() => { handleAddObject('group'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-gray-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add logic folder to group other entities"
-                  >
-                    <FolderPlus size={13} className="text-gray-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">Group</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Group 4: 2D Overlay */}
-              <div className="flex flex-col gap-1.5 mt-2">
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-cyan-500/60 rounded-full"></span>
-                  2D Overlay HUD
-                </span>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    onClick={() => { handleAddObject('overlay2d'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add 2D Canvas Container"
-                  >
-                    <FolderPlus size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Canvas</span>
-                  </button>
-                  <button
-                    onClick={() => { handleAddObject('overlayText'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add 2D Overlay Text"
-                  >
-                    <Type size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Text</span>
-                  </button>
-                  <button
-                    onClick={() => { handleAddObject('overlayButton'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add 2D Overlay Button"
-                  >
-                    <Link2 size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Button</span>
-                  </button>
-                  <button
-                    onClick={() => { handleAddObject('overlayImage'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add 2D Overlay Image"
-                  >
-                    <ImageIcon size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Image</span>
-                  </button>
-                  <button
-                    onClick={() => { handleAddObject('overlayEmbed'); setIsAddDropdownOpen(false); }}
-                    className="flex flex-col items-center justify-center py-1.5 px-0.5 bg-[#1A1A1A] hover:bg-[#222] hover:border-cyan-500/40 border border-[#262626] rounded-lg transition-all group cursor-pointer"
-                    title="Add Secure Responsive Web Embed Container"
-                  >
-                    <Globe size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-100" />
-                    <span className="text-[8px] font-semibold text-gray-400 group-hover:text-white mt-1">2D Embed</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div 
-        className="flex-1 overflow-y-auto p-1 min-h-[200px]"
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const draggedId = e.dataTransfer.getData('text/plain');
-          if (draggedId) {
-            if (draggedId.startsWith('template:')) {
-              const templateId = draggedId.replace('template:', '');
-              instantiateTemplate(templateId);
-            } else {
-              moveObject(draggedId, 'root');
-            }
-          }
-        }}
-      >
-        {rootObjects.map(id => renderItem(id))}
-      </div>
-        </div>
-      )}
-
-
-
-      {activeTab === 'library' && (
-        /* Library Tab View */
-        <div className="flex flex-col flex-1 overflow-hidden bg-[#121212]">
-          {/* Filters Bar */}
-          <div className="p-2 border-b border-[#2A2A2A] bg-[#111] flex flex-col gap-2 shrink-0 select-none">
-            {/* Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search templates..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#181818] border border-[#2A2A2A] rounded-md px-2 py-1 text-[11px] text-[#DDD] focus:border-cyan-500 focus:outline-none"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1.5 text-[#555] hover:text-white text-[9px] font-bold"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Category Selectors */}
-            <div className="flex bg-[#161616] p-0.5 rounded-lg border border-[#222]">
-              {(['All', '2D HUD', '3D Scene'] as const).map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setFilterType(cat)}
-                  className={cn(
-                    "flex-1 py-1 text-[9px] font-bold tracking-wider rounded-md uppercase transition-all cursor-pointer",
-                    filterType === cat
-                      ? "bg-[#252525] text-cyan-400 border border-cyan-500/10"
-                      : "text-[#555] hover:text-[#999]"
-                  )}
-                >
-                  {cat === 'All' ? 'All' : cat === '2D HUD' ? '2D' : '3D'}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={handleCollapseAll}
+              className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
+              title="Collapse All Nodes"
+            >
+              <FolderMinus size={13} />
+            </button>
+            <button 
+              onClick={handleExpandAll}
+              className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
+              title="Expand All Nodes"
+            >
+              <FolderPlus size={13} />
+            </button>
           </div>
+        </div>
 
-          {/* Library Cards Grid */}
-          <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-2 bg-[#121212]">
-            {PREBUILT_TEMPLATES.filter(t => {
-              const matchesFilter = filterType === 'All' || t.type === filterType;
-              const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                    t.description.toLowerCase().includes(searchQuery.toLowerCase());
-              return matchesFilter && matchesSearch;
-            }).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                <LayoutGrid size={24} className="text-[#333] mb-2 animate-pulse" />
-                <span className="text-[10px] text-[#444] font-semibold uppercase tracking-wider">No templates found</span>
-              </div>
-            ) : (
-              PREBUILT_TEMPLATES.filter(t => {
-                const matchesFilter = filterType === 'All' || t.type === filterType;
-                const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                      t.description.toLowerCase().includes(searchQuery.toLowerCase());
-                return matchesFilter && matchesSearch;
-              }).map(t => (
-                <div
-                  key={t.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', `template:${t.id}`);
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  className="group relative flex flex-col p-3 bg-[#1A1A1A]/80 hover:bg-[#202020] border border-[#262626] hover:border-cyan-500/30 rounded-xl transition-all duration-200 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-cyan-950/10 hover:shadow-lg"
-                  title="Drag this item onto the hierarchy tree or viewport canvas, or click to add."
-                >
-                  {/* Category Indicator Badge */}
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={cn(
-                      "text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-widest",
-                      t.type === '2D HUD' 
-                        ? "bg-cyan-950/40 text-cyan-400 border border-cyan-500/20" 
-                        : "bg-indigo-950/40 text-indigo-400 border border-indigo-500/20"
-                    )}>
-                      {t.type}
-                    </span>
-                    <span className="text-[8px] font-mono text-[#555] group-hover:text-cyan-500/60 transition-colors">
-                      {t.objectType}
-                    </span>
-                  </div>
+        {/* Search Bar */}
+        <div className="p-2 border-b border-[#2A2A2A] bg-[#111] flex gap-1.5 shrink-0">
+          <input
+            type="text"
+            placeholder="Search hierarchy..."
+            className="flex-1 bg-black/40 border border-[#2A2A2A] rounded px-2 py-1 text-[10px] text-white outline-none focus:border-blue-500 font-mono"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
-                  {/* Title & Desc */}
-                  <h3 className="text-xs font-bold text-[#E2E2E2] group-hover:text-white transition-colors">{t.name}</h3>
-                  <p className="text-[10px] text-[#777] leading-relaxed mt-1 group-hover:text-[#A0A0A0] transition-colors">{t.description}</p>
-
-                  {/* Drag to Placement Prompt & Quick Add Button */}
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[#262626]/60">
-                    <span className="text-[8px] text-[#444] group-hover:text-[#666] font-semibold tracking-wider flex items-center gap-1">
-                      Drag to canvas or hierarchy
-                    </span>
-                    <button
-                      onClick={() => instantiateTemplate(t.id)}
-                      className="px-2.5 py-1 bg-[#222] hover:bg-cyan-500 text-[#999] hover:text-slate-950 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer hover:shadow-md hover:scale-102"
-                    >
-                      <span>Add</span>
-                      <ArrowRight size={10} />
-                    </button>
-                  </div>
-                </div>
-              ))
+        {/* Selection context actions (Group / Ungroup) */}
+        {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group'))))) && (
+          <div className="p-2 border-b border-[#2A2A2A] bg-[#1a1a1a] flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
+            {selectedObjectIds.length > 1 && (
+              <button
+                onClick={() => groupSelection()}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-blue-600/25 hover:bg-blue-600/35 border border-blue-500/35 text-blue-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                title="Group selected elements together"
+              >
+                <Folder size={11} className="shrink-0" />
+                <span>Group ({selectedObjectIds.length})</span>
+              </button>
+            )}
+            {selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group')) && (
+              <button
+                onClick={() => ungroupObject(selectedObjectId)}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-amber-600/25 hover:bg-amber-600/35 border border-amber-500/35 text-amber-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                title="Dissolve group back to individual entities"
+              >
+                <FolderMinus size={11} className="shrink-0" />
+                <span>Ungroup</span>
+              </button>
             )}
           </div>
+        )}
+
+        {/* Hierarchy List */}
+        <div className="flex-1 overflow-y-auto min-h-0 py-1">
+          {rootObjects.length === 0 ? (
+            <div className="p-4 text-center text-gray-500 text-[10px] italic">
+              No objects in scene
+            </div>
+          ) : (
+            rootObjects
+              .filter(id => {
+                const obj = objects[id];
+                if (!obj) return false;
+                if (searchQuery) {
+                  return obj.name.toLowerCase().includes(searchQuery.toLowerCase());
+                }
+                return true;
+              })
+              .map(id => renderItem(id))
+          )}
         </div>
-      )}
+
+        {/* Add Component Action Sub-header */}
+        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative">
+          <button
+            onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
+            disabled={isPreviewMode}
+            className="flex items-center justify-between w-full px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] active:bg-[#1E1E1E] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 disabled:cursor-not-allowed rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
+            title={isPreviewMode ? "Creator disabled in Live Preview" : "Insert 3D Mesh, Media or Interaction element"}
+          >
+            <span className="flex items-center gap-1.5">
+              <Plus size={14} className="text-blue-500 stroke-[3]" />
+              <span>Add Asset</span>
+            </span>
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }
