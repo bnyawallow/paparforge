@@ -55,6 +55,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
     isPreviewMode
   } = useEditorStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
@@ -99,7 +100,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
       newObj.properties = { videoUrl: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761', playing: true, loop: true, muted: true, volume: 0.5 };
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'audio') {
-      newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: false, playing: false, loop: true, volume: 0.5 };
+      newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: true, playing: true, loop: true, volume: 0.5 };
     } else if (type === 'light') {
       newObj.properties = { lightType: 'point', color: '#ffedd5', intensity: 3.0, distance: 12.0, decay: 1.5, angle: 0.78 };
       newObj.position = [0, 2, 0];
@@ -382,7 +383,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
           )}
           style={{ paddingLeft: `${depth * 10 + 6}px` }}
           onClick={(e) => {
-            const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+            const isMulti = isMultiSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
             selectObject(id, isMulti);
           }}
           onDoubleClick={() => startEditing(id, obj.name)}
@@ -526,6 +527,24 @@ export function HierarchyPanel({ width }: { width?: number }) {
           </span>
           <div className="flex items-center gap-1.5">
             <button 
+              onClick={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                if (isMultiSelectMode) {
+                  selectObject(selectedObjectId);
+                }
+              }}
+              className={cn(
+                "p-1 rounded text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer",
+                isMultiSelectMode 
+                  ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 px-1.5" 
+                  : "hover:bg-[#222] text-[#666] hover:text-white px-1.5"
+              )}
+              title="Toggle multi-selection mode (select multiple without holding Shift)"
+            >
+              <MousePointer size={10} />
+              <span>Multi</span>
+            </button>
+            <button 
               onClick={handleCollapseAll}
               className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
               title="Collapse All Nodes"
@@ -598,6 +617,164 @@ export function HierarchyPanel({ width }: { width?: number }) {
               .map(id => renderItem(id))
           )}
         </div>
+
+        {/* Multi-Select Action Presets (No-Code Behavior & Animations) */}
+        {selectedObjectIds.length > 1 && (
+          <div className="p-3 border-t border-[#2A2A2A] bg-[#111] flex flex-col gap-2 shrink-0 max-h-48 overflow-y-auto animate-in slide-in-from-bottom-2 duration-150">
+            <div className="flex items-center justify-between border-b border-white/5 pb-1 mb-1">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
+                <Sparkles size={11} />
+                <span>Apply No-Code Presets ({selectedObjectIds.length})</span>
+              </span>
+              <button 
+                onClick={() => selectObject(null)}
+                className="text-[9px] text-[#555] hover:text-white uppercase font-bold"
+              >
+                Clear
+              </button>
+            </div>
+
+            {/* Behaviors Grid */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[8px] text-[#666] font-bold uppercase tracking-wider">Animation Presets</span>
+              <div className="grid grid-cols-2 gap-1 text-[9px]">
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'spin' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Spin' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  🌀 Spin Loop
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'hover' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Float' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  🎈 Float/Bob
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'pulse' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Pulse Scale' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  💓 Pulse Scale
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'bounce' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Bounce' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  🦘 Bounce Loop
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'fade-in' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Fade In' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  ✨ Fade In
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'shake' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Shake' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  📳 Shake Loop
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Properties Block */}
+            <div className="flex flex-col gap-1.5 mt-1">
+              <span className="text-[8px] text-[#666] font-bold uppercase tracking-wider">Sound & Interaction Presets</span>
+              <div className="grid grid-cols-2 gap-1 text-[9px]">
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, soundUrl: '/sounds/cyber_click.wav', autoplay: true, playing: true } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Cyber Sound' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  🔊 Cyber Sound
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, soundUrl: '/sounds/success.wav', autoplay: true, playing: true } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Applied 'Success Sound' preset to selected objects");
+                  }}
+                  className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
+                >
+                  🎉 Success SFX
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObjectIds.forEach(id => {
+                      const obj = objects[id];
+                      if (obj) {
+                        updateObject(id, { properties: { ...obj.properties, behavior: '' } });
+                      }
+                    });
+                    useEditorStore.getState().addToast("Cleared presets on selected objects");
+                  }}
+                  className="bg-[#1C1C1C] text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/25 py-1 px-1.5 rounded text-left transition-all col-span-2"
+                >
+                  🚫 Clear All Presets
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Component Action Sub-header */}
         <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative">

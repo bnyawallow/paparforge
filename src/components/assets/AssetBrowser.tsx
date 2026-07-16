@@ -871,7 +871,7 @@ export function AssetBrowser() {
       newObj.properties = { videoUrl: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761', playing: true, loop: true, muted: true, volume: 0.5 };
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'audio') {
-      newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: false, playing: false, loop: true, volume: 0.5 };
+      newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: true, playing: true, loop: true, volume: 0.5 };
     } else if (type === 'light') {
       newObj.properties = { lightType: 'point', color: '#ffedd5', intensity: 3.0, distance: 12.0 };
       newObj.position = [0, 2, 0];

@@ -26,7 +26,8 @@ import {
   Grid as GridIcon,
   Layers,
   Compass,
-  Globe
+  Globe,
+  Zap
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -1032,6 +1033,95 @@ function VideoMeshMaterial({ properties }: { properties: any }) {
   );
 }
 
+// Ultra-efficient Direct-to-DOM Performance Tracker to avoid React renders
+function PerformanceTracker() {
+  const { gl } = useThree();
+  const fpsRef = useRef(60);
+  const frameCount = useRef(0);
+  const lastTime = useRef(performance.now());
+  
+  useFrame(() => {
+    frameCount.current++;
+    const now = performance.now();
+    if (now >= lastTime.current + 500) { // update every 500ms
+      const fps = Math.round((frameCount.current * 1000) / (now - lastTime.current));
+      fpsRef.current = fps;
+      frameCount.current = 0;
+      lastTime.current = now;
+      
+      // Update DOM directly for ultra performance (no React re-renders)
+      const fpsEl = document.getElementById('perf-fps');
+      const callsEl = document.getElementById('perf-calls');
+      const geoEl = document.getElementById('perf-geometries');
+      const texEl = document.getElementById('perf-textures');
+      const memEl = document.getElementById('perf-memory');
+      
+      if (fpsEl) {
+        fpsEl.textContent = `${fps}`;
+        // Color code FPS
+        if (fps >= 50) {
+          fpsEl.className = "text-sm font-bold font-mono text-green-400";
+        } else if (fps >= 30) {
+          fpsEl.className = "text-sm font-bold font-mono text-yellow-400";
+        } else {
+          fpsEl.className = "text-sm font-bold font-mono text-red-500 animate-pulse";
+        }
+      }
+      if (callsEl) {
+        const calls = gl.info.render.calls;
+        callsEl.textContent = `${calls}`;
+        // Color code Draw Calls (warn if > 50 for mobile)
+        if (calls <= 50) {
+          callsEl.className = "text-sm font-bold font-mono text-blue-400";
+        } else if (calls <= 100) {
+          callsEl.className = "text-sm font-bold font-mono text-yellow-400";
+        } else {
+          callsEl.className = "text-sm font-bold font-mono text-red-400";
+        }
+      }
+      if (geoEl) geoEl.textContent = `${gl.info.memory.geometries}`;
+      if (texEl) texEl.textContent = `${gl.info.memory.textures}`;
+      
+      if (memEl) {
+        // Retrieve memory if available
+        const memory = (performance as any).memory;
+        if (memory) {
+          const usedMB = Math.round(memory.usedJSHeapSize / (1024 * 1024));
+          memEl.textContent = `${usedMB} MB`;
+        } else {
+          // Fallback estimated GPU footprint
+          const estMem = Math.round((gl.info.memory.geometries * 0.15 + gl.info.memory.textures * 2.5) * 10) / 10;
+          memEl.textContent = `${estMem} MB (est)`;
+        }
+      }
+
+      // Dynamic Resolution Scaling to optimize render loop and improve UI responsiveness
+      try {
+        if (fps < 45) {
+          // Drop pixel ratio to save GPU fill rate and keep UI fluid
+          const currentRatio = gl.getPixelRatio();
+          if (currentRatio > 0.8) {
+            gl.setPixelRatio(Math.max(0.75, currentRatio - 0.15));
+            console.log(`[Perf Optimizer] Dynamic Resolution Scaled Down. Pixel Ratio: ${gl.getPixelRatio().toFixed(2)}`);
+          }
+        } else if (fps > 55) {
+          // Safely scale up pixel ratio when performance is healthy and stable
+          const currentRatio = gl.getPixelRatio();
+          const maxRatio = Math.min(2, window.devicePixelRatio || 1);
+          if (currentRatio < maxRatio) {
+            gl.setPixelRatio(Math.min(maxRatio, currentRatio + 0.1));
+            console.log(`[Perf Optimizer] Dynamic Resolution Scaled Up. Pixel Ratio: ${gl.getPixelRatio().toFixed(2)}`);
+          }
+        }
+      } catch (err) {
+        console.warn('Dynamic resolution scaling failed:', err);
+      }
+    }
+  });
+
+  return null;
+}
+
 // Beautiful 3D Audio Node simulation
 function AudioNodeRenderer({ properties, isPreviewMode }: { properties: any; isPreviewMode: boolean }) {
   const soundUrl = properties.soundUrl || '/sounds/forest_ambient.wav';
@@ -1204,9 +1294,16 @@ function ObjectRenderer({ id }: { id: string }) {
         break;
       case 'startBehavior':
         if (b.targetObjectId) {
-          useEditorStore.getState().updateObject(b.targetObjectId, { behavior: b.behaviorRule || 'spin' });
+          const targetObj = useEditorStore.getState().objects[b.targetObjectId];
+          if (targetObj) {
+            useEditorStore.getState().updateObject(b.targetObjectId, {
+              properties: { ...targetObj.properties, behavior: b.behaviorRule || 'spin' }
+            });
+          }
         } else if (obj) {
-          useEditorStore.getState().updateObject(obj.id, { behavior: b.behaviorRule || 'spin' });
+          useEditorStore.getState().updateObject(obj.id, {
+            properties: { ...obj.properties, behavior: b.behaviorRule || 'spin' }
+          });
         }
         break;
       case 'toggleVisibility':
@@ -1465,7 +1562,7 @@ function ObjectRenderer({ id }: { id: string }) {
     // Opacity/Fade is tricky since we'd need to access the material, which might be complex if it's an imported model.
     // Assuming simple mesh or we can traverse.
     if (behavior === 'fade-in' || behavior === 'fade-out') {
-      meshRef.current.traverse((child) => {
+      meshRef.current.traverse((child: any) => {
         if (child.isMesh && child.material) {
           child.material.transparent = true;
           if (behavior === 'fade-in') {
@@ -2019,6 +2116,29 @@ export function Viewport() {
       } catch (e) {
         console.warn('Custom audios pre-activation failed:', e);
       }
+
+      // 5. If in preview mode, play any active audio nodes in the scene
+      try {
+        const isPreview = useEditorStore.getState().isPreviewMode;
+        if (isPreview) {
+          Object.values(useEditorStore.getState().objects).forEach((obj: any) => {
+            if (obj.type === 'audio') {
+              const soundUrl = obj.properties?.soundUrl;
+              const autoplay = obj.properties?.autoplay ?? false;
+              const isPlaying = obj.properties?.playing ?? false;
+              if (soundUrl && (autoplay || isPlaying)) {
+                if (!globalAudioCache[soundUrl]) globalAudioCache[soundUrl] = new Audio(soundUrl);
+                const audio = globalAudioCache[soundUrl];
+                audio.loop = obj.properties?.loop ?? true;
+                audio.volume = obj.properties?.volume ?? 0.5;
+                audio.play().catch(e => console.log('Audio node failed to play on user gesture:', e));
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Playing active audio nodes on gesture failed:', e);
+      }
     };
 
     window.addEventListener('click', unlockAudio);
@@ -2058,6 +2178,7 @@ export function Viewport() {
   const arVideoPlaying = useEditorStore(state => state.arVideoPlaying);
 
   const [showBezel, setShowBezel] = useState(true);
+  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(true);
   const [bgType, setBgType] = useState<'office' | 'livingroom' | 'techlab' | 'webcam'>('office');
   const [trackingStable, setTrackingStable] = useState(false);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
@@ -2413,6 +2534,7 @@ export function Viewport() {
 
                 <OrbitControls makeDefault />
                 <BloomEffect />
+                <PerformanceTracker />
               </Canvas>
             </div>
 
@@ -2618,6 +2740,65 @@ export function Viewport() {
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
+      {/* Real-time Performance Monitor Overlay */}
+      {showPerformanceMonitor && (
+        <div className="absolute top-3 right-3 z-30 bg-[#141414]/90 backdrop-blur-md border border-[#2a2a2a]/80 rounded-xl p-3 shadow-2xl w-52 select-none pointer-events-none font-sans transition-all">
+          <div className="flex items-center justify-between border-b border-[#222] pb-1.5 mb-2">
+            <div className="flex items-center gap-1.5">
+              <Zap size={11} className="text-yellow-400 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-white">Performance Monitor</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></span>
+              <span className="text-[8px] font-mono text-green-400 uppercase">Live</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {/* FPS Row */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#888] font-semibold">Frame Rate</span>
+              <div className="flex items-baseline gap-0.5">
+                <span id="perf-fps" className="text-sm font-bold font-mono text-green-400">--</span>
+                <span className="text-[9px] font-semibold text-gray-500">FPS</span>
+              </div>
+            </div>
+
+            {/* Draw Calls Row */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#888] font-semibold">Draw Calls</span>
+              <div className="flex items-baseline gap-0.5">
+                <span id="perf-calls" className="text-sm font-bold font-mono text-blue-400">--</span>
+                <span className="text-[9px] font-semibold text-gray-500">calls</span>
+              </div>
+            </div>
+
+            {/* Memory Row */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#888] font-semibold">JS Heap / Memory</span>
+              <span id="perf-memory" className="text-xs font-bold font-mono text-amber-400">--</span>
+            </div>
+
+            {/* Resources Summary */}
+            <div className="grid grid-cols-2 gap-1.5 mt-1 pt-1.5 border-t border-[#222] text-[9px]">
+              <div className="flex items-center justify-between bg-black/30 px-1.5 py-0.5 rounded">
+                <span className="text-[#666]">Geoms</span>
+                <span id="perf-geometries" className="font-bold font-mono text-gray-300">0</span>
+              </div>
+              <div className="flex items-center justify-between bg-black/30 px-1.5 py-0.5 rounded">
+                <span className="text-[#666]">Texs</span>
+                <span id="perf-textures" className="font-bold font-mono text-gray-300">0</span>
+              </div>
+            </div>
+
+            {/* Mobile Optimizer Alert */}
+            <div className="mt-1.5 p-1.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-300 leading-snug">
+              💡 For best mobile AR performance, keep draw calls &lt; 50 and textures &lt; 15.
+            </div>
+          </div>
+        </div>
+      )}
+
       <Canvas 
         key={cameraType}
         shadows={shadowsEnabled}
@@ -2676,6 +2857,7 @@ export function Viewport() {
 
         <OrbitControls makeDefault />
         <BloomEffect />
+        <PerformanceTracker />
       </Canvas>
       <Overlay2DRenderer isPreviewMode={false} />
 
@@ -2781,6 +2963,15 @@ export function Viewport() {
             title={wireframeEnabled ? "Disable wireframe view" : "Enable wireframe view"}
           >
             <Layers size={14} />
+          </button>
+
+          {/* Performance Monitor toggle */}
+          <button
+            onClick={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${showPerformanceMonitor ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
+            title={showPerformanceMonitor ? "Hide Performance Monitor" : "Show Performance Monitor"}
+          >
+            <Zap size={14} className={showPerformanceMonitor ? 'animate-pulse' : ''} />
           </button>
         </div>
       </div>

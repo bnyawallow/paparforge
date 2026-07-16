@@ -273,7 +273,7 @@ export const generateAFrameScene = (state: any) => {
         const volume = obj.properties.volume ?? 0.5;
         const autoplay = obj.properties.autoplay ?? false;
         const loop = obj.properties.loop ?? true;
-        entity += `${indent}  <a-sound src="${soundUrl}" volume="${volume}" autoplay="${autoplay}" loop="${loop}"></a-sound>\n`;
+        entity += `${indent}  <a-entity sound="src: url(${soundUrl}); volume: ${volume}; autoplay: ${autoplay}; loop: ${loop}"></a-entity>\n`;
       }
 
       for (const childId of obj.children) {
