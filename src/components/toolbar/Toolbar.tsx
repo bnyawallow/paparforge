@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { 
   Settings, Edit3, Camera, Undo2, Redo2, Globe, 
-  FolderOpen, Edit2, Check, Save, Sun, Moon
+  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { PublishModal } from './PublishModal';
 import { SettingsModal } from './SettingsModal';
 import { ProjectDashboardModal } from './ProjectDashboardModal';
 import { useTheme } from '../../lib/theme';
+import { useNavigate } from 'react-router-dom';
 
 export function Toolbar() {
   const t = useTheme();
@@ -32,6 +34,9 @@ export function Toolbar() {
     toggleEditorTheme
   } = useEditorStore();
   
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
   const [showPublish, setShowPublish] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProjects, setShowProjects] = useState(true);
@@ -222,6 +227,22 @@ export function Toolbar() {
             {editorTheme === 'dark' ? <Sun size={15} className="text-yellow-400" /> : <Moon size={15} className="text-indigo-500" />}
           </button>
 
+          {user?.role === 'admin' && (
+            <button 
+              onClick={() => navigate('/admin')}
+              className={`p-1.5 border rounded transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0 ${t.isLight ? 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-600' : 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20 text-purple-400'}`}
+              title="Admin Dashboard"
+            >
+              <ShieldAlert size={15} />
+            </button>
+          )}
+          <button 
+            onClick={logout}
+            className={`p-1.5 border rounded transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0 ${t.isLight ? 'bg-red-50 hover:bg-red-100 border-red-200 text-red-600' : 'bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400'}`}
+            title="Sign Out"
+          >
+            <LogOut size={15} />
+          </button>
           {/* Icon-only Settings Button */}
           <button 
             onClick={() => setShowSettings(true)}

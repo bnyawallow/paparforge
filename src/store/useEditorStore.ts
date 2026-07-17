@@ -1,6 +1,13 @@
+import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { EditorState, SceneObject, HistorySnapshot } from '../types';
+
+
+const getStorageKey = (key: string) => {
+  const user = useAuthStore.getState().user;
+  return user ? `${user.id}_${key}` : key;
+};
 
 const initialImageTargetId = uuidv4();
 
@@ -292,11 +299,11 @@ const sanitizeBlobUrls = (data: any) => {
 const loadSavedState = () => {
   try {
     // 1. Check if projects list exists
-    let listSaved = localStorage.getItem('ar_forge_project_list');
+    let listSaved = localStorage.getItem(getStorageKey('ar_forge_project_list'));
     let projectsList = listSaved ? JSON.parse(listSaved) : [];
     
     // 2. If list is empty, let's see if we have an old single-project autosave to migrate
-    const oldAutosave = localStorage.getItem('ar_forge_autosave');
+    const oldAutosave = localStorage.getItem(getStorageKey('ar_forge_autosave'));
     
     if (projectsList.length === 0) {
       if (oldAutosave) {
@@ -311,7 +318,7 @@ const loadSavedState = () => {
               updatedAt: Date.now()
             };
             projectsList = [defaultProjMetadata];
-            localStorage.setItem('ar_forge_project_list', JSON.stringify(projectsList));
+            localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(projectsList));
             
             const defaultProjData = {
               id: defaultId,
@@ -322,7 +329,7 @@ const loadSavedState = () => {
               assets: parsed.assets || [],
               lastSavedTime: parsed.lastSavedTime || Date.now()
             };
-            localStorage.setItem(`ar_forge_project_${defaultId}`, JSON.stringify(defaultProjData));
+            localStorage.setItem(getStorageKey(`ar_forge_project_${defaultId}`), JSON.stringify(defaultProjData));
           }
         } catch (e) {
           console.error('Migration failed:', e);
@@ -340,7 +347,7 @@ const loadSavedState = () => {
         updatedAt: Date.now()
       };
       projectsList = [defaultProjMetadata];
-      localStorage.setItem('ar_forge_project_list', JSON.stringify(projectsList));
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(projectsList));
       
       const defaultProjData = {
         id: defaultId,
@@ -387,18 +394,18 @@ const loadSavedState = () => {
   ],
         lastSavedTime: Date.now()
       };
-      localStorage.setItem(`ar_forge_project_${defaultId}`, JSON.stringify(defaultProjData));
+      localStorage.setItem(getStorageKey(`ar_forge_project_${defaultId}`), JSON.stringify(defaultProjData));
     }
     
     // 4. Determine current active project ID
-    let activeId = localStorage.getItem('ar_forge_active_project_id');
+    let activeId = localStorage.getItem(getStorageKey('ar_forge_active_project_id'));
     if (!activeId || !projectsList.some((p: any) => p.id === activeId)) {
       activeId = projectsList[0].id;
-      localStorage.setItem('ar_forge_active_project_id', activeId);
+      localStorage.setItem(getStorageKey('ar_forge_active_project_id'), activeId);
     }
     
     // 5. Load current project data
-    const activeProjDataStr = localStorage.getItem(`ar_forge_project_${activeId}`);
+    const activeProjDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${activeId}`));
     if (activeProjDataStr) {
       const activeProjData = sanitizeBlobUrls(JSON.parse(activeProjDataStr));
       return {
@@ -1569,11 +1576,11 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   loadProject: (projectId) => set((state) => {
     try {
-      const savedDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
+      const savedDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${projectId}`));
       if (!savedDataStr) return state;
 
       const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
-      localStorage.setItem('ar_forge_active_project_id', projectId);
+      localStorage.setItem(getStorageKey('ar_forge_active_project_id'), projectId);
 
       return {
         currentProjectId: projectId,
@@ -1608,7 +1615,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     let updatedList = [];
     set((state) => {
       updatedList = [metadata, ...state.projectsList];
-      localStorage.setItem('ar_forge_project_list', JSON.stringify(updatedList));
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
       const projectData = {
         id: newId,
@@ -1655,8 +1662,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   ],
         lastSavedTime: Date.now()
       };
-      localStorage.setItem(`ar_forge_project_${newId}`, JSON.stringify(projectData));
-      localStorage.setItem('ar_forge_active_project_id', newId);
+      localStorage.setItem(getStorageKey(`ar_forge_project_${newId}`), JSON.stringify(projectData));
+      localStorage.setItem(getStorageKey('ar_forge_active_project_id'), newId);
 
       return {
         currentProjectId: newId,
@@ -1715,17 +1722,17 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   deleteProject: (projectId) => set((state) => {
     try {
-      localStorage.removeItem(`ar_forge_project_${projectId}`);
+      localStorage.removeItem(getStorageKey(`ar_forge_project_${projectId}`));
       const updatedList = state.projectsList.filter((p) => p.id !== projectId);
-      localStorage.setItem('ar_forge_project_list', JSON.stringify(updatedList));
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
       if (state.currentProjectId === projectId) {
         // If the deleted project was active, find another or create a default
         if (updatedList.length > 0) {
           const nextActiveId = updatedList[0].id;
-          localStorage.setItem('ar_forge_active_project_id', nextActiveId);
+          localStorage.setItem(getStorageKey('ar_forge_active_project_id'), nextActiveId);
           
-          const savedDataStr = localStorage.getItem(`ar_forge_project_${nextActiveId}`);
+          const savedDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${nextActiveId}`));
           if (savedDataStr) {
             const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
             return {
@@ -1754,7 +1761,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           updatedAt: Date.now()
         };
         const newList = [defaultMetadata];
-        localStorage.setItem('ar_forge_project_list', JSON.stringify(newList));
+        localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(newList));
 
         const defaultImageTargetId = uuidv4();
         const defaultObjects = {
@@ -1815,8 +1822,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   ],
           lastSavedTime: Date.now()
         };
-        localStorage.setItem(`ar_forge_project_${defaultId}`, JSON.stringify(defaultProjData));
-        localStorage.setItem('ar_forge_active_project_id', defaultId);
+        localStorage.setItem(getStorageKey(`ar_forge_project_${defaultId}`), JSON.stringify(defaultProjData));
+        localStorage.setItem(getStorageKey('ar_forge_active_project_id'), defaultId);
 
         return {
           currentProjectId: defaultId,
@@ -1878,7 +1885,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   duplicateProject: (projectId) => set((state) => {
     try {
-      const savedDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
+      const savedDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${projectId}`));
       if (!savedDataStr) return state;
 
       const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
@@ -1893,7 +1900,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       };
 
       const updatedList = [metadata, ...state.projectsList];
-      localStorage.setItem('ar_forge_project_list', JSON.stringify(updatedList));
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
       const projectData = {
         ...parsed,
@@ -1905,8 +1912,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         },
         lastSavedTime: Date.now()
       };
-      localStorage.setItem(`ar_forge_project_${newId}`, JSON.stringify(projectData));
-      localStorage.setItem('ar_forge_active_project_id', newId);
+      localStorage.setItem(getStorageKey(`ar_forge_project_${newId}`), JSON.stringify(projectData));
+      localStorage.setItem(getStorageKey('ar_forge_active_project_id'), newId);
 
       return {
         currentProjectId: newId,
@@ -1940,7 +1947,7 @@ export const useEditorStore = create<EditorState>((set) => ({
         lastSavedTime: Date.now()
       };
 
-      localStorage.setItem(`ar_forge_project_${state.currentProjectId}`, JSON.stringify(projectData));
+      localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(projectData));
 
       // If already published, sync the configuration to Supabase in the background
       if (state.settings.publishedProjectId) {
@@ -1969,7 +1976,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           ? { ...p, name: state.settings.projectName, updatedAt: Date.now() }
           : p
       );
-      localStorage.setItem('ar_forge_project_list', JSON.stringify(updatedList));
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
       return {
         projectsList: updatedList,
@@ -1987,16 +1994,16 @@ export const useEditorStore = create<EditorState>((set) => ({
       const updatedList = state.projectsList.map((p) => 
         p.id === projectId ? { ...p, name: newName, updatedAt: Date.now() } : p
       );
-      localStorage.setItem('ar_forge_project_list', JSON.stringify(updatedList));
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
-      const savedDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
+      const savedDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${projectId}`));
       if (savedDataStr) {
         const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
         parsed.name = newName;
         if (!parsed.settings) parsed.settings = { projectName: newName, imageTargetName: null };
         parsed.settings.projectName = newName;
         parsed.lastSavedTime = Date.now();
-        localStorage.setItem(`ar_forge_project_${projectId}`, JSON.stringify(parsed));
+        localStorage.setItem(getStorageKey(`ar_forge_project_${projectId}`), JSON.stringify(parsed));
       }
 
       if (state.currentProjectId === projectId) {
@@ -2037,7 +2044,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       let finalId = newId;
       set((state) => {
         const updatedList = [metadata, ...state.projectsList];
-        localStorage.setItem('ar_forge_project_list', JSON.stringify(updatedList));
+        localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
         const projectData = {
           id: newId,
@@ -2048,8 +2055,8 @@ export const useEditorStore = create<EditorState>((set) => ({
           assets: parsed.assets || [],
           lastSavedTime: Date.now()
         };
-        localStorage.setItem(`ar_forge_project_${newId}`, JSON.stringify(projectData));
-        localStorage.setItem('ar_forge_active_project_id', newId);
+        localStorage.setItem(getStorageKey(`ar_forge_project_${newId}`), JSON.stringify(projectData));
+        localStorage.setItem(getStorageKey('ar_forge_active_project_id'), newId);
 
         return {
           currentProjectId: newId,

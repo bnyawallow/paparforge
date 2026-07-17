@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs/promises";
 import { createServer as createViteServer } from "vite";
+import { authRoutes } from "./src/server/authRoutes.js";
 
 async function startServer() {
   const app = express();
@@ -24,6 +25,9 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
+  
+  // Mount auth routes
+  app.use("/api/auth", authRoutes);
 
   // Publish endpoint to write the HTML file directly to the papar directory
   app.post("/api/publish", async (req, res) => {
