@@ -880,8 +880,8 @@ export function AssetBrowser() {
       newObj.scale = [1, 0.3, 0.05];
     } else if (type === 'youtube') {
       newObj.properties = { videoId: 'dQw4w9WgXcQ' };
-    } else if (type === 'overlay2d') {
-      newObj.name = 'HUD Group';
+    } else if (type === 'hudCanvas') {
+      newObj.name = 'HUD Canvas';
     }
     useEditorStore.getState().addObject(newObj);
     showToast(`Added ${newObj.name}`);

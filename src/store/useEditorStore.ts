@@ -228,8 +228,38 @@ const ensureImageTargetLocked = (objects: Record<string, SceneObject>) => {
   if (!objects) return objects;
   const updated = { ...objects };
   Object.keys(updated).forEach(id => {
-    if (updated[id] && updated[id].type === 'imageTarget') {
-      updated[id] = { ...updated[id], locked: true };
+    if (updated[id]) {
+      let obj = updated[id];
+      let needsUpdate = false;
+      let newType = obj.type;
+      
+      if (obj.type === 'imageTarget' && !obj.locked) {
+        obj.locked = true;
+        needsUpdate = true;
+      }
+      
+      // Convert legacy overlay types to HUD types
+      const typeStr = obj.type as string;
+      if (typeStr === 'overlay2d') { newType = 'hudCanvas'; needsUpdate = true; }
+      else if (typeStr === 'overlayText') { newType = 'hudText'; needsUpdate = true; }
+      else if (typeStr === 'overlayButton') { newType = 'hudButton'; needsUpdate = true; }
+      else if (typeStr === 'overlayImage') { newType = 'hudImage'; needsUpdate = true; }
+      else if (typeStr === 'overlayEmbed') { newType = 'hudEmbed'; needsUpdate = true; }
+      
+      if (needsUpdate) {
+        let newName = obj.name;
+        if (newName.includes('Overlay')) {
+          newName = newName.replace(/Overlay/g, 'HUD');
+        }
+        if (newName === 'HUD Group' || newName === 'HUD 2D Canvas') {
+          newName = 'HUD Canvas';
+        }
+        updated[id] = {
+          ...obj,
+          type: newType,
+          name: newName,
+        };
+      }
     }
   });
   return updated;
@@ -748,7 +778,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     // Check if the selection consists of 2D overlays
     const is2DSelection = topSelectedIds.every(id => {
       const o = state.objects[id];
-      return o && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type);
+      return o && ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type);
     });
 
     const groupId = uuidv4();
@@ -771,8 +801,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         if (child) {
           const cl = child.properties?.left !== undefined ? child.properties.left : 20;
           const ct = child.properties?.top !== undefined ? child.properties.top : 20;
-          const cw = child.properties?.width !== undefined ? child.properties.width : (child.type === 'overlayImage' ? 200 : (child.type === 'overlayEmbed' ? 400 : 150));
-          const ch = child.properties?.height !== undefined ? child.properties.height : (child.type === 'overlayImage' ? 200 : (child.type === 'overlayEmbed' ? 300 : 40));
+          const cw = child.properties?.width !== undefined ? child.properties.width : (child.type === 'hudImage' ? 200 : (child.type === 'hudEmbed' ? 400 : 150));
+          const ch = child.properties?.height !== undefined ? child.properties.height : (child.type === 'hudImage' ? 200 : (child.type === 'hudEmbed' ? 300 : 40));
 
           if (cl < minLeft) minLeft = cl;
           if (ct < minTop) minTop = ct;
@@ -793,8 +823,8 @@ export const useEditorStore = create<EditorState>((set) => ({
 
       groupObj = {
         id: groupId,
-        name: "HUD Group",
-        type: 'overlay2d',
+        name: "HUD Canvas",
+        type: 'hudCanvas',
         position: [0, 0, 0],
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
@@ -804,13 +834,17 @@ export const useEditorStore = create<EditorState>((set) => ({
         properties: {
           backgroundColor: '#000000',
           opacity: 0.0, // Transparent container acting as folder
-          alignment: 'none',
-          left: minLeft,
-          top: minTop,
-          width: groupW,
-          height: groupH,
-          widthType: 'px',
-          heightType: 'px'
+          alignment: 'center',
+          width: 100,
+          height: 100,
+          widthType: '%',
+          heightType: '%',
+          layoutMode: 'column',
+          layoutPadding: 16,
+          layoutGap: 8,
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'flex-start',
+          layoutWrap: 'nowrap'
         }
       };
 
@@ -823,10 +857,7 @@ export const useEditorStore = create<EditorState>((set) => ({
             ...child,
             parentId: groupId,
             properties: {
-              ...child.properties,
-              left: (child.properties?.left !== undefined ? child.properties.left : 20) - minLeft,
-              top: (child.properties?.top !== undefined ? child.properties.top : 20) - minTop,
-              alignment: 'none'
+              ...child.properties
             }
           };
         }
@@ -924,7 +955,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   ungroupObject: (groupId) => set((state) => {
     const groupObj = state.objects[groupId];
-    if (!groupObj || (groupObj.type !== 'group' && groupObj.type !== 'overlay2d')) return state;
+    if (!groupObj || (groupObj.type !== 'group' && groupObj.type !== 'hudCanvas')) return state;
 
     const snapshot = createSnapshot(state);
     let newPast = [...state.past, snapshot];
@@ -938,7 +969,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     const newObjects = { ...state.objects };
     const childIds = [...groupObj.children];
     const parentId = groupObj.parentId;
-    const is2DUngroup = groupObj.type === 'overlay2d';
+    const is2DUngroup = groupObj.type === 'hudCanvas';
 
     delete newObjects[groupId];
 
@@ -946,16 +977,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       const child = newObjects[childId];
       if (child) {
         if (is2DUngroup) {
-          const groupLeft = groupObj.properties?.left || 0;
-          const groupTop = groupObj.properties?.top || 0;
           newObjects[childId] = {
             ...child,
             parentId: parentId,
             properties: {
-              ...child.properties,
-              left: (child.properties?.left !== undefined ? child.properties.left : 20) + groupLeft,
-              top: (child.properties?.top !== undefined ? child.properties.top : 20) + groupTop,
-              alignment: 'none'
+              ...child.properties
             }
           };
         } else {
@@ -1060,10 +1086,17 @@ export const useEditorStore = create<EditorState>((set) => ({
     if (!targetObj) return state;
     if (draggedId === targetId) return state;
 
-    const isDragged2D = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(draggedObj.type);
-    const isTarget2D = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(targetObj.type);
+    const isDragged2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(draggedObj.type);
+    const isTarget2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(targetObj.type);
 
     if (isDragged2D && isTarget2D) {
+      // Prevent cyclic drops
+      let currentCheck = targetObj;
+      while (currentCheck.parentId) {
+        if (currentCheck.parentId === draggedId) return state;
+        currentCheck = newObjects[currentCheck.parentId];
+      }
+
       // Create history snapshot
       const snapshot = createSnapshot(state);
       let newPast = [...state.past, snapshot];
@@ -1088,42 +1121,56 @@ export const useEditorStore = create<EditorState>((set) => ({
         newRootObjects = newRootObjects.filter(id => id !== draggedId);
       }
 
-      // Find target's parent and target list
-      const targetParentId = targetObj.parentId;
-      if (targetParentId && newObjects[targetParentId]) {
-        const parentChildren = [...newObjects[targetParentId].children];
-        const targetIdx = parentChildren.indexOf(targetId);
-        // Insert draggedId at target's index to put it there and shift others down
-        if (targetIdx !== -1) {
-          parentChildren.splice(targetIdx, 0, draggedId);
-        } else {
-          parentChildren.push(draggedId);
+      let resolvedParentId: string | null = null;
+
+      if (targetObj.type === 'hudCanvas') {
+        // Parent inside the target canvas!
+        resolvedParentId = targetId;
+        const targetChildren = [...targetObj.children];
+        if (!targetChildren.includes(draggedId)) {
+          targetChildren.push(draggedId);
         }
-        newObjects[targetParentId] = {
-          ...newObjects[targetParentId],
-          children: parentChildren
+        newObjects[targetId] = {
+          ...targetObj,
+          children: targetChildren
         };
       } else {
-        // If target is at root
-        const targetIdx = newRootObjects.indexOf(targetId);
-        if (targetIdx !== -1) {
-          newRootObjects.splice(targetIdx, 0, draggedId);
+        // Sibling placement next to the target element!
+        resolvedParentId = targetObj.parentId;
+        if (resolvedParentId && newObjects[resolvedParentId]) {
+          const parentChildren = [...newObjects[resolvedParentId].children];
+          const targetIdx = parentChildren.indexOf(targetId);
+          if (targetIdx !== -1) {
+            parentChildren.splice(targetIdx, 0, draggedId);
+          } else {
+            parentChildren.push(draggedId);
+          }
+          newObjects[resolvedParentId] = {
+            ...newObjects[resolvedParentId],
+            children: parentChildren
+          };
         } else {
-          newRootObjects.push(draggedId);
+          // If target is at root
+          const targetIdx = newRootObjects.indexOf(targetId);
+          if (targetIdx !== -1) {
+            newRootObjects.splice(targetIdx, 0, draggedId);
+          } else {
+            newRootObjects.push(draggedId);
+          }
         }
       }
 
       // Update dragged object parent
       newObjects[draggedId] = {
         ...draggedObj,
-        parentId: targetParentId
+        parentId: resolvedParentId
       };
 
-      // Re-assign z-indexes of all 2D siblings under this parent to maintain top-down layering
-      const siblings = targetParentId ? newObjects[targetParentId].children : newRootObjects;
+      // Re-assign z-indexes of all 2D siblings under the resolved parent/root to maintain top-down layering
+      const siblings = resolvedParentId ? newObjects[resolvedParentId].children : newRootObjects;
       const overlaySiblings = siblings.filter(id => {
         const o = newObjects[id];
-        return o && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type);
+        return o && ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type);
       });
 
       overlaySiblings.forEach((childId, idx) => {

@@ -112,7 +112,7 @@ export const generateAFrameScene = (state: any) => {
       const obj = objects[id];
       if (!obj || !obj.visible) return '';
       // Skip 2D overlays in A-Frame 3D scene
-      if (['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(obj.type)) return '';
+      if (['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type)) return '';
 
 
       const indent = '  '.repeat(depth + 3);
@@ -301,7 +301,7 @@ export const generateAFrameScene = (state: any) => {
     
     let overlayHtml = '';
     const overlayObjects = Object.values(objects).filter((obj: any) => 
-      ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(obj.type) && obj.visible !== false
+      ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) && obj.visible !== false
     );
 
     const hexToRgba = (hex: string, alpha: number) => {
@@ -314,11 +314,11 @@ export const generateAFrameScene = (state: any) => {
 
     const buildOverlayHtml = (obj: any): string => {
       const props = obj.properties || {};
-      const alignment = props.alignment || 'none';
+      const alignment = props.alignment || 'center';
       const widthType = props.widthType || 'px';
       const heightType = props.heightType || 'px';
-      const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 400 : 150));
-      const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 300 : 40));
+      const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'hudCanvas' ? 100 : 150)));
+      const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'hudCanvas' ? 100 : 40)));
       const widthStr = widthType === '%' ? `${widthVal}%` : `${widthVal}px`;
       const heightStr = heightType === '%' ? `${heightVal}%` : `${heightVal}px`;
       const opacity = props.opacity ?? 1;
@@ -326,28 +326,31 @@ export const generateAFrameScene = (state: any) => {
       const offsetY = props.offsetY || 0;
 
       const parentObj = obj.parentId ? objects[obj.parentId] : null;
-      const parentIs2D = parentObj && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(parentObj.type);
+      const parentIs2D = parentObj && ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(parentObj.type);
+      const isAutoLayoutActive = parentObj && parentObj.type === 'hudCanvas' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
-      const isInteractive = ['overlayButton', 'overlayEmbed'].includes(obj.type);
+      const isInteractive = ['hudButton', 'hudEmbed'].includes(obj.type);
       const peStr = isInteractive ? 'auto' : 'none';
 
-      let styleStr = `position: absolute; pointer-events: ${peStr}; box-sizing: border-box; width: ${widthStr}; height: ${heightStr}; `;
-      if (obj.type !== 'overlay2d') {
+      let styleStr = `position: ${isAutoLayoutActive ? 'relative' : 'absolute'}; pointer-events: ${peStr}; box-sizing: border-box; width: ${widthStr}; height: ${heightStr}; `;
+      if (obj.type !== 'hudCanvas') {
         styleStr += `opacity: ${opacity}; `;
       }
 
-      if (obj.type === 'overlayEmbed' && props.fullScreenWithMargins) {
+      if (obj.type === 'hudEmbed' && props.fullScreenWithMargins) {
         const topM = props.marginTop ?? 20;
         const bottomM = props.marginBottom ?? 20;
         const leftM = props.marginLeft ?? 20;
         const rightM = props.marginRight ?? 20;
         styleStr = `position: absolute; pointer-events: ${peStr}; box-sizing: border-box; opacity: ${opacity}; top: ${topM}px; bottom: ${bottomM}px; left: ${leftM}px; right: ${rightM}px; width: auto; height: auto; display: flex; flex-direction: column; `;
+      } else if (isAutoLayoutActive) {
+        // Controlled by parent layout container properties
       } else if (obj.parentId && !parentIs2D) {
         // Anchored to a 3D object (projected)
         styleStr += `display: none; `;
         entitiesHtml += `      <a-entity id="${obj.id}-projector" projected-overlay="target: #${obj.parentId}; alignment: ${alignment}; offsetX: ${offsetX}; offsetY: ${offsetY};"></a-entity>\n`;
       } else {
-        // Root or parentIs2D (relative container alignment)
+        // Root or parentIs2D without auto-layout (relative container alignment)
         if (alignment === 'none') {
           styleStr += `top: ${props.top !== undefined ? props.top + 'px' : '20px'}; left: ${props.left !== undefined ? props.left + 'px' : '20px'}; `;
         } else {
@@ -408,13 +411,28 @@ export const generateAFrameScene = (state: any) => {
       const children = overlayObjects.filter((o: any) => o.parentId === obj.id);
       const childrenHtml = children.map(c => buildOverlayHtml(c)).join('\n');
 
-      if (obj.type === 'overlay2d') {
+      if (obj.type === 'hudCanvas') {
         const bgCol = props.backgroundColor || '#000000';
         let backgroundStyle = styleStr;
         const bgStyle = bgCol.startsWith('#') ? hexToRgba(bgCol, opacity) : bgCol;
-        backgroundStyle += `background-color: ${bgStyle}; overflow: hidden;`;
+        backgroundStyle += `background-color: ${bgStyle}; overflow: visible; display: flex; `;
+        
+        const mode = props.layoutMode || 'column';
+        if (['row', 'column'].includes(mode)) {
+          backgroundStyle += `flex-direction: ${mode}; `;
+          backgroundStyle += `padding: ${props.layoutPadding ?? 16}px; `;
+          backgroundStyle += `gap: ${props.layoutGap ?? 8}px; `;
+          backgroundStyle += `align-items: ${props.layoutAlignItems || 'center'}; `;
+          backgroundStyle += `justify-content: ${props.layoutJustifyContent || 'flex-start'}; `;
+          backgroundStyle += `flex-wrap: ${props.layoutWrap || 'nowrap'}; `;
+        }
+        
+        if (props.blur) {
+          backgroundStyle += `backdrop-filter: blur(${props.blur}px); -webkit-backdrop-filter: blur(${props.blur}px); `;
+        }
+
         return `  <div id="${overlayId}" class="${animClass}" style="${backgroundStyle}">${childrenHtml}</div>`;
-      } else if (obj.type === 'overlayText') {
+      } else if (obj.type === 'hudText') {
         const textAlignment = props.textAlign || 'left';
         const alignSelf = textAlignment === 'center' ? 'center' : (textAlignment === 'right' ? 'flex-end' : (textAlignment === 'justify' ? 'stretch' : 'flex-start'));
         const fontFamily = props.fontFamily ? `'${props.fontFamily}', sans-serif` : 'sans-serif';
@@ -427,18 +445,18 @@ export const generateAFrameScene = (state: any) => {
         const fontStyle = props.fontStyle || 'normal';
         styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; text-align: ${textAlignment}; white-space: ${whiteSpace}; font-family: ${fontFamily}; font-weight: ${fontWeight}; letter-spacing: ${letterSpacing}; line-height: ${lineHeight}; text-transform: ${textTransform}; text-decoration: ${textDecoration}; font-style: ${fontStyle}; display: flex; flex-direction: column; align-items: ${alignSelf}; justify-content: center;`;
         return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}">${props.text || 'Text'}${childrenHtml}</div>`;
-      } else if (obj.type === 'overlayButton') {
+      } else if (obj.type === 'hudButton') {
         styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border-radius: ${props.borderRadius || 8}px; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold;`;
         const onClickAttr = props.url ? ` onclick="window.open('${props.url}', '_blank')"` : '';
         return `  <button id="${overlayId}" class="${animClass}" style="${styleStr}"${onClickAttr}">${props.text || 'Button'}${childrenHtml}</button>`;
-      } else if (obj.type === 'overlayImage') {
-        styleStr += `position: absolute; overflow: hidden;`;
+      } else if (obj.type === 'hudImage') {
+        styleStr += `overflow: hidden;`;
         let imgStyle = `width: 100%; height: 100%; object-fit: cover; pointer-events: none;`;
         return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}"><img src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${imgStyle}" />${childrenHtml}</div>`;
-      } else if (obj.type === 'overlayEmbed') {
+      } else if (obj.type === 'hudEmbed') {
         const showBorder = props.borderEnabled ?? true;
         const showAddressBar = props.showAddressBar ?? true;
-        styleStr += `background-color: #111; border-radius: ${props.borderRadius || 12}px; overflow: hidden; display: flex; flex-direction: column; position: absolute; `;
+        styleStr += `background-color: #111; border-radius: ${props.borderRadius || 12}px; overflow: hidden; display: flex; flex-direction: column; `;
         if (showBorder) {
           styleStr += `border: 2px solid ${props.borderColor || '#2563eb'}; `;
         }
@@ -464,7 +482,7 @@ export const generateAFrameScene = (state: any) => {
     const root2DObjects = overlayObjects.filter((obj: any) => {
       if (!obj.parentId) return true;
       const parentObj = objects[obj.parentId];
-      const parentIs2D = parentObj && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(parentObj.type);
+      const parentIs2D = parentObj && ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(parentObj.type);
       return !parentIs2D;
     });
 

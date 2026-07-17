@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { Settings, Grid3X3, Check, Globe, ExternalLink, X } from 'lucide-react';
+import { HUDCanvas } from './HUDCanvas';
 import { FONT_LIBRARY } from '../inspector/InspectorPanel';
 
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
@@ -81,7 +82,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       if (draggingObj) {
         const dragObj = useEditorStore.getState().objects[draggingObj.id];
         const dragParentObj = dragObj?.parentId ? useEditorStore.getState().objects[dragObj.parentId] : null;
-        const dragParentIsAutoLayout = dragParentObj && dragParentObj.type === 'overlay2d' && ['row', 'column'].includes(dragParentObj.properties?.layoutMode || '');
+        const dragParentIsAutoLayout = dragParentObj && dragParentObj.type === 'hudCanvas' && ['row', 'column'].includes(dragParentObj.properties?.layoutMode || '');
         if (dragParentIsAutoLayout) {
           return;
         }
@@ -112,15 +113,15 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           const dragId = draggingObj.id;
           const dragObj = useEditorStore.getState().objects[dragId];
           const dragProps = dragObj?.properties || {};
-          const dragWidth = dragProps.width !== undefined ? dragProps.width : (dragObj.type === 'overlayImage' ? 200 : (dragObj.type === 'overlayEmbed' ? 400 : 150));
-          const dragHeight = dragProps.height !== undefined ? dragProps.height : (dragObj.type === 'overlayImage' ? 200 : (dragObj.type === 'overlayEmbed' ? 300 : 40));
+          const dragWidth = dragProps.width !== undefined ? dragProps.width : (dragObj.type === 'hudImage' ? 200 : (dragObj.type === 'hudEmbed' ? 400 : 150));
+          const dragHeight = dragProps.height !== undefined ? dragProps.height : (dragObj.type === 'hudImage' ? 200 : (dragObj.type === 'hudEmbed' ? 300 : 40));
 
           // Retrieve parent width/height if parenting is active
           let parentW = 0;
           let parentH = 0;
           if (dragObj?.parentId) {
             const parentObj = useEditorStore.getState().objects[dragObj.parentId];
-            if (parentObj && parentObj.type === 'overlay2d') {
+            if (parentObj && parentObj.type === 'hudCanvas') {
               parentW = parentObj.properties?.width || 0;
               parentH = parentObj.properties?.height || 0;
             }
@@ -137,7 +138,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           };
 
           const otherOverlays = Object.values(useEditorStore.getState().objects).filter((o: any) => 
-            ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type) &&
+            ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type) &&
             o.id !== dragId && 
             o.visible !== false &&
             !isDescendant(o.id, dragId) && 
@@ -164,11 +165,11 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
           otherOverlays.forEach((o: any) => {
             const oLeft = o.properties?.left ?? 20;
-            const oWidth = o.properties?.width ?? (o.type === 'overlayImage' ? 200 : (o.type === 'overlayEmbed' ? 400 : 150));
+            const oWidth = o.properties?.width ?? (o.type === 'hudImage' ? 200 : (o.type === 'hudEmbed' ? 400 : 150));
             targetsX.push(oLeft, oLeft + oWidth / 2, oLeft + oWidth);
 
             const oTop = o.properties?.top ?? 20;
-            const oHeight = o.properties?.height ?? (o.type === 'overlayImage' ? 200 : (o.type === 'overlayEmbed' ? 300 : 40));
+            const oHeight = o.properties?.height ?? (o.type === 'hudImage' ? 200 : (o.type === 'hudEmbed' ? 300 : 40));
             targetsY.push(oTop, oTop + oHeight / 2, oTop + oHeight);
           });
 
@@ -320,35 +321,13 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
   }, [draggingObj, resizingObj, overlayGridEnabled, overlayGridSize, updateObject]);
 
   const overlayObjects = Object.values(useEditorStore.getState().objects).filter((obj: any) => 
-    ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(obj.type) && obj.visible !== false
+    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) && obj.visible !== false
   );
 
   const selectedObj = selectedObjectId ? useEditorStore.getState().objects[selectedObjectId] : null;
-  const is2DSelected = selectedObj && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(selectedObj.type);
+  const is2DSelected = selectedObj && ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(selectedObj.type);
 
-  const handleAlign = (alignment: string) => {
-    if (!selectedObjectId) return;
-    updateObject(selectedObjectId, {
-      properties: {
-        ...useEditorStore.getState().objects[selectedObjectId].properties,
-        alignment,
-        offsetX: 0,
-        offsetY: 0
-      }
-    });
-  };
 
-  const alignments = [
-    { value: 'top-left', label: 'Top Left' },
-    { value: 'top-center', label: 'Top Center' },
-    { value: 'top-right', label: 'Top Right' },
-    { value: 'center-left', label: 'Center Left' },
-    { value: 'center', label: 'Center' },
-    { value: 'center-right', label: 'Center Right' },
-    { value: 'bottom-left', label: 'Bottom Left' },
-    { value: 'bottom-center', label: 'Bottom Center' },
-    { value: 'bottom-right', label: 'Bottom Right' }
-  ];
 
   if (overlayObjects.length === 0) return null;
 
@@ -356,19 +335,19 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
   const getOverlayStyle = (obj: any, parentProjected: { x: number, y: number, visible: boolean } | null): React.CSSProperties => {
     const props = obj.properties || {};
-    const alignment = props.alignment || 'none';
+    const alignment = props.alignment || 'center';
     const widthType = props.widthType || 'px';
     const heightType = props.heightType || 'px';
-    const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 400 : (obj.type === 'overlay2d' ? 500 : 150)));
-    const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 300 : (obj.type === 'overlay2d' ? 400 : 40)));
+    const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'hudCanvas' ? 100 : 150)));
+    const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'hudCanvas' ? 100 : 40)));
     const widthStr = widthType === '%' ? `${widthVal}%` : `${widthVal}px`;
     const heightStr = heightType === '%' ? `${heightVal}%` : `${heightVal}px`;
     const opacity = props.opacity ?? 1;
 
     const parentObj = obj.parentId ? useEditorStore.getState().objects[obj.parentId] : null;
-    const isAutoLayoutActive = parentObj && parentObj.type === 'overlay2d' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
+    const isAutoLayoutActive = parentObj && parentObj.type === 'hudCanvas' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
-    if (obj.type === 'overlayEmbed' && props.fullScreenWithMargins) {
+    if (obj.type === 'hudEmbed' && props.fullScreenWithMargins) {
       const topM = props.marginTop ?? 20;
       const bottomM = props.marginBottom ?? 20;
       const leftM = props.marginLeft ?? 20;
@@ -400,7 +379,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       zIndex: props.zIndex ?? 1,
     };
 
-    if (obj.type === 'overlay2d' && ['row', 'column'].includes(props.layoutMode || '')) {
+    if (obj.type === 'hudCanvas' && ['row', 'column'].includes(props.layoutMode || '')) {
       baseStyle.display = 'flex';
       baseStyle.flexDirection = props.layoutMode;
       baseStyle.padding = `${props.layoutPadding ?? 16}px`;
@@ -457,8 +436,8 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       const offsetY = props.offsetY || 0;
 
       if (alignment === 'none') {
-        baseStyle.left = props.left !== undefined ? `${props.left}px` : '20px';
-        baseStyle.top = props.top !== undefined ? `${props.top}px` : '20px';
+        baseStyle.left = props.left !== undefined ? `${props.left}px` : '0px';
+        baseStyle.top = props.top !== undefined ? `${props.top}px` : '0px';
       } else {
         switch (alignment) {
           case 'top-left':
@@ -584,54 +563,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           </div>
         </div>
       )}
-      {is2DSelected && !isPreviewMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto z-50 animate-in slide-in-from-top-4 duration-200">
-          <div className="bg-[#111113]/95 backdrop-blur-md border border-[#2D2D30]/80 shadow-2xl rounded-xl p-2.5 flex items-center gap-3.5">
-            {/* Visual Alignment Label */}
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">HUD Snap</span>
-              <span className="text-[9px] text-gray-400 truncate max-w-[100px]">{selectedObj?.name}</span>
-            </div>
 
-            {/* 3x3 Snap Grid */}
-            <div className="grid grid-cols-3 gap-1 bg-[#0A0A0C] p-1 rounded-lg border border-[#222]">
-              {alignments.map((align) => {
-                const isActive = selectedObj?.properties?.alignment === align.value;
-                return (
-                  <button
-                    key={align.value}
-                    onClick={() => handleAlign(align.value)}
-                    className={`w-5.5 h-5.5 rounded transition-all flex items-center justify-center cursor-pointer ${
-                      isActive 
-                        ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20 scale-105' 
-                        : 'bg-[#18181B] hover:bg-[#27272A] border border-[#2E2E33] hover:border-gray-500 text-gray-500 hover:text-white'
-                    }`}
-                    title={`Snap to ${align.label}`}
-                  >
-                    <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-black' : 'bg-gray-500 group-hover:bg-white'}`} />
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="h-8 w-[1px] bg-[#2D2D30]" />
-
-            {/* Free drag reset button */}
-            <button
-              onClick={() => handleAlign('none')}
-              className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                selectedObj?.properties?.alignment === 'none' || !selectedObj?.properties?.alignment
-                  ? 'bg-[#222] border border-cyan-500/30 text-cyan-400 font-bold'
-                  : 'bg-transparent border border-transparent hover:bg-white/5 text-gray-400 hover:text-white'
-              }`}
-              title="Switch to Free Drag Manual placement"
-            >
-              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-              <span>Free Drag</span>
-            </button>
-          </div>
-        </div>
-      )}
       {(() => {
         // Helper to convert hex to rgba for background transparency so children aren't made transparent
         const hexToRgba = (hex: string, alpha: number) => {
@@ -644,7 +576,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
         const renderOverlayObject = (obj: any) => {
           const props = obj.properties || {};
-          const alignment = props.alignment || 'none';
+          const alignment = props.alignment || 'center';
           const isSelected = selectedObjectId === obj.id;
           const parentProjected = obj.parentId ? (projectedPositions[obj.parentId] || null) : null;
 
@@ -676,7 +608,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
               startY: e.clientY,
               startTop: props.top || 0,
               startLeft: props.left || 0,
-              isAligned: alignment !== 'none' || !!obj.parentId,
+              isAligned: true,
               startOffsetX: props.offsetX || 0,
               startOffsetY: props.offsetY || 0,
             });
@@ -687,8 +619,8 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             e.stopPropagation();
             selectObject(obj.id);
 
-            const widthVal = props.width !== undefined ? props.width : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 400 : (obj.type === 'overlay2d' ? 500 : 150)));
-            const heightVal = props.height !== undefined ? props.height : (obj.type === 'overlayImage' ? 200 : (obj.type === 'overlayEmbed' ? 300 : (obj.type === 'overlay2d' ? 400 : 40)));
+            const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'hudCanvas' ? 100 : 150)));
+            const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'hudCanvas' ? 100 : 40)));
             
             setResizingObj({
               id: obj.id,
@@ -704,7 +636,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           };
 
           const renderResizeHandles = () => {
-            if (isPreviewMode || !isSelected) return null;
+            if (isPreviewMode || !isSelected || obj.type === 'hudCanvas') return null;
             const edges = ['nw', 'ne', 'se', 'sw', 'n', 's', 'e', 'w'];
             return edges.map(handle => {
               const handleStyle: React.CSSProperties = {
@@ -744,7 +676,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             });
           };
 
-          const isInteractive = ['overlayButton', 'overlayEmbed'].includes(obj.type);
+          const isInteractive = ['hudButton', 'hudEmbed'].includes(obj.type);
           const computedStyle = getOverlayStyle(obj, parentProjected);
           const activeStyle: React.CSSProperties = {
             ...computedStyle,
@@ -759,34 +691,16 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           // Filter overlayObjects to find children of this object
           const children = overlayObjects.filter((o: any) => o.parentId === obj.id);
 
-          if (obj.type === 'overlay2d') {
-            const bgCol = props.backgroundColor || '#000000';
-            const op = props.opacity !== undefined ? props.opacity : 0.5;
-            const bgStyle = bgCol.startsWith('#') ? hexToRgba(bgCol, op) : bgCol;
-
+          if (obj.type === 'hudCanvas') {
             return (
-              <div 
-                key={obj.id} 
-                id={obj.id}
-                className={animClass}
-                style={{ 
-                  ...activeStyle,
-                  backgroundColor: bgStyle,
-                  opacity: 1.0, // Prevent children from inheriting transparency
-                  pointerEvents: activeStyle.pointerEvents,
-                  overflow: 'visible',
-                  backdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
-                  WebkitBackdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
-                }}
-                onMouseDown={handleMouseDown}
-              >
+              <HUDCanvas key={obj.id} obj={obj} isPreviewMode={isPreviewMode}>
                 {renderResizeHandles()}
                 {children.map((child: any) => renderOverlayObject(child))}
-              </div>
+              </HUDCanvas>
             );
           }
 
-          if (obj.type === 'overlayText') {
+          if (obj.type === 'hudText') {
             return (
               <div 
                 key={obj.id} 
@@ -818,7 +732,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             );
           }
 
-          if (obj.type === 'overlayButton') {
+          if (obj.type === 'hudButton') {
             return (
               <button 
                 key={obj.id} 
@@ -850,7 +764,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             );
           }
 
-          if (obj.type === 'overlayImage') {
+          if (obj.type === 'hudImage') {
             return (
               <div 
                 key={obj.id} 
@@ -874,7 +788,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             );
           }
 
-          if (obj.type === 'overlayEmbed') {
+          if (obj.type === 'hudEmbed') {
             const showBorder = props.borderEnabled ?? true;
             const showAddressBar = props.showAddressBar ?? true;
             return (
@@ -974,7 +888,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           if (!obj.parentId) return true;
           const parentObj = useEditorStore.getState().objects[obj.parentId];
           if (!parentObj) return true;
-          const parentIs2D = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(parentObj.type);
+          const parentIs2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(parentObj.type);
           return !parentIs2D;
         });
 

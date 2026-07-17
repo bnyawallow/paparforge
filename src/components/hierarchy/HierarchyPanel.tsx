@@ -111,30 +111,52 @@ export function HierarchyPanel({ width }: { width?: number }) {
     } else if (type === 'youtube') {
       newObj.properties = { videoId: 'dQw4w9WgXcQ' };
       newObj.scale = [1.6, 0.9, 1];
-    } else if (type === 'overlay2d') {
-      newObj.properties = { backgroundColor: '#000000', opacity: 0.0, alignment: 'none', width: 100, widthType: '%', height: 100, heightType: '%' };
-    } else if (type === 'overlayText') {
-      newObj.properties = { text: 'Overlay Text', color: '#ffffff', fontSize: 24, top: 20, left: 20, alignment: 'none', width: 200, widthType: 'px', height: 40, heightType: 'px' };
-    } else if (type === 'overlayButton') {
-      newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: '', top: 20, left: 20, paddingX: 16, paddingY: 8, borderRadius: 8, alignment: 'none', width: 120, widthType: 'px', height: 40, heightType: 'px' };
-    } else if (type === 'overlayImage') {
-      newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', top: 20, left: 20, width: 200, widthType: 'px', height: 200, heightType: 'px', opacity: 1.0, alignment: 'none' };
-    } else if (type === 'overlayEmbed') {
-      newObj.properties = { url: 'https://wikipedia.org', top: 20, left: 20, width: 400, widthType: 'px', height: 300, heightType: 'px', opacity: 1.0, alignment: 'none', borderRadius: 12, borderEnabled: true, borderColor: '#2563eb' };
+    } else if (type === 'hudCanvas') {
+      newObj.properties = { 
+        backgroundColor: '#000000', 
+        opacity: 0.0, 
+        alignment: 'center', 
+        width: 100, 
+        widthType: '%', 
+        height: 100, 
+        heightType: '%', 
+        offsetX: 0, 
+        offsetY: 0,
+        layoutMode: 'column',
+        layoutPadding: 16,
+        layoutGap: 8,
+        layoutAlignItems: 'center',
+        layoutJustifyContent: 'flex-start',
+        layoutWrap: 'nowrap'
+      };
+    } else if (type === 'hudText') {
+      newObj.properties = { text: 'HUD Text', color: '#ffffff', fontSize: 24, top: 0, left: 0, alignment: 'center', width: 200, widthType: 'px', height: 40, heightType: 'px', offsetX: 0, offsetY: 0 };
+    } else if (type === 'hudButton') {
+      newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: '', top: 0, left: 0, paddingX: 16, paddingY: 8, borderRadius: 8, alignment: 'center', width: 120, widthType: 'px', height: 40, heightType: 'px', offsetX: 0, offsetY: 0 };
+    } else if (type === 'hudImage') {
+      newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', top: 0, left: 0, width: 200, widthType: 'px', height: 200, heightType: 'px', opacity: 1.0, alignment: 'center', offsetX: 0, offsetY: 0 };
+    } else if (type === 'hudEmbed') {
+      newObj.properties = { url: 'https://wikipedia.org', top: 0, left: 0, width: 400, widthType: 'px', height: 300, heightType: 'px', opacity: 1.0, alignment: 'center', borderRadius: 12, borderEnabled: true, borderColor: '#2563eb', offsetX: 0, offsetY: 0 };
     }
 
-    const is2DOverlay = ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(type);
-    const is2DUIElement = ['overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(type);
+    const is2DOverlay = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(type);
     let parentId = null;
     
-    if (is2DUIElement) {
-      if (selectedObjectId && objects[selectedObjectId] && ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(objects[selectedObjectId].type)) {
-        parentId = selectedObjectId;
-      } else {
-        const activeOverlay2d = Object.values(objects).find(o => o.type === 'overlay2d');
+    if (is2DOverlay) {
+      if (selectedObjectId && objects[selectedObjectId]) {
+        const selectedType = objects[selectedObjectId].type;
+        if (selectedType === 'hudCanvas') {
+          parentId = selectedObjectId;
+        } else if (['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(selectedType)) {
+          parentId = objects[selectedObjectId].parentId;
+        }
+      }
+      
+      if (!parentId) {
+        const activeOverlay2d = Object.values(objects).find(o => o.type === 'hudCanvas' && !o.parentId);
         if (activeOverlay2d) parentId = activeOverlay2d.id;
       }
-    } else if (!is2DOverlay) {
+    } else {
       parentId = selectedObjectId;
       if (!parentId) {
         const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -381,11 +403,11 @@ export function HierarchyPanel({ width }: { width?: number }) {
     else if (obj.type === 'youtube') Icon = Youtube;
     else if (obj.type === 'button') Icon = Link2;
     else if (obj.type === 'text') Icon = Type;
-    else if (obj.type === 'overlay2d') Icon = FolderPlus;
-    else if (obj.type === 'overlayText') Icon = Type;
-    else if (obj.type === 'overlayButton') Icon = Link2;
-    else if (obj.type === 'overlayImage') Icon = ImageIcon;
-    else if (obj.type === 'overlayEmbed') Icon = Globe;
+    else if (obj.type === 'hudCanvas') Icon = FolderPlus;
+    else if (obj.type === 'hudText') Icon = Type;
+    else if (obj.type === 'hudButton') Icon = Link2;
+    else if (obj.type === 'hudImage') Icon = ImageIcon;
+    else if (obj.type === 'hudEmbed') Icon = Globe;
 
     const toggleCollapse = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -640,7 +662,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
         </div>
 
         {/* Selection context actions (Group / Ungroup) */}
-        {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group'))))) && (
+        {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas')))) && (
           <div className="p-2 border-b border-[#2A2A2A] bg-[#1a1a1a] flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
             {selectedObjectIds.length > 1 && (
               <button
@@ -652,7 +674,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                 <span>Group ({selectedObjectIds.length})</span>
               </button>
             )}
-            {selectedObjectId && (objects[selectedObjectId]?.type === 'group' || (objects[selectedObjectId]?.type === 'overlay2d' && objects[selectedObjectId]?.name === 'HUD Group')) && (
+            {selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas') && (
               <button
                 onClick={() => ungroupObject(selectedObjectId)}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-amber-600/25 hover:bg-amber-600/35 border border-amber-500/35 text-amber-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"

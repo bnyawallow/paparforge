@@ -1017,7 +1017,7 @@ export function InspectorPanel({ width }: { width?: number }) {
 
   const obj = selectedObjectId ? objects[selectedObjectId] : null;
   const parentObj = obj?.parentId ? objects[obj.parentId] : null;
-  const isParentAutoLayout = parentObj && parentObj.type === 'overlay2d' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
+  const isParentAutoLayout = parentObj && parentObj.type === 'hudCanvas' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
   const handleVectorChange = (prop: 'position' | 'rotation' | 'scale', index: number, value: string) => {
     if (!obj) return;
@@ -1112,7 +1112,7 @@ export function InspectorPanel({ width }: { width?: number }) {
   const renderTypographyPanel = () => {
     // Find all 2D HUD text components in the active scene
     const textHUDComponents = Object.values(objects).filter(
-      (o: any) => o.type === 'overlayText'
+      (o: any) => o.type === 'hudText'
     );
 
     const handleCreateStyle = () => {
@@ -1159,10 +1159,10 @@ export function InspectorPanel({ width }: { width?: number }) {
 
     // Gather currently selected text component IDs in the editor
     const selectedTextIds = (selectedObjectIds || []).concat(selectedObjectId ? [selectedObjectId] : [])
-      .filter(id => objects[id]?.type === 'overlayText');
+      .filter(id => objects[id]?.type === 'hudText');
 
     // Gather checked component IDs
-    const checkedIds = Object.keys(checkedHudIds).filter(id => checkedHudIds[id] && objects[id]?.type === 'overlayText');
+    const checkedIds = Object.keys(checkedHudIds).filter(id => checkedHudIds[id] && objects[id]?.type === 'hudText');
 
     return (
       <div className="p-4 flex flex-col gap-5">
@@ -2192,7 +2192,7 @@ export function InspectorPanel({ width }: { width?: number }) {
               <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
             </div>
           </div>
-          {(obj.type === 'group' || (obj.type === 'overlay2d' && obj.name === 'HUD Group')) && (
+          {obj.type === 'group' && (
             <button
               onClick={() => ungroupObject(selectedObjectId)}
               className="flex items-center justify-center gap-1.5 p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider transition-colors"
@@ -4361,7 +4361,7 @@ export function InspectorPanel({ width }: { width?: number }) {
             )}
 
             {/* --- 9. 2D OVERLAY PROPERTIES --- */}
-            {(obj.type === 'overlay2d' || obj.type === 'overlayText' || obj.type === 'overlayButton' || obj.type === 'overlayImage' || obj.type === 'overlayEmbed') && (
+            {(obj.type === 'hudCanvas' || obj.type === 'hudText' || obj.type === 'hudButton' || obj.type === 'hudImage' || obj.type === 'hudEmbed') && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2 p-3 bg-cyan-900/10 border border-cyan-500/20 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
@@ -4390,7 +4390,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </select>
                   </div>
                   
-                  {obj.type === 'overlay2d' && (
+                  {obj.type === 'hudCanvas' && (
                     <>
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] text-[#666] font-medium">Background Color</label>
@@ -4435,102 +4435,184 @@ export function InspectorPanel({ width }: { width?: number }) {
                       {/* Auto Layout section */}
                       <div className="border-t border-cyan-500/10 mt-3 pt-3 flex flex-col gap-2">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">Auto Layout Flow</span>
+                          <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">HUD Layout Flow</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <label className="text-[10px] text-[#666] font-medium">Alignment Flow</label>
                           <div className="flex bg-[#0A0A0A] p-0.5 rounded border border-[#222]">
-                            {(['none', 'row', 'column'] as const).map((mode) => (
+                            {(['row', 'column'] as const).map((mode) => (
                               <button
                                 key={mode}
                                 onClick={() => handlePropertyChange('layoutMode', mode)}
                                 className={cn(
                                   "px-2 py-1 text-[9px] font-bold rounded uppercase transition-all cursor-pointer",
-                                  (obj.properties.layoutMode || 'none') === mode
+                                  (obj.properties.layoutMode || 'column') === mode
                                     ? "bg-cyan-600 text-white font-extrabold shadow-sm"
                                     : "text-[#666] hover:text-gray-300"
                                 )}
                               >
-                                {mode === 'none' ? 'Free' : mode}
+                                {mode}
                               </button>
                             ))}
                           </div>
                         </div>
 
-                        {(obj.properties.layoutMode === 'row' || obj.properties.layoutMode === 'column') && (
-                          <>
-                            <div className="grid grid-cols-2 gap-2 mt-1">
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] text-[#666] font-medium">Padding (px)</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={obj.properties.layoutPadding ?? 16}
-                                  onChange={(e) => handlePropertyChange('layoutPadding', Math.max(0, parseInt(e.target.value) || 0))}
-                                  className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
-                                />
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] text-[#666] font-medium">Gap (px)</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={obj.properties.layoutGap ?? 8}
-                                  onChange={(e) => handlePropertyChange('layoutGap', Math.max(0, parseInt(e.target.value) || 0))}
-                                  className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
-                                />
-                              </div>
-                            </div>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] text-[#666] font-medium">Padding (px)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={obj.properties.layoutPadding ?? 16}
+                              onChange={(e) => handlePropertyChange('layoutPadding', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                              className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] text-[#666] font-medium">Gap (px)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={obj.properties.layoutGap ?? 8}
+                              onChange={(e) => handlePropertyChange('layoutGap', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                              className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+                            />
+                          </div>
+                        </div>
 
-                            <div className="flex items-center justify-between mt-1">
-                              <label className="text-[10px] text-[#666] font-medium">Cross Align</label>
-                              <select
-                                value={obj.properties.layoutAlignItems || 'center'}
-                                onChange={(e) => handlePropertyChange('layoutAlignItems', e.target.value)}
-                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
-                              >
-                                <option value="flex-start">Start</option>
-                                <option value="center">Center</option>
-                                <option value="flex-end">End</option>
-                                <option value="stretch">Stretch</option>
-                              </select>
-                            </div>
+                        {/* Cross Align (alignItems) with Intuitive Icon Buttons */}
+                        <div className="flex items-center justify-between mt-1">
+                          <label className="text-[10px] text-[#666] font-medium">Cross Align</label>
+                          <div className="flex bg-[#0A0A0A] p-0.5 rounded border border-[#222] gap-1">
+                            {[
+                              { value: 'flex-start', label: 'Start', icon: (
+                                <div className="flex flex-col items-start gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-1.5 h-[1.5px] bg-current rounded-full" />
+                                  <div className="w-2.5 h-[1.5px] bg-current rounded-full" />
+                                  <div className="w-1 h-[1.5px] bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'center', label: 'Center', icon: (
+                                <div className="flex flex-col items-center gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-1.5 h-[1.5px] bg-current rounded-full" />
+                                  <div className="w-2.5 h-[1.5px] bg-current rounded-full" />
+                                  <div className="w-1 h-[1.5px] bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'flex-end', label: 'End', icon: (
+                                <div className="flex flex-col items-end gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-1.5 h-[1.5px] bg-current rounded-full" />
+                                  <div className="w-2.5 h-[1.5px] bg-current rounded-full" />
+                                  <div className="w-1 h-[1.5px] bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'stretch', label: 'Stretch', icon: (
+                                <div className="flex flex-col items-stretch gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="h-[1.5px] bg-current rounded-full" />
+                                  <div className="h-[1.5px] bg-current rounded-full" />
+                                  <div className="h-[1.5px] bg-current rounded-full" />
+                                </div>
+                              )}
+                            ].map((item) => {
+                              const isActive = (obj.properties.layoutAlignItems || 'center') === item.value;
+                              return (
+                                <button
+                                  key={item.value}
+                                  onClick={() => handlePropertyChange('layoutAlignItems', item.value)}
+                                  className={cn(
+                                    "p-1.5 rounded transition-all cursor-pointer flex items-center justify-center",
+                                    isActive
+                                      ? "bg-cyan-600 text-white shadow-sm"
+                                      : "text-[#666] hover:text-gray-300 hover:bg-white/5"
+                                  )}
+                                  title={`Cross Align: ${item.label}`}
+                                >
+                                  {item.icon}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
 
-                            <div className="flex items-center justify-between">
-                              <label className="text-[10px] text-[#666] font-medium">Main Align</label>
-                              <select
-                                value={obj.properties.layoutJustifyContent || 'flex-start'}
-                                onChange={(e) => handlePropertyChange('layoutJustifyContent', e.target.value)}
-                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
-                              >
-                                <option value="flex-start">Start</option>
-                                <option value="center">Center</option>
-                                <option value="flex-end">End</option>
-                                <option value="space-between">Space Between</option>
-                                <option value="space-around">Space Around</option>
-                              </select>
-                            </div>
+                        {/* Main Align (justifyContent) with Intuitive Icon Buttons */}
+                        <div className="flex items-center justify-between mt-1">
+                          <label className="text-[10px] text-[#666] font-medium">Main Align</label>
+                          <div className="flex bg-[#0A0A0A] p-0.5 rounded border border-[#222] gap-1">
+                            {[
+                              { value: 'flex-start', label: 'Start', icon: (
+                                <div className="flex items-center justify-start gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-1.5 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'center', label: 'Center', icon: (
+                                <div className="flex items-center justify-center gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-1.5 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'flex-end', label: 'End', icon: (
+                                <div className="flex items-center justify-end gap-[2px] w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-1.5 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'space-between', label: 'Between', icon: (
+                                <div className="flex items-center justify-between w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-[1.5px] h-2.5 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-1.5 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-2.5 bg-current rounded-full" />
+                                </div>
+                              )},
+                              { value: 'space-around', label: 'Around', icon: (
+                                <div className="flex items-center justify-around w-3.5 h-3.5 bg-transparent">
+                                  <div className="w-[1.5px] h-1.5 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-2 bg-current rounded-full" />
+                                  <div className="w-[1.5px] h-1.5 bg-current rounded-full" />
+                                </div>
+                              )}
+                            ].map((item) => {
+                              const isActive = (obj.properties.layoutJustifyContent || 'flex-start') === item.value;
+                              return (
+                                <button
+                                  key={item.value}
+                                  onClick={() => handlePropertyChange('layoutJustifyContent', item.value)}
+                                  className={cn(
+                                    "p-1.5 rounded transition-all cursor-pointer flex items-center justify-center",
+                                    isActive
+                                      ? "bg-cyan-600 text-white shadow-sm"
+                                      : "text-[#666] hover:text-gray-300 hover:bg-white/5"
+                                  )}
+                                  title={`Main Align: ${item.label}`}
+                                >
+                                  {item.icon}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
 
-                            <div className="flex items-center justify-between">
-                              <label className="text-[10px] text-[#666] font-medium">Wrap Content</label>
-                              <select
-                                value={obj.properties.layoutWrap || 'nowrap'}
-                                onChange={(e) => handlePropertyChange('layoutWrap', e.target.value)}
-                                className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
-                              >
-                                <option value="nowrap">No Wrap</option>
-                                <option value="wrap">Wrap</option>
-                              </select>
-                            </div>
-                          </>
-                        )}
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] text-[#666] font-medium">Wrap Content</label>
+                          <select
+                            value={obj.properties.layoutWrap || 'nowrap'}
+                            onChange={(e) => handlePropertyChange('layoutWrap', e.target.value)}
+                            className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                          >
+                            <option value="nowrap">No Wrap</option>
+                            <option value="wrap">Wrap</option>
+                          </select>
+                        </div>
                       </div>
                     </>
                   )}
 
-                  {obj.type === 'overlayText' && (
+                  {obj.type === 'hudText' && (
                     <>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Text</label>
@@ -4686,7 +4768,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </>
                   )}
 
-                  {obj.type === 'overlayButton' && (
+                  {obj.type === 'hudButton' && (
                     <>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Label</label>
@@ -4726,7 +4808,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </>
                   )}
 
-                  {obj.type === 'overlayImage' && (
+                  {obj.type === 'hudImage' && (
                     <div className="flex flex-col gap-1">
                       <MediaAssetPicker 
                         value={obj.properties.textureUrl || ''}
@@ -4738,7 +4820,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </div>
                   )}
 
-                  {obj.type === 'overlayEmbed' && (
+                  {obj.type === 'hudEmbed' && (
                     <>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Embed Web URL</label>
@@ -4840,51 +4922,18 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </>
                   )}
 
-                  {obj.type !== 'overlay2d' && !(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      <div className="flex gap-2">
-                        <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] text-[#666] font-medium">Top (px - legacy)</label>
-                          <input 
-                            type="number"
-                            value={obj.properties.top || 0}
-                            onChange={(e) => handlePropertyChange('top', parseFloat(e.target.value))}
-                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none disabled:opacity-40 disabled:cursor-not-allowed"
-                            disabled={obj.properties.alignment !== 'none' || isParentAutoLayout}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] text-[#666] font-medium">Left (px - legacy)</label>
-                          <input 
-                            type="number"
-                            value={obj.properties.left || 0}
-                            onChange={(e) => handlePropertyChange('left', parseFloat(e.target.value))}
-                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none disabled:opacity-40 disabled:cursor-not-allowed"
-                            disabled={obj.properties.alignment !== 'none' || isParentAutoLayout}
-                          />
-                        </div>
-                      </div>
-                      {isParentAutoLayout && (
-                        <span className="text-[9px] text-amber-500/80 mt-1 italic">
-                          Position auto-managed by parent's Auto-Layout Flow ({parentObj.properties.layoutMode.toUpperCase()})
-                        </span>
-                      )}
-                    </div>
-                  )}
-
                   {/* Alignment & Responsive Layout Anchor */}
-                  {!(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
+                  {!(obj.type === 'hudEmbed' && obj.properties.fullScreenWithMargins) && (
                     <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
                       <label className="text-[10px] text-cyan-400 font-bold tracking-wider">RESPONSIVE ANCHORING</label>
                       
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Screen/Parent Alignment</label>
                         <select
-                          value={obj.properties.alignment || 'none'}
+                          value={obj.properties.alignment || 'center'}
                           onChange={(e) => handlePropertyChange('alignment', e.target.value)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         >
-                          <option value="none">Manual / Free Drag</option>
                           <option value="top-left">Top Left</option>
                           <option value="top-center">Top Center</option>
                           <option value="top-right">Top Right</option>
@@ -4897,33 +4946,31 @@ export function InspectorPanel({ width }: { width?: number }) {
                         </select>
                       </div>
 
-                      {obj.properties.alignment !== 'none' && (
-                        <div className="flex gap-2 mt-1">
-                          <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-[10px] text-[#666] font-medium">Offset X (px)</label>
-                            <input 
-                              type="number"
-                              value={obj.properties.offsetX || 0}
-                              onChange={(e) => handlePropertyChange('offsetX', parseInt(e.target.value) || 0)}
-                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-[10px] text-[#666] font-medium">Offset Y (px)</label>
-                            <input 
-                              type="number"
-                              value={obj.properties.offsetY || 0}
-                              onChange={(e) => handlePropertyChange('offsetY', parseInt(e.target.value) || 0)}
-                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
-                            />
-                          </div>
+                      <div className="flex gap-2 mt-1">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Offset X (px)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.offsetX || 0}
+                            onChange={(e) => handlePropertyChange('offsetX', parseInt(e.target.value) || 0)}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
                         </div>
-                      )}
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Offset Y (px)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.offsetY || 0}
+                            onChange={(e) => handlePropertyChange('offsetY', parseInt(e.target.value) || 0)}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   {/* Width & Height Dimensions with Custom Types */}
-                  {obj.type !== 'overlay2d' && !(obj.type === 'overlayEmbed' && obj.properties.fullScreenWithMargins) && (
+                  {obj.type !== 'hudCanvas' && !(obj.type === 'hudEmbed' && obj.properties.fullScreenWithMargins) && (
                     <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
                       <label className="text-[10px] text-cyan-400 font-bold tracking-wider">SCALING & DIMENSIONS</label>
                       
@@ -4932,7 +4979,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <label className="text-[10px] text-[#666] font-medium">Width</label>
                           <input 
                             type="number"
-                            value={obj.properties.width !== undefined ? obj.properties.width : (obj.type === 'overlayImage' ? 200 : 150)}
+                            value={obj.properties.width !== undefined ? obj.properties.width : (obj.type === 'hudImage' ? 200 : 150)}
                             onChange={(e) => handlePropertyChange('width', parseFloat(e.target.value))}
                             className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                           />
@@ -4955,7 +5002,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <label className="text-[10px] text-[#666] font-medium">Height</label>
                           <input 
                             type="number"
-                            value={obj.properties.height !== undefined ? obj.properties.height : (obj.type === 'overlayImage' ? 200 : 40)}
+                            value={obj.properties.height !== undefined ? obj.properties.height : (obj.type === 'hudImage' ? 200 : 40)}
                             onChange={(e) => handlePropertyChange('height', parseFloat(e.target.value))}
                             className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                           />
@@ -5028,7 +5075,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                         title="Send to Back"
                         onClick={() => {
                           const current2DObjects = Object.values(objects).filter((o: any) =>
-                            ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type)
+                            ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type)
                           );
                           const minZ = current2DObjects.reduce((min, o) => Math.min(min, o.properties.zIndex ?? 1), 1);
                           handlePropertyChange('zIndex', Math.max(0, minZ - 10));
@@ -5064,7 +5111,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                         title="Bring to Front"
                         onClick={() => {
                           const current2DObjects = Object.values(objects).filter((o: any) =>
-                            ['overlay2d', 'overlayText', 'overlayButton', 'overlayImage', 'overlayEmbed'].includes(o.type)
+                            ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type)
                           );
                           const maxZ = current2DObjects.reduce((max, o) => Math.max(max, o.properties.zIndex ?? 1), 1);
                           handlePropertyChange('zIndex', maxZ + 10);
