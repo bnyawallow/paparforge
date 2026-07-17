@@ -8,13 +8,15 @@ interface HUDCanvasProps {
 }
 
 export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasProps) {
-  const { selectedObjectId, selectObject } = useEditorStore();
+  const { selectedObjectId, selectObject, hudDebugGridEnabled } = useEditorStore();
   const isSelected = selectedObjectId === obj.id;
   
   const props = obj.properties || {};
   const layoutMode = props.layoutMode === 'row' ? 'row' : 'column'; // Enforce flexbox (default to column)
   const bgCol = props.backgroundColor || '#000000';
   const op = props.opacity !== undefined ? props.opacity : 0.0;
+  const padding = props.layoutPadding ?? 16;
+  const gap = props.layoutGap ?? 8;
   
   const hexToRgba = (hex: string, alpha: number) => {
     if (!hex || !hex.startsWith('#')) return hex;
@@ -61,7 +63,7 @@ export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasPro
     padding: `${props.layoutPadding ?? 16}px`,
     gap: `${props.layoutGap ?? 8}px`,
     alignItems: props.layoutAlignItems || 'center',
-    justifyContent: props.layoutJustifyContent || 'flex-start',
+    justifyContent: props.layoutJustifyContent || 'center',
     flexWrap: props.layoutWrap || 'nowrap',
     overflow: 'visible',
     pointerEvents: !isPreviewMode ? 'auto' : 'none',
@@ -83,6 +85,65 @@ export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasPro
       onMouseDown={handleMouseDown}
     >
       {children}
+
+      {!isPreviewMode && hudDebugGridEnabled && (
+        <div 
+          className="absolute inset-0 pointer-events-none z-[9999] overflow-hidden"
+          style={{
+            border: '2px dashed #ec4899', // Pink dashed boundary
+            padding: `${padding}px`
+          }}
+        >
+          {/* Real-time padding visualization block */}
+          <div className="absolute inset-0 border-4 border-emerald-500/15 pointer-events-none" />
+
+          {/* Real-time distribution lanes inside the padding boundary */}
+          <div 
+            className="w-full h-full opacity-40 flex pointer-events-none"
+            style={{
+              flexDirection: layoutMode,
+              gap: `${gap}px`
+            }}
+          >
+            {React.Children.map(children, (_, index) => (
+              <div 
+                key={index}
+                className="flex-1 border border-dashed border-cyan-500/40 bg-cyan-500/5 relative min-w-[20px] min-h-[20px] flex items-center justify-center transition-all duration-150"
+              >
+                <span className="absolute top-1 left-1 bg-cyan-950/80 border border-cyan-800 text-cyan-400 font-mono text-[8px] px-1 rounded select-none">
+                  #{index + 1}
+                </span>
+                
+                {/* Visualizing Gap size */}
+                {index > 0 && (
+                  <div 
+                    className="absolute bg-orange-500/20 border-l border-r border-orange-500/30 font-mono text-[8px] text-orange-400 flex items-center justify-center overflow-hidden select-none"
+                    style={layoutMode === 'column' ? {
+                      top: `-${gap}px`,
+                      left: 0,
+                      width: '100%',
+                      height: `${gap}px`
+                    } : {
+                      left: `-${gap}px`,
+                      top: 0,
+                      width: `${gap}px`,
+                      height: '100%'
+                    }}
+                  >
+                    {gap}px
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Corner flex layout status badge */}
+          <div className="absolute bottom-2 right-2 bg-black/90 border border-pink-500/40 text-pink-400 font-mono text-[9px] px-2 py-1 rounded shadow-lg flex items-center gap-1.5 select-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
+            <span>FLEX GRID: {layoutMode.toUpperCase()} | Align: {props.layoutAlignItems || 'center'} | Justify: {props.layoutJustifyContent || 'center'} | Gap: {gap}px | Padding: {padding}px</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

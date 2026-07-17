@@ -322,7 +322,8 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-  AlignJustify
+  AlignJustify,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
@@ -854,6 +855,8 @@ export function InspectorPanel({ width }: { width?: number }) {
     setGridSnapIncrement,
     setRotationSnapEnabled,
     setRotationSnapIncrement,
+    hudDebugGridEnabled,
+    setHudDebugGridEnabled,
     settings,
     updateSettings
   } = useEditorStore();
@@ -2384,6 +2387,28 @@ export function InspectorPanel({ width }: { width?: number }) {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* HUD Flexbox Grid Overlay Debugger */}
+            <div className="flex flex-col gap-1.5 border-t border-[#222]/50 pt-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[#AAA] font-semibold flex items-center gap-1.5">
+                  <LayoutGrid size={11} className={hudDebugGridEnabled ? "text-pink-400 animate-pulse" : "text-[#555]"} />
+                  HUD Flexbox Debugger
+                </span>
+                <button
+                  onClick={() => setHudDebugGridEnabled(!hudDebugGridEnabled)}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                    hudDebugGridEnabled ? "bg-pink-600 text-white shadow shadow-pink-500/25" : "bg-[#222] text-[#666] hover:text-white"
+                  )}
+                >
+                  {hudDebugGridEnabled ? "ON" : "OFF"}
+                </button>
+              </div>
+              <p className="text-[8px] text-[#666] leading-relaxed">
+                Visualizes real-time container boundaries, padding areas, item distribution slots, and layout gaps.
+              </p>
             </div>
           </div>
         </InspectorSection>
@@ -4923,7 +4948,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                   )}
 
                   {/* Alignment & Responsive Layout Anchor */}
-                  {!(obj.type === 'hudEmbed' && obj.properties.fullScreenWithMargins) && (
+                  {!(obj.type === 'hudEmbed' && obj.properties.fullScreenWithMargins) && obj.type !== 'hudCanvas' && !isParentAutoLayout && (
                     <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
                       <label className="text-[10px] text-cyan-400 font-bold tracking-wider">RESPONSIVE ANCHORING</label>
                       

@@ -191,7 +191,7 @@ export function instantiateTemplate(templateId: string, parentId?: string): Scen
             layoutPadding: 16,
             layoutGap: 8,
             layoutAlignItems: 'center',
-            layoutJustifyContent: 'flex-start',
+            layoutJustifyContent: 'center',
             layoutWrap: 'nowrap'
           }
         };

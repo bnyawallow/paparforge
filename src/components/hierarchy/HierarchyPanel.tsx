@@ -33,7 +33,12 @@ import {
   Trash2,
   GripVertical,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Columns,
+  Rows,
+  Maximize,
+  AlignCenter,
+  AlignLeft
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
@@ -64,7 +69,21 @@ export function HierarchyPanel({ width }: { width?: number }) {
   const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    visible: boolean;
+    objectId: string;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClose = () => {
+      setContextMenu(null);
+    };
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, []);
 
   const handleAddObject = (type: SceneObject['type']) => {
     if (isPreviewMode) return;
@@ -126,7 +145,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
         layoutPadding: 16,
         layoutGap: 8,
         layoutAlignItems: 'center',
-        layoutJustifyContent: 'flex-start',
+        layoutJustifyContent: 'center',
         layoutWrap: 'nowrap'
       };
     } else if (type === 'hudText') {
@@ -386,6 +405,72 @@ export function HierarchyPanel({ width }: { width?: number }) {
     );
   };
 
+  const applyHUDLayoutPreset = (presetName: 'center' | 'row-spaced' | 'top-left' | 'fill', targetId: string) => {
+    const obj = objects[targetId];
+    if (!obj) return;
+
+    const isCanvas = obj.type === 'hudCanvas';
+    const targetCanvasId = isCanvas ? targetId : obj.parentId;
+    if (!targetCanvasId) return;
+
+    const canvasObj = objects[targetCanvasId];
+    if (!canvasObj) return;
+
+    if (presetName === 'center') {
+      updateObject(targetCanvasId, {
+        properties: {
+          ...canvasObj.properties,
+          layoutMode: 'column',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center'
+        }
+      });
+      useEditorStore.getState().addToast("HUD Container aligned to Center Column!");
+    } else if (presetName === 'row-spaced') {
+      updateObject(targetCanvasId, {
+        properties: {
+          ...canvasObj.properties,
+          layoutMode: 'row',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'space-between'
+        }
+      });
+      useEditorStore.getState().addToast("HUD Container aligned to Row Space-Between!");
+    } else if (presetName === 'top-left') {
+      updateObject(targetCanvasId, {
+        properties: {
+          ...canvasObj.properties,
+          layoutMode: 'column',
+          layoutAlignItems: 'flex-start',
+          layoutJustifyContent: 'flex-start'
+        }
+      });
+      useEditorStore.getState().addToast("HUD Container aligned to Top-Left Stack!");
+    } else if (presetName === 'fill') {
+      updateObject(targetCanvasId, {
+        properties: {
+          ...canvasObj.properties,
+          layoutAlignItems: 'stretch'
+        }
+      });
+
+      if (!isCanvas) {
+        updateObject(targetId, {
+          properties: {
+            ...obj.properties,
+            width: 100,
+            widthType: '%',
+            height: 100,
+            heightType: '%'
+          }
+        });
+        useEditorStore.getState().addToast("Child element updated to fill parent container (100% width/height)!");
+      } else {
+        useEditorStore.getState().addToast("HUD Container set to stretch child items!");
+      }
+    }
+  };
+
   const renderItem = (id: string, depth = 0) => {
     const obj = objects[id];
     if (!obj) return null;
@@ -440,6 +525,21 @@ export function HierarchyPanel({ width }: { width?: number }) {
           onDragOver={(e) => handleDragOver(e, id)}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, id)}
+          onContextMenu={(e) => {
+            if (isPreviewMode) return;
+            const isCanvas = obj.type === 'hudCanvas';
+            const isChildOfCanvas = obj.parentId && objects[obj.parentId]?.type === 'hudCanvas';
+            if (isCanvas || isChildOfCanvas) {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                visible: true,
+                objectId: id
+              });
+            }
+          }}
         >
           {/* Chevron Collapse Arrow */}
           <div 
@@ -687,6 +787,58 @@ export function HierarchyPanel({ width }: { width?: number }) {
           </div>
         )}
 
+        {/* 2D HUD Layout Quick Actions */}
+        {!isPreviewMode && selectedObjectId && (() => {
+          const selObj = objects[selectedObjectId];
+          if (!selObj) return null;
+          const isCanvas = selObj.type === 'hudCanvas';
+          const isCanvasChild = selObj.parentId && objects[selObj.parentId]?.type === 'hudCanvas';
+          if (!isCanvas && !isCanvasChild) return null;
+
+          return (
+            <div className="p-2 border-b border-[#2A2A2A] bg-[#131313] flex flex-col gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
+              <span className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 select-none">
+                <LayoutGrid size={11} />
+                <span>HUD Alignment & Fill Actions</span>
+              </span>
+              <div className="grid grid-cols-2 gap-1 text-[9px]">
+                <button
+                  onClick={() => applyHUDLayoutPreset('center', selectedObjectId)}
+                  className="bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer text-gray-300"
+                  title="Align items in a centered column"
+                >
+                  <AlignCenter size={10} className="text-cyan-400" />
+                  <span>Center Col</span>
+                </button>
+                <button
+                  onClick={() => applyHUDLayoutPreset('row-spaced', selectedObjectId)}
+                  className="bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer text-gray-300"
+                  title="Align items horizontally and space them out"
+                >
+                  <Columns size={10} className="text-cyan-400" />
+                  <span>Row Spaced</span>
+                </button>
+                <button
+                  onClick={() => applyHUDLayoutPreset('top-left', selectedObjectId)}
+                  className="bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer text-gray-300"
+                  title="Align items in top-left vertical stack"
+                >
+                  <AlignLeft size={10} className="text-cyan-400" />
+                  <span>Top-Left Stack</span>
+                </button>
+                <button
+                  onClick={() => applyHUDLayoutPreset('fill', selectedObjectId)}
+                  className="bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer text-gray-300"
+                  title={isCanvas ? "Stretch items horizontally to fill container width" : "Make child stretch to fill 100% width and height"}
+                >
+                  <Maximize size={10} className="text-cyan-400" />
+                  <span>Fill / Stretch</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Hierarchy List */}
         <div className="flex-1 overflow-y-auto min-h-0 py-1">
           {rootObjects.length === 0 ? (
@@ -880,6 +1032,93 @@ export function HierarchyPanel({ width }: { width?: number }) {
           </button>
         </div>
       </div>
+
+      {/* Floating Context Menu for HUD Alignment */}
+      {contextMenu && contextMenu.visible && (
+        <div 
+          className="fixed bg-[#161616] border border-[#333] rounded-md shadow-2xl z-[9999] w-52 py-1 flex flex-col gap-0.5"
+          style={{ 
+            top: `${contextMenu.y}px`, 
+            left: `${contextMenu.x}px` 
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2.5 py-1 text-[8px] font-bold text-cyan-400 uppercase tracking-wider border-b border-white/5 mb-1 flex items-center gap-1">
+            <LayoutGrid size={10} />
+            <span>HUD Layout Presets</span>
+          </div>
+          
+          <button
+            onClick={() => {
+              applyHUDLayoutPreset('center', contextMenu.objectId);
+              setContextMenu(null);
+            }}
+            className="px-2.5 py-1.5 text-[10px] text-gray-300 hover:text-white hover:bg-cyan-600/20 text-left flex items-center gap-2 transition-colors cursor-pointer w-full bg-transparent border-0"
+          >
+            <AlignCenter size={11} className="text-cyan-400 shrink-0" />
+            <span>Align: Center Column</span>
+          </button>
+
+          <button
+            onClick={() => {
+              applyHUDLayoutPreset('row-spaced', contextMenu.objectId);
+              setContextMenu(null);
+            }}
+            className="px-2.5 py-1.5 text-[10px] text-gray-300 hover:text-white hover:bg-cyan-600/20 text-left flex items-center gap-2 transition-colors cursor-pointer w-full bg-transparent border-0"
+          >
+            <Columns size={11} className="text-cyan-400 shrink-0" />
+            <span>Align: Row Space-Between</span>
+          </button>
+
+          <button
+            onClick={() => {
+              applyHUDLayoutPreset('top-left', contextMenu.objectId);
+              setContextMenu(null);
+            }}
+            className="px-2.5 py-1.5 text-[10px] text-gray-300 hover:text-white hover:bg-cyan-600/20 text-left flex items-center gap-2 transition-colors cursor-pointer w-full bg-transparent border-0"
+          >
+            <AlignLeft size={11} className="text-cyan-400 shrink-0" />
+            <span>Align: Top-Left Stack</span>
+          </button>
+
+          <button
+            onClick={() => {
+              applyHUDLayoutPreset('fill', contextMenu.objectId);
+              setContextMenu(null);
+            }}
+            className="px-2.5 py-1.5 text-[10px] text-gray-300 hover:text-white hover:bg-cyan-600/20 text-left flex items-center gap-2 transition-colors cursor-pointer w-full bg-transparent border-0 border-t border-white/5 mt-0.5 pt-1.5"
+          >
+            <Maximize size={11} className="text-cyan-400 shrink-0" />
+            <span>Fill / Stretch Container</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const targetObj = objects[contextMenu.objectId];
+              if (targetObj) {
+                const canvasId = targetObj.type === 'hudCanvas' ? contextMenu.objectId : targetObj.parentId;
+                if (canvasId && objects[canvasId]) {
+                  const canvasObj = objects[canvasId];
+                  const currentMode = canvasObj.properties.layoutMode || 'column';
+                  const nextMode = currentMode === 'row' ? 'column' : 'row';
+                  updateObject(canvasId, {
+                    properties: {
+                      ...canvasObj.properties,
+                      layoutMode: nextMode
+                    }
+                  });
+                  useEditorStore.getState().addToast(`Toggled layout direction to ${nextMode}!`);
+                }
+              }
+              setContextMenu(null);
+            }}
+            className="px-2.5 py-1.5 text-[10px] text-gray-300 hover:text-white hover:bg-[#222] text-left flex items-center gap-2 transition-colors cursor-pointer w-full bg-transparent border-0 border-t border-white/5 mt-0.5 pt-1.5"
+          >
+            <Rows size={11} className="text-gray-400 shrink-0" />
+            <span>Toggle Row/Col Direction</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

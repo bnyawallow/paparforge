@@ -595,6 +595,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   isAssetBrowserOpen: false,
   overlayGridEnabled: false,
   overlayGridSize: 50,
+  hudDebugGridEnabled: false,
 
   // Camera & View modes
   cameraType: 'perspective',
@@ -843,7 +844,7 @@ export const useEditorStore = create<EditorState>((set) => ({
           layoutPadding: 16,
           layoutGap: 8,
           layoutAlignItems: 'center',
-          layoutJustifyContent: 'flex-start',
+          layoutJustifyContent: 'center',
           layoutWrap: 'nowrap'
         }
       };
@@ -2030,6 +2031,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setIsAssetBrowserOpen: (open) => set({ isAssetBrowserOpen: open }),
   setOverlayGridEnabled: (enabled) => set({ overlayGridEnabled: enabled }),
   setOverlayGridSize: (size) => set({ overlayGridSize: size }),
+  setHudDebugGridEnabled: (enabled) => set({ hudDebugGridEnabled: enabled }),
 
   setCameraType: (cameraType) => set({ cameraType }),
   setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),

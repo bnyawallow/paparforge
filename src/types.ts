@@ -97,6 +97,8 @@ export interface EditorState {
   overlayGridSize: number;
   setOverlayGridEnabled: (enabled: boolean) => void;
   setOverlayGridSize: (size: number) => void;
+  hudDebugGridEnabled: boolean;
+  setHudDebugGridEnabled: (enabled: boolean) => void;
 
   cameraType: 'perspective' | 'orthographic';
   setCameraType: (type: 'perspective' | 'orthographic') => void;
