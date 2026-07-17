@@ -7,8 +7,10 @@ import { AssetBrowser } from '../assets/AssetBrowser';
 import { ScriptEditorPanel } from './ScriptEditorPanel';
 import { useEditorStore } from '../../store/useEditorStore';
 import { Smartphone, Tablet, Monitor } from 'lucide-react';
+import { useTheme } from '../../lib/theme';
 
 export function EditorLayout() {
+  const t = useTheme();
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const editingScriptObjectId = useEditorStore(state => state.editingScriptObjectId);
 
@@ -178,18 +180,18 @@ export function EditorLayout() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-[#0F0F0F] text-[#E0E0E0] font-sans overflow-hidden">
+    <div className={`flex flex-col h-screen font-sans overflow-hidden transition-colors duration-200 ${t.bgMain} ${t.textMain}`}>
       <Toolbar />
       <AssetBrowser />
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#111111]">
+        <div className={`flex-1 flex flex-col overflow-hidden transition-colors duration-200 ${t.isLight ? 'bg-[#F9F9FB]' : 'bg-[#111111]'}`}>
           {/* Top segment: Hierarchy Panel and Viewport (3D Editor) side-by-side */}
           <div className="flex-1 flex overflow-hidden relative">
             {!isPreviewMode && <HierarchyPanel width={leftWidth} />}
             {!isPreviewMode && (
               <div 
                 onMouseDown={startResizeLeft}
-                className="w-1 bg-[#222] hover:bg-blue-500 cursor-col-resize transition-all shrink-0 z-40 relative group"
+                className={`w-1 cursor-col-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
                 title="Drag to resize hierarchy panel"
               >
                 <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
@@ -218,7 +220,7 @@ export function EditorLayout() {
               {/* Resize handle bar */}
               <div 
                 onMouseDown={startResizeBottom}
-                className="h-1 bg-[#222] hover:bg-blue-500 cursor-row-resize transition-all shrink-0 z-40 relative group"
+                className={`h-1 cursor-row-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
                 title="Drag to resize script panel"
               >
                 <div className="absolute inset-x-0 -top-1 -bottom-1 cursor-row-resize"></div>
@@ -239,7 +241,7 @@ export function EditorLayout() {
           <>
             <div 
               onMouseDown={startResizeRight}
-              className="w-1 bg-[#222] hover:bg-blue-500 cursor-col-resize transition-all shrink-0 z-40 relative group"
+              className={`w-1 cursor-col-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
               title="Drag to resize inspector panel"
             >
               <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>

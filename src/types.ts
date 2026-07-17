@@ -114,6 +114,8 @@ export interface EditorState {
   setCameraType: (type: 'perspective' | 'orthographic') => void;
   wireframeEnabled: boolean;
   setWireframeEnabled: (enabled: boolean) => void;
+  editorTheme: 'dark' | 'light';
+  toggleEditorTheme: () => void;
   
   // Multi-project state
   currentProjectId: string;

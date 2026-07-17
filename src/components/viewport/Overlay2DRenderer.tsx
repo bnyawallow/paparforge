@@ -1,11 +1,20 @@
 import React from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { Settings, Grid3X3, Check, Globe, ExternalLink, X } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { HUDCanvas } from './HUDCanvas';
 import { FONT_LIBRARY } from '../inspector/InspectorPanel';
 
+const LucideIcon = ({ name, size = 16, className }: { name: string; size?: number; className?: string }) => {
+  if (!name) return null;
+  const normalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+  const IconComponent = (LucideIcons as any)[normalizedName] || (LucideIcons as any)[name];
+  if (!IconComponent) return null;
+  return <IconComponent size={size} className={className} />;
+};
+
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
-  const { objects, selectedObjectId, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize, settings } = useEditorStore();
+  const { objects, selectedObjectId, selectedObjectIds, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize, settings } = useEditorStore();
   const [showGridSettings, setShowGridSettings] = React.useState(false);
   const [activeSnapLines, setActiveSnapLines] = React.useState<Array<{ type: 'v' | 'h'; coord: number }>>([]);
   const [draggingObj, setDraggingObj] = React.useState<{
@@ -517,6 +526,18 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       baseStyle.filter = `drop-shadow(${dx}px ${dy}px ${blur}px ${shadowColor})`;
     }
 
+    // Custom HUD Style, Shape & Border Customizations
+    if (props.hudShape === 'circle') {
+      baseStyle.borderRadius = '50%';
+    } else if (props.borderRadius !== undefined) {
+      baseStyle.borderRadius = `${props.borderRadius}px`;
+    }
+
+    const borderSize = props.borderSize !== undefined ? props.borderSize : 0;
+    if (borderSize > 0) {
+      baseStyle.border = `${borderSize}px solid ${props.borderColor || '#ffffff'}`;
+    }
+
     return baseStyle;
   };
 
@@ -578,10 +599,38 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         };
 
+        const renderIconAndText = (text: string, props: any) => {
+          const iconName = props.icon;
+          const iconPos = props.iconPosition || 'left';
+          const iconSize = props.iconSize ?? 16;
+          
+          if (!iconName) return text || '';
+          
+          let iconEl;
+          if (iconName.startsWith('http') || iconName.startsWith('data:')) {
+            iconEl = <img src={iconName} style={{ width: iconSize, height: iconSize, objectFit: 'contain' }} className="shrink-0 pointer-events-none" alt="" />;
+          } else {
+            iconEl = <LucideIcon name={iconName} size={iconSize} className="shrink-0" />;
+          }
+          
+          const flexDirClass = 
+            iconPos === 'top' ? 'flex-col items-center gap-1.5' :
+            iconPos === 'bottom' ? 'flex-col-reverse items-center gap-1.5' :
+            iconPos === 'right' ? 'flex-row-reverse items-center gap-2' :
+            'flex-row items-center gap-2'; // left
+            
+          return (
+            <div className={`flex ${flexDirClass} justify-center items-center h-full w-full`}>
+              {iconEl}
+              {text && <span className="truncate">{text}</span>}
+            </div>
+          );
+        };
+
         const renderOverlayObject = (obj: any) => {
           const props = obj.properties || {};
           const alignment = props.alignment || 'center';
-          const isSelected = selectedObjectId === obj.id;
+          const isSelected = selectedObjectIds.includes(obj.id);
           const parentProjected = obj.parentId ? (projectedPositions[obj.parentId] || null) : null;
 
           const getAnimClass = () => {
@@ -686,8 +735,8 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             ...computedStyle,
             pointerEvents: !isPreviewMode ? 'auto' : (isInteractive ? 'auto' : 'none'),
             border: !isPreviewMode 
-              ? (isSelected ? '2px solid #06b6d4' : '1px dashed rgba(255, 255, 255, 0.25)') 
-              : undefined,
+              ? (isSelected ? '2px solid #06b6d4' : (computedStyle.border || '1px dashed rgba(255, 255, 255, 0.25)')) 
+              : computedStyle.border,
             outline: (!isPreviewMode && isSelected) ? '2px solid rgba(6, 182, 212, 0.5)' : undefined,
             boxShadow: (!isPreviewMode && isSelected) ? '0 0 10px rgba(6, 182, 212, 0.5)' : undefined,
           };
@@ -730,13 +779,15 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 onMouseDown={handleMouseDown}
               >
                 {renderResizeHandles()}
-                {props.text || 'Text'}
+                {renderIconAndText(props.text || 'Text', props)}
                 {children.map((child: any) => renderOverlayObject(child))}
               </div>
             );
           }
 
           if (obj.type === 'hudButton') {
+            const currentShape = props.shape || props.hudShape || 'rectangle';
+            const currentBorderWidth = props.borderWidth !== undefined ? props.borderWidth : (props.borderSize !== undefined ? props.borderSize : 0);
             return (
               <button 
                 key={obj.id} 
@@ -746,10 +797,18 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   ...activeStyle, 
                   backgroundColor: props.color || settings.themePrimaryColor || '#3b82f6', 
                   color: props.textColor || settings.themeTextColor || '#fff', 
-                  padding: `${props.paddingY || 8}px ${props.paddingX || 16}px`, 
-                  borderRadius: props.borderRadius !== undefined ? `${props.borderRadius}px` : (settings.themeBorderRadius !== undefined ? `${settings.themeBorderRadius}px` : '8px'),
-                  border: activeStyle.border || (settings.themeBorderColor ? `1px solid ${settings.themeBorderColor}` : 'none'),
+                  padding: currentShape === 'circle' ? '0px' : `${props.paddingY || 8}px ${props.paddingX || 16}px`, 
+                  borderRadius: currentShape === 'circle' 
+                    ? '9999px' 
+                    : currentShape === 'pill' 
+                      ? '9999px' 
+                      : (props.borderRadius !== undefined ? `${props.borderRadius}px` : (settings.themeBorderRadius !== undefined ? `${settings.themeBorderRadius}px` : '8px')),
+                  border: activeStyle.border || (currentBorderWidth > 0 
+                    ? `${currentBorderWidth}px solid ${props.borderColor || '#ffffff'}` 
+                    : (settings.themeBorderColor ? `1px solid ${settings.themeBorderColor}` : 'none')),
+                  aspectRatio: currentShape === 'circle' ? '1 / 1' : undefined,
                   cursor: isPreviewMode ? 'pointer' : 'move',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 'bold',
@@ -762,13 +821,15 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 }}
               >
                 {renderResizeHandles()}
-                {props.text || 'Button'}
+                {renderIconAndText(props.text || 'Button', props)}
                 {children.map((child: any) => renderOverlayObject(child))}
               </button>
             );
           }
 
           if (obj.type === 'hudImage') {
+            const currentShape = props.shape || props.hudShape || 'rectangle';
+            const currentBorderWidth = props.borderWidth !== undefined ? props.borderWidth : (props.borderSize !== undefined ? props.borderSize : 0);
             return (
               <div 
                 key={obj.id} 
@@ -776,6 +837,16 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 className={animClass}
                 style={{ 
                   ...activeStyle, 
+                  overflow: 'hidden',
+                  borderRadius: currentShape === 'circle' 
+                    ? '9999px' 
+                    : currentShape === 'pill' 
+                      ? '9999px' 
+                      : (props.borderRadius !== undefined ? `${props.borderRadius}px` : (settings.themeBorderRadius !== undefined ? `${settings.themeBorderRadius}px` : '8px')),
+                  border: activeStyle.border || (currentBorderWidth > 0 
+                    ? `${currentBorderWidth}px solid ${props.borderColor || '#ffffff'}` 
+                    : 'none'),
+                  aspectRatio: currentShape === 'circle' ? '1 / 1' : undefined,
                   cursor: !isPreviewMode ? 'move' : 'default',
                 }}
                 onMouseDown={handleMouseDown}
@@ -936,6 +1007,59 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
         return (
           <div className="absolute inset-0 pointer-events-none z-[9999]">
+            {/* Center alignment guidelines */}
+            {Math.abs((left + width / 2) - parentRect.width / 2) < 6 && (
+              <div 
+                className="absolute top-0 bottom-0 border-l-2 border-dashed border-emerald-400 z-40 shadow-[0_0_8px_#34d399]" 
+                style={{ left: `${left + width / 2}px` }}
+              />
+            )}
+            {Math.abs((top + height / 2) - parentRect.height / 2) < 6 && (
+              <div 
+                className="absolute left-0 right-0 border-t-2 border-dashed border-emerald-400 z-40 shadow-[0_0_8px_#34d399]" 
+                style={{ top: `${top + height / 2}px` }}
+              />
+            )}
+
+            {/* Tracking Crosshair Lines */}
+            <div 
+              className="absolute border-l border-dashed border-cyan-400/40 z-10" 
+              style={{ left: `${left + width / 2}px`, top: 0, bottom: 0 }} 
+            />
+            <div 
+              className="absolute border-t border-dashed border-cyan-400/40 z-10" 
+              style={{ top: `${top + height / 2}px`, left: 0, right: 0 }} 
+            />
+
+            {/* Snap-to-grid dot markers (grid divisions) */}
+            <div className="absolute inset-0 opacity-40 pointer-events-none">
+              {Array.from({ length: 9 }).map((_, idx) => {
+                const row = Math.floor(idx / 3) + 1;
+                const col = (idx % 3) + 1;
+                const markerX = col * 25; // 25%, 50%, 75%
+                const markerY = row * 25; // 25%, 50%, 75%
+                const isNearIntersection = 
+                  Math.abs((left + width / 2) - (parentRect.width * markerX / 100)) < 15 &&
+                  Math.abs((top + height / 2) - (parentRect.height * markerY / 100)) < 15;
+
+                return (
+                  <div 
+                    key={idx} 
+                    className={`absolute w-2 h-2 rounded-full border transition-all duration-150 ${
+                      isNearIntersection 
+                        ? 'border-cyan-400 bg-cyan-400 shadow-[0_0_6px_#22d3ee] scale-125' 
+                        : 'border-cyan-500/30 bg-cyan-950/20'
+                    }`}
+                    style={{
+                      left: `${markerX}%`,
+                      top: `${markerY}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                );
+              })}
+            </div>
+
             {/* Outline around active HUD object */}
             <div 
               className="absolute border border-dashed border-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.4)]"

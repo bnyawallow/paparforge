@@ -43,8 +43,10 @@ import {
 import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
 import { PREBUILT_TEMPLATES, instantiateTemplate } from '../../utils/prebuiltTemplates';
+import { useTheme } from '../../lib/theme';
 
 export function HierarchyPanel({ width }: { width?: number }) {
+  const t = useTheme();
   const { 
     objects, 
     rootObjects, 
@@ -511,8 +513,10 @@ export function HierarchyPanel({ width }: { width?: number }) {
         <div 
           className={cn(
             "flex items-center gap-1.5 p-1.5 cursor-pointer text-[11px] font-mono select-none border-l-2 group",
-            isSelected ? "bg-blue-900/30 border-blue-500 text-white font-medium" : "border-transparent text-[#999] hover:bg-[#1A1A1A] hover:text-[#CCC]",
-            isDragOver && "bg-[#2A2A2A] border-blue-400"
+            isSelected 
+              ? (t.isLight ? "bg-blue-50 border-blue-500 text-blue-600 font-bold" : "bg-blue-900/30 border-blue-500 text-white font-medium")
+              : `border-transparent ${t.isLight ? 'text-gray-600 hover:bg-gray-100 hover:text-black' : 'text-[#999] hover:bg-[#1A1A1A] hover:text-[#CCC]'}`,
+            isDragOver && (t.isLight ? "bg-blue-50 border-blue-400" : "bg-[#2A2A2A] border-blue-400")
           )}
           style={{ paddingLeft: `${depth * 10 + 6}px` }}
           onClick={(e) => {
@@ -705,12 +709,16 @@ export function HierarchyPanel({ width }: { width?: number }) {
   return (
     <aside 
       style={{ width: width ? `${width}px` : '240px' }}
-      className="border-r border-[#2A2A2A] flex flex-col bg-[#141414] shrink-0 relative z-30 animate-in fade-in"
+      className={cn(
+        "border-r flex flex-col shrink-0 relative z-30 animate-in fade-in transition-colors duration-200",
+        t.bgPanel,
+        t.border
+      )}
     >
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Hierarchy Toolbar (Header) */}
-        <div className="p-3 border-b border-[#2A2A2A] flex justify-between items-center bg-[#111] shrink-0">
-          <span className="text-[10px] uppercase tracking-widest font-bold text-[#E5E5E5] flex items-center gap-1.5">
+        <div className={cn("p-3 border-b flex justify-between items-center shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
+          <span className={cn("text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5", t.textHeading)}>
             <Layers size={11} className="text-blue-400" />
             <span>Scene Hierarchy</span>
           </span>
@@ -726,7 +734,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                 "p-1 rounded text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer",
                 isMultiSelectMode 
                   ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 px-1.5" 
-                  : "hover:bg-[#222] text-[#666] hover:text-white px-1.5"
+                  : cn(t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black px-1.5" : "hover:bg-[#222] text-[#666] hover:text-white px-1.5")
               )}
               title="Toggle multi-selection mode (select multiple without holding Shift)"
             >
@@ -735,14 +743,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
             </button>
             <button 
               onClick={handleCollapseAll}
-              className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
+              className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
               title="Collapse All Nodes"
             >
               <FolderMinus size={13} />
             </button>
             <button 
               onClick={handleExpandAll}
-              className="p-1 hover:bg-[#222] rounded text-[#666] hover:text-white transition-colors"
+              className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
               title="Expand All Nodes"
             >
               <FolderPlus size={13} />
@@ -751,11 +759,11 @@ export function HierarchyPanel({ width }: { width?: number }) {
         </div>
 
         {/* Search Bar */}
-        <div className="p-2 border-b border-[#2A2A2A] bg-[#111] flex gap-1.5 shrink-0">
+        <div className={cn("p-2 border-b flex gap-1.5 shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
           <input
             type="text"
             placeholder="Search hierarchy..."
-            className="flex-1 bg-black/40 border border-[#2A2A2A] rounded px-2 py-1 text-[10px] text-white outline-none focus:border-blue-500 font-mono"
+            className={cn("flex-1 rounded px-2 py-1 text-[10px] outline-none focus:border-blue-500 font-mono transition-colors duration-200", t.bgInput)}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -763,7 +771,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
 
         {/* Selection context actions (Group / Ungroup) */}
         {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas')))) && (
-          <div className="p-2 border-b border-[#2A2A2A] bg-[#1a1a1a] flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
+          <div className={cn("p-2 border-b flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100 transition-colors duration-200", t.isLight ? 'bg-gray-100 border-gray-200' : 'bg-[#1a1a1a] border-[#2A2A2A]')}>
             {selectedObjectIds.length > 1 && (
               <button
                 onClick={() => groupSelection()}
@@ -796,7 +804,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
           if (!isCanvas && !isCanvasChild) return null;
 
           return (
-            <div className="p-2 border-b border-[#2A2A2A] bg-[#131313] flex flex-col gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100">
+            <div className={cn("p-2 border-b flex flex-col gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100 transition-colors duration-200", t.isLight ? 'bg-gray-50 border-gray-200' : 'bg-[#131313] border-[#2A2A2A]')}>
               <span className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 select-none">
                 <LayoutGrid size={11} />
                 <span>HUD Alignment & Fill Actions</span>
@@ -804,7 +812,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
               <div className="grid grid-cols-2 gap-1 text-[9px]">
                 <button
                   onClick={() => applyHUDLayoutPreset('center', selectedObjectId)}
-                  className="bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer text-gray-300"
+                  className={cn("border border-transparent py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer", t.isLight ? "bg-white hover:bg-cyan-50 text-gray-700 hover:text-cyan-600 hover:border-cyan-200" : "bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 hover:border-cyan-500/25 text-gray-300")}
                   title="Align items in a centered column"
                 >
                   <AlignCenter size={10} className="text-cyan-400" />
@@ -812,7 +820,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                 </button>
                 <button
                   onClick={() => applyHUDLayoutPreset('row-spaced', selectedObjectId)}
-                  className="bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer text-gray-300"
+                  className={cn("border border-transparent py-1 px-1.5 rounded text-left transition-all flex items-center gap-1.5 cursor-pointer", t.isLight ? "bg-white hover:bg-cyan-50 text-gray-700 hover:text-cyan-600 hover:border-cyan-200" : "bg-[#1C1C1C] hover:bg-cyan-600/10 hover:text-cyan-300 hover:border-cyan-500/25 text-gray-300")}
                   title="Align items horizontally and space them out"
                 >
                   <Columns size={10} className="text-cyan-400" />

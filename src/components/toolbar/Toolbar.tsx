@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { 
   Settings, Edit3, Camera, Undo2, Redo2, Globe, 
-  FolderOpen, Edit2, Check, Save
+  FolderOpen, Edit2, Check, Save, Sun, Moon
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { PublishModal } from './PublishModal';
 import { SettingsModal } from './SettingsModal';
 import { ProjectDashboardModal } from './ProjectDashboardModal';
+import { useTheme } from '../../lib/theme';
 
 export function Toolbar() {
+  const t = useTheme();
   const { 
     isPreviewMode, 
     setPreviewMode,
@@ -25,7 +27,9 @@ export function Toolbar() {
     objects,
     rootObjects,
     assets,
-    importProject
+    importProject,
+    editorTheme,
+    toggleEditorTheme
   } = useEditorStore();
   
   const [showPublish, setShowPublish] = useState(false);
@@ -62,36 +66,36 @@ export function Toolbar() {
 
   return (
     <>
-      <div className="h-14 border-b border-[#2A2A2A] bg-[#141414] flex items-center justify-between px-4 shrink-0 relative z-30">
+      <div className={`h-14 border-b flex items-center justify-between px-4 shrink-0 relative z-30 transition-all duration-200 ${t.isLight ? 'bg-white border-gray-200 text-gray-800' : 'bg-[#141414] border-[#2A2A2A] text-white'}`}>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/10">AF</div>
-            <span className="font-bold tracking-tight text-base hidden md:inline">ARForge <span className="text-blue-500 font-mono text-[10px] opacity-70">v1.0</span></span>
+            <span className={`font-bold tracking-tight text-base hidden md:inline ${t.textHeading}`}>ARForge <span className="text-blue-500 font-mono text-[10px] opacity-70">v1.0</span></span>
           </div>
 
-          <div className="h-4 w-[1px] bg-[#2A2A2A] hidden xs:block"></div>
+          <div className={`h-4 w-[1px] hidden xs:block ${t.isLight ? 'bg-gray-200' : 'bg-[#2A2A2A]'}`}></div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setShowProjects(true)}
-              className="p-1.5 hover:bg-[#1A1A1A] rounded-lg text-[#AAA] hover:text-white border border-[#252525] hover:border-[#383838] transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold shadow-sm"
+              className={`p-1.5 rounded-lg transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold shadow-sm ${t.isLight ? 'bg-gray-50 hover:bg-gray-100 text-[#4B5563] hover:text-gray-900 border-gray-200 hover:border-gray-300' : 'p-1.5 hover:bg-[#1A1A1A] rounded-lg text-[#AAA] hover:text-white border border-[#252525] hover:border-[#383838]'}`}
               title="Open Projects Manager"
             >
               <FolderOpen size={14} className="text-blue-400" />
-              <span className="hidden sm:inline text-[11px] uppercase tracking-wider font-extrabold text-[#999] hover:text-white">Projects</span>
+              <span className={`hidden sm:inline text-[11px] uppercase tracking-wider font-extrabold ${t.isLight ? 'text-gray-500 hover:text-gray-800' : 'text-[#999] hover:text-white'}`}>Projects</span>
             </button>
 
-            <div className="h-4 w-[1px] bg-[#2A2A2A] hidden xs:block"></div>
+            <div className={`h-4 w-[1px] hidden xs:block ${t.isLight ? 'bg-gray-200' : 'bg-[#2A2A2A]'}`}></div>
 
             {isEditingName ? (
-              <div className="flex items-center gap-1.5 bg-[#181818] border border-blue-500/50 px-2 py-0.5 rounded-lg">
+              <div className={`flex items-center gap-1.5 border px-2 py-0.5 rounded-lg ${t.isLight ? 'bg-gray-50 border-blue-400' : 'bg-[#181818] border-blue-500/50'}`}>
                 <input
                   type="text"
                   value={tempProjectName}
                   onChange={(e) => setTempProjectName(e.target.value)}
                   onBlur={handleSaveName}
                   onKeyDown={handleKeyDown}
-                  className="bg-transparent text-xs font-bold text-white focus:outline-none w-24 sm:w-40"
+                  className={`bg-transparent text-xs font-bold focus:outline-none w-24 sm:w-40 ${t.isLight ? 'text-gray-800' : 'text-white'}`}
                   autoFocus
                 />
                 <button onMouseDown={handleSaveName} className="text-emerald-400 hover:text-emerald-300">
@@ -105,14 +109,14 @@ export function Toolbar() {
                   setTempProjectName(settings.projectName);
                   setIsEditingName(true);
                 }}
-                className={`flex items-center gap-2 group px-2 py-0.5 rounded-lg border border-transparent hover:border-[#252525] hover:bg-[#1A1A1A]/40 transition-all select-none ${isPreviewMode ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`flex items-center gap-2 group px-2 py-0.5 rounded-lg border border-transparent transition-all select-none ${isPreviewMode ? 'cursor-not-allowed' : 'cursor-pointer'} ${t.isLight ? 'hover:border-gray-200 hover:bg-gray-100/55' : 'hover:border-[#252525] hover:bg-[#1A1A1A]/40'}`}
                 title={isPreviewMode ? "Cannot edit project name during Live Preview" : "Click to edit project name"}
               >
-                <span className="text-xs font-extrabold tracking-tight text-[#BBB] group-hover:text-white truncate max-w-[80px] sm:max-w-[150px]">
+                <span className={`text-xs font-extrabold tracking-tight truncate max-w-[80px] sm:max-w-[150px] ${t.isLight ? 'text-gray-700 group-hover:text-black' : 'text-[#BBB] group-hover:text-white'}`}>
                   {settings.projectName}
                 </span>
                 {!isPreviewMode && (
-                  <Edit2 size={10} className="text-[#555] group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                  <Edit2 size={10} className={`opacity-0 group-hover:opacity-100 transition-all shrink-0 ${t.isLight ? 'text-gray-400 group-hover:text-blue-500' : 'text-[#555] group-hover:text-blue-400'}`} />
                 )}
                 
                 {hasUnsavedChanges ? (
@@ -130,10 +134,10 @@ export function Toolbar() {
             )}
           </div>
 
-          <div className="flex items-center gap-1 border-l border-[#2A2A2A] pl-6">
+          <div className={`flex items-center gap-1 border-l pl-6 ${t.isLight ? 'border-gray-200' : 'border-[#2A2A2A]'}`}>
             <button 
               onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
-              className="p-1.5 hover:bg-[#1A1A1A] rounded-lg text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5"
+              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300' : 'bg-transparent text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:border-emerald-500/40'}`}
               title="Open Assets Library"
             >
               <FolderOpen size={14} />
@@ -142,7 +146,7 @@ export function Toolbar() {
             <button 
               onClick={() => undo()} 
               disabled={past.length === 0 || isPreviewMode}
-              className="p-2 hover:bg-[#1A1A1A] disabled:opacity-25 disabled:cursor-not-allowed rounded text-[#888] hover:text-white transition-all hover:scale-105 active:scale-95 duration-100" 
+              className={`p-2 disabled:opacity-25 disabled:cursor-not-allowed rounded transition-all hover:scale-105 active:scale-95 duration-100 ${t.isLight ? 'text-gray-400 hover:text-black hover:bg-gray-100' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`} 
               title={isPreviewMode ? "Undo disabled in Live Preview" : `Undo (Ctrl+Z)`}
             >
               <Undo2 size={16} />
@@ -150,7 +154,7 @@ export function Toolbar() {
             <button 
               onClick={() => redo()} 
               disabled={future.length === 0 || isPreviewMode}
-              className="p-2 hover:bg-[#1A1A1A] disabled:opacity-25 disabled:cursor-not-allowed rounded text-[#888] hover:text-white transition-all hover:scale-105 active:scale-95 duration-100" 
+              className={`p-2 disabled:opacity-25 disabled:cursor-not-allowed rounded transition-all hover:scale-105 active:scale-95 duration-100 ${t.isLight ? 'text-gray-400 hover:text-black hover:bg-gray-100' : 'text-[#888] hover:text-white hover:bg-[#1A1A1A]'}`} 
               title={isPreviewMode ? "Redo disabled in Live Preview" : `Redo (Ctrl+Y)`}
             >
               <Redo2 size={16} />
@@ -159,13 +163,13 @@ export function Toolbar() {
         </div>
         <div className="flex items-center gap-3">
           {/* Segmented Mode Switch */}
-          <div className="bg-[#101010] p-1 rounded-lg border border-[#222] flex items-center gap-1 shadow-inner">
+          <div className={`p-1 rounded-lg flex items-center gap-1 shadow-inner border ${t.isLight ? 'bg-gray-100 border-gray-200' : 'bg-[#101010] border-[#222]'}`}>
             <button
               onClick={() => setPreviewMode(false)}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 !isPreviewMode 
                   ? "bg-blue-600 text-white shadow-md font-bold" 
-                  : "text-[#666] hover:text-[#BBB] hover:bg-[#1A1A1A]"
+                  : t.isLight ? "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50" : "text-[#666] hover:text-[#BBB] hover:bg-[#1A1A1A]"
               }`}
               title="Switch to Editing and Design Mode"
             >
@@ -177,7 +181,7 @@ export function Toolbar() {
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 isPreviewMode 
                   ? "bg-emerald-600 text-white shadow-md font-bold" 
-                  : "text-[#666] hover:text-[#CCC] hover:bg-[#1A1A1A]"
+                  : t.isLight ? "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50" : "text-[#666] hover:text-[#CCC] hover:bg-[#1A1A1A]"
               }`}
               title="Switch to Interactive AR Preview Mode"
             >
@@ -198,7 +202,7 @@ export function Toolbar() {
             className={`flex items-center justify-center p-1.5 rounded transition-all duration-150 cursor-pointer ${
               hasUnsavedChanges 
                 ? "bg-blue-600 hover:bg-blue-500 border border-blue-500 text-white shadow-[0_0_12px_rgba(37,99,235,0.25)] hover:scale-105 active:scale-95" 
-                : "bg-[#181818] text-[#666] border border-[#2A2A2A] cursor-not-allowed"
+                : t.isLight ? "bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed" : "bg-[#181818] text-[#666] border border-[#2A2A2A] cursor-not-allowed"
             }`}
             title={hasUnsavedChanges ? "Save manual snapshot to storage" : "All changes saved"}
           >
@@ -209,10 +213,19 @@ export function Toolbar() {
             )}
           </button>
 
-          {/* Icon-only Settings Button (more convenient than text) */}
+          {/* Global Theme Toggle Button */}
+          <button 
+            onClick={() => toggleEditorTheme()}
+            className={`p-1.5 border rounded transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0 ${t.isLight ? 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600 hover:text-gray-900' : 'bg-[#1A1A1A] hover:bg-[#252525] border-[#333] hover:border-[#444] text-[#BBB] hover:text-[#FFF]'}`}
+            title={editorTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {editorTheme === 'dark' ? <Sun size={15} className="text-yellow-400" /> : <Moon size={15} className="text-indigo-500" />}
+          </button>
+
+          {/* Icon-only Settings Button */}
           <button 
             onClick={() => setShowSettings(true)}
-            className="p-1.5 bg-[#1A1A1A] hover:bg-[#252525] border border-[#333] hover:border-[#444] rounded text-[#BBB] hover:text-[#FFF] transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0"
+            className={`p-1.5 border rounded transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0 ${t.isLight ? 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600 hover:text-gray-900' : 'bg-[#1A1A1A] hover:bg-[#252525] border-[#333] hover:border-[#444] text-[#BBB] hover:text-[#FFF]'}`}
             title="Project Settings"
           >
             <Settings size={15} />
@@ -220,7 +233,7 @@ export function Toolbar() {
 
           <button 
             onClick={() => setShowPublish(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 hover:text-blue-300 border border-blue-500/20 rounded text-xs font-semibold transition-all hover:scale-105 active:scale-95 duration-100 cursor-pointer"
+            className={`flex items-center gap-1.5 px-3 py-1.5 border rounded text-xs font-semibold transition-all hover:scale-105 active:scale-95 duration-100 cursor-pointer ${t.isLight ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 hover:border-blue-300' : 'bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 hover:text-blue-300 border-blue-500/20'}`}
             title="Publish your AR experience to the web"
           >
             <Globe size={13} />

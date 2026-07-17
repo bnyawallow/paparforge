@@ -327,6 +327,7 @@ import {
   Palette
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useTheme } from '../../lib/theme';
 import { Vector3Data } from '../../types';
 
 export const FONT_LIBRARY = [
@@ -838,6 +839,7 @@ const LIGHTING_PRESETS = {
 } as const;
 
 export function InspectorPanel({ width }: { width?: number }) {
+  const t = useTheme();
   const { 
     objects, 
     selectedObjectId, selectedObjectIds, 
@@ -2282,17 +2284,21 @@ export function InspectorPanel({ width }: { width?: number }) {
   return (
     <aside 
       style={{ width: width ? `${width}px` : '288px' }}
-      className="border-l border-[#2A2A2A] bg-[#141414] flex flex-col shrink-0 overflow-hidden relative z-30"
+      className={cn(
+        "border-l flex flex-col shrink-0 overflow-hidden relative z-30 transition-colors duration-200",
+        t.bgPanel,
+        t.border
+      )}
     >
       {/* Tab Switcher */}
-      <div className="flex border-b border-[#2A2A2A] shrink-0 bg-[#0F0F0F]">
+      <div className={cn("flex border-b shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
         <button
           onClick={() => setActivePanelTab('inspector')}
           className={cn(
             "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
             activePanelTab === 'inspector' 
-              ? "text-blue-400 border-blue-500 bg-[#141414]" 
-              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+              ? "text-blue-500 border-blue-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
+              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
           )}
         >
           <Sliders size={11} />
@@ -2303,11 +2309,11 @@ export function InspectorPanel({ width }: { width?: number }) {
           className={cn(
             "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
             activePanelTab === 'lighting' 
-              ? "text-yellow-400 border-yellow-500 bg-[#141414]" 
-              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+              ? "text-yellow-500 border-yellow-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
+              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
           )}
         >
-          <Lightbulb size={11} className={activePanelTab === 'lighting' ? "text-yellow-400" : "text-[#666]"} />
+          <Lightbulb size={11} className={activePanelTab === 'lighting' ? "text-yellow-500" : "text-[#666]"} />
           Lighting
         </button>
         <button
@@ -2315,11 +2321,11 @@ export function InspectorPanel({ width }: { width?: number }) {
           className={cn(
             "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
             activePanelTab === 'typography' 
-              ? "text-cyan-400 border-cyan-500 bg-[#141414]" 
-              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+              ? "text-cyan-500 border-cyan-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
+              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
           )}
         >
-          <Type size={11} className={activePanelTab === 'typography' ? "text-cyan-400" : "text-[#666]"} />
+          <Type size={11} className={activePanelTab === 'typography' ? "text-cyan-500" : "text-[#666]"} />
           Typography
         </button>
         <button
@@ -2327,11 +2333,11 @@ export function InspectorPanel({ width }: { width?: number }) {
           className={cn(
             "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
             activePanelTab === 'theme' 
-              ? "text-cyan-400 border-cyan-500 bg-[#141414]" 
-              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+              ? "text-purple-500 border-purple-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
+              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
           )}
         >
-          <Palette size={11} className={activePanelTab === 'theme' ? "text-cyan-400" : "text-[#666]"} />
+          <Palette size={11} className={activePanelTab === 'theme' ? "text-purple-500" : "text-[#666]"} />
           Theme
         </button>
       </div>
@@ -4784,28 +4790,55 @@ export function InspectorPanel({ width }: { width?: number }) {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 mt-1">
+                        <div className="flex flex-col gap-3.5 mt-2 bg-black/10 p-2 rounded border border-white/5">
                           <div className="flex flex-col gap-1">
-                            <label className="text-[9px] text-[#666] font-medium">Padding (px)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={obj.properties.layoutPadding ?? 16}
-                              onChange={(e) => handlePropertyChange('layoutPadding', Math.max(0, parseInt(e.target.value, 10) || 0))}
-                              className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
-                            />
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] text-gray-400 font-semibold">Container Padding</label>
+                              <span className="text-[10px] font-mono text-cyan-400 font-bold">{obj.properties.layoutPadding ?? 16}px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={obj.properties.layoutPadding ?? 16}
+                                onChange={(e) => handlePropertyChange('layoutPadding', parseInt(e.target.value, 10))}
+                                className="flex-1 accent-cyan-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                max="200"
+                                value={obj.properties.layoutPadding ?? 16}
+                                onChange={(e) => handlePropertyChange('layoutPadding', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                className={cn("text-[10px] px-1 py-0.5 rounded w-12 text-center outline-none border font-mono transition-colors", t.bgInput, t.isLight ? 'border-gray-200 text-gray-800' : 'border-[#222] text-white')}
+                              />
+                            </div>
                           </div>
+
                           <div className="flex flex-col gap-1">
-                            <label className="text-[9px] text-[#666] font-medium">Gap (px)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={obj.properties.layoutGap ?? 8}
-                              onChange={(e) => handlePropertyChange('layoutGap', Math.max(0, parseInt(e.target.value, 10) || 0))}
-                              className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
-                            />
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] text-gray-400 font-semibold">Child Item Gap</label>
+                              <span className="text-[10px] font-mono text-cyan-400 font-bold">{obj.properties.layoutGap ?? 8}px</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={obj.properties.layoutGap ?? 8}
+                                onChange={(e) => handlePropertyChange('layoutGap', parseInt(e.target.value, 10))}
+                                className="flex-1 accent-cyan-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                max="200"
+                                value={obj.properties.layoutGap ?? 8}
+                                onChange={(e) => handlePropertyChange('layoutGap', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                className={cn("text-[10px] px-1 py-0.5 rounded w-12 text-center outline-none border font-mono transition-colors", t.bgInput, t.isLight ? 'border-gray-200 text-gray-800' : 'border-[#222] text-white')}
+                              />
+                            </div>
                           </div>
                         </div>
 
@@ -5247,6 +5280,120 @@ export function InspectorPanel({ width }: { width?: number }) {
                         />
                       </div>
                     </>
+                  )}
+
+                  {/* HUD Style & Shape Customization */}
+                  {['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) && (
+                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                      <label className="text-[10px] text-cyan-400 font-bold tracking-wider">HUD STYLE & SHAPE</label>
+                      
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Shape</label>
+                        <select
+                          value={obj.properties.hudShape || 'rectangle'}
+                          onChange={(e) => handlePropertyChange('hudShape', e.target.value)}
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                        >
+                          <option value="rectangle">Rectangle</option>
+                          <option value="circle">Circle / Ellipse</option>
+                          <option value="pill">Pill</option>
+                        </select>
+                      </div>
+
+                      {obj.properties.hudShape !== 'circle' && obj.properties.hudShape !== 'pill' && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-[#666] font-medium">Corner Roundness / Border Radius (px)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.borderRadius !== undefined ? obj.properties.borderRadius : 8}
+                            onChange={(e) => handlePropertyChange('borderRadius', parseInt(e.target.value) || 0)}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Border Size (px)</label>
+                          <input 
+                            type="number"
+                            value={obj.properties.borderSize ?? 0}
+                            onChange={(e) => handlePropertyChange('borderSize', parseInt(e.target.value) || 0)}
+                            className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-[#666] font-medium">Border Color</label>
+                          <div className="flex items-center gap-1.5 h-full">
+                            <input 
+                              type="color" 
+                              value={obj.properties.borderColor || '#ffffff'}
+                              onChange={(e) => handlePropertyChange('borderColor', e.target.value)}
+                              className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                            />
+                            <span className="text-[9px] font-mono text-gray-400">{obj.properties.borderColor || '#ffffff'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-[10px] text-[#666] font-medium">Icon Name (Lucide Icon, e.g. Zap, Info, Play)</label>
+                        <input 
+                          type="text"
+                          value={obj.properties.icon || ''}
+                          onChange={(e) => handlePropertyChange('icon', e.target.value)}
+                          placeholder="None (e.g. Zap, Star, Shield)"
+                          className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+                        />
+                        {/* Quick suggestions */}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {['Zap', 'Info', 'Check', 'Play', 'Music', 'Star', 'Globe', 'Bell'].map(suggest => (
+                            <button
+                              key={suggest}
+                              onClick={() => handlePropertyChange('icon', suggest)}
+                              className={`text-[8px] px-1.5 py-0.5 rounded border transition-all ${obj.properties.icon === suggest ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'}`}
+                            >
+                              {suggest}
+                            </button>
+                          ))}
+                          {obj.properties.icon && (
+                            <button
+                              onClick={() => handlePropertyChange('icon', '')}
+                              className="text-[8px] px-1.5 py-0.5 rounded bg-red-950/20 border border-red-900/40 text-red-400 hover:text-red-200"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {obj.properties.icon && (
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-[#666] font-medium">Icon Position</label>
+                            <select
+                              value={obj.properties.iconPosition || 'left'}
+                              onChange={(e) => handlePropertyChange('iconPosition', e.target.value)}
+                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                            >
+                              <option value="left">Left</option>
+                              <option value="right">Right</option>
+                              <option value="top">Top</option>
+                              <option value="bottom">Bottom</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-[#666] font-medium">Icon Size (px)</label>
+                            <input 
+                              type="number"
+                              value={obj.properties.iconSize ?? 16}
+                              onChange={(e) => handlePropertyChange('iconSize', parseInt(e.target.value) || 0)}
+                              className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Alignment & Responsive Layout Anchor */}

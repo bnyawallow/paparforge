@@ -13,6 +13,7 @@ import {
   Upload, 
   Trash2, X, 
   Edit2, 
+  Copy,
   Music, 
   Zap, 
   Sparkles, 
@@ -569,6 +570,7 @@ export function AssetBrowser() {
     updateAsset, 
     addObject, 
     selectedObjectId, 
+    selectedObjectIds,
     objects,
     updateObject,
     updateSettings,
@@ -706,17 +708,34 @@ export function AssetBrowser() {
       addObject(newObj, parentId || undefined);
       showToast(`Added 3D model "${newObj.name}" to the scene.`);
     } else if (asset.type === 'image') {
-      if (selectedObjectId) {
-        const selectedObj = objects[selectedObjectId];
-        if (selectedObj && (selectedObj.type === 'image' || selectedObj.type === 'imageTarget')) {
-           updateObject(selectedObjectId, {
-             properties: {
-               ...selectedObj.properties,
-               textureUrl: asset.url
-             }
-           });
-           showToast(`Applied "${asset.name}" to ${selectedObj.name}.`);
-           return;
+      if (selectedObjectIds.length > 0) {
+        let appliedCount = 0;
+        selectedObjectIds.forEach(id => {
+          const selectedObj = objects[id];
+          if (selectedObj) {
+            if (selectedObj.type === 'image' || selectedObj.type === 'imageTarget' || selectedObj.type === 'hudImage') {
+              updateObject(id, {
+                properties: {
+                  ...selectedObj.properties,
+                  textureUrl: asset.url
+                }
+              });
+              appliedCount++;
+            } else if (selectedObj.type === 'hudButton') {
+              updateObject(id, {
+                properties: {
+                  ...selectedObj.properties,
+                  icon: asset.url
+                }
+              });
+              appliedCount++;
+            }
+          }
+        });
+        
+        if (appliedCount > 0) {
+          showToast(`Applied "${asset.name}" to ${appliedCount} selected object(s).`);
+          return;
         }
       }
       
@@ -1981,6 +2000,15 @@ export function AssetBrowser() {
                     {/* Actions panel overlay */}
                     {editingId !== asset.id && (
                       <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all bg-[#141414]/90 p-0.5 rounded shadow">
+                        {asset.type === 'image' && selectedObjectIds.length > 1 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleUseAsset(asset); }}
+                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded"
+                            title={`Bulk replace in ${selectedObjectIds.length} selected items`}
+                          >
+                            <Copy size={10} />
+                          </button>
+                        )}
                         <button
                           onClick={(e) => { e.stopPropagation(); removeAsset(asset.id); }}
                           className="p-1 hover:bg-red-500/20 text-red-400 rounded"

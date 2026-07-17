@@ -600,6 +600,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   // Camera & View modes
   cameraType: 'perspective',
   wireframeEnabled: false,
+  editorTheme: 'dark',
   
   // History state
   past: [],
@@ -617,17 +618,67 @@ export const useEditorStore = create<EditorState>((set) => ({
     lastEditedObjectId = null;
     lastSnapshotTime = 0;
 
-    const newObjects = { ...state.objects, [obj.id]: obj };
+    let newObjects = { ...state.objects };
     let newRootObjects = [...state.rootObjects];
 
-    if (parentId && newObjects[parentId]) {
-      newObjects[parentId] = {
-        ...newObjects[parentId],
-        children: [...newObjects[parentId].children, obj.id]
+    const targetObj = { ...obj };
+    const isHUDChild = ['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(targetObj.type);
+
+    let resolvedParentId = parentId;
+
+    if (isHUDChild) {
+      // Force HUD child element to be nested in a hudCanvas
+      const proposedParent = resolvedParentId ? newObjects[resolvedParentId] : null;
+      if (proposedParent && proposedParent.type === 'hudCanvas') {
+        // Correct parent specified.
+      } else {
+        // Proposed parent is not a hudCanvas. Find an existing one in the scene!
+        const existingCanvas = Object.values(newObjects).find(o => o.type === 'hudCanvas');
+        if (existingCanvas) {
+          resolvedParentId = existingCanvas.id;
+        } else {
+          // No existing hudCanvas. Let's auto-create one!
+          const canvasId = uuidv4();
+          const newCanvas: SceneObject = {
+            id: canvasId,
+            name: 'HUD Canvas',
+            type: 'hudCanvas',
+            position: [0, 0, 0],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            visible: true,
+            children: [],
+            parentId: null,
+            properties: {
+              layoutMode: 'column',
+              layoutAlignItems: 'center',
+              layoutJustifyContent: 'center',
+              backgroundColor: '#1c1917',
+              opacity: 0.85,
+              layoutPadding: 16,
+              layoutGap: 8,
+              themeBorderRadius: 12,
+              themeBlur: 4,
+            }
+          };
+          newObjects[canvasId] = newCanvas;
+          newRootObjects.push(canvasId);
+          resolvedParentId = canvasId;
+        }
+      }
+    }
+
+    // Insert target object
+    newObjects[targetObj.id] = targetObj;
+
+    if (resolvedParentId && newObjects[resolvedParentId]) {
+      newObjects[resolvedParentId] = {
+        ...newObjects[resolvedParentId],
+        children: [...newObjects[resolvedParentId].children, targetObj.id]
       };
-      newObjects[obj.id].parentId = parentId;
+      newObjects[targetObj.id].parentId = resolvedParentId;
     } else {
-      newRootObjects.push(obj.id);
+      newRootObjects.push(targetObj.id);
     }
 
     return { 
@@ -2035,4 +2086,5 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   setCameraType: (cameraType) => set({ cameraType }),
   setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),
+  toggleEditorTheme: () => set((state) => ({ editorTheme: state.editorTheme === 'dark' ? 'light' : 'dark' })),
 }));

@@ -432,7 +432,47 @@ export const generateAFrameScene = (state: any) => {
         }
 
         return `  <div id="${overlayId}" class="${animClass}" style="${backgroundStyle}">${childrenHtml}</div>`;
-      } else if (obj.type === 'hudText') {
+      }
+
+      // Compute custom shapes and borders
+      let customShapeAndBorderStyles = '';
+      if (props.hudShape === 'circle') {
+        customShapeAndBorderStyles += `border-radius: 50%; `;
+      } else if (props.borderRadius !== undefined) {
+        customShapeAndBorderStyles += `border-radius: ${props.borderRadius}px; `;
+      }
+
+      const borderSize = props.borderSize !== undefined ? props.borderSize : 0;
+      if (borderSize > 0) {
+        customShapeAndBorderStyles += `border: ${borderSize}px solid ${props.borderColor || '#ffffff'}; `;
+      }
+
+      // Compute behaviors attribute
+      let hudBehaviorsAttr = '';
+      if (props.visualBehaviors && props.visualBehaviors.length > 0) {
+        const behaviorsJson = JSON.stringify(props.visualBehaviors).replace(/"/g, '&quot;');
+        hudBehaviorsAttr = ` data-behaviors="${behaviorsJson}"`;
+      }
+
+      // Helper to build Lucide icon HTML
+      const buildIconAndTextHtml = (text: string, props: any) => {
+        const iconName = props.icon;
+        const iconPos = props.iconPosition || 'left';
+        const iconSize = props.iconSize || 16;
+        if (!iconName) return text || '';
+        
+        const iconHtml = `<i data-lucide="${iconName}" style="width: ${iconSize}px; height: ${iconSize}px; flex-shrink: 0; display: inline-block;"></i>`;
+        
+        const flexDirStyle = 
+          iconPos === 'top' ? 'flex-direction: column; align-items: center; gap: 6.5px;' :
+          iconPos === 'bottom' ? 'flex-direction: column-reverse; align-items: center; gap: 6.5px;' :
+          iconPos === 'right' ? 'flex-direction: row-reverse; align-items: center; gap: 8px;' :
+          'flex-direction: row; align-items: center; gap: 8px;'; // left
+          
+        return `<div style="display: flex; ${flexDirStyle} justify-content: center; align-items: center; width: 100%; height: 100%;">${iconHtml}<span>${text || ''}</span></div>`;
+      };
+
+      if (obj.type === 'hudText') {
         const textAlignment = props.textAlign || 'left';
         const alignSelf = textAlignment === 'center' ? 'center' : (textAlignment === 'right' ? 'flex-end' : (textAlignment === 'justify' ? 'stretch' : 'flex-start'));
         const fontFamily = props.fontFamily ? `'${props.fontFamily}', sans-serif` : 'sans-serif';
@@ -443,25 +483,28 @@ export const generateAFrameScene = (state: any) => {
         const textTransform = props.textTransform || 'none';
         const textDecoration = props.textDecoration || 'none';
         const fontStyle = props.fontStyle || 'normal';
-        styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; text-align: ${textAlignment}; white-space: ${whiteSpace}; font-family: ${fontFamily}; font-weight: ${fontWeight}; letter-spacing: ${letterSpacing}; line-height: ${lineHeight}; text-transform: ${textTransform}; text-decoration: ${textDecoration}; font-style: ${fontStyle}; display: flex; flex-direction: column; align-items: ${alignSelf}; justify-content: center;`;
-        return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}">${props.text || 'Text'}${childrenHtml}</div>`;
+        styleStr += `color: ${props.color || '#fff'}; font-size: ${props.fontSize || 24}px; text-align: ${textAlignment}; white-space: ${whiteSpace}; font-family: ${fontFamily}; font-weight: ${fontWeight}; letter-spacing: ${letterSpacing}; line-height: ${lineHeight}; text-transform: ${textTransform}; text-decoration: ${textDecoration}; font-style: ${fontStyle}; display: flex; flex-direction: column; align-items: ${alignSelf}; justify-content: center; `;
+        styleStr += customShapeAndBorderStyles;
+        const contentHtml = buildIconAndTextHtml(props.text || 'Text', props);
+        return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}"${hudBehaviorsAttr}>${contentHtml}${childrenHtml}</div>`;
       } else if (obj.type === 'hudButton') {
-        styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border-radius: ${props.borderRadius || 8}px; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold;`;
+        styleStr += `background-color: ${props.color || '#3b82f6'}; color: ${props.textColor || '#fff'}; padding: ${props.paddingY || 8}px ${props.paddingX || 16}px; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; `;
+        styleStr += customShapeAndBorderStyles;
         const onClickAttr = props.url ? ` onclick="window.open('${props.url}', '_blank')"` : '';
-        return `  <button id="${overlayId}" class="${animClass}" style="${styleStr}"${onClickAttr}">${props.text || 'Button'}${childrenHtml}</button>`;
+        const contentHtml = buildIconAndTextHtml(props.text || 'Button', props);
+        return `  <button id="${overlayId}" class="${animClass}" style="${styleStr}"${onClickAttr}${hudBehaviorsAttr}>${contentHtml}${childrenHtml}</button>`;
       } else if (obj.type === 'hudImage') {
-        styleStr += `overflow: hidden;`;
-        let imgStyle = `width: 100%; height: 100%; object-fit: cover; pointer-events: none;`;
-        return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}"><img src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${imgStyle}" />${childrenHtml}</div>`;
+        styleStr += `overflow: hidden; `;
+        styleStr += customShapeAndBorderStyles;
+        let imgStyle = `width: 100%; height: 100%; object-fit: cover; pointer-events: none; border-radius: inherit;`;
+        return `  <div id="${overlayId}" class="${animClass}" style="${styleStr}"${hudBehaviorsAttr}><img src="${props.textureUrl || 'https://via.placeholder.com/200'}" style="${imgStyle}" />${childrenHtml}</div>`;
       } else if (obj.type === 'hudEmbed') {
         const showBorder = props.borderEnabled ?? true;
         const showAddressBar = props.showAddressBar ?? true;
-        styleStr += `background-color: #111; border-radius: ${props.borderRadius || 12}px; overflow: hidden; display: flex; flex-direction: column; `;
-        if (showBorder) {
-          styleStr += `border: 2px solid ${props.borderColor || '#2563eb'}; `;
-        }
+        styleStr += `background-color: #111; overflow: hidden; display: flex; flex-direction: column; `;
+        styleStr += customShapeAndBorderStyles;
         
-        let embedHtml = `  <div id="${overlayId}" class="${animClass}" style="${styleStr}">\n`;
+        let embedHtml = `  <div id="${overlayId}" class="${animClass}" style="${styleStr}"${hudBehaviorsAttr}>\n`;
         if (showAddressBar) {
           embedHtml += `    <div style="background-color: #1a1a1a; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #222; font-family: monospace; font-size: 10px; color: #aaa; flex-shrink: 0; z-index: 10;">\n`;
           embedHtml += `      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${props.url || 'No URL'}</span>\n`;
@@ -568,6 +611,8 @@ export const generateAFrameScene = (state: any) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>${settings.projectName} - Published WebAR</title>
+    <!-- Lucide Icons UMD Bundle -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
 ${googleFontsLinksHtml}
 ${audioPreloadScript}
@@ -2065,11 +2110,121 @@ ${entitiesHtml}
         }
       }
 
+      function init2DHUDBehaviors() {
+        console.log('[BEHAVIOR] Initializing 2D HUD visual behaviors...');
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+        
+        document.querySelectorAll('div[data-behaviors], button[data-behaviors]').forEach(el => {
+          if (el.tagName.toLowerCase().startsWith('a-') || el.closest('a-scene')) return;
+          
+          const behaviorsJson = el.getAttribute('data-behaviors');
+          let behaviors = [];
+          try {
+            behaviors = JSON.parse(behaviorsJson || '[]');
+          } catch (e) {
+            console.error("Error parsing 2D HUD behaviors:", e);
+          }
+          
+          const execute2DBehavior = (b) => {
+            console.log('[BEHAVIOR] Executing HUD action:', b.action);
+            switch (b.action) {
+              case 'toast':
+                if (b.toastMessage) showToast(b.toastMessage);
+                break;
+              case 'openUrl':
+                if (b.url) window.open(b.url, '_blank', 'noopener,noreferrer');
+                break;
+              case 'playSound': {
+                const playUrl = b.soundPreset || b.url || 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+                const audio = (window.__audioCache && window.__audioCache[playUrl]) || new Audio(playUrl);
+                audio.volume = 0.5;
+                audio.currentTime = 0;
+                audio.play().catch(e => console.error('Audio play failed:', e));
+                break;
+              }
+              case 'toggleVisibility': {
+                const targetEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : el;
+                if (targetEl) {
+                  const isHidden = targetEl.style.display === 'none' || targetEl.style.visibility === 'hidden' || targetEl.style.opacity === '0';
+                  if (isHidden) {
+                    targetEl.style.display = targetEl.dataset.originalDisplay || 'flex';
+                    targetEl.style.opacity = '1';
+                    targetEl.style.pointerEvents = 'auto';
+                  } else {
+                    targetEl.dataset.originalDisplay = targetEl.style.display;
+                    targetEl.style.display = 'none';
+                    targetEl.style.opacity = '0';
+                    targetEl.style.pointerEvents = 'none';
+                  }
+                }
+                break;
+              }
+              case 'setVisibility': {
+                const setVisEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : el;
+                if (setVisEl) {
+                  const targetState = b.visibleState !== 'false';
+                  if (targetState) {
+                    setVisEl.style.display = setVisEl.dataset.originalDisplay || 'flex';
+                    setVisEl.style.opacity = '1';
+                    setVisEl.style.pointerEvents = 'auto';
+                  } else {
+                    setVisEl.dataset.originalDisplay = setVisEl.style.display;
+                    setVisEl.style.display = 'none';
+                    setVisEl.style.opacity = '0';
+                    setVisEl.style.pointerEvents = 'none';
+                  }
+                }
+                break;
+              }
+              case 'playModelAnimation': {
+                const animEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (animEl) {
+                  const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                  if (modelEl) modelEl.setAttribute('animation-mixer', 'timeScale', 1);
+                }
+                break;
+              }
+              case 'pauseModelAnimation': {
+                const animEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (animEl) {
+                  const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                  if (modelEl) modelEl.setAttribute('animation-mixer', 'timeScale', 0);
+                }
+                break;
+              }
+              case 'spin': {
+                const spinEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (spinEl) spinEl.setAttribute('live-behavior', 'rule: spin');
+                break;
+              }
+            }
+          };
+          
+          behaviors.forEach(b => {
+            if (b.trigger === 'onStart') {
+              execute2DBehavior(b);
+            } else if (b.trigger === 'onTap') {
+              el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                execute2DBehavior(b);
+              });
+            } else if (b.trigger === 'onHoverEnter') {
+              el.addEventListener('mouseenter', () => execute2DBehavior(b));
+            } else if (b.trigger === 'onHoverExit') {
+              el.addEventListener('mouseleave', () => execute2DBehavior(b));
+            }
+          });
+        });
+      }
+
       // Proactive Lifecycle Loggers
       console.log('[STAGE] Device environment matches WebAR. Starting up...');
       window.addEventListener('load', () => {
-        console.log('[STAGE] Window load complete. Launching compiler and AR engine.');
+        console.log('[STAGE] Window load complete. Launching compiler, AR engine, and HUD behaviors.');
         initAR();
+        init2DHUDBehaviors();
       });
     </script>
   </body>
