@@ -323,7 +323,8 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
-  LayoutGrid
+  LayoutGrid,
+  Palette
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Vector3Data } from '../../types';
@@ -861,7 +862,7 @@ export function InspectorPanel({ width }: { width?: number }) {
     updateSettings
   } = useEditorStore();
 
-  const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography'>('inspector');
+  const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography' | 'theme'>('inspector');
   const [linkAxes, setLinkAxes] = useState(false);
 
   const [textStyles, setTextStyles] = useState<Array<{
@@ -1110,6 +1111,293 @@ export function InspectorPanel({ width }: { width?: number }) {
       handlePropertyChange('soundUrl', '/sounds/cyber_click.wav');
       handlePropertyChange('soundName', 'Cyber Click');
     }
+  };
+
+  const renderThemePanel = () => {
+    // Presets definitions
+    const THEME_PRESETS = [
+      {
+        name: 'Cosmic Slate',
+        icon: '🌌',
+        config: {
+          themeFontFamily: 'Space Grotesk',
+          themePrimaryColor: '#38bdf8',
+          themeTextColor: '#ffffff',
+          themeBackgroundColor: '#090d16',
+          themeBorderColor: '#1e293b',
+          themeGap: 12,
+          themePadding: 16,
+          themeBorderRadius: 12,
+          themeBlur: 12
+        }
+      },
+      {
+        name: 'Tactical Orange',
+        icon: '🛰️',
+        config: {
+          themeFontFamily: 'JetBrains Mono',
+          themePrimaryColor: '#f97316',
+          themeTextColor: '#f2f2f2',
+          themeBackgroundColor: '#0c0a09',
+          themeBorderColor: '#292524',
+          themeGap: 8,
+          themePadding: 14,
+          themeBorderRadius: 4,
+          themeBlur: 0
+        }
+      },
+      {
+        name: 'Calm Sage',
+        icon: '🌿',
+        config: {
+          themeFontFamily: 'Inter',
+          themePrimaryColor: '#10b981',
+          themeTextColor: '#f4f3f2',
+          themeBackgroundColor: '#1c1e1b',
+          themeBorderColor: '#2f332d',
+          themeGap: 16,
+          themePadding: 20,
+          themeBorderRadius: 16,
+          themeBlur: 8
+        }
+      },
+      {
+        name: 'Cyberpunk Neon',
+        icon: '🧬',
+        config: {
+          themeFontFamily: 'Fira Code',
+          themePrimaryColor: '#ec4899',
+          themeTextColor: '#ffffff',
+          themeBackgroundColor: '#030008',
+          themeBorderColor: '#3b0764',
+          themeGap: 10,
+          themePadding: 16,
+          themeBorderRadius: 0,
+          themeBlur: 16
+        }
+      }
+    ];
+
+    const applyPreset = (preset: typeof THEME_PRESETS[0]) => {
+      updateSettings(preset.config);
+      useEditorStore.getState().addToast(`Applied global theme preset "${preset.name}"!`);
+    };
+
+    return (
+      <div className="p-4 flex flex-col gap-5 animate-in fade-in">
+        <div>
+          <h3 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-1">Global 2D HUD Theme</h3>
+          <p className="text-[10px] text-gray-400 leading-snug">
+            Customize typography, color palettes, spacing, and borders globally. HUD objects fallback to these unless local overrides are set.
+          </p>
+        </div>
+
+        {/* PRESETS */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Aesthetic Theme Presets</span>
+          <div className="grid grid-cols-2 gap-2">
+            {THEME_PRESETS.map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                onClick={() => applyPreset(p)}
+                className="flex items-center gap-2 p-2 rounded bg-[#1f1f1f] hover:bg-[#252525] border border-[#2d2d2d] hover:border-[#06b6d4]/50 text-left transition-all cursor-pointer group"
+              >
+                <span className="text-lg group-hover:scale-125 transition-transform">{p.icon}</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-bold text-white truncate">{p.name}</span>
+                  <span className="text-[8px] text-gray-500 truncate font-mono">{p.config.themeFontFamily}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* TYPOGRAPHY */}
+        <div className="flex flex-col gap-3 border-t border-[#222] pt-3.5">
+          <div className="flex items-center gap-1.5">
+            <Type size={11} className="text-[#06b6d4]" />
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Typography Settings</span>
+          </div>
+
+          <div className="flex flex-col gap-1 bg-[#161616] p-2.5 rounded border border-[#222]">
+            <label className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Global Font Family</label>
+            <select
+              value={settings.themeFontFamily || 'Inter'}
+              onChange={(e) => updateSettings({ themeFontFamily: e.target.value })}
+              className="bg-black/50 text-[10px] p-1.5 rounded border border-[#2a2a2a] text-white focus:border-[#06b6d4] outline-none mt-1 cursor-pointer font-medium w-full"
+            >
+              <option value="Inter">Inter (Clean Sans)</option>
+              <option value="Space Grotesk">Space Grotesk (Tech-forward Display)</option>
+              <option value="Outfit">Outfit (Geometric Minimalist)</option>
+              <option value="Fira Code">Fira Code (Developer Mono)</option>
+              <option value="JetBrains Mono">JetBrains Mono (Sleek Tactical)</option>
+              <option value="Playfair Display">Playfair Display (Serif Editorial)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* PALETTE */}
+        <div className="flex flex-col gap-3 border-t border-[#222] pt-3.5">
+          <div className="flex items-center gap-1.5">
+            <Palette size={11} className="text-[#06b6d4]" />
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Color Palette</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {/* Accent Color */}
+            <div className="flex flex-col gap-1 bg-[#161616] p-2 rounded border border-[#222]">
+              <label className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Accent Color</label>
+              <div className="flex items-center gap-1.5 mt-1">
+                <input
+                  type="color"
+                  value={settings.themePrimaryColor || '#3b82f6'}
+                  onChange={(e) => updateSettings({ themePrimaryColor: e.target.value })}
+                  className="w-5 h-5 rounded border border-[#2a2a2a] cursor-pointer bg-transparent"
+                />
+                <input
+                  type="text"
+                  value={settings.themePrimaryColor || '#3b82f6'}
+                  onChange={(e) => updateSettings({ themePrimaryColor: e.target.value })}
+                  className="bg-transparent text-[9px] text-white font-mono w-full focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Foreground Text */}
+            <div className="flex flex-col gap-1 bg-[#161616] p-2 rounded border border-[#222]">
+              <label className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Text Color</label>
+              <div className="flex items-center gap-1.5 mt-1">
+                <input
+                  type="color"
+                  value={settings.themeTextColor || '#ffffff'}
+                  onChange={(e) => updateSettings({ themeTextColor: e.target.value })}
+                  className="w-5 h-5 rounded border border-[#2a2a2a] cursor-pointer bg-transparent"
+                />
+                <input
+                  type="text"
+                  value={settings.themeTextColor || '#ffffff'}
+                  onChange={(e) => updateSettings({ themeTextColor: e.target.value })}
+                  className="bg-transparent text-[9px] text-white font-mono w-full focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Card Background */}
+            <div className="flex flex-col gap-1 bg-[#161616] p-2 rounded border border-[#222]">
+              <label className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Canvas Bg</label>
+              <div className="flex items-center gap-1.5 mt-1">
+                <input
+                  type="color"
+                  value={settings.themeBackgroundColor || '#1c1917'}
+                  onChange={(e) => updateSettings({ themeBackgroundColor: e.target.value })}
+                  className="w-5 h-5 rounded border border-[#2a2a2a] cursor-pointer bg-transparent"
+                />
+                <input
+                  type="text"
+                  value={settings.themeBackgroundColor || '#1c1917'}
+                  onChange={(e) => updateSettings({ themeBackgroundColor: e.target.value })}
+                  className="bg-transparent text-[9px] text-white font-mono w-full focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Screen Border */}
+            <div className="flex flex-col gap-1 bg-[#161616] p-2 rounded border border-[#222]">
+              <label className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">Border Color</label>
+              <div className="flex items-center gap-1.5 mt-1">
+                <input
+                  type="color"
+                  value={settings.themeBorderColor || '#2a2a2a'}
+                  onChange={(e) => updateSettings({ themeBorderColor: e.target.value })}
+                  className="w-5 h-5 rounded border border-[#2a2a2a] cursor-pointer bg-transparent"
+                />
+                <input
+                  type="text"
+                  value={settings.themeBorderColor || '#2a2a2a'}
+                  onChange={(e) => updateSettings({ themeBorderColor: e.target.value })}
+                  className="bg-transparent text-[9px] text-white font-mono w-full focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SPACING, BORDERS & SHADOW */}
+        <div className="flex flex-col gap-3 border-t border-[#222] pt-3.5 pb-6">
+          <div className="flex items-center gap-1.5">
+            <LayoutGrid size={11} className="text-[#06b6d4]" />
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Spacing & Borders</span>
+          </div>
+
+          <div className="flex flex-col gap-3.5 bg-[#161616] p-3 rounded border border-[#222]">
+            {/* Gap */}
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                <span>Layout Gap</span>
+                <span className="font-mono text-[#06b6d4]">{settings.themeGap !== undefined ? settings.themeGap : 8}px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="64"
+                value={settings.themeGap !== undefined ? settings.themeGap : 8}
+                onChange={(e) => updateSettings({ themeGap: parseInt(e.target.value) })}
+                className="w-full accent-[#06b6d4] bg-black/40 h-1 rounded cursor-pointer mt-1"
+              />
+            </div>
+
+            {/* Padding */}
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                <span>Layout Padding</span>
+                <span className="font-mono text-[#06b6d4]">{settings.themePadding !== undefined ? settings.themePadding : 16}px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="64"
+                value={settings.themePadding !== undefined ? settings.themePadding : 16}
+                onChange={(e) => updateSettings({ themePadding: parseInt(e.target.value) })}
+                className="w-full accent-[#06b6d4] bg-black/40 h-1 rounded cursor-pointer mt-1"
+              />
+            </div>
+
+            {/* Corner Radius */}
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                <span>Corner Radius</span>
+                <span className="font-mono text-[#06b6d4]">{settings.themeBorderRadius !== undefined ? settings.themeBorderRadius : 8}px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="48"
+                value={settings.themeBorderRadius !== undefined ? settings.themeBorderRadius : 8}
+                onChange={(e) => updateSettings({ themeBorderRadius: parseInt(e.target.value) })}
+                className="w-full accent-[#06b6d4] bg-[#06b6d4]/10 rounded cursor-pointer mt-1 h-1.5"
+              />
+            </div>
+
+            {/* Backdrop Blur */}
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between items-center text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                <span>Backdrop Blur</span>
+                <span className="font-mono text-[#06b6d4]">{settings.themeBlur !== undefined ? settings.themeBlur : 4}px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="24"
+                value={settings.themeBlur !== undefined ? settings.themeBlur : 4}
+                onChange={(e) => updateSettings({ themeBlur: parseInt(e.target.value) })}
+                className="w-full accent-[#06b6d4] bg-black/40 h-1 rounded cursor-pointer mt-1"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderTypographyPanel = () => {
@@ -2034,6 +2322,18 @@ export function InspectorPanel({ width }: { width?: number }) {
           <Type size={11} className={activePanelTab === 'typography' ? "text-cyan-400" : "text-[#666]"} />
           Typography
         </button>
+        <button
+          onClick={() => setActivePanelTab('theme')}
+          className={cn(
+            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
+            activePanelTab === 'theme' 
+              ? "text-cyan-400 border-cyan-500 bg-[#141414]" 
+              : "text-[#666] border-transparent hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Palette size={11} className={activePanelTab === 'theme' ? "text-cyan-400" : "text-[#666]"} />
+          Theme
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -2041,6 +2341,8 @@ export function InspectorPanel({ width }: { width?: number }) {
           renderLightingPanel()
         ) : activePanelTab === 'typography' ? (
           renderTypographyPanel()
+        ) : activePanelTab === 'theme' ? (
+          renderThemePanel()
         ) : (
           !selectedObjectId || !objects[selectedObjectId] ? (
             <div className="p-4 flex flex-col gap-6">

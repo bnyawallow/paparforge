@@ -8,15 +8,17 @@ interface HUDCanvasProps {
 }
 
 export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasProps) {
-  const { selectedObjectId, selectObject, hudDebugGridEnabled } = useEditorStore();
+  const { selectedObjectId, selectObject, hudDebugGridEnabled, settings } = useEditorStore();
   const isSelected = selectedObjectId === obj.id;
   
   const props = obj.properties || {};
   const layoutMode = props.layoutMode === 'row' ? 'row' : 'column'; // Enforce flexbox (default to column)
-  const bgCol = props.backgroundColor || '#000000';
-  const op = props.opacity !== undefined ? props.opacity : 0.0;
-  const padding = props.layoutPadding ?? 16;
-  const gap = props.layoutGap ?? 8;
+  
+  // Use global theme variables as fallbacks
+  const padding = props.layoutPadding !== undefined ? props.layoutPadding : (settings.themePadding !== undefined ? settings.themePadding : 16);
+  const gap = props.layoutGap !== undefined ? props.layoutGap : (settings.themeGap !== undefined ? settings.themeGap : 8);
+  const bgCol = props.backgroundColor || settings.themeBackgroundColor || '#000000';
+  const op = props.opacity !== undefined ? props.opacity : (settings.themeBackgroundColor ? 0.8 : 0.0);
   
   const hexToRgba = (hex: string, alpha: number) => {
     if (!hex || !hex.startsWith('#')) return hex;
@@ -60,11 +62,12 @@ export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasPro
     flexDirection: layoutMode,
     backgroundColor: bgStyle,
     opacity: 1.0, // Prevent children from inheriting transparency
-    padding: `${props.layoutPadding ?? 16}px`,
-    gap: `${props.layoutGap ?? 8}px`,
+    padding: `${padding}px`,
+    gap: `${gap}px`,
     alignItems: props.layoutAlignItems || 'center',
     justifyContent: props.layoutJustifyContent || 'center',
     flexWrap: props.layoutWrap || 'nowrap',
+    borderRadius: props.borderRadius !== undefined ? `${props.borderRadius}px` : (settings.themeBorderRadius !== undefined ? `${settings.themeBorderRadius}px` : undefined),
     overflow: 'visible',
     pointerEvents: !isPreviewMode ? 'auto' : 'none',
     zIndex: props.zIndex ?? 1,
@@ -72,7 +75,7 @@ export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasPro
     WebkitBackdropFilter: props.blur ? `blur(${props.blur}px)` : undefined,
     border: !isPreviewMode 
       ? (isSelected ? '2px solid #06b6d4' : '1px dashed rgba(255, 255, 255, 0.25)') 
-      : undefined,
+      : (props.borderEnabled || settings.themeBorderColor ? `1px solid ${props.borderColor || settings.themeBorderColor || 'rgba(255,255,255,0.1)'}` : undefined),
     outline: (!isPreviewMode && isSelected) ? '2px solid rgba(6, 182, 212, 0.5)' : undefined,
     boxShadow: (!isPreviewMode && isSelected) ? '0 0 10px rgba(6, 182, 212, 0.5)' : undefined,
   };

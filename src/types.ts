@@ -38,6 +38,16 @@ export interface ProjectSettings {
   publishedProjectId?: string;
   publishedProjectUrl?: string;
   ambientSoundUrl?: string;
+  themeFontFamily?: string;
+  themePrimaryColor?: string;
+  themeSecondaryColor?: string;
+  themeBackgroundColor?: string;
+  themeTextColor?: string;
+  themeBorderColor?: string;
+  themeBorderRadius?: number;
+  themePadding?: number;
+  themeGap?: number;
+  themeBlur?: number;
   lightingPreset?: 'studio' | 'daylight' | 'sunset';
   bloomEnabled?: boolean;
   bloomIntensity?: number;

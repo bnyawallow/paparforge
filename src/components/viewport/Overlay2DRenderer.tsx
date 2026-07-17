@@ -5,7 +5,7 @@ import { HUDCanvas } from './HUDCanvas';
 import { FONT_LIBRARY } from '../inspector/InspectorPanel';
 
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
-  const { objects, selectedObjectId, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize } = useEditorStore();
+  const { objects, selectedObjectId, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize, settings } = useEditorStore();
   const [showGridSettings, setShowGridSettings] = React.useState(false);
   const [activeSnapLines, setActiveSnapLines] = React.useState<Array<{ type: 'v' | 'h'; coord: number }>>([]);
   const [draggingObj, setDraggingObj] = React.useState<{
@@ -49,6 +49,10 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
   // Dynamic Font Loader for 2D UI and 3D text
   React.useEffect(() => {
     const fontsToLoad = new Set<string>();
+    
+    if (settings.themeFontFamily && settings.themeFontFamily !== 'sans-serif' && settings.themeFontFamily !== 'serif' && settings.themeFontFamily !== 'monospace') {
+      fontsToLoad.add(settings.themeFontFamily);
+    }
     
     Object.values(objects).forEach((obj: any) => {
       const family = obj.properties?.fontFamily;
@@ -708,9 +712,9 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 className={animClass}
                 style={{ 
                   ...activeStyle, 
-                  color: props.color || '#fff', 
+                  color: props.color || settings.themeTextColor || '#fff', 
                   fontSize: `${props.fontSize || 24}px`,
-                  fontFamily: props.fontFamily || 'sans-serif',
+                  fontFamily: props.fontFamily || settings.themeFontFamily || 'sans-serif',
                   fontWeight: props.fontWeight || 'normal',
                   letterSpacing: props.letterSpacing !== undefined ? `${props.letterSpacing}px` : 'normal',
                   textAlign: props.textAlign || 'left',
@@ -740,11 +744,11 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 className={animClass}
                 style={{ 
                   ...activeStyle, 
-                  backgroundColor: props.color || '#3b82f6', 
-                  color: props.textColor || '#fff', 
+                  backgroundColor: props.color || settings.themePrimaryColor || '#3b82f6', 
+                  color: props.textColor || settings.themeTextColor || '#fff', 
                   padding: `${props.paddingY || 8}px ${props.paddingX || 16}px`, 
-                  borderRadius: `${props.borderRadius || 8}px`,
-                  border: activeStyle.border || 'none',
+                  borderRadius: props.borderRadius !== undefined ? `${props.borderRadius}px` : (settings.themeBorderRadius !== undefined ? `${settings.themeBorderRadius}px` : '8px'),
+                  border: activeStyle.border || (settings.themeBorderColor ? `1px solid ${settings.themeBorderColor}` : 'none'),
                   cursor: isPreviewMode ? 'pointer' : 'move',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -909,6 +913,115 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           }}
         />
       ))}
+
+      {(() => {
+        const activeId = draggingObj?.id || resizingObj?.id;
+        if (!activeId) return null;
+        const activeElement = document.getElementById(activeId);
+        if (!activeElement) return null;
+        
+        const parentElement = activeElement.parentElement;
+        if (!parentElement) return null;
+
+        const activeRect = activeElement.getBoundingClientRect();
+        const parentRect = parentElement.getBoundingClientRect();
+
+        // Calculate relative coordinates in pixels
+        const left = Math.round(activeRect.left - parentRect.left);
+        const top = Math.round(activeRect.top - parentRect.top);
+        const right = Math.round(parentRect.right - activeRect.right);
+        const bottom = Math.round(parentRect.bottom - activeRect.bottom);
+        const width = Math.round(activeRect.width);
+        const height = Math.round(activeRect.height);
+
+        return (
+          <div className="absolute inset-0 pointer-events-none z-[9999]">
+            {/* Outline around active HUD object */}
+            <div 
+              className="absolute border border-dashed border-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.4)]"
+              style={{
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                height: `${height}px`
+              }}
+            >
+              {/* Dimensions Tooltip */}
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-pink-600 text-white text-[9px] font-mono px-1.5 py-0.5 rounded shadow border border-pink-400/30 whitespace-nowrap z-50">
+                {width} × {height} px
+              </div>
+            </div>
+
+            {/* Left Edge Tracker */}
+            <div 
+              className="absolute border-t border-dashed border-pink-500/60"
+              style={{
+                left: 0,
+                top: `${top + height / 2}px`,
+                width: `${left}px`,
+                height: 0
+              }}
+            >
+              {left > 15 && (
+                <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1c1917]/95 border border-pink-500/40 text-pink-400 text-[8px] font-mono px-1 rounded-sm shadow">
+                  {left}px
+                </div>
+              )}
+            </div>
+
+            {/* Right Edge Tracker */}
+            <div 
+              className="absolute border-t border-dashed border-pink-500/60"
+              style={{
+                left: `${left + width}px`,
+                top: `${top + height / 2}px`,
+                width: `${right}px`,
+                height: 0
+              }}
+            >
+              {right > 15 && (
+                <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1c1917]/95 border border-pink-500/40 text-pink-400 text-[8px] font-mono px-1 rounded-sm shadow">
+                  {right}px
+                </div>
+              )}
+            </div>
+
+            {/* Top Edge Tracker */}
+            <div 
+              className="absolute border-l border-dashed border-pink-500/60"
+              style={{
+                left: `${left + width / 2}px`,
+                top: 0,
+                width: 0,
+                height: `${top}px`
+              }}
+            >
+              {top > 15 && (
+                <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1c1917]/95 border border-pink-500/40 text-pink-400 text-[8px] font-mono px-1 rounded-sm shadow">
+                  {top}px
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Edge Tracker */}
+            <div 
+              className="absolute border-l border-dashed border-pink-500/60"
+              style={{
+                left: `${left + width / 2}px`,
+                top: `${top + height}px`,
+                width: 0,
+                height: `${bottom}px`
+              }}
+            >
+              {bottom > 15 && (
+                <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1c1917]/95 border border-pink-500/40 text-pink-400 text-[8px] font-mono px-1 rounded-sm shadow">
+                  {bottom}px
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

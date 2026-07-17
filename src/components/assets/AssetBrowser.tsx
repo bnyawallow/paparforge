@@ -19,6 +19,7 @@ import {
   Layers, 
   Volume2, 
   Plus, 
+  Type,
   Check, 
   Eye, 
   Info,
@@ -26,7 +27,8 @@ import {
   Search,
   Sun,
   Globe,
-  Folder
+  Folder,
+  LayoutGrid
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 
@@ -557,7 +559,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'templates' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting';
+type CategoryTab = 'templates' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
 
 export function AssetBrowser() {
   const { 
@@ -821,6 +823,14 @@ export function AssetBrowser() {
 
 
   const TEMPLATES = [
+    // 2D HUD Screen Overlays
+    { id: 't-hudCanvas', type: 'hudCanvas', name: 'HUD Canvas', icon: LayoutGrid, color: 'text-cyan-400', desc: 'Flexbox base container for 2D screen elements', tags: ['2d', 'ui', 'hud'] },
+    { id: 't-hudText', type: 'hudText', name: 'HUD Text', icon: Type, color: 'text-blue-400', desc: 'Text element rendered inside screen overlays', tags: ['2d', 'ui', 'hud'] },
+    { id: 't-hudButton', type: 'hudButton', name: 'HUD Button', icon: Zap, color: 'text-yellow-400', desc: 'Interactive screen button with trigger events', tags: ['2d', 'ui', 'hud'] },
+    { id: 't-hudImage', type: 'hudImage', name: 'HUD Image', icon: ImageIcon, color: 'text-pink-400', desc: 'Image billboard rendered inside screen overlays', tags: ['2d', 'ui', 'hud'] },
+    { id: 't-hudEmbed', type: 'hudEmbed', name: 'HUD Web Frame', icon: Globe, color: 'text-purple-400', desc: 'Embedded webpage frame inside screen overlays', tags: ['2d', 'ui', 'hud'] },
+
+    // 3D Spatial Primitives & Media
     { id: 't-box', type: 'box', name: 'Cube', icon: Box, color: 'text-blue-400', desc: 'Standard 3D Cube', tags: ['3d', 'primitive'] },
     { id: 't-sphere', type: 'sphere', name: 'Sphere', icon: Box, color: 'text-indigo-400', desc: 'Standard 3D Sphere', tags: ['3d', 'primitive'] },
     { id: 't-plane', type: 'plane', name: 'Plane', icon: Box, color: 'text-slate-400', desc: '2D Billboard Plane', tags: ['3d', 'primitive'] },
@@ -885,6 +895,653 @@ export function AssetBrowser() {
     }
     useEditorStore.getState().addObject(newObj);
     showToast(`Added ${newObj.name}`);
+  };
+
+  const handleAddHUDLayout = (layoutType: string) => {
+    const parentCanvasId = uuidv4();
+    const batchObjects: any[] = [];
+
+    if (layoutType === 'header-footer') {
+      // 1. Parent Canvas
+      batchObjects.push({
+        id: parentCanvasId,
+        name: 'Header-Footer Scaffold',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: null,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'stretch',
+          layoutJustifyContent: 'space-between',
+          backgroundColor: '#0c0a09',
+          opacity: 0.1,
+          layoutPadding: 20,
+          layoutGap: 16
+        }
+      });
+
+      // 2. Header Canvas
+      const headerId = uuidv4();
+      batchObjects.push({
+        id: headerId,
+        name: 'HUD Header',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'row',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'space-between',
+          backgroundColor: '#1c1917',
+          opacity: 0.85,
+          layoutPadding: 16,
+          layoutGap: 12,
+          blur: 10,
+          borderRadius: 12,
+          height: 70
+        }
+      });
+
+      // Header Text
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Header Title',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: headerId,
+        properties: {
+          text: '⚡ SPATIAL MONITOR v1.0',
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: '#38bdf8'
+        }
+      });
+
+      // Header Button
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Header Action',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: headerId,
+        properties: {
+          text: 'RESET CORE',
+          color: '#ef4444',
+          textColor: '#ffffff',
+          borderRadius: 6,
+          paddingX: 12,
+          paddingY: 6
+        }
+      });
+
+      // 3. Central Content Area
+      const contentId = uuidv4();
+      batchObjects.push({
+        id: contentId,
+        name: 'HUD Content View',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center',
+          backgroundColor: '#000000',
+          opacity: 0.0,
+          layoutPadding: 16,
+          layoutGap: 12
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Content Description',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: contentId,
+        properties: {
+          text: 'No warnings detected. Neural linkages are green.',
+          fontSize: 16,
+          color: '#a8a29e',
+          textAlign: 'center'
+        }
+      });
+
+      // 4. Footer Canvas
+      const footerId = uuidv4();
+      batchObjects.push({
+        id: footerId,
+        name: 'HUD Footer',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'row',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center',
+          backgroundColor: '#1c1917',
+          opacity: 0.85,
+          layoutPadding: 12,
+          layoutGap: 16,
+          borderRadius: 12,
+          height: 60
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Footer Action Button',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: footerId,
+        properties: {
+          text: 'PROCEED TO SYSTEM DIAGNOSTIC',
+          color: '#10b981',
+          textColor: '#ffffff',
+          borderRadius: 8,
+          paddingX: 20,
+          paddingY: 8
+        }
+      });
+    } else if (layoutType === 'split-screen') {
+      // Row Flex Split-Screen Parent
+      batchObjects.push({
+        id: parentCanvasId,
+        name: 'Split-Screen Layout',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: null,
+        properties: {
+          layoutMode: 'row',
+          layoutAlignItems: 'stretch',
+          layoutJustifyContent: 'start',
+          backgroundColor: '#0c0a09',
+          opacity: 0.1,
+          layoutPadding: 16,
+          layoutGap: 16
+        }
+      });
+
+      // Sidebar
+      const sidebarId = uuidv4();
+      batchObjects.push({
+        id: sidebarId,
+        name: 'Left Sidebar Pane',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'start',
+          backgroundColor: '#1c1917',
+          opacity: 0.9,
+          layoutPadding: 20,
+          layoutGap: 12,
+          borderRadius: 16,
+          width: 260
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Sidebar Header Text',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: sidebarId,
+        properties: {
+          text: '🛠️ CONTROLS',
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#e7e5e4'
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Nav Button 1',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: sidebarId,
+        properties: {
+          text: 'DASHBOARD',
+          color: '#3b82f6',
+          textColor: '#ffffff',
+          borderRadius: 6,
+          paddingX: 16,
+          paddingY: 8
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Nav Button 2',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: sidebarId,
+        properties: {
+          text: 'TELEMETRY SETTINGS',
+          color: '#44403c',
+          textColor: '#d6d3d1',
+          borderRadius: 6,
+          paddingX: 16,
+          paddingY: 8
+        }
+      });
+
+      // Right Main Pane
+      const mainPaneId = uuidv4();
+      batchObjects.push({
+        id: mainPaneId,
+        name: 'Right Main Pane',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center',
+          backgroundColor: '#18181b',
+          opacity: 0.6,
+          layoutPadding: 24,
+          layoutGap: 16,
+          borderRadius: 16
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Main Title',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: mainPaneId,
+        properties: {
+          text: 'Operational Telemetry Console',
+          fontSize: 22,
+          fontWeight: 'bold',
+          color: '#ffffff'
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Main Image',
+        type: 'hudImage',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: mainPaneId,
+        properties: {
+          textureUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600',
+          width: 320,
+          height: 160,
+          borderRadius: 8
+        }
+      });
+    } else if (layoutType === 'centered-modal') {
+      // Backdrop full-screen Canvas
+      batchObjects.push({
+        id: parentCanvasId,
+        name: 'Backdrop Canvas Overlay',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: null,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center',
+          backgroundColor: '#000000',
+          opacity: 0.65
+        }
+      });
+
+      // Centered Dialog Card
+      const dialogId = uuidv4();
+      batchObjects.push({
+        id: dialogId,
+        name: 'Centered Modal Dialog',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center',
+          backgroundColor: '#1c1917',
+          opacity: 0.95,
+          layoutPadding: 28,
+          layoutGap: 16,
+          blur: 15,
+          borderRadius: 16,
+          width: 480,
+          height: 280
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Modal Title Text',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: dialogId,
+        properties: {
+          text: '⚠️ SYSTEM OVERRIDE CONFIRMATION',
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: '#f97316'
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Modal Body Text',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: dialogId,
+        properties: {
+          text: 'Are you sure you want to initialize neural override controls on the main grid?',
+          fontSize: 14,
+          color: '#d6d3d1',
+          textAlign: 'center'
+        }
+      });
+
+      // Actions row inside modal
+      const actionsId = uuidv4();
+      batchObjects.push({
+        id: actionsId,
+        name: 'Modal Action Bar',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: dialogId,
+        properties: {
+          layoutMode: 'row',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'center',
+          backgroundColor: '#000000',
+          opacity: 0.0,
+          layoutPadding: 0,
+          layoutGap: 16,
+          height: 50
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Confirm Override Button',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: actionsId,
+        properties: {
+          text: 'CONFIRM OVERRIDE',
+          color: '#ea580c',
+          textColor: '#ffffff',
+          borderRadius: 6,
+          paddingX: 16,
+          paddingY: 8
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Cancel Override Button',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: actionsId,
+        properties: {
+          text: 'ABORT ACTION',
+          color: '#44403c',
+          textColor: '#d6d3d1',
+          borderRadius: 6,
+          paddingX: 16,
+          paddingY: 8
+        }
+      });
+    } else if (layoutType === 'status-grid') {
+      // Full screen parent Column layout
+      batchObjects.push({
+        id: parentCanvasId,
+        name: 'Top/Bottom Layout Scaffold',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: null,
+        properties: {
+          layoutMode: 'column',
+          layoutAlignItems: 'stretch',
+          layoutJustifyContent: 'space-between',
+          backgroundColor: '#0c0a09',
+          opacity: 0.0,
+          layoutPadding: 16,
+          layoutGap: 16
+        }
+      });
+
+      // Top bar canvas
+      const topBarId = uuidv4();
+      batchObjects.push({
+        id: topBarId,
+        name: 'Top Status Bar',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'row',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'space-between',
+          backgroundColor: '#18181b',
+          opacity: 0.9,
+          layoutPadding: 12,
+          layoutGap: 12,
+          borderRadius: 8,
+          height: 50
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Top Status Text',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: topBarId,
+        properties: {
+          text: '🟢 SYSTEM LINK: HEALTHY',
+          fontSize: 14,
+          fontWeight: 'bold',
+          color: '#10b981'
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Top Status Button',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: topBarId,
+        properties: {
+          text: 'RE-SYNC LINK',
+          color: '#3b82f6',
+          textColor: '#ffffff',
+          borderRadius: 4,
+          paddingX: 10,
+          paddingY: 4
+        }
+      });
+
+      // Bottom bar canvas
+      const bottomBarId = uuidv4();
+      batchObjects.push({
+        id: bottomBarId,
+        name: 'Bottom Status Bar',
+        type: 'hudCanvas',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentCanvasId,
+        properties: {
+          layoutMode: 'row',
+          layoutAlignItems: 'center',
+          layoutJustifyContent: 'space-between',
+          backgroundColor: '#18181b',
+          opacity: 0.9,
+          layoutPadding: 12,
+          layoutGap: 12,
+          borderRadius: 8,
+          height: 50
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Bottom Status Text',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: bottomBarId,
+        properties: {
+          text: '⚡ BATTERY CHASSIS: 98% (CHARGING)',
+          fontSize: 14,
+          color: '#eab308'
+        }
+      });
+
+      batchObjects.push({
+        id: uuidv4(),
+        name: 'Bottom Settings Button',
+        type: 'hudButton',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: bottomBarId,
+        properties: {
+          text: 'RE-CALIBRATE ENERGY',
+          color: '#ca8a04',
+          textColor: '#ffffff',
+          borderRadius: 4,
+          paddingX: 10,
+          paddingY: 4
+        }
+      });
+    }
+
+    // Add all batch objects sequentially to the scene tree
+    batchObjects.forEach(obj => {
+      useEditorStore.getState().addObject(obj);
+    });
+
+    showToast(`Deployed preset scaffold "${layoutType}" directly to the scene.`);
   };
 
   return (
@@ -972,11 +1629,11 @@ export function AssetBrowser() {
           
 
           <button 
-            onClick={() => setActiveTab('templates')}
-            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'templates' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+            onClick={() => setActiveTab('layouts')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'layouts' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <Sparkles size={16} className={activeTab === "templates" ? "text-white" : "text-emerald-400"} />
-            <span className="font-medium">Templates & Primitives</span>
+            <LayoutGrid size={16} className={activeTab === "layouts" ? "text-white" : "text-cyan-400"} />
+            <span className="font-medium">2D HUD Layouts</span>
           </button>
           
           <button 
@@ -1083,25 +1740,189 @@ export function AssetBrowser() {
                   </button>
                 ))}
 
-                {TEMPLATES.filter(t => {
-                  const matchSearch = t.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) || t.desc.toLowerCase().includes(templateSearchQuery.toLowerCase());
-                  const matchTag = templateFilterTag === 'all' || t.tags.includes(templateFilterTag);
-                  return matchSearch && matchTag;
-                }).map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => { handleAddTemplate(t.type); setIsAssetBrowserOpen(false); }}
-                    className="flex flex-col items-center p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-center gap-3 shadow-sm hover:shadow-emerald-500/10"
-                  >
-                    <div className="p-3 bg-black/40 rounded-xl group-hover:bg-black/60 shadow-inner">
-                      <t.icon size={28} className={`${t.color} group-hover:scale-110 transition-transform`} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">{t.name}</h4>
-                      <p className="text-[10px] text-gray-400 mt-1 leading-tight">{t.desc}</p>
-                    </div>
-                  </button>
-                ))}
+                {templateSearchQuery.trim() !== '' ? (
+                  TEMPLATES.filter(t => {
+                    const matchSearch = t.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) || t.desc.toLowerCase().includes(templateSearchQuery.toLowerCase());
+                    const matchTag = templateFilterTag === 'all' || t.tags.includes(templateFilterTag);
+                    return matchSearch && matchTag;
+                  }).map((t) => {
+                    const IconComp = t.icon;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => { handleAddTemplate(t.type); setIsAssetBrowserOpen(false); }}
+                        className="flex flex-col items-center p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-center gap-3 shadow-sm hover:shadow-emerald-500/10"
+                      >
+                        <div className="p-3 bg-black/40 rounded-xl group-hover:bg-black/60 shadow-inner">
+                          <IconComp size={28} className={`${t.color} group-hover:scale-110 transition-transform`} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white">{t.name}</h4>
+                          <p className="text-[10px] text-gray-400 mt-1 leading-tight">{t.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <>
+                    {/* Category 1: 2D HUD Screen Overlays */}
+                    {(templateFilterTag === 'all' || templateFilterTag === '2d' || templateFilterTag === 'hud' || templateFilterTag === 'ui') && (
+                      <>
+                        <div className="col-span-full text-xs font-bold text-[#06b6d4] uppercase tracking-wider border-b border-[#06b6d4]/20 pb-1.5 mb-1 mt-4 flex items-center gap-2">
+                          <LayoutGrid size={14} />
+                          2D HUD Screen Overlay Elements
+                        </div>
+                        {TEMPLATES.filter(t => t.tags.includes('hud') && (templateFilterTag === 'all' || t.tags.includes(templateFilterTag))).map((t) => {
+                          const IconComp = t.icon;
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => { handleAddTemplate(t.type); setIsAssetBrowserOpen(false); }}
+                              className="flex flex-col items-center p-4 bg-cyan-950/25 hover:bg-cyan-900/35 border border-cyan-500/10 hover:border-cyan-400/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-center gap-3 shadow-sm hover:shadow-cyan-500/10"
+                            >
+                              <div className="p-3 bg-black/40 rounded-xl group-hover:bg-black/60 shadow-inner">
+                                <IconComp size={28} className={`${t.color} group-hover:scale-110 transition-transform`} />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-white">{t.name}</h4>
+                                <p className="text-[10px] text-gray-400 mt-1 leading-snug line-clamp-2">{t.desc}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Category 2: 3D Spatial Geometries & Nodes */}
+                    {(templateFilterTag === 'all' || templateFilterTag === '3d' || templateFilterTag === 'primitive' || templateFilterTag === 'logic' || templateFilterTag === 'media' || templateFilterTag === 'vfx') && (
+                      <>
+                        <div className="col-span-full text-xs font-bold text-[#ec4899] uppercase tracking-wider border-b border-[#ec4899]/20 pb-1.5 mb-1 mt-6 flex items-center gap-2">
+                          <Box size={14} />
+                          3D Spatial Scene Entities
+                        </div>
+                        {TEMPLATES.filter(t => !t.tags.includes('hud') && (templateFilterTag === 'all' || t.tags.includes(templateFilterTag))).map((t) => {
+                          const IconComp = t.icon;
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => { handleAddTemplate(t.type); setIsAssetBrowserOpen(false); }}
+                              className="flex flex-col items-center p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-center gap-3 shadow-sm hover:shadow-emerald-500/10"
+                            >
+                              <div className="p-3 bg-black/40 rounded-xl group-hover:bg-black/60 shadow-inner">
+                                <IconComp size={28} className={`${t.color} group-hover:scale-110 transition-transform`} />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-white">{t.name}</h4>
+                                <p className="text-[10px] text-gray-400 mt-1 leading-snug line-clamp-2">{t.desc}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* LAYOUTS TAB */}
+          {activeTab === 'layouts' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-6 px-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <LayoutGrid className="text-cyan-400" />
+                  2D HUD Layout Presets
+                </h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Deploy pre-configured 2D HUD structural layouts using CSS flexbox to scaffold your spatial screen interfaces instantly.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 content-start overflow-y-auto pr-2 pb-20">
+                <button
+                  onClick={() => { handleAddHUDLayout('header-footer'); setIsAssetBrowserOpen(false); }}
+                  className="flex flex-col p-5 bg-gradient-to-br from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 border border-white/10 hover:border-cyan-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-left gap-2.5 shadow-sm hover:shadow-cyan-500/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono bg-cyan-950/40 border border-cyan-800/30 px-2.5 py-1 rounded">
+                      FLEX: COLUMN (STRETCH)
+                    </span>
+                    <Layers size={16} className="text-cyan-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">🚀 Header-Footer Scaffold</h4>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Spawns a full-screen parent layout with a frosted glass Header Bar (for titles), a central content panel, and a Footer Button Bar for controls.
+                  </p>
+                  <div className="mt-2 pt-2 border-t border-white/5 flex gap-2">
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Header</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Footer</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Actions</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { handleAddHUDLayout('split-screen'); setIsAssetBrowserOpen(false); }}
+                  className="flex flex-col p-5 bg-gradient-to-br from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 border border-white/10 hover:border-cyan-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-left gap-2.5 shadow-sm hover:shadow-cyan-500/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono bg-cyan-950/40 border border-cyan-800/30 px-2.5 py-1 rounded">
+                      FLEX: ROW (STRETCH)
+                    </span>
+                    <LayoutGrid size={16} className="text-cyan-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">📊 Split-Screen Dashboard</h4>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Creates a dual-pane setup with a left-docked 30% Control Sidebar (holding navigations) and a right-docked 70% content area detailing telemetry.
+                  </p>
+                  <div className="mt-2 pt-2 border-t border-white/5 flex gap-2">
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Sidebar</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Monitor</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Grid</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { handleAddHUDLayout('centered-modal'); setIsAssetBrowserOpen(false); }}
+                  className="flex flex-col p-5 bg-gradient-to-br from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 border border-white/10 hover:border-cyan-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-left gap-2.5 shadow-sm hover:shadow-cyan-500/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono bg-emerald-950/40 border border-emerald-800/30 px-2.5 py-1 rounded">
+                      FLEX: CENTER (CENTER)
+                    </span>
+                    <Zap size={16} className="text-emerald-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">⚠️ Centered Dialog Modal</h4>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Spawns a full-screen dark backdrop overlay containing a beautifully styled, centered pop-up dialog panel with confirmation action buttons.
+                  </p>
+                  <div className="mt-2 pt-2 border-t border-white/5 flex gap-2">
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Modal</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Popup</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Overlay</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { handleAddHUDLayout('status-grid'); setIsAssetBrowserOpen(false); }}
+                  className="flex flex-col p-5 bg-gradient-to-br from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 border border-white/10 hover:border-cyan-500/50 rounded-2xl transition-all cursor-pointer group hover:scale-105 active:scale-95 text-left gap-2.5 shadow-sm hover:shadow-cyan-500/10"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono bg-cyan-950/40 border border-cyan-800/30 px-2.5 py-1 rounded">
+                      FLEX: ROW (SPACE-BETWEEN)
+                    </span>
+                    <Volume2 size={16} className="text-cyan-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">🟢 Top/Bottom Status Bar</h4>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Spawns a sleek top-docked connection status bar and a bottom-docked calibration control ribbon across the viewport boundaries.
+                  </p>
+                  <div className="mt-2 pt-2 border-t border-white/5 flex gap-2">
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Status Bar</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Top Bar</span>
+                    <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wide bg-white/5 px-2 py-0.5 rounded">Compact</span>
+                  </div>
+                </button>
               </div>
             </div>
           )}
