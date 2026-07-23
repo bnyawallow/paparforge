@@ -231,45 +231,151 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
   return { objects, rootObjects };
 };
 
-const ensureImageTargetLocked = (objects: Record<string, SceneObject>) => {
-  if (!objects) return objects;
-  const updated = { ...objects };
-  Object.keys(updated).forEach(id => {
-    if (updated[id]) {
-      let obj = updated[id];
-      let needsUpdate = false;
-      let newType = obj.type;
-      
-      if (obj.type === 'imageTarget' && !obj.locked) {
-        obj.locked = true;
-        needsUpdate = true;
+const normalizeSceneHierarchyAndLockImageTarget = (objects: Record<string, SceneObject>, rootObjects?: string[]) => {
+  if (!objects || Object.keys(objects).length === 0) {
+    const imageTargetId = uuidv4();
+    const defaultImageTarget: SceneObject = {
+      id: imageTargetId,
+      name: 'Image Target',
+      type: 'imageTarget',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      locked: true,
+      children: [],
+      parentId: null,
+      properties: { physicalWidth: 0.1 }
+    };
+    return {
+      objects: { [imageTargetId]: defaultImageTarget },
+      rootObjects: [imageTargetId]
+    };
+  }
+
+  const updatedObjects: Record<string, SceneObject> = {};
+  
+  // 1. Shallow copy & legacy type conversions
+  Object.keys(objects).forEach(id => {
+    if (!objects[id]) return;
+    const obj = { ...objects[id] };
+    
+    if (obj.type === 'imageTarget') {
+      obj.locked = true;
+    }
+
+    const typeStr = obj.type as string;
+    if (typeStr === 'overlay2d') { obj.type = 'hudCanvas'; }
+    else if (typeStr === 'overlayText') { obj.type = 'hudText'; }
+    else if (typeStr === 'overlayButton') { obj.type = 'hudButton'; }
+    else if (typeStr === 'overlayImage') { obj.type = 'hudImage'; }
+    else if (typeStr === 'overlayEmbed') { obj.type = 'hudEmbed'; }
+
+    if (obj.name && obj.name.includes('Overlay')) {
+      obj.name = obj.name.replace(/Overlay/g, 'HUD');
+    }
+
+    obj.children = []; // Rebuild children deterministically
+    updatedObjects[id] = obj;
+  });
+
+  // 2. Ensure imageTarget exists
+  let imageTarget = Object.values(updatedObjects).find(o => o.type === 'imageTarget');
+  if (!imageTarget) {
+    const imageTargetId = uuidv4();
+    imageTarget = {
+      id: imageTargetId,
+      name: 'Image Target',
+      type: 'imageTarget',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      locked: true,
+      children: [],
+      parentId: null,
+      properties: { physicalWidth: 0.1 }
+    };
+    updatedObjects[imageTargetId] = imageTarget;
+  }
+
+  // 3. Ensure default hudCanvas exists if there are HUD elements
+  const HUD_ELEMENT_TYPES = ['hudText', 'hudButton', 'hudImage', 'hudEmbed'];
+  const hasHudElements = Object.values(updatedObjects).some(o => HUD_ELEMENT_TYPES.includes(o.type));
+  let defaultHudCanvas = Object.values(updatedObjects).find(o => o.type === 'hudCanvas');
+
+  if (hasHudElements && !defaultHudCanvas) {
+    const canvasId = uuidv4();
+    defaultHudCanvas = {
+      id: canvasId,
+      name: 'HUD Canvas',
+      type: 'hudCanvas',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [],
+      parentId: null,
+      properties: {
+        layoutMode: 'column',
+        layoutAlignItems: 'center',
+        layoutJustifyContent: 'center',
+        backgroundColor: '#1c1917',
+        opacity: 0.85,
+        layoutPadding: 16,
+        layoutGap: 8,
+        themeBorderRadius: 12,
+        themeBlur: 4,
       }
-      
-      // Convert legacy overlay types to HUD types
-      const typeStr = obj.type as string;
-      if (typeStr === 'overlay2d') { newType = 'hudCanvas'; needsUpdate = true; }
-      else if (typeStr === 'overlayText') { newType = 'hudText'; needsUpdate = true; }
-      else if (typeStr === 'overlayButton') { newType = 'hudButton'; needsUpdate = true; }
-      else if (typeStr === 'overlayImage') { newType = 'hudImage'; needsUpdate = true; }
-      else if (typeStr === 'overlayEmbed') { newType = 'hudEmbed'; needsUpdate = true; }
-      
-      if (needsUpdate) {
-        let newName = obj.name;
-        if (newName.includes('Overlay')) {
-          newName = newName.replace(/Overlay/g, 'HUD');
-        }
-        if (newName === 'HUD Group' || newName === 'HUD 2D Canvas') {
-          newName = 'HUD Canvas';
-        }
-        updated[id] = {
-          ...obj,
-          type: newType,
-          name: newName,
-        };
+    };
+    updatedObjects[canvasId] = defaultHudCanvas;
+  }
+
+  // 4. Validate & assign parentId for all objects according to strict rules:
+  // - imageTarget and hudCanvas MUST have parentId: null (placed at root)
+  // - HUD elements MUST be parented by a hudCanvas
+  // - All other objects MUST be children of active imageTarget (or a descendant of imageTarget)
+  Object.keys(updatedObjects).forEach(id => {
+    const obj = updatedObjects[id];
+
+    if (obj.type === 'imageTarget' || obj.type === 'hudCanvas') {
+      obj.parentId = null;
+    } else if (HUD_ELEMENT_TYPES.includes(obj.type)) {
+      const currentParent = obj.parentId ? updatedObjects[obj.parentId] : null;
+      if (!currentParent || currentParent.type !== 'hudCanvas') {
+        obj.parentId = defaultHudCanvas ? defaultHudCanvas.id : null;
+      }
+    } else {
+      // Non-HUD / 3D element: check if current parent is valid (not null, not hudCanvas, and exists)
+      const currentParent = obj.parentId ? updatedObjects[obj.parentId] : null;
+      if (!currentParent || currentParent.type === 'hudCanvas' || currentParent.id === obj.id) {
+        obj.parentId = imageTarget!.id;
       }
     }
   });
-  return updated;
+
+  // 5. Rebuild children arrays & rootObjects array
+  const updatedRootObjects: string[] = [];
+  if (updatedObjects[imageTarget.id]) {
+    updatedRootObjects.push(imageTarget.id);
+  }
+
+  Object.keys(updatedObjects).forEach(id => {
+    const obj = updatedObjects[id];
+    if (obj.parentId && updatedObjects[obj.parentId]) {
+      updatedObjects[obj.parentId].children.push(id);
+    } else {
+      if (!updatedRootObjects.includes(id)) {
+        updatedRootObjects.push(id);
+      }
+    }
+  });
+
+  return { objects: updatedObjects, rootObjects: updatedRootObjects };
+};
+
+const ensureImageTargetLocked = (objects: Record<string, SceneObject>) => {
+  return normalizeSceneHierarchyAndLockImageTarget(objects).objects;
 };
 
 
@@ -585,6 +691,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   settings: initialSettings,
   transformMode: 'translate',
   transformSpace: 'world',
+  transformGizmoEnabled: true,
   assets: initialAssets,
   copiedObjectData: null,
   isPreviewMode: false,
@@ -690,9 +797,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       newRootObjects.push(targetObj.id);
     }
 
+    const normalized = normalizeSceneHierarchyAndLockImageTarget(newObjects, newRootObjects);
+
     return { 
-      objects: newObjects, 
-      rootObjects: newRootObjects,
+      objects: normalized.objects, 
+      rootObjects: normalized.rootObjects,
       past: newPast,
       future: [], // Clear redo stack on new action
       hasUnsavedChanges: true
@@ -1095,6 +1204,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   setTransformMode: (mode) => set({ transformMode: mode }),
   setTransformSpace: (space) => set({ transformSpace: space }),
+  setTransformGizmoEnabled: (enabled) => set({ transformGizmoEnabled: enabled }),
 
   moveObject: (draggedId, targetId) => set((state) => {
     const newObjects = { ...state.objects };

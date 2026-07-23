@@ -77,6 +77,7 @@ export interface EditorState {
   settings: ProjectSettings;
   transformMode: 'translate' | 'rotate' | 'scale';
   transformSpace: 'local' | 'world';
+  transformGizmoEnabled: boolean;
 
   assets: Asset[];
   isPreviewMode: boolean;
@@ -145,6 +146,7 @@ export interface EditorState {
   updateSettings: (updates: Partial<ProjectSettings>) => void;
   setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => void;
   setTransformSpace: (space: 'local' | 'world') => void;
+  setTransformGizmoEnabled: (enabled: boolean) => void;
   moveObject: (draggedId: string, targetId: string) => void;
   duplicateObject: (id: string) => void;
   copyObject: (id: string) => void;

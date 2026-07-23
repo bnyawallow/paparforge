@@ -189,8 +189,9 @@ export function HierarchyPanel({ width }: { width?: number }) {
         if (activeOverlay2d) parentId = activeOverlay2d.id;
       }
     } else {
-      parentId = selectedObjectId;
-      if (!parentId) {
+      if (selectedObjectId && objects[selectedObjectId] && objects[selectedObjectId].type !== 'hudCanvas' && !['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(objects[selectedObjectId].type)) {
+        parentId = selectedObjectId;
+      } else {
         const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
         if (imageTarget) parentId = imageTarget.id;
       }

@@ -37,7 +37,10 @@ import {
   Link2,
   Star,
   X,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  Crosshair
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -1917,13 +1920,14 @@ function isObjectInScene(obj: THREE.Object3D | null | undefined, scene: THREE.Sc
   return false;
 }
 
-function TransformController() {
+function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.RefObject<any> }) {
   const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
   const target = selectedObjectId ? scene.getObjectByName(selectedObjectId) : null;
   const objects = useEditorStore(state => state.objects);
   const transformMode = useEditorStore(state => state.transformMode);
   const transformSpace = useEditorStore(state => state.transformSpace);
+  const transformGizmoEnabled = useEditorStore(state => state.transformGizmoEnabled);
   const updateObject = useEditorStore(state => state.updateObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const controlsRef = useRef<any>(null);
@@ -1938,13 +1942,21 @@ function TransformController() {
   const handleTransform = () => {
     if (!target || !selectedObjectId) return;
     updateObject(selectedObjectId, {
-      position: [target.position.x, target.position.y, target.position.z],
-      rotation: [
-        THREE.MathUtils.radToDeg(target.rotation.x),
-        THREE.MathUtils.radToDeg(target.rotation.y),
-        THREE.MathUtils.radToDeg(target.rotation.z),
+      position: [
+        Number(target.position.x.toFixed(3)),
+        Number(target.position.y.toFixed(3)),
+        Number(target.position.z.toFixed(3))
       ],
-      scale: [target.scale.x, target.scale.y, target.scale.z]
+      rotation: [
+        Number(THREE.MathUtils.radToDeg(target.rotation.x).toFixed(2)),
+        Number(THREE.MathUtils.radToDeg(target.rotation.y).toFixed(2)),
+        Number(THREE.MathUtils.radToDeg(target.rotation.z).toFixed(2))
+      ],
+      scale: [
+        Number(target.scale.x.toFixed(3)),
+        Number(target.scale.y.toFixed(3)),
+        Number(target.scale.z.toFixed(3))
+      ]
     });
   };
 
@@ -1952,49 +1964,49 @@ function TransformController() {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    const callback = (e: any) => {
-      isTransformDragging = e.value;
+    const draggingCallback = (e: any) => {
+      const isDragging = !!e.value;
+      isTransformDragging = isDragging;
+
+      if (orbitControlsRef && orbitControlsRef.current) {
+        orbitControlsRef.current.enabled = !isDragging;
+      }
+
+      if (!isDragging) {
+        handleTransform();
+      }
     };
 
-    controls.addEventListener('dragging-changed', callback);
+    controls.addEventListener('dragging-changed', draggingCallback);
     return () => {
-      controls.removeEventListener('dragging-changed', callback);
+      controls.removeEventListener('dragging-changed', draggingCallback);
       isTransformDragging = false;
-    };
-  }, [target]);
-
-  // Safely attach/detach the object in a layout effect to avoid rendering race conditions with Drei
-  React.useLayoutEffect(() => {
-    const controls = controlsRef.current;
-    if (!controls) return;
-
-    if (target && target.parent && isObjectInScene(target, scene)) {
-      try {
-        controls.attach(target);
-      } catch (err) {
-        console.warn('Failed to attach object to TransformControls:', err);
-      }
-    } else {
-      controls.detach();
-    }
-
-    return () => {
-      if (controls) {
-        controls.detach();
+      if (orbitControlsRef && orbitControlsRef.current) {
+        orbitControlsRef.current.enabled = true;
       }
     };
-  }, [target, scene]);
+  }, [target, selectedObjectId, orbitControlsRef]);
 
-  if (!target || !target.parent || !selectedObjectId || isPreviewMode || !obj || !obj.visible || !isObjectInScene(target, scene)) return null;
-
-  // Hide gizmo if the selected object is locked
-  const isLocked = obj.locked;
-  if (isLocked) return null;
+  if (
+    !transformGizmoEnabled ||
+    !target ||
+    !target.parent ||
+    !selectedObjectId ||
+    isPreviewMode ||
+    !obj ||
+    !obj.visible ||
+    obj.locked ||
+    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) ||
+    !isObjectInScene(target, scene)
+  ) {
+    return null;
+  }
 
   return (
     <TransformControls
-      key={target.uuid}
+      key={selectedObjectId}
       ref={controlsRef}
+      object={target as THREE.Object3D}
       mode={transformMode}
       space={transformSpace}
       onMouseUp={handleTransform}
@@ -2172,36 +2184,36 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
 
   return (
     <group position={[cx, cy, cz]}>
-      {/* 3D Cyan Wireframe Bounding Box */}
+      {/* Sleek Orange Accent Wireframe Bounding Box */}
       <mesh>
         <boxGeometry args={[sx, sy, sz]} />
-        <meshBasicMaterial color="#06b6d4" wireframe transparent opacity={0.4} />
+        <meshBasicMaterial color="#f97316" wireframe transparent opacity={0.6} />
       </mesh>
 
-      {/* Vertex Accent Corner Brackets */}
-      <mesh>
-        <boxGeometry args={[sx * 1.02, sy * 1.02, sz * 1.02]} />
-        <meshBasicMaterial color="#22d3ee" wireframe transparent opacity={0.7} />
-      </mesh>
+      {/* Discrete Corner Vertex Markers */}
+      {[-hx, hx].map((x) =>
+        [-hy, hy].map((y) =>
+          [-hz, hz].map((z) => (
+            <mesh key={`${x}-${y}-${z}`} position={[x, y, z]}>
+              <boxGeometry args={[Math.min(0.04, sx * 0.1), Math.min(0.04, sy * 0.1), Math.min(0.04, sz * 0.1)]} />
+              <meshBasicMaterial color="#ffedd5" />
+            </mesh>
+          ))
+        )
+      )}
 
-      {/* Ground Footprint Ring */}
-      <mesh position={[0, -hy, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[Math.max(hx, hz) * 0.9, Math.max(hx, hz) * 1.05, 32]} />
-        <meshBasicMaterial color="#06b6d4" transparent opacity={0.35} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Floating HTML Selection Badge */}
+      {/* Refined Floating HTML Selection Badge */}
       <Html
-        position={[0, hy + 0.15, 0]}
+        position={[0, hy + 0.18, 0]}
         center
         distanceFactor={6}
         zIndexRange={[100, 0]}
         pointerEvents="none"
       >
-        <div className="flex items-center gap-2 px-2.5 py-1 bg-cyan-950/90 border border-cyan-400/80 text-cyan-200 rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.5)] backdrop-blur-md select-none text-[10px] font-mono tracking-wider uppercase whitespace-nowrap">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="font-bold text-white">{obj.name}</span>
-          <span className="text-cyan-400/80 border-l border-cyan-500/30 pl-2">
+        <div className="flex items-center gap-2 px-2.5 py-1 bg-stone-900/90 border border-orange-500/40 text-orange-200 rounded-md shadow-lg shadow-black/60 backdrop-blur-md select-none text-[10px] font-mono tracking-wide uppercase whitespace-nowrap">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_6px_#f97316]" />
+          <span className="font-semibold text-white tracking-normal text-[11px]">{obj.name}</span>
+          <span className="text-orange-300/80 border-l border-white/10 pl-2 text-[9px] font-mono">
             {sx.toFixed(2)}m × {sy.toFixed(2)}m × {sz.toFixed(2)}m
           </span>
         </div>
@@ -2212,6 +2224,7 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
 
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
+  const orbitControlsRef = useRef<any>(null);
 
   const { 
     addObject, 
@@ -2229,7 +2242,9 @@ export function Viewport() {
     setCameraType,
     wireframeEnabled,
     setWireframeEnabled,
-    isPreviewMode
+    isPreviewMode,
+    transformGizmoEnabled,
+    setTransformGizmoEnabled
   } = useEditorStore();
 
   const objectsRef = useRef(objects);
@@ -3084,14 +3099,14 @@ export function Viewport() {
         ))}
 
         <SelectionHighlight3D />
-        <TransformController />
+        <TransformController orbitControlsRef={orbitControlsRef} />
         <ProjectedPositionsUpdater />
 
         <GizmoHelper alignment="bottom-left" margin={[80, 80]}>
           <GizmoViewport axisColors={['#ef4444', '#10b981', '#3b82f6']} labelColor="white" />
         </GizmoHelper>
 
-        <OrbitControls makeDefault />
+        <OrbitControls ref={orbitControlsRef} makeDefault />
         <BloomEffect />
         <PerformanceTracker />
       </Canvas>
@@ -3120,6 +3135,13 @@ export function Viewport() {
             title="Scale [R / S]"
           >
             <Maximize size={14} />
+          </button>
+          <button 
+            onClick={() => setTransformGizmoEnabled(!transformGizmoEnabled)}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformGizmoEnabled ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-[0_0_10px_rgba(249,115,22,0.2)]' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
+            title={`Toggle 3D Transform Gizmo: Currently ${transformGizmoEnabled ? 'Enabled' : 'Disabled'}`}
+          >
+            <Crosshair size={14} />
           </button>
           <button 
             onClick={() => setTransformSpace(transformSpace === 'local' ? 'world' : 'local')}
