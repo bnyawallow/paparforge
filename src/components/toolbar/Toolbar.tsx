@@ -145,10 +145,10 @@ export function Toolbar() {
             <button 
               onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
               className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300' : 'bg-transparent text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:border-emerald-500/40'}`}
-              title="Open Assets Library"
+              title="Open Asset Browser"
             >
               <FolderOpen size={14} />
-              <span className="hidden sm:inline">Assets Library</span>
+              <span className="hidden sm:inline">Asset Browser</span>
             </button>
             <button 
               onClick={() => setShowVersions(true)}

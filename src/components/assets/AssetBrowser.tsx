@@ -2150,14 +2150,33 @@ export function AssetBrowser() {
                     }}
                   >
                     {/* Visual Thumb */}
-                    <div className="w-full aspect-square flex flex-col items-center justify-center bg-black/40 rounded mb-1 relative overflow-hidden text-center p-2">
-                      <span className="text-3xl group-hover:scale-125 transition-transform">📦</span>
-                      <span className="text-[8px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1 py-0.5 rounded mt-2 uppercase font-mono font-bold tracking-wider leading-none">
-                        {model.creator}
-                      </span>
-                      <div className="absolute inset-0 bg-yellow-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-full aspect-square flex flex-col items-center justify-center bg-black/40 rounded mb-1 relative overflow-hidden text-center p-0">
+                      <iframe 
+                        src={`data:text/html;charset=utf-8,${encodeURIComponent(`
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+                              <style>
+                                body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+                                model-viewer { width: 100vw; height: 100vh; --poster-color: transparent; }
+                              </style>
+                            </head>
+                            <body>
+                              <model-viewer src="${model.url}" auto-rotate camera-controls disable-zoom interaction-prompt="none"></model-viewer>
+                            </body>
+                          </html>
+                        `)}`}
+                        className="w-full h-full border-0 pointer-events-none group-hover:scale-110 transition-transform duration-500"
+                        title={model.name}
+                        sandbox="allow-scripts"
+                      />
+                      <div className="absolute inset-0 bg-yellow-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <Plus size={20} className="text-yellow-400" />
                       </div>
+                      <span className="absolute bottom-1 right-1 text-[8px] bg-black/60 text-yellow-400 px-1 py-0.5 rounded uppercase font-mono font-bold tracking-wider leading-none backdrop-blur pointer-events-none">
+                        {model.creator}
+                      </span>
                     </div>
 
                     <span className="text-xs font-bold text-white truncate w-full">{model.name}</span>

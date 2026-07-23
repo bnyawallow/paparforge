@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, Plus, Trash2, Copy, FileDown, FileUp, Folder, Calendar, ArrowRight, Sparkles, 
-  Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload, Edit2
+  Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload, Edit2, FolderOpen
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
@@ -360,14 +360,24 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                 return (
                   <div
                     key={project.id}
-                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                    className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
                       isActive 
                         ? 'bg-[#1C2433] border-blue-500/30 shadow-inner' 
                         : 'bg-[#181818] border-[#252525] hover:border-[#333333]'
                     }`}
                   >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-4 min-w-0">
+                      {project.thumbnail ? (
+                        <div className="w-16 h-12 rounded bg-[#0C0C0C] border border-[#2A2A2A] overflow-hidden shrink-0">
+                          <img src={project.thumbnail} alt={project.name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-12 rounded bg-[#0C0C0C] border border-[#2A2A2A] flex items-center justify-center shrink-0">
+                          <FolderOpen size={16} className="text-[#444]" />
+                        </div>
+                      )}
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-[#555]'}`}></span>
                         {renamingProjectId === project.id ? (
                           <input
@@ -396,6 +406,7 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                           <Calendar size={11} />
                           Updated: {new Date(project.updatedAt).toLocaleDateString()} at {new Date(project.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
+                      </div>
                       </div>
                     </div>
 

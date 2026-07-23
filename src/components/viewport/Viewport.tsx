@@ -1920,6 +1920,31 @@ function isObjectInScene(obj: THREE.Object3D | null | undefined, scene: THREE.Sc
   return false;
 }
 
+function ThumbnailCapturer() {
+  const gl = useThree((state) => state.gl);
+  const currentProjectId = useEditorStore((state) => state.currentProjectId);
+  const lastSavedTime = useEditorStore((state) => state.lastSavedTime);
+  const updateProjectThumbnail = useEditorStore((state) => state.updateProjectThumbnail);
+  const lastCapturedTime = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (lastSavedTime && lastSavedTime !== lastCapturedTime.current) {
+      lastCapturedTime.current = lastSavedTime;
+      // Small delay to ensure render is complete
+      setTimeout(() => {
+        try {
+          const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.5);
+          updateProjectThumbnail(currentProjectId, dataUrl);
+        } catch (e) {
+          console.error('Failed to capture thumbnail:', e);
+        }
+      }, 100);
+    }
+  }, [lastSavedTime, gl, currentProjectId, updateProjectThumbnail]);
+
+  return null;
+}
+
 function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.RefObject<any> }) {
   const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
@@ -3052,6 +3077,7 @@ export function Viewport() {
       <Canvas 
         key={cameraType}
         shadows={shadowsEnabled}
+        gl={{ preserveDrawingBuffer: true }}
         orthographic={cameraType === 'orthographic'}
         camera={cameraType === 'orthographic' 
           ? { position: [0, -4, 4], zoom: 100, up: [0, 0, 1], near: -100, far: 1000 }
@@ -3059,6 +3085,7 @@ export function Viewport() {
         }
         onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
       >
+        <ThumbnailCapturer />
         <color attach="background" args={['#222224']} />
         
         {settings.hdrEnvironmentEnabled && (

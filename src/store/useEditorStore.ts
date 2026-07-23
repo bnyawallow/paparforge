@@ -2120,6 +2120,28 @@ export const useEditorStore = create<EditorState>((set) => ({
     }
   }),
 
+  updateProjectThumbnail: (projectId: string, thumbnailDataUrl: string) => set((state) => {
+    try {
+      const updatedList = state.projectsList.map((p) =>
+        p.id === projectId ? { ...p, thumbnail: thumbnailDataUrl, updatedAt: Date.now() } : p
+      );
+      localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
+
+      const key = getStorageKey(`ar_forge_project_${projectId}`);
+      const existing = localStorage.getItem(key);
+      if (existing) {
+        const parsed = JSON.parse(existing);
+        parsed.thumbnail = thumbnailDataUrl;
+        localStorage.setItem(key, JSON.stringify(parsed));
+      }
+
+      return { projectsList: updatedList };
+    } catch (e) {
+      console.error('Failed to update project thumbnail:', e);
+      return state;
+    }
+  }),
+
   renameProject: (projectId, newName) => set((state) => {
     try {
       const updatedList = state.projectsList.map((p) => 

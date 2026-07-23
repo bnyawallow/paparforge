@@ -140,7 +140,7 @@ export interface EditorState {
   
   // Multi-project state
   currentProjectId: string;
-  projectsList: { id: string; name: string; createdAt: number; updatedAt: number }[];
+  projectsList: { id: string; name: string; createdAt: number; updatedAt: number; thumbnail?: string }[];
   
   // History tracking state
   past: HistorySnapshot[];
@@ -152,6 +152,7 @@ export interface EditorState {
   deleteProject: (projectId: string) => void;
   duplicateProject: (projectId: string) => void;
   saveCurrentProject: () => void;
+  updateProjectThumbnail: (projectId: string, thumbnailDataUrl: string) => void;
   renameProject: (projectId: string, newName: string) => void;
   importProject: (projectJson: string) => string | null;
 
