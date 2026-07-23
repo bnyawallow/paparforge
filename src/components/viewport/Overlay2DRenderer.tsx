@@ -1,9 +1,11 @@
 import React from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
-import { Settings, Grid3X3, Check, Globe, ExternalLink, X } from 'lucide-react';
+import { Settings, Grid3X3, Check, Globe, ExternalLink, X, Sparkles } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { HUDCanvas } from './HUDCanvas';
 import { FONT_LIBRARY } from '../inspector/InspectorPanel';
+import { motion, AnimatePresence } from 'motion/react';
+import { GlassButton } from '../ui/HudComponents';
 
 const LucideIcon = ({ name, size = 16, className }: { name: string; size?: number; className?: string }) => {
   if (!name) return null;
@@ -1146,6 +1148,84 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           </div>
         );
       })()}
+
+      <HotspotCardOverlay />
     </div>
+  );
+}
+
+function HotspotCardOverlay() {
+  const activeHotspotCard = useEditorStore(state => state.activeHotspotCard);
+  const setActiveHotspotCard = useEditorStore(state => state.setActiveHotspotCard);
+
+  if (!activeHotspotCard) return null;
+
+  const color = activeHotspotCard.color || '#06b6d4';
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 pointer-events-auto bg-black/50 backdrop-blur-md">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="w-full max-w-md bg-[#121215]/95 border border-white/20 rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.9)] backdrop-blur-2xl relative overflow-hidden select-none"
+        >
+          {/* Top colored highlight accent */}
+          <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color, boxShadow: `0 0 15px ${color}` }} />
+
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl border border-white/10 bg-white/5" style={{ color }}>
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 font-extrabold block">
+                  Interactive AR Hotspot
+                </span>
+                <h3 className="text-xl font-bold text-white tracking-tight leading-snug">{activeHotspotCard.title}</h3>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveHotspotCard(null)}
+              className="p-1.5 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {activeHotspotCard.mediaUrl && (
+            <div className="mb-4 rounded-xl overflow-hidden border border-white/10 max-h-52 bg-black/60">
+              <img src={activeHotspotCard.mediaUrl} alt={activeHotspotCard.title} className="w-full h-full object-cover" />
+            </div>
+          )}
+
+          <p className="text-sm text-gray-200 leading-relaxed font-sans mb-6">
+            {activeHotspotCard.description}
+          </p>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+            <GlassButton variant="default" size="sm" onClick={() => setActiveHotspotCard(null)}>
+              Close
+            </GlassButton>
+
+            {activeHotspotCard.buttonUrl && (
+              <GlassButton
+                variant="cyan"
+                size="sm"
+                icon={<ExternalLink size={14} />}
+                iconPosition="right"
+                onClick={() => {
+                  window.open(activeHotspotCard.buttonUrl, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                {activeHotspotCard.buttonText || 'Learn More'}
+              </GlassButton>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 }

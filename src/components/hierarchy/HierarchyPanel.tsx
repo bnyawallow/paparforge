@@ -158,6 +158,17 @@ export function HierarchyPanel({ width }: { width?: number }) {
       newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', top: 0, left: 0, width: 200, widthType: 'px', height: 200, heightType: 'px', opacity: 1.0, alignment: 'center', offsetX: 0, offsetY: 0 };
     } else if (type === 'hudEmbed') {
       newObj.properties = { url: 'https://wikipedia.org', top: 0, left: 0, width: 400, widthType: 'px', height: 300, heightType: 'px', opacity: 1.0, alignment: 'center', borderRadius: 12, borderEnabled: true, borderColor: '#2563eb', offsetX: 0, offsetY: 0 };
+    } else if (type === 'hotspot') {
+      newObj.properties = {
+        title: 'Interactive Hotspot',
+        description: 'Tap to view details and specs about this AR feature.',
+        icon: 'Sparkles',
+        beaconColor: '#06b6d4',
+        action: 'show_card',
+        cardButtonText: 'Learn More',
+        cardButtonUrl: 'https://example.com',
+      };
+      newObj.position = [0, 0.5, 0];
     }
 
     const is2DOverlay = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(type);
@@ -1026,17 +1037,25 @@ export function HierarchyPanel({ width }: { width?: number }) {
         )}
 
         {/* Add Component Action Sub-header */}
-        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative">
+        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex items-center gap-1.5">
           <button
             onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
             disabled={isPreviewMode}
-            className="flex items-center justify-between w-full px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] active:bg-[#1E1E1E] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 disabled:cursor-not-allowed rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
+            className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
             title={isPreviewMode ? "Creator disabled in Live Preview" : "Insert 3D Mesh, Media or Interaction element"}
           >
-            <span className="flex items-center gap-1.5">
-              <Plus size={14} className="text-blue-500 stroke-[3]" />
-              <span>Add Asset</span>
-            </span>
+            <Plus size={14} className="text-blue-500 stroke-[3]" />
+            <span>Add Asset</span>
+          </button>
+
+          <button
+            onClick={() => handleAddObject('hotspot')}
+            disabled={isPreviewMode}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/30 hover:border-cyan-400 disabled:opacity-20 rounded-lg text-xs font-bold text-cyan-300 transition-all cursor-pointer shadow-sm select-none"
+            title="Quick add interactive 3D Hotspot touch trigger"
+          >
+            <Sparkles size={13} className="text-cyan-400" />
+            <span>+ Hotspot</span>
           </button>
         </div>
       </div>

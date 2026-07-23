@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Save, Info, Tag, Layers, CheckCircle } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { GlassModal } from '../ui/HudComponents';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -58,8 +59,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <div id="settings-modal-overlay" className="fixed inset-0 bg-[#000000]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#141414] border border-[#2D2D2D] w-full max-w-md rounded-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+    <GlassModal isOpen={true} onClose={onClose} hideHeader={true} maxWidth="max-w-md" className="animate-in fade-in zoom-in-95 duration-150 p-0">
         
         {/* Header */}
         <div className="px-5 py-4 border-b border-[#222222] flex items-center justify-between bg-[#181818]">
@@ -161,7 +161,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </div>
 
         </form>
-      </div>
-    </div>
+    </GlassModal>
   );
 }

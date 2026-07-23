@@ -8,6 +8,7 @@ import { ScriptEditorPanel } from './ScriptEditorPanel';
 import { useEditorStore } from '../../store/useEditorStore';
 import { Smartphone, Tablet, Monitor } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function EditorLayout() {
   const t = useTheme();
@@ -187,22 +188,33 @@ export function EditorLayout() {
         <div className={`flex-1 flex flex-col overflow-hidden transition-colors duration-200 ${t.isLight ? 'bg-[#F9F9FB]' : 'bg-[#111111]'}`}>
           {/* Top segment: Hierarchy Panel and Viewport (3D Editor) side-by-side */}
           <div className="flex-1 flex overflow-hidden relative">
-            {!isPreviewMode && <HierarchyPanel width={leftWidth} />}
-            {!isPreviewMode && (
-              <div 
-                onMouseDown={startResizeLeft}
-                className={`w-1 cursor-col-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
-                title="Drag to resize hierarchy panel"
-              >
-                <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
-                {/* Visual grab indicators in the center of the vertical bar */}
-                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
-                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
-                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
-                </div>
-              </div>
-            )}
+            <AnimatePresence mode="wait">
+              {!isPreviewMode && (
+                <motion.div
+                  key="hierarchy-panel"
+                  initial={{ opacity: 0, x: -30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="flex h-full shrink-0"
+                >
+                  <HierarchyPanel width={leftWidth} />
+                  <div 
+                    onMouseDown={startResizeLeft}
+                    className={`w-1 cursor-col-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
+                    title="Drag to resize hierarchy panel"
+                  >
+                    <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
+                    <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                      <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                      <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="flex-1 relative overflow-hidden">
               {!isPreviewMode && (
                 <div 
@@ -215,46 +227,62 @@ export function EditorLayout() {
           </div>
 
           {/* Bottom segment: ScriptEditorPanel */}
-          {!isPreviewMode && editingScriptObjectId && (
-            <>
-              {/* Resize handle bar */}
-              <div 
-                onMouseDown={startResizeBottom}
-                className={`h-1 cursor-row-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
-                title="Drag to resize script panel"
+          <AnimatePresence>
+            {!isPreviewMode && editingScriptObjectId && (
+              <motion.div
+                key="script-editor-panel"
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 40 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col shrink-0 overflow-hidden"
               >
-                <div className="absolute inset-x-0 -top-1 -bottom-1 cursor-row-resize"></div>
-                {/* Visual grab indicators in the center of the bar */}
-                <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-1/2 flex gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-1.5 h-1 rounded-full bg-blue-400"></div>
-                  <div className="w-1.5 h-1 rounded-full bg-blue-400"></div>
-                  <div className="w-1.5 h-1 rounded-full bg-blue-400"></div>
+                <div 
+                  onMouseDown={startResizeBottom}
+                  className={`h-1 cursor-row-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
+                  title="Drag to resize script panel"
+                >
+                  <div className="absolute inset-x-0 -top-1 -bottom-1 cursor-row-resize"></div>
+                  <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-1/2 flex gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-1.5 h-1 rounded-full bg-blue-400"></div>
+                    <div className="w-1.5 h-1 rounded-full bg-blue-400"></div>
+                    <div className="w-1.5 h-1 rounded-full bg-blue-400"></div>
+                  </div>
+                </div>
+                <div style={{ height: `${bottomHeight}px` }} className="shrink-0 flex flex-col overflow-hidden">
+                  <ScriptEditorPanel />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {!isPreviewMode && (
+            <motion.div
+              key="inspector-panel"
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 30 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="flex h-full shrink-0"
+            >
+              <div 
+                onMouseDown={startResizeRight}
+                className={`w-1 cursor-col-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
+                title="Drag to resize inspector panel"
+              >
+                <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
+                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
+                  <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
                 </div>
               </div>
-              <div style={{ height: `${bottomHeight}px` }} className="shrink-0 flex flex-col overflow-hidden">
-                <ScriptEditorPanel />
-              </div>
-            </>
+              <InspectorPanel width={rightWidth} />
+            </motion.div>
           )}
-        </div>
-        {!isPreviewMode && (
-          <>
-            <div 
-              onMouseDown={startResizeRight}
-              className={`w-1 cursor-col-resize transition-all shrink-0 z-40 relative group ${t.isLight ? 'bg-gray-200 hover:bg-blue-500' : 'bg-[#222] hover:bg-blue-500'}`}
-              title="Drag to resize inspector panel"
-            >
-              <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"></div>
-              {/* Visual grab indicators in the center of the vertical bar */}
-              <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
-                <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
-                <div className="w-1 h-1.5 rounded-full bg-blue-400"></div>
-              </div>
-            </div>
-            <InspectorPanel width={rightWidth} />
-          </>
-        )}
+        </AnimatePresence>
       </div>
     </div>
   );

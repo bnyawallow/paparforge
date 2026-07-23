@@ -4,6 +4,8 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { X, Copy, Check, Download, Globe, Code, Cpu, Sparkles, AlertCircle, Play, ExternalLink, QrCode } from 'lucide-react';
 import { SceneObject } from '../../types';
 
+import { GlassModal } from '../ui/HudComponents';
+
 export function PublishModal({ onClose }: { onClose: () => void }) {
   const { objects, rootObjects, settings, updateSettings, isPreviewMode } = useEditorStore();
   const [activeTab, setActiveTab] = useState<'cloud' | 'developer'>('cloud');
@@ -156,9 +158,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-[#141414] border border-[#262626] rounded-2xl w-full max-w-4xl flex flex-col max-h-[90vh] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden">
-        
+    <GlassModal isOpen={true} onClose={onClose} hideHeader={true} maxWidth="max-w-4xl" className="flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#222]">
           <div className="flex items-center gap-2.5">
@@ -488,7 +488,6 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-      </div>
-    </div>
+    </GlassModal>
   );
 }

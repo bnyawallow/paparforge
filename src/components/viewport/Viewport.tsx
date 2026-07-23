@@ -6,6 +6,7 @@ import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, Gizm
 import { useEditorStore } from '../../store/useEditorStore';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
+import { GlassCard, GlassFAB } from '../ui/HudComponents';
 import { Overlay2DRenderer } from "./Overlay2DRenderer";
 import { BloomEffect } from './BloomEffect';
 import { 
@@ -27,7 +28,16 @@ import {
   Layers,
   Compass,
   Globe,
-  Zap
+  Zap,
+  Info,
+  HelpCircle,
+  Tag,
+  Volume2,
+  Play,
+  Link2,
+  Star,
+  X,
+  ExternalLink
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -1816,6 +1826,8 @@ function ObjectRenderer({ id }: { id: string }) {
             <meshStandardMaterial color="#888" wireframe />
           </mesh>
         );
+      case 'hotspot':
+        return <Hotspot3DRenderer obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       default:
         return null;
     }
@@ -1997,6 +2009,206 @@ const VIDEO_URLS = {
   livingroom: 'https://player.vimeo.com/external/435674703.sd.mp4?s=6f4188cbcd97ec1994e66699319e0094038a306f&profile_id=139&oauth2_token_id=57447761',
   techlab: 'https://player.vimeo.com/external/430810795.sd.mp4?s=d740c83a15af820c7cc61899532551e18cc8ef24&profile_id=139&oauth2_token_id=57447761'
 };
+
+function Hotspot3DRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: (e?: any) => void }) {
+  const beaconRef = useRef<THREE.Group>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const setActiveHotspotCard = useEditorStore(state => state.setActiveHotspotCard);
+  const [hovered, setHovered] = useState(false);
+
+  const props = obj.properties || {};
+  const title = props.title || obj.name || 'Hotspot';
+  const description = props.description || 'Tap to interact with this feature.';
+  const color = props.beaconColor || '#06b6d4';
+  const iconType = props.icon || 'Sparkles';
+  const action = props.action || 'show_card';
+  const cardButtonText = props.cardButtonText || 'Explore';
+  const cardButtonUrl = props.cardButtonUrl || props.url || '';
+  const cardMediaUrl = props.cardMediaUrl || '';
+
+  useFrame((state, delta) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.z += delta * 1.5;
+      const scale = 1 + Math.sin(state.clock.elapsedTime * 4) * 0.25;
+      ringRef.current.scale.set(scale, scale, 1);
+    }
+    if (beaconRef.current) {
+      beaconRef.current.position.y = Math.sin(state.clock.elapsedTime * 2) * 0.05;
+    }
+  });
+
+  const handleClick = (e: any) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (onInteract) onInteract(e);
+
+    if (isPreviewMode) {
+      playCachedAudio('/sounds/ui/click_soft.wav', false, 0.5);
+
+      if (action === 'show_card') {
+        setActiveHotspotCard({
+          title,
+          description,
+          icon: iconType,
+          mediaUrl: cardMediaUrl,
+          buttonText: cardButtonText,
+          buttonUrl: cardButtonUrl,
+          color,
+        });
+      } else if (action === 'play_audio' && props.soundUrl) {
+        playCachedAudio(props.soundUrl, false, 0.7);
+      } else if (action === 'open_url' && cardButtonUrl) {
+        window.open(cardButtonUrl, '_blank', 'noopener,noreferrer');
+      } else if (action === 'play_video' && props.videoUrl) {
+        useEditorStore.getState().setARVideoPlaying({
+          title,
+          url: props.videoUrl
+        });
+      }
+    }
+  };
+
+  const renderIcon = () => {
+    switch (iconType) {
+      case 'Info': return <Info size={12} />;
+      case 'HelpCircle': return <HelpCircle size={12} />;
+      case 'Tag': return <Tag size={12} />;
+      case 'Volume2': return <Volume2 size={12} />;
+      case 'Play': return <Play size={12} />;
+      case 'Link2': return <Link2 size={12} />;
+      case 'Star': return <Star size={12} />;
+      case 'Sparkles':
+      default: return <Sparkles size={12} />;
+    }
+  };
+
+  return (
+    <group ref={beaconRef} onClick={handleClick} onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }} onPointerOut={() => setHovered(false)}>
+      {/* Outer animated pulse ring */}
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.2, 0.28, 32]} />
+        <meshBasicMaterial color={color} transparent opacity={hovered ? 0.8 : 0.45} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Inner glowing beacon sphere */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[0.12, 16, 16]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={hovered ? 1.5 : 0.8} roughness={0.2} metalness={0.8} />
+      </mesh>
+
+      {/* Floating 3D/HTML Tag Badge */}
+      <Html position={[0, 0.45, 0]} center distanceFactor={5} zIndexRange={[100, 0]} pointerEvents="auto">
+        <button
+          onClick={handleClick}
+          style={{ borderColor: `${color}80`, backgroundColor: 'rgba(10, 10, 10, 0.85)' }}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-200 cursor-pointer text-white font-mono text-xs select-none group ${
+            hovered ? 'scale-110 shadow-[0_0_20px_rgba(6,182,212,0.6)]' : 'hover:scale-105'
+          }`}
+        >
+          <span style={{ color }} className="shrink-0 group-hover:rotate-12 transition-transform">
+            {renderIcon()}
+          </span>
+          <span className="font-bold tracking-tight text-white/90 group-hover:text-white max-w-[120px] truncate">{title}</span>
+          <span style={{ backgroundColor: color }} className="w-1.5 h-1.5 rounded-full animate-ping" />
+        </button>
+      </Html>
+    </group>
+  );
+}
+
+function SelectionHighlight3D() {
+  const { scene } = useThree();
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const objects = useEditorStore(state => state.objects);
+  const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+
+  if (isPreviewMode || !selectedObjectIds || selectedObjectIds.length === 0) return null;
+
+  return (
+    <>
+      {selectedObjectIds.map(id => {
+        const obj = objects[id];
+        if (!obj || !obj.visible) return null;
+        if (['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type)) return null;
+
+        const target = scene.getObjectByName(id);
+        if (!target || !isObjectInScene(target, scene)) return null;
+
+        return <SingleObjectHighlight key={id} id={id} obj={obj} target={target} />;
+      })}
+    </>
+  );
+}
+
+function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObject; target: THREE.Object3D }) {
+  const [bounds, setBounds] = useState<{ center: [number, number, number]; size: [number, number, number] } | null>(null);
+
+  useFrame(() => {
+    if (!target) return;
+    const box = new THREE.Box3().setFromObject(target);
+    if (box.isEmpty()) return;
+
+    const center = new THREE.Vector3();
+    const size = new THREE.Vector3();
+    box.getCenter(center);
+    box.getSize(size);
+
+    size.x = Math.max(size.x, 0.2);
+    size.y = Math.max(size.y, 0.2);
+    size.z = Math.max(size.z, 0.2);
+
+    setBounds({
+      center: [center.x, center.y, center.z],
+      size: [size.x, size.y, size.z],
+    });
+  });
+
+  if (!bounds) return null;
+
+  const [cx, cy, cz] = bounds.center;
+  const [sx, sy, sz] = bounds.size;
+  const hx = sx / 2;
+  const hy = sy / 2;
+  const hz = sz / 2;
+
+  return (
+    <group position={[cx, cy, cz]}>
+      {/* 3D Cyan Wireframe Bounding Box */}
+      <mesh>
+        <boxGeometry args={[sx, sy, sz]} />
+        <meshBasicMaterial color="#06b6d4" wireframe transparent opacity={0.4} />
+      </mesh>
+
+      {/* Vertex Accent Corner Brackets */}
+      <mesh>
+        <boxGeometry args={[sx * 1.02, sy * 1.02, sz * 1.02]} />
+        <meshBasicMaterial color="#22d3ee" wireframe transparent opacity={0.7} />
+      </mesh>
+
+      {/* Ground Footprint Ring */}
+      <mesh position={[0, -hy, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[Math.max(hx, hz) * 0.9, Math.max(hx, hz) * 1.05, 32]} />
+        <meshBasicMaterial color="#06b6d4" transparent opacity={0.35} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Floating HTML Selection Badge */}
+      <Html
+        position={[0, hy + 0.15, 0]}
+        center
+        distanceFactor={6}
+        zIndexRange={[100, 0]}
+        pointerEvents="none"
+      >
+        <div className="flex items-center gap-2 px-2.5 py-1 bg-cyan-950/90 border border-cyan-400/80 text-cyan-200 rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.5)] backdrop-blur-md select-none text-[10px] font-mono tracking-wider uppercase whitespace-nowrap">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+          <span className="font-bold text-white">{obj.name}</span>
+          <span className="text-cyan-400/80 border-l border-cyan-500/30 pl-2">
+            {sx.toFixed(2)}m × {sy.toFixed(2)}m × {sz.toFixed(2)}m
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
 
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
@@ -2483,10 +2695,10 @@ export function Viewport() {
         )}
 
         {/* Outer Workspace HUD */}
-        <div className="absolute top-4 left-4 z-40 bg-black/60 border border-white/10 px-3 py-1.5 rounded-lg backdrop-blur text-xs flex items-center gap-2">
+        <GlassCard variant="dark" blur="md" className="absolute top-4 left-4 z-40 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
           <span className="font-mono text-[#AAA]">WORKSPACE: SIMULATOR ACTIVE</span>
-        </div>
+        </GlassCard>
         
         {/* Debug Log Overlay */}
         {!isPreviewMode && (
@@ -2766,7 +2978,7 @@ export function Viewport() {
     >
       {/* Real-time Performance Monitor Overlay */}
       {showPerformanceMonitor && (
-        <div className="absolute top-3 right-3 z-30 bg-[#141414]/90 backdrop-blur-md border border-[#2a2a2a]/80 rounded-xl p-3 shadow-2xl w-52 select-none pointer-events-none font-sans transition-all">
+        <GlassCard variant="dark" blur="md" className="absolute top-3 right-3 z-30 p-3 w-52 select-none pointer-events-none font-sans transition-all">
           <div className="flex items-center justify-between border-b border-[#222] pb-1.5 mb-2">
             <div className="flex items-center gap-1.5">
               <Zap size={11} className="text-yellow-400 animate-pulse" />
@@ -2820,9 +3032,8 @@ export function Viewport() {
               💡 For best mobile AR performance, keep draw calls &lt; 50 and textures &lt; 15.
             </div>
           </div>
-        </div>
+        </GlassCard>
       )}
-
       <Canvas 
         key={cameraType}
         shadows={shadowsEnabled}
@@ -2872,6 +3083,7 @@ export function Viewport() {
           <ObjectRenderer key={id} id={id} />
         ))}
 
+        <SelectionHighlight3D />
         <TransformController />
         <ProjectedPositionsUpdater />
 
@@ -2885,9 +3097,9 @@ export function Viewport() {
       </Canvas>
       <Overlay2DRenderer isPreviewMode={false} />
 
-      <div className="absolute bottom-4 right-4 z-40 flex items-center gap-2 bg-[#141414]/90 p-1.5 rounded-lg border border-[#2A2A2A] shadow-2xl backdrop-blur-md pointer-events-auto">
+      <GlassCard variant="dark" blur="lg" className="absolute bottom-4 right-4 z-40 p-1.5 pointer-events-auto border-t-white/10" childrenClassName="flex items-center gap-2">
         {/* Transform Mode & Space Buttons Group */}
-        <div className="flex gap-1 border-r border-[#2A2A2A] pr-2 mr-1">
+        <div className="flex items-center gap-1 border-r border-[#2A2A2A] pr-2 mr-1">
           <button 
             onClick={() => setTransformMode('translate')}
             className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'translate' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
@@ -2998,7 +3210,7 @@ export function Viewport() {
             <Zap size={14} className={showPerformanceMonitor ? 'animate-pulse' : ''} />
           </button>
         </div>
-      </div>
+      </GlassCard>
     </div>
   );
 }

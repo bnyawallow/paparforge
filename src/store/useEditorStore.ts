@@ -588,6 +588,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   assets: initialAssets,
   copiedObjectData: null,
   isPreviewMode: false,
+  activeHotspotCard: null,
+  setActiveHotspotCard: (card) => set({ activeHotspotCard: card }),
   lastSavedTime: initialLastSavedTime,
   hasUnsavedChanges: false,
   currentProjectId: initialCurrentProjectId,

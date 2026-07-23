@@ -862,6 +862,7 @@ export function AssetBrowser() {
     { id: 't-audio', type: 'audio', name: 'Sound Node', icon: Music, color: 'text-pink-400', desc: 'Ambient Sound Emitter', tags: ['audio', 'media'] },
     { id: 't-youtube', type: 'youtube', name: 'YouTube Panel', icon: Video, color: 'text-red-500', desc: 'Curved YouTube Player', tags: ['2d', 'media'] },
     { id: 't-button', type: 'button', name: 'AR Button', icon: Zap, color: 'text-blue-500', desc: 'Clickable AR Button', tags: ['3d', 'ui'] },
+    { id: 't-hotspot', type: 'hotspot', name: 'Hotspot Beacon', icon: Sparkles, color: 'text-cyan-400', desc: 'Interactive touch trigger with pop-up card', tags: ['3d', 'ui', 'hotspot'] },
     { id: 't-web', type: 'web', name: 'Web View', icon: Globe, color: 'text-cyan-400', desc: 'Curved Web Browser Panel', tags: ['2d', 'ui'] },
     { id: 't-particles', type: 'particles', name: 'Particles', icon: Sparkles, color: 'text-purple-400', desc: 'Particle Emitter System', tags: ['3d', 'vfx'] },
     { id: 't-group', type: 'group', name: 'Group', icon: Folder, color: 'text-orange-400', desc: 'Empty Transform Group', tags: ['logic'] },
@@ -907,6 +908,17 @@ export function AssetBrowser() {
     } else if (type === 'button') {
       newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: 'https://example.com' };
       newObj.scale = [1, 0.3, 0.05];
+    } else if (type === 'hotspot') {
+      newObj.properties = {
+        title: 'Interactive Hotspot',
+        description: 'Tap to view details and specs about this AR feature.',
+        icon: 'Sparkles',
+        beaconColor: '#06b6d4',
+        action: 'show_card',
+        cardButtonText: 'Learn More',
+        cardButtonUrl: 'https://example.com',
+      };
+      newObj.position = [0, 0.5, 0];
     } else if (type === 'youtube') {
       newObj.properties = { videoId: 'dQw4w9WgXcQ' };
     } else if (type === 'hudCanvas') {

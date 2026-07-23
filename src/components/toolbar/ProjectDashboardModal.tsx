@@ -4,6 +4,7 @@ import {
   Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload, Edit2
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { GlassModal } from '../ui/HudComponents';
 
 interface ProjectDashboardModalProps {
   onClose: () => void;
@@ -221,8 +222,8 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-[#141414] border border-[#2A2A2A] w-full max-w-4xl h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-150">
+    <>
+    <GlassModal isOpen={true} onClose={onClose} hideHeader={true} maxWidth="max-w-4xl" className="h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150 p-0">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#222222] flex items-center justify-between bg-[#181818] shrink-0">
@@ -449,17 +450,12 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                 );
               })}
             </div>
-
           </div>
-
         </div>
-
-      </div>
-
+      </GlassModal>
       {/* Confirmation Modal overlay inside */}
       {projectToDelete && (
-        <div className="fixed inset-0 bg-[#000000]/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1C1C1C] border border-[#333333] p-5 rounded-xl max-w-sm w-full space-y-4 shadow-2xl">
+        <GlassModal isOpen={true} onClose={() => setProjectToDelete(null)} hideHeader={true} maxWidth="max-w-sm" className="border border-[#333333] p-5 space-y-4 shadow-2xl">
             <div className="flex gap-3 text-red-400">
               <AlertTriangle className="shrink-0" size={20} />
               <div className="space-y-1">
@@ -485,10 +481,8 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                 {isDeleting ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
-          </div>
-        </div>
+        </GlassModal>
       )}
-
-    </div>
+    </>
   );
 }

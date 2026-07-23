@@ -3,7 +3,7 @@ export type Vector3Data = [number, number, number];
 export interface SceneObject {
   id: string;
   name: string;
-  type: 'group' | 'box' | 'plane' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed';
+  type: 'group' | 'box' | 'plane' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot';
   position: Vector3Data;
   rotation: Vector3Data; // Euler angles in degrees
   scale: Vector3Data;
@@ -85,6 +85,8 @@ export interface EditorState {
   editingScriptObjectId: string | null;
   toasts: { id: string; message: string }[];
   arVideoPlaying: { title: string; url: string } | null;
+  activeHotspotCard: { title: string; description: string; icon?: string; mediaUrl?: string; buttonText?: string; buttonUrl?: string; color?: string } | null;
+  setActiveHotspotCard: (card: { title: string; description: string; icon?: string; mediaUrl?: string; buttonText?: string; buttonUrl?: string; color?: string } | null) => void;
   copiedObjectData: { rootId: string; objects: Record<string, SceneObject> } | null;
   
   // Auto-save state

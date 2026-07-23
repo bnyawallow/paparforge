@@ -4693,6 +4693,126 @@ export function InspectorPanel({ width }: { width?: number }) {
               </div>
             )}
 
+            {/* --- HOTSPOT INTERACTIVE TOUCH-TRIGGER CONFIG --- */}
+            {obj.type === 'hotspot' && (
+              <div className="flex flex-col gap-3 p-3 bg-cyan-950/20 border border-cyan-500/30 rounded-xl">
+                <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded bg-cyan-500/20 text-cyan-400">✨</span>
+                    <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">3D AR Hotspot Settings</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-mono">Interactive</span>
+                </div>
+
+                {/* Title */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-300">Hotspot Title / Badge Label</label>
+                  <input
+                    type="text"
+                    value={obj.properties.title || ''}
+                    onChange={(e) => handlePropertyChange('title', e.target.value)}
+                    placeholder="e.g., Engine Specifications"
+                    className="bg-[#0A0A0A] text-xs font-sans p-2 rounded-lg border border-[#333] focus:border-cyan-500 text-white outline-none"
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-300">Card Description / Message</label>
+                  <textarea
+                    rows={3}
+                    value={obj.properties.description || ''}
+                    onChange={(e) => handlePropertyChange('description', e.target.value)}
+                    placeholder="Provide details that appear when users tap this hotspot in AR..."
+                    className="bg-[#0A0A0A] text-xs font-sans p-2 rounded-lg border border-[#333] focus:border-cyan-500 text-white outline-none resize-none"
+                  />
+                </div>
+
+                {/* Beacon Color */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-300">Beacon Glow Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={obj.properties.beaconColor || '#06b6d4'}
+                      onChange={(e) => handlePropertyChange('beaconColor', e.target.value)}
+                      className="w-8 h-8 rounded border-0 cursor-pointer bg-transparent"
+                    />
+                    <div className="grid grid-cols-6 gap-1 flex-1">
+                      {['#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6'].map(c => (
+                        <button
+                          key={c}
+                          onClick={() => handlePropertyChange('beaconColor', c)}
+                          style={{ backgroundColor: c }}
+                          className="w-5 h-5 rounded-full border border-white/20 hover:scale-110 transition-transform cursor-pointer"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Icon Selector */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-300">Hotspot Icon</label>
+                  <select
+                    value={obj.properties.icon || 'Sparkles'}
+                    onChange={(e) => handlePropertyChange('icon', e.target.value)}
+                    className="bg-[#0A0A0A] text-xs p-2 rounded-lg border border-[#333] focus:border-cyan-500 text-white outline-none cursor-pointer"
+                  >
+                    <option value="Sparkles">✨ Sparkles / Feature</option>
+                    <option value="Info">ℹ️ Info / Details</option>
+                    <option value="HelpCircle">❓ Help / FAQ</option>
+                    <option value="Tag">🏷️ Tag / Specs</option>
+                    <option value="Volume2">🔊 Audio Prompt</option>
+                    <option value="Play">▶️ Video / Animation</option>
+                    <option value="Link2">🔗 External Link</option>
+                    <option value="Star">⭐ Favorite / Highlight</option>
+                  </select>
+                </div>
+
+                {/* Trigger Action */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-300">Touch Trigger Action</label>
+                  <select
+                    value={obj.properties.action || 'show_card'}
+                    onChange={(e) => handlePropertyChange('action', e.target.value)}
+                    className="bg-[#0A0A0A] text-xs p-2 rounded-lg border border-[#333] focus:border-cyan-500 text-white outline-none cursor-pointer"
+                  >
+                    <option value="show_card">Pop-up AR Info Card</option>
+                    <option value="play_audio">Play Sound Effect / Voiceover</option>
+                    <option value="open_url">Open Web Link</option>
+                    <option value="play_video">Play Video Stream</option>
+                  </select>
+                </div>
+
+                {/* CTA Button Text & Link */}
+                {obj.properties.action === 'show_card' && (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-cyan-500/20">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold text-gray-300">Card Button Label (Optional)</label>
+                      <input
+                        type="text"
+                        value={obj.properties.cardButtonText || ''}
+                        onChange={(e) => handlePropertyChange('cardButtonText', e.target.value)}
+                        placeholder="e.g., Learn More"
+                        className="bg-[#0A0A0A] text-xs p-2 rounded-lg border border-[#333] text-white outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold text-gray-300">Card Button Target URL</label>
+                      <input
+                        type="text"
+                        value={obj.properties.cardButtonUrl || ''}
+                        onChange={(e) => handlePropertyChange('cardButtonUrl', e.target.value)}
+                        placeholder="https://example.com"
+                        className="bg-[#0A0A0A] text-xs font-mono p-2 rounded-lg border border-[#333] text-white outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* --- 9. 2D OVERLAY PROPERTIES --- */}
             {(obj.type === 'hudCanvas' || obj.type === 'hudText' || obj.type === 'hudButton' || obj.type === 'hudImage' || obj.type === 'hudEmbed') && (
               <div className="flex flex-col gap-3">
