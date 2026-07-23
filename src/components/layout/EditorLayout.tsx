@@ -157,26 +157,24 @@ export function EditorLayout() {
     };
   }, [isPreviewMode]);
 
-  // Auto-save mechanism: persists scene state to local storage every 30 seconds
+  const toasts = useEditorStore(state => state.toasts);
+  const removeToast = useEditorStore(state => state.removeToast);
+
+  // Auto-save mechanism: periodically saves current scene state to local storage and triggers toast notification
   React.useEffect(() => {
     const handleAutoSave = () => {
       try {
         const state = useEditorStore.getState();
-        const dataToSave = {
-          objects: state.objects,
-          rootObjects: state.rootObjects,
-          settings: state.settings,
-          assets: state.assets,
-          lastSavedTime: Date.now()
-        };
-        localStorage.setItem('ar_forge_autosave', JSON.stringify(dataToSave));
-        useEditorStore.setState({ lastSavedTime: Date.now() });
+        if (state.hasUnsavedChanges) {
+          state.saveCurrentProject();
+          state.addToast('Scene auto-saved successfully');
+        }
       } catch (error) {
         console.error('Auto-save failed:', error);
       }
     };
 
-    const interval = setInterval(handleAutoSave, 30000);
+    const interval = setInterval(handleAutoSave, 30000); // Auto-save every 30 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -282,6 +280,31 @@ export function EditorLayout() {
               <InspectorPanel width={rightWidth} />
             </motion.div>
           )}
+        </AnimatePresence>
+      </div>
+
+      {/* Global Toast Notifications Banner */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className="bg-[#141414]/95 border border-blue-500/40 text-white px-3.5 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2.5 shadow-2xl backdrop-blur-md pointer-events-auto"
+            >
+              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" />
+              <span className="flex-1 font-sans tracking-wide">{toast.message}</span>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="text-gray-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors ml-1 text-[10px]"
+              >
+                ✕
+              </button>
+            </motion.div>
+          ))}
         </AnimatePresence>
       </div>
     </div>

@@ -2621,46 +2621,8 @@ export function InspectorPanel({ width }: { width?: number }) {
 
           {/* Snapping Configurations */}
           <div className="mt-2 bg-[#1A1A1A]/30 border border-[#222] rounded p-3 flex flex-col gap-3">
-            {/* Grid Translation Snapping */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-[#AAA] font-semibold flex items-center gap-1.5">
-                  <Magnet size={11} className={gridSnapEnabled ? "text-blue-400" : "text-[#555]"} />
-                  Grid snapping
-                </span>
-                <button
-                  onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                    gridSnapEnabled ? "bg-blue-600 text-white" : "bg-[#222] text-[#666] hover:text-white"
-                  )}
-                >
-                  {gridSnapEnabled ? "ON" : "OFF"}
-                </button>
-              </div>
-              
-              {gridSnapEnabled && (
-                <div className="flex items-center gap-1 mt-1">
-                  {[0.05, 0.1, 0.25, 0.5, 1.0].map((inc) => (
-                    <button
-                      key={inc}
-                      onClick={() => setGridSnapIncrement(inc)}
-                      className={cn(
-                        "flex-1 py-1 text-[9px] font-mono rounded transition-all border",
-                        gridSnapIncrement === inc
-                          ? "bg-blue-600/20 border-blue-500 text-blue-300 font-bold"
-                          : "bg-[#0C0C0C] border-transparent text-[#666] hover:text-white"
-                      )}
-                    >
-                      {inc}m
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Rotation Snapping */}
-            <div className="flex flex-col gap-1.5 border-t border-[#222]/50 pt-2.5">
+            <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-[#AAA] font-semibold flex items-center gap-1.5">
                   <RotateCw size={11} className={rotationSnapEnabled ? "text-emerald-400" : "text-[#555]"} />

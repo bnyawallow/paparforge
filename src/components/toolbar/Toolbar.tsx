@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { 
   Settings, Edit3, Camera, Undo2, Redo2, Globe, 
-  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert
+  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert, History
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PublishModal } from './PublishModal';
 import { SettingsModal } from './SettingsModal';
 import { ProjectDashboardModal } from './ProjectDashboardModal';
+import { VersionHistoryModal } from './VersionHistoryModal';
 import { useTheme } from '../../lib/theme';
 import { useNavigate } from 'react-router-dom';
 
@@ -39,7 +40,8 @@ export function Toolbar() {
 
   const [showPublish, setShowPublish] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showProjects, setShowProjects] = useState(true);
+  const [showProjects, setShowProjects] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
   
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempProjectName, setTempProjectName] = useState(settings.projectName);
@@ -147,6 +149,14 @@ export function Toolbar() {
             >
               <FolderOpen size={14} />
               <span className="hidden sm:inline">Assets Library</span>
+            </button>
+            <button 
+              onClick={() => setShowVersions(true)}
+              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-amber-50 hover:bg-amber-100/80 text-amber-600 hover:text-amber-700 border-amber-200 hover:border-amber-300' : 'bg-transparent text-amber-400 hover:text-amber-300 border-amber-500/20 hover:border-amber-500/40'}`}
+              title="Project Version History & Snapshots"
+            >
+              <History size={14} />
+              <span className="hidden sm:inline">Versions</span>
             </button>
             <button 
               onClick={() => undo()} 
@@ -265,6 +275,7 @@ export function Toolbar() {
       {showPublish && <PublishModal onClose={() => setShowPublish(false)} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showProjects && <ProjectDashboardModal onClose={() => setShowProjects(false)} />}
+      <VersionHistoryModal isOpen={showVersions} onClose={() => setShowVersions(false)} />
     </>
   );
 }

@@ -1,12 +1,28 @@
 import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { EditorState, SceneObject, HistorySnapshot } from '../types';
-
+import { EditorState, SceneObject, HistorySnapshot, ProjectVersion } from '../types';
 
 const getStorageKey = (key: string) => {
   const user = useAuthStore.getState().user;
   return user ? `${user.id}_${key}` : key;
+};
+
+const loadVersionsForProject = (projectId: string): ProjectVersion[] => {
+  try {
+    const data = localStorage.getItem(getStorageKey(`ar_forge_versions_${projectId}`));
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const saveVersionsForProject = (projectId: string, versions: ProjectVersion[]) => {
+  try {
+    localStorage.setItem(getStorageKey(`ar_forge_versions_${projectId}`), JSON.stringify(versions));
+  } catch (e) {
+    console.error('Failed to save version snapshots:', e);
+  }
 };
 
 const initialImageTargetId = uuidv4();
@@ -521,7 +537,8 @@ const loadSavedState = () => {
         rootObjects: activeProjData.rootObjects,
         settings: activeProjData.settings || { projectName: activeProjData.name || 'My AR Experience', imageTargetName: null },
         assets: activeProjData.assets || [],
-        lastSavedTime: activeProjData.lastSavedTime || Date.now()
+        lastSavedTime: activeProjData.lastSavedTime || Date.now(),
+        versions: loadVersionsForProject(activeId)
       };
     }
     
@@ -701,6 +718,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   hasUnsavedChanges: false,
   currentProjectId: initialCurrentProjectId,
   projectsList: initialProjectsList,
+  versions: loadVersionsForProject(initialCurrentProjectId),
 
   // Snapping defaults
   gridSnapEnabled: false,
@@ -1705,7 +1723,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         past: [],
         future: [],
         lastSavedTime: parsed.lastSavedTime || Date.now(),
-        hasUnsavedChanges: false
+        hasUnsavedChanges: false,
+        versions: loadVersionsForProject(projectId)
       };
     } catch (e) {
       console.error('Failed to load project:', e);
@@ -2206,4 +2225,80 @@ export const useEditorStore = create<EditorState>((set) => ({
   setCameraType: (cameraType) => set({ cameraType }),
   setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),
   toggleEditorTheme: () => set((state) => ({ editorTheme: state.editorTheme === 'dark' ? 'light' : 'dark' })),
+
+  createVersionSnapshot: (customName?: string) => set((state) => {
+    const versionId = `ver_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const snapshotName = customName && customName.trim() ? customName.trim() : `Snapshot ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${Object.keys(state.objects).length} objects)`;
+    
+    const newVersion: ProjectVersion = {
+      id: versionId,
+      name: snapshotName,
+      timestamp: Date.now(),
+      snapshot: {
+        objects: JSON.parse(JSON.stringify(state.objects)),
+        rootObjects: JSON.parse(JSON.stringify(state.rootObjects)),
+        settings: JSON.parse(JSON.stringify(state.settings)),
+        assets: JSON.parse(JSON.stringify(state.assets))
+      }
+    };
+
+    const updatedVersions = [newVersion, ...state.versions];
+    saveVersionsForProject(state.currentProjectId, updatedVersions);
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 4000);
+
+    return {
+      versions: updatedVersions,
+      toasts: [...state.toasts, { id: toastId, message: `Created snapshot "${snapshotName}"` }]
+    };
+  }),
+
+  restoreVersionSnapshot: (versionId: string) => set((state) => {
+    const targetVersion = state.versions.find((v) => v.id === versionId);
+    if (!targetVersion) return state;
+
+    const snapshotToPush: HistorySnapshot = {
+      objects: JSON.parse(JSON.stringify(state.objects)),
+      rootObjects: JSON.parse(JSON.stringify(state.rootObjects)),
+      selectedObjectId: state.selectedObjectId,
+      selectedObjectIds: JSON.parse(JSON.stringify(state.selectedObjectIds))
+    };
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 4000);
+
+    return {
+      objects: JSON.parse(JSON.stringify(targetVersion.snapshot.objects)),
+      rootObjects: JSON.parse(JSON.stringify(targetVersion.snapshot.rootObjects)),
+      settings: JSON.parse(JSON.stringify(targetVersion.snapshot.settings)),
+      assets: JSON.parse(JSON.stringify(targetVersion.snapshot.assets)),
+      selectedObjectId: null,
+      selectedObjectIds: [],
+      selectedObjectRef: null,
+      past: [...state.past, snapshotToPush],
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Restored scene to "${targetVersion.name}"` }]
+    };
+  }),
+
+  deleteVersionSnapshot: (versionId: string) => set((state) => {
+    const updatedVersions = state.versions.filter((v) => v.id !== versionId);
+    saveVersionsForProject(state.currentProjectId, updatedVersions);
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 4000);
+
+    return {
+      versions: updatedVersions,
+      toasts: [...state.toasts, { id: toastId, message: 'Deleted version snapshot' }]
+    };
+  }),
 }));

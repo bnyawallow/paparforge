@@ -68,6 +68,18 @@ export interface HistorySnapshot {
   selectedObjectIds: string[];
 }
 
+export interface ProjectVersion {
+  id: string;
+  name: string;
+  timestamp: number;
+  snapshot: {
+    objects: Record<string, SceneObject>;
+    rootObjects: string[];
+    settings: ProjectSettings;
+    assets: Asset[];
+  };
+}
+
 export interface EditorState {
   objects: Record<string, SceneObject>;
   rootObjects: string[];
@@ -93,6 +105,12 @@ export interface EditorState {
   // Auto-save state
   lastSavedTime: number | null;
   hasUnsavedChanges: boolean;
+
+  // Versioning state & actions
+  versions: ProjectVersion[];
+  createVersionSnapshot: (name?: string) => void;
+  restoreVersionSnapshot: (versionId: string) => void;
+  deleteVersionSnapshot: (versionId: string) => void;
 
   // Grid and Transform Snapping
   gridSnapEnabled: boolean;
