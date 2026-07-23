@@ -1994,20 +1994,6 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     const controls = controlsRef.current;
     if (!controls) return;
 
-    try {
-      if (controls) {
-        controls.traverse((child: any) => {
-          if (child.isMesh && child.material) {
-            child.material.wireframe = true;
-            child.material.transparent = true;
-            child.material.opacity = 0.7;
-          }
-        });
-      }
-    } catch (e) {
-      console.error('Failed to update transform gizmo style:', e);
-    }
-
     const draggingCallback = (e: any) => {
       const isDragging = !!e.value;
       isTransformDragging = isDragging;

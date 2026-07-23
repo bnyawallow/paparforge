@@ -46,6 +46,7 @@ import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
 import { PREBUILT_TEMPLATES, instantiateTemplate } from '../../utils/prebuiltTemplates';
 import { useTheme } from '../../lib/theme';
+import { GlassModal } from '../ui/HudComponents';
 
 export function HierarchyPanel({ width }: { width?: number }) {
   const t = useTheme();
@@ -501,7 +502,10 @@ export function HierarchyPanel({ width }: { width?: number }) {
   const checkMatchesSearch = (id: string, query: string): boolean => {
     const obj = objects[id];
     if (!obj) return false;
-    if (obj.name.toLowerCase().includes(query.toLowerCase())) return true;
+    const lowerQuery = query.toLowerCase();
+    const nameMatch = obj.name.toLowerCase().includes(lowerQuery);
+    const typeMatch = obj.type.toLowerCase().includes(lowerQuery);
+    if (nameMatch || typeMatch) return true;
     return obj.children.some(childId => checkMatchesSearch(childId, query));
   };
 
@@ -763,6 +767,23 @@ export function HierarchyPanel({ width }: { width?: number }) {
     );
   };
 
+  const countMatches = (id: string): number => {
+    let count = 0;
+    const obj = objects[id];
+    if (!obj) return 0;
+    const lowerQuery = searchQuery.toLowerCase();
+    const matches = obj.name.toLowerCase().includes(lowerQuery) || obj.type.toLowerCase().includes(lowerQuery);
+    if (matches) count++;
+    if (obj.children) {
+      obj.children.forEach(childId => {
+        count += countMatches(childId);
+      });
+    }
+    return count;
+  };
+
+  const totalMatches = searchQuery ? rootObjects.reduce((acc, id) => acc + countMatches(id), 0) : 0;
+
   return (
     <aside 
       style={{ width: width ? `${width}px` : '240px' }}
@@ -876,17 +897,32 @@ export function HierarchyPanel({ width }: { width?: number }) {
           <input
             type="text"
             placeholder="Search hierarchy..."
-            className={cn("flex-1 rounded pl-6 pr-6 py-1 text-[10px] outline-none focus:border-blue-500 font-mono transition-colors duration-200", t.bgInput)}
+            className={cn("flex-1 rounded pl-6 py-1 text-[10px] outline-none focus:border-blue-500 font-mono transition-colors duration-200", searchQuery ? "pr-14" : "pr-6", t.bgInput)}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSearchQuery('');
+            }}
           />
           {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')}
-              className={cn("absolute right-4 p-0.5 rounded-full hover:bg-gray-500/20", t.isLight ? "text-gray-500" : "text-gray-400")}
-            >
-              <X size={10} />
-            </button>
+            <>
+              <div className="absolute right-8 flex items-center pointer-events-none select-none">
+                <span className={cn(
+                  "px-1 py-0.5 rounded-[3px] text-[8px] font-bold font-mono leading-none scale-90",
+                  totalMatches > 0 
+                    ? (t.isLight ? "bg-blue-100 text-blue-700" : "bg-blue-500/15 text-blue-400 border border-blue-500/10")
+                    : "bg-red-500/15 text-red-400 border border-red-500/10"
+                )}>
+                  {totalMatches}
+                </span>
+              </div>
+              <button 
+                onClick={() => setSearchQuery('')}
+                className={cn("absolute right-3.5 p-0.5 rounded-full hover:bg-gray-500/20", t.isLight ? "text-gray-500" : "text-gray-400")}
+              >
+                <X size={10} />
+              </button>
+            </>
           )}
         </div>
 
@@ -975,8 +1011,14 @@ export function HierarchyPanel({ width }: { width?: number }) {
               No objects in scene
             </div>
           ) : searchQuery && !rootObjects.some(id => checkMatchesSearch(id, searchQuery)) ? (
-            <div className="p-4 text-center text-gray-500 text-[10px] italic">
-              No matches found for "{searchQuery}"
+            <div className="p-6 text-center flex flex-col items-center gap-2">
+              <span className="text-gray-500 text-[10px] italic">No matches found for "{searchQuery}"</span>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded text-[9px] uppercase tracking-wider cursor-pointer transition-colors shadow-sm shadow-blue-600/15"
+              >
+                Clear Search
+              </button>
             </div>
           ) : (
             rootObjects
@@ -1254,119 +1296,125 @@ export function HierarchyPanel({ width }: { width?: number }) {
         </div>
       )}
 
-      {sceneModal.type && (
-        <div className="absolute inset-0 z-50 flex flex-col justify-center bg-[#0d0d0ed9] backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className={cn(
-            "p-4 rounded-xl border flex flex-col gap-3 shadow-2xl transition-all scale-in duration-200",
-            t.isLight ? "bg-white border-gray-200" : "bg-[#141416] border-[#2A2A2B]"
-          )}>
-            <div className="flex items-center gap-1.5 pb-1 border-b border-white/5">
-              <Layers size={13} className="text-blue-400" />
-              <span className={cn("text-[11px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-800" : "text-gray-200")}>
-                {sceneModal.type === 'create' && 'Create New Scene'}
-                {sceneModal.type === 'rename' && 'Rename Scene'}
-                {sceneModal.type === 'delete' && 'Delete Scene'}
-              </span>
+      <GlassModal
+        isOpen={sceneModal.type !== null}
+        onClose={() => setSceneModal({ type: null })}
+        title={
+          sceneModal.type === 'create' ? 'Create New Scene' :
+          sceneModal.type === 'rename' ? 'Rename Scene' :
+          'Delete Scene'
+        }
+        maxWidth="max-w-md"
+      >
+        {sceneModal.type === 'delete' ? (
+          <div className="flex flex-col gap-4">
+            <p className={cn("text-xs leading-relaxed", t.isLight ? "text-gray-600" : "text-gray-300")}>
+              Are you sure you want to delete the scene <strong className={t.isLight ? "text-gray-900" : "text-white"}>"{scenes[sceneModal.sceneId || '']?.name}"</strong>? This action cannot be undone and will delete all objects inside this scene.
+            </p>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={() => setSceneModal({ type: null })}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border",
+                  t.isLight 
+                    ? "bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700" 
+                    : "bg-[#1f1f22] hover:bg-[#28282b] border-[#2A2A2B] text-gray-300 hover:text-white"
+                )}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (sceneModal.sceneId) {
+                    deleteScene(sceneModal.sceneId);
+                    useEditorStore.getState().saveCurrentProject();
+                    useEditorStore.getState().addToast('Scene deleted successfully');
+                  }
+                  setSceneModal({ type: null });
+                }}
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition-colors cursor-pointer shadow-lg shadow-red-600/15"
+              >
+                Delete Scene
+              </button>
             </div>
-
-            {sceneModal.type === 'delete' ? (
-              <div className="flex flex-col gap-3">
-                <p className={cn("text-[11px] leading-relaxed", t.isLight ? "text-gray-600" : "text-gray-400")}>
-                  Are you sure you want to delete the scene <strong className={t.isLight ? "text-gray-900" : "text-white"}>"{scenes[sceneModal.sceneId || '']?.name}"</strong>? This action cannot be undone.
-                </p>
-                <div className="flex justify-end gap-2 mt-1">
-                  <button
-                    onClick={() => setSceneModal({ type: null })}
-                    className={cn(
-                      "px-3 py-1.5 rounded text-[10px] font-semibold transition-colors cursor-pointer",
-                      t.isLight ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-[#1f1f22] hover:bg-[#28282b] text-gray-300"
-                    )}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (sceneModal.sceneId) {
-                        deleteScene(sceneModal.sceneId);
-                        useEditorStore.getState().addToast('Scene deleted successfully');
-                      }
-                      setSceneModal({ type: null });
-                    }}
-                    className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-[10px] font-semibold transition-colors cursor-pointer shadow-lg shadow-red-600/15"
-                  >
-                    Delete Scene
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className={cn("text-[9px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>Scene Name</label>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={sceneModal.value || ''}
-                    onChange={(e) => setSceneModal(prev => ({ ...prev, value: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && sceneModal.value?.trim()) {
-                        if (sceneModal.type === 'create') {
-                          createScene(sceneModal.value.trim());
-                          useEditorStore.getState().addToast(`Created scene "${sceneModal.value.trim()}"`);
-                        } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
-                          renameScene(sceneModal.sceneId, sceneModal.value.trim());
-                          useEditorStore.getState().addToast(`Renamed scene to "${sceneModal.value.trim()}"`);
-                        }
-                        setSceneModal({ type: null });
-                      } else if (e.key === 'Escape') {
-                        setSceneModal({ type: null });
-                      }
-                    }}
-                    className={cn(
-                      "w-full rounded px-2.5 py-1.5 text-[11px] outline-none border focus:border-blue-500 transition-all font-mono",
-                      t.isLight ? "bg-gray-50 border-gray-200 text-gray-900" : "bg-[#18181A] border-[#2A2A2B] text-gray-100 focus:bg-[#1a1a1c]"
-                    )}
-                    placeholder="e.g. Gallery Scene"
-                  />
-                </div>
-                <div className="flex justify-end gap-2 mt-1">
-                  <button
-                    onClick={() => setSceneModal({ type: null })}
-                    className={cn(
-                      "px-3 py-1.5 rounded text-[10px] font-semibold transition-colors cursor-pointer",
-                      t.isLight ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-[#1f1f22] hover:bg-[#28282b] text-gray-300"
-                    )}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={!sceneModal.value?.trim()}
-                    onClick={() => {
-                      if (sceneModal.value?.trim()) {
-                        if (sceneModal.type === 'create') {
-                          createScene(sceneModal.value.trim());
-                          useEditorStore.getState().addToast(`Created scene "${sceneModal.value.trim()}"`);
-                        } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
-                          renameScene(sceneModal.sceneId, sceneModal.value.trim());
-                          useEditorStore.getState().addToast(`Renamed scene to "${sceneModal.value.trim()}"`);
-                        }
-                        setSceneModal({ type: null });
-                      }
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded text-white text-[10px] font-semibold transition-all shadow-lg cursor-pointer",
-                      sceneModal.value?.trim() 
-                        ? "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-600/15" 
-                        : "bg-blue-600/40 opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    {sceneModal.type === 'create' ? 'Create' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className={cn("text-[10px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>Scene Name</label>
+              <input
+                type="text"
+                autoFocus
+                value={sceneModal.value || ''}
+                onChange={(e) => setSceneModal(prev => ({ ...prev, value: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && sceneModal.value?.trim()) {
+                    const trimmed = sceneModal.value.trim();
+                    if (sceneModal.type === 'create') {
+                      createScene(trimmed);
+                      useEditorStore.getState().saveCurrentProject();
+                      useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
+                    } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
+                      renameScene(sceneModal.sceneId, trimmed);
+                      useEditorStore.getState().saveCurrentProject();
+                      useEditorStore.getState().addToast(`Renamed scene to "${trimmed}"`);
+                    }
+                    setSceneModal({ type: null });
+                  } else if (e.key === 'Escape') {
+                    setSceneModal({ type: null });
+                  }
+                }}
+                className={cn(
+                  "w-full rounded-lg px-3 py-2 text-sm outline-none border transition-all font-sans",
+                  t.isLight 
+                    ? "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-500 focus:bg-white" 
+                    : "bg-[#18181A] border-[#2D2D2D] text-gray-100 focus:border-blue-500/50 focus:bg-[#1a1a1c]"
+                )}
+                placeholder="e.g. Gallery Scene"
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={() => setSceneModal({ type: null })}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border",
+                  t.isLight 
+                    ? "bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700" 
+                    : "bg-[#1f1f22] hover:bg-[#28282b] border-[#2A2A2B] text-gray-300 hover:text-white"
+                )}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!sceneModal.value?.trim()}
+                onClick={() => {
+                  if (sceneModal.value?.trim()) {
+                    const trimmed = sceneModal.value.trim();
+                    if (sceneModal.type === 'create') {
+                      createScene(trimmed);
+                      useEditorStore.getState().saveCurrentProject();
+                      useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
+                    } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
+                      renameScene(sceneModal.sceneId, trimmed);
+                      useEditorStore.getState().saveCurrentProject();
+                      useEditorStore.getState().addToast(`Renamed scene to "${trimmed}"`);
+                    }
+                    setSceneModal({ type: null });
+                  }
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-all cursor-pointer shadow-md",
+                  sceneModal.value?.trim() 
+                    ? "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-600/15" 
+                    : "bg-blue-600/40 opacity-50 cursor-not-allowed"
+                )}
+              >
+                {sceneModal.type === 'create' ? 'Create' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+      </GlassModal>
     </aside>
   );
 }
