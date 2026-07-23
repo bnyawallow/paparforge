@@ -138,6 +138,14 @@ export interface EditorState {
   editorTheme: 'dark' | 'light';
   toggleEditorTheme: () => void;
   
+  // Multiple Scenes state
+  activeSceneId: string;
+  scenes: Record<string, { id: string; name: string; objects: Record<string, SceneObject>; rootObjects: string[] }>;
+  createScene: (name: string) => void;
+  loadScene: (sceneId: string) => void;
+  deleteScene: (sceneId: string) => void;
+  renameScene: (sceneId: string, newName: string) => void;
+
   // Multi-project state
   currentProjectId: string;
   projectsList: { id: string; name: string; createdAt: number; updatedAt: number; thumbnail?: string }[];

@@ -2911,8 +2911,22 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <option value="material">🎨 Set Material (Color/Texture)</option>
                           <option value="pauseScanning">⏸ Pause AR Scanning</option>
                           <option value="resumeScanning">▶️ Resume AR Scanning</option>
+                          <option value="loadScene">🗺️ Load Scene</option>
                         </select>
                       </div>
+
+                      {b.action === 'loadScene' && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Scene ID</label>
+                          <input
+                            type="text"
+                            value={b.targetSceneId ?? ''}
+                            onChange={(e) => handleUpdateBehavior(b.id, { targetSceneId: e.target.value })}
+                            placeholder="e.g. scene_123456"
+                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                          />
+                        </div>
+                      )}
 
                       {b.action === 'toast' && (
                         <div className="flex flex-col gap-1">

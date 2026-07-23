@@ -1395,6 +1395,11 @@ function ObjectRenderer({ id }: { id: string }) {
           });
         }
         break;
+      case 'loadScene':
+        if (b.targetSceneId) {
+          useEditorStore.getState().loadScene(b.targetSceneId);
+        }
+        break;
       case 'transform': {
         const targetIdT = b.targetObjectId || id;
         const targetObjT = useEditorStore.getState().objects[targetIdT];
@@ -1988,6 +1993,20 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
+
+    try {
+      if (controls) {
+        controls.traverse((child: any) => {
+          if (child.isMesh && child.material) {
+            child.material.wireframe = true;
+            child.material.transparent = true;
+            child.material.opacity = 0.7;
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to update transform gizmo style:', e);
+    }
 
     const draggingCallback = (e: any) => {
       const isDragging = !!e.value;

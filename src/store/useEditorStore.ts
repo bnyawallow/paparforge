@@ -530,9 +530,26 @@ const loadSavedState = () => {
     const activeProjDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${activeId}`));
     if (activeProjDataStr) {
       const activeProjData = sanitizeBlobUrls(JSON.parse(activeProjDataStr));
+      let scenes = activeProjData.scenes;
+      let activeSceneId = activeProjData.activeSceneId;
+      if (!scenes || !activeSceneId) {
+        activeSceneId = 'default';
+        scenes = {
+          'default': { id: 'default', name: 'Main Scene', objects: ensureImageTargetLocked(activeProjData.objects), rootObjects: activeProjData.rootObjects }
+        };
+      } else {
+        const activeScene = scenes[activeSceneId];
+        if (activeScene) {
+          activeProjData.objects = ensureImageTargetLocked(activeScene.objects);
+          activeProjData.rootObjects = activeScene.rootObjects;
+        }
+      }
+
       return {
         currentProjectId: activeId,
         projectsList,
+        scenes,
+        activeSceneId,
         objects: ensureImageTargetLocked(activeProjData.objects),
         rootObjects: activeProjData.rootObjects,
         settings: activeProjData.settings || { projectName: activeProjData.name || 'My AR Experience', imageTargetName: null },
@@ -719,6 +736,97 @@ export const useEditorStore = create<EditorState>((set) => ({
   currentProjectId: initialCurrentProjectId,
   projectsList: initialProjectsList,
   versions: loadVersionsForProject(initialCurrentProjectId),
+
+  activeSceneId: 'default',
+  scenes: {
+    'default': { id: 'default', name: 'Main Scene', objects: initialObjects, rootObjects: initialRootObjects }
+  },
+  createScene: (name) => set((state) => {
+    const newSceneId = `scene_${Date.now()}`;
+    const newScene = { id: newSceneId, name, objects: JSON.parse(JSON.stringify(defaultScene)), rootObjects: [initialImageTargetId] };
+    
+    // Save current scene state before switching
+    const currentScenes = { ...state.scenes };
+    if (currentScenes[state.activeSceneId]) {
+      currentScenes[state.activeSceneId] = {
+        ...currentScenes[state.activeSceneId],
+        objects: state.objects,
+        rootObjects: state.rootObjects
+      };
+    }
+    
+    return {
+      scenes: { ...currentScenes, [newSceneId]: newScene },
+      activeSceneId: newSceneId,
+      objects: newScene.objects,
+      rootObjects: newScene.rootObjects,
+      selectedObjectId: null,
+      selectedObjectIds: [],
+      past: [],
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
+  loadScene: (sceneId) => set((state) => {
+    // Before switching, save current scene state
+    const currentScenes = { ...state.scenes };
+    if (currentScenes[state.activeSceneId]) {
+      currentScenes[state.activeSceneId] = {
+        ...currentScenes[state.activeSceneId],
+        objects: state.objects,
+        rootObjects: state.rootObjects
+      };
+    }
+    const targetScene = currentScenes[sceneId];
+    if (!targetScene) return state;
+
+    return {
+      scenes: currentScenes,
+      activeSceneId: sceneId,
+      objects: targetScene.objects,
+      rootObjects: targetScene.rootObjects,
+      selectedObjectId: null,
+      selectedObjectIds: [],
+      past: [],
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
+  deleteScene: (sceneId) => set((state) => {
+    if (Object.keys(state.scenes).length <= 1) return state; // Prevent deleting last scene
+    const newScenes = { ...state.scenes };
+    delete newScenes[sceneId];
+    
+    // If we deleted the active scene, switch to the first available one
+    if (state.activeSceneId === sceneId) {
+      const firstAvailableId = Object.keys(newScenes)[0];
+      const targetScene = newScenes[firstAvailableId];
+      return {
+        scenes: newScenes,
+        activeSceneId: firstAvailableId,
+        objects: targetScene.objects,
+        rootObjects: targetScene.rootObjects,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+        hasUnsavedChanges: true
+      };
+    }
+    
+    return { scenes: newScenes, hasUnsavedChanges: true };
+  }),
+  renameScene: (sceneId, newName) => set((state) => {
+    if (!state.scenes[sceneId]) return state;
+    return {
+      scenes: {
+        ...state.scenes,
+        [sceneId]: {
+          ...state.scenes[sceneId],
+          name: newName
+        }
+      },
+      hasUnsavedChanges: true
+    };
+  }),
 
   // Snapping defaults
   gridSnapEnabled: false,
@@ -1712,10 +1820,29 @@ export const useEditorStore = create<EditorState>((set) => ({
       const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
       localStorage.setItem(getStorageKey('ar_forge_active_project_id'), projectId);
 
+      let scenes = parsed.scenes;
+      let activeSceneId = parsed.activeSceneId;
+
+      if (!scenes || !activeSceneId) {
+        activeSceneId = 'default';
+        scenes = {
+          'default': { id: 'default', name: 'Main Scene', objects: ensureImageTargetLocked(parsed.objects), rootObjects: parsed.rootObjects }
+        };
+      } else {
+        // Ensure active scene is loaded
+        const activeScene = scenes[activeSceneId];
+        if (activeScene) {
+          parsed.objects = ensureImageTargetLocked(activeScene.objects);
+          parsed.rootObjects = activeScene.rootObjects;
+        }
+      }
+
       return {
         currentProjectId: projectId,
         objects: ensureImageTargetLocked(parsed.objects),
         rootObjects: parsed.rootObjects,
+        scenes,
+        activeSceneId,
         settings: parsed.settings || { projectName: parsed.name || 'Untitled Project', imageTargetName: null },
         assets: parsed.assets || [],
         selectedObjectId: null, selectedObjectIds: [],
@@ -1791,6 +1918,10 @@ export const useEditorStore = create<EditorState>((set) => ({
     { id: 'a_guitar_strum', name: 'Guitar Strum 🎸', type: 'audio', url: '/sounds/music/guitar_strum.wav' },
     { id: 'a_drum_beat', name: 'Drum Beat 🥁', type: 'audio', url: '/sounds/music/drum_beat.wav' }
   ],
+        scenes: {
+          'default': { id: 'default', name: 'Main Scene', objects, rootObjects }
+        },
+        activeSceneId: 'default',
         lastSavedTime: Date.now()
       };
       localStorage.setItem(getStorageKey(`ar_forge_project_${newId}`), JSON.stringify(projectData));
@@ -1801,6 +1932,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         projectsList: updatedList,
         objects,
         rootObjects,
+        scenes: projectData.scenes,
+        activeSceneId: projectData.activeSceneId,
         settings: {
           projectName: name,
           imageTargetName: null
@@ -2068,6 +2201,15 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   saveCurrentProject: () => set((state) => {
     try {
+      const updatedScenes = { ...state.scenes };
+      if (updatedScenes[state.activeSceneId]) {
+        updatedScenes[state.activeSceneId] = {
+          ...updatedScenes[state.activeSceneId],
+          objects: state.objects,
+          rootObjects: state.rootObjects
+        };
+      }
+
       const projectData = {
         id: state.currentProjectId,
         name: state.settings.projectName,
@@ -2075,6 +2217,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         rootObjects: state.rootObjects,
         settings: state.settings,
         assets: state.assets,
+        scenes: updatedScenes,
+        activeSceneId: state.activeSceneId,
         lastSavedTime: Date.now()
       };
 

@@ -38,7 +38,9 @@ import {
   Rows,
   Maximize,
   AlignCenter,
-  AlignLeft
+  AlignLeft,
+  Search,
+  X
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
@@ -61,7 +63,13 @@ export function HierarchyPanel({ width }: { width?: number }) {
     removeObject,
     isPreviewMode,
     settings,
-    updateSettings
+    updateSettings,
+    scenes,
+    activeSceneId,
+    loadScene,
+    createScene,
+    deleteScene,
+    renameScene
   } = useEditorStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -71,6 +79,11 @@ export function HierarchyPanel({ width }: { width?: number }) {
   const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+  const [sceneModal, setSceneModal] = useState<{
+    type: 'create' | 'rename' | 'delete' | null;
+    value?: string;
+    sceneId?: string;
+  }>({ type: null });
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -485,16 +498,48 @@ export function HierarchyPanel({ width }: { width?: number }) {
     }
   };
 
+  const checkMatchesSearch = (id: string, query: string): boolean => {
+    const obj = objects[id];
+    if (!obj) return false;
+    if (obj.name.toLowerCase().includes(query.toLowerCase())) return true;
+    return obj.children.some(childId => checkMatchesSearch(childId, query));
+  };
+
+  const highlightText = (text: string, query: string) => {
+    if (!query) return <span>{text}</span>;
+    const index = text.toLowerCase().indexOf(query.toLowerCase());
+    if (index === -1) return <span>{text}</span>;
+    const before = text.substring(0, index);
+    const match = text.substring(index, index + query.length);
+    const after = text.substring(index + query.length);
+    return (
+      <span>
+        {before}
+        <span className={cn(
+          "px-0.5 rounded font-semibold", 
+          t.isLight ? "bg-amber-100 text-amber-950" : "bg-yellow-500/25 text-yellow-300 border border-yellow-500/10"
+        )}>
+          {match}
+        </span>
+        {after}
+      </span>
+    );
+  };
+
   const renderItem = (id: string, depth = 0) => {
     const obj = objects[id];
     if (!obj) return null;
 
+    if (searchQuery && !checkMatchesSearch(id, searchQuery)) {
+      return null;
+    }
+
     const isSelected = selectedObjectIds.includes(id);
     const isDragOver = dragOverId === id;
     const hasChildren = obj.children.length > 0;
-    const isCollapsed = settings.collapsedHierarchyIds 
+    const isCollapsed = searchQuery ? false : (settings.collapsedHierarchyIds 
       ? (settings.collapsedHierarchyIds[id] ?? true)
-      : true;
+      : true);
 
     let Icon = Box;
     if (obj.type === 'imageTarget') Icon = ImageIcon;
@@ -582,7 +627,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
           ) : (
             <div className="flex-1 min-w-0 flex items-center pr-1 overflow-hidden">
               <span className={cn("truncate", obj.locked && "opacity-60 italic")}>
-                {obj.name}
+                {highlightText(obj.name, searchQuery)}
               </span>
               {obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0 && (() => {
                 const behaviors = obj.properties.visualBehaviors || [];
@@ -770,15 +815,79 @@ export function HierarchyPanel({ width }: { width?: number }) {
           </div>
         </div>
 
+        {/* Scene Selector */}
+        <div className={cn("px-2 py-1.5 border-b flex items-center justify-between gap-1.5 shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
+          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+            <Layers size={11} className={t.isLight ? "text-gray-500" : "text-gray-400"} />
+            <select
+              value={activeSceneId}
+              onChange={(e) => loadScene(e.target.value)}
+              className={cn(
+                "flex-1 bg-transparent text-[11px] font-medium outline-none cursor-pointer truncate",
+                t.isLight ? "text-gray-800" : "text-gray-200"
+              )}
+            >
+              {scenes && Object.values(scenes).map(scene => (
+                <option key={scene.id} value={scene.id} className={t.isLight ? "bg-white text-gray-800" : "bg-[#18181A] text-gray-200"}>{scene.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                setSceneModal({ type: 'create', value: 'New Scene' });
+              }}
+              className={cn("p-1 rounded transition-colors cursor-pointer", t.isLight ? "text-gray-500 hover:bg-gray-200" : "text-gray-400 hover:bg-[#222]")}
+              title="Create New Scene"
+            >
+              <Plus size={11} />
+            </button>
+            {activeSceneId && scenes && Object.keys(scenes).length > 0 && (
+              <>
+                <button
+                  onClick={() => {
+                    const currentName = scenes[activeSceneId]?.name || 'Scene';
+                    setSceneModal({ type: 'rename', value: currentName, sceneId: activeSceneId });
+                  }}
+                  className={cn("p-1 rounded transition-colors cursor-pointer", t.isLight ? "text-gray-500 hover:bg-gray-200" : "text-gray-400 hover:bg-[#222]")}
+                  title="Rename Scene"
+                >
+                  <Type size={11} />
+                </button>
+                {Object.keys(scenes).length > 1 && (
+                  <button
+                    onClick={() => {
+                      setSceneModal({ type: 'delete', sceneId: activeSceneId });
+                    }}
+                    className={cn("p-1 rounded text-red-400 hover:text-red-300 transition-colors cursor-pointer", t.isLight ? "hover:bg-red-50" : "hover:bg-red-900/30")}
+                    title="Delete Scene"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Search Bar */}
-        <div className={cn("p-2 border-b flex gap-1.5 shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
+        <div className={cn("p-2 border-b flex gap-1.5 shrink-0 transition-colors duration-200 relative items-center", t.bgPanelHeader, t.border)}>
+          <Search size={12} className={cn("absolute left-4", t.isLight ? "text-gray-400" : "text-gray-500")} />
           <input
             type="text"
             placeholder="Search hierarchy..."
-            className={cn("flex-1 rounded px-2 py-1 text-[10px] outline-none focus:border-blue-500 font-mono transition-colors duration-200", t.bgInput)}
+            className={cn("flex-1 rounded pl-6 pr-6 py-1 text-[10px] outline-none focus:border-blue-500 font-mono transition-colors duration-200", t.bgInput)}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className={cn("absolute right-4 p-0.5 rounded-full hover:bg-gray-500/20", t.isLight ? "text-gray-500" : "text-gray-400")}
+            >
+              <X size={10} />
+            </button>
+          )}
         </div>
 
         {/* Selection context actions (Group / Ungroup) */}
@@ -865,16 +974,13 @@ export function HierarchyPanel({ width }: { width?: number }) {
             <div className="p-4 text-center text-gray-500 text-[10px] italic">
               No objects in scene
             </div>
+          ) : searchQuery && !rootObjects.some(id => checkMatchesSearch(id, searchQuery)) ? (
+            <div className="p-4 text-center text-gray-500 text-[10px] italic">
+              No matches found for "{searchQuery}"
+            </div>
           ) : (
             rootObjects
-              .filter(id => {
-                const obj = objects[id];
-                if (!obj) return false;
-                if (searchQuery) {
-                  return obj.name.toLowerCase().includes(searchQuery.toLowerCase());
-                }
-                return true;
-              })
+              .filter(id => objects[id] !== undefined)
               .map(id => renderItem(id))
           )}
         </div>
@@ -1145,6 +1251,120 @@ export function HierarchyPanel({ width }: { width?: number }) {
             <Rows size={11} className="text-gray-400 shrink-0" />
             <span>Toggle Row/Col Direction</span>
           </button>
+        </div>
+      )}
+
+      {sceneModal.type && (
+        <div className="absolute inset-0 z-50 flex flex-col justify-center bg-[#0d0d0ed9] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className={cn(
+            "p-4 rounded-xl border flex flex-col gap-3 shadow-2xl transition-all scale-in duration-200",
+            t.isLight ? "bg-white border-gray-200" : "bg-[#141416] border-[#2A2A2B]"
+          )}>
+            <div className="flex items-center gap-1.5 pb-1 border-b border-white/5">
+              <Layers size={13} className="text-blue-400" />
+              <span className={cn("text-[11px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-800" : "text-gray-200")}>
+                {sceneModal.type === 'create' && 'Create New Scene'}
+                {sceneModal.type === 'rename' && 'Rename Scene'}
+                {sceneModal.type === 'delete' && 'Delete Scene'}
+              </span>
+            </div>
+
+            {sceneModal.type === 'delete' ? (
+              <div className="flex flex-col gap-3">
+                <p className={cn("text-[11px] leading-relaxed", t.isLight ? "text-gray-600" : "text-gray-400")}>
+                  Are you sure you want to delete the scene <strong className={t.isLight ? "text-gray-900" : "text-white"}>"{scenes[sceneModal.sceneId || '']?.name}"</strong>? This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-2 mt-1">
+                  <button
+                    onClick={() => setSceneModal({ type: null })}
+                    className={cn(
+                      "px-3 py-1.5 rounded text-[10px] font-semibold transition-colors cursor-pointer",
+                      t.isLight ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-[#1f1f22] hover:bg-[#28282b] text-gray-300"
+                    )}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (sceneModal.sceneId) {
+                        deleteScene(sceneModal.sceneId);
+                        useEditorStore.getState().addToast('Scene deleted successfully');
+                      }
+                      setSceneModal({ type: null });
+                    }}
+                    className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-[10px] font-semibold transition-colors cursor-pointer shadow-lg shadow-red-600/15"
+                  >
+                    Delete Scene
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className={cn("text-[9px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>Scene Name</label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={sceneModal.value || ''}
+                    onChange={(e) => setSceneModal(prev => ({ ...prev, value: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && sceneModal.value?.trim()) {
+                        if (sceneModal.type === 'create') {
+                          createScene(sceneModal.value.trim());
+                          useEditorStore.getState().addToast(`Created scene "${sceneModal.value.trim()}"`);
+                        } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
+                          renameScene(sceneModal.sceneId, sceneModal.value.trim());
+                          useEditorStore.getState().addToast(`Renamed scene to "${sceneModal.value.trim()}"`);
+                        }
+                        setSceneModal({ type: null });
+                      } else if (e.key === 'Escape') {
+                        setSceneModal({ type: null });
+                      }
+                    }}
+                    className={cn(
+                      "w-full rounded px-2.5 py-1.5 text-[11px] outline-none border focus:border-blue-500 transition-all font-mono",
+                      t.isLight ? "bg-gray-50 border-gray-200 text-gray-900" : "bg-[#18181A] border-[#2A2A2B] text-gray-100 focus:bg-[#1a1a1c]"
+                    )}
+                    placeholder="e.g. Gallery Scene"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 mt-1">
+                  <button
+                    onClick={() => setSceneModal({ type: null })}
+                    className={cn(
+                      "px-3 py-1.5 rounded text-[10px] font-semibold transition-colors cursor-pointer",
+                      t.isLight ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-[#1f1f22] hover:bg-[#28282b] text-gray-300"
+                    )}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!sceneModal.value?.trim()}
+                    onClick={() => {
+                      if (sceneModal.value?.trim()) {
+                        if (sceneModal.type === 'create') {
+                          createScene(sceneModal.value.trim());
+                          useEditorStore.getState().addToast(`Created scene "${sceneModal.value.trim()}"`);
+                        } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
+                          renameScene(sceneModal.sceneId, sceneModal.value.trim());
+                          useEditorStore.getState().addToast(`Renamed scene to "${sceneModal.value.trim()}"`);
+                        }
+                        setSceneModal({ type: null });
+                      }
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded text-white text-[10px] font-semibold transition-all shadow-lg cursor-pointer",
+                      sceneModal.value?.trim() 
+                        ? "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-600/15" 
+                        : "bg-blue-600/40 opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    {sceneModal.type === 'create' ? 'Create' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </aside>
