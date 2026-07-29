@@ -2,7 +2,7 @@ import { playCachedAudio, globalAudioCache } from '../../lib/audioManager';
 import React, { useRef, useState, useEffect, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html, Environment } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html, Environment, ContactShadows } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
@@ -747,13 +747,21 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
   const emissiveColor = properties.emissiveColor || '#000000';
   const emissiveIntensity = properties.emissiveIntensity ?? 0;
   
-  // Advanced clearcoat / transmission
+  // Advanced clearcoat / transmission / Spline 3D physical features
   const clearcoat = properties.clearcoat ?? 0;
   const clearcoatRoughness = properties.clearcoatRoughness ?? 0.1;
   const transmission = properties.transmission ?? 0;
   const thickness = properties.thickness ?? 0;
   const ior = properties.ior ?? 1.5;
   const flatShading = properties.flatShading ?? false;
+  const iridescence = properties.iridescence ?? 0;
+  const iridescenceIOR = properties.iridescenceIOR ?? 1.3;
+  const iridescenceThicknessRange = properties.iridescenceThicknessRange || [100, 400];
+  const sheen = properties.sheen ?? 0;
+  const sheenColor = properties.sheenColor || '#ffffff';
+  const sheenRoughness = properties.sheenRoughness ?? 0.5;
+  const attenuationColor = properties.attenuationColor;
+  const attenuationDistance = properties.attenuationDistance;
 
   // Map URLs
   const textureUrl = properties.textureUrl;
@@ -804,6 +812,14 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
           transmission={transmission}
           thickness={thickness}
           ior={ior}
+          iridescence={iridescence}
+          iridescenceIOR={iridescenceIOR}
+          iridescenceThicknessRange={iridescenceThicknessRange}
+          sheen={sheen}
+          sheenColor={sheenColor}
+          sheenRoughness={sheenRoughness}
+          attenuationColor={attenuationColor}
+          attenuationDistance={attenuationDistance}
           flatShading={flatShading}
           textureUrl={textureUrl}
           normalMapUrl={normalMapUrl}
@@ -835,6 +851,14 @@ function PhysicalMaterialLoader({
   transmission,
   thickness,
   ior,
+  iridescence,
+  iridescenceIOR,
+  iridescenceThicknessRange,
+  sheen,
+  sheenColor,
+  sheenRoughness,
+  attenuationColor,
+  attenuationDistance,
   flatShading,
   textureUrl,
   normalMapUrl,
@@ -966,6 +990,14 @@ function PhysicalMaterialLoader({
         transmission={transmission}
         thickness={thickness}
         ior={ior}
+        iridescence={iridescence}
+        iridescenceIOR={iridescenceIOR}
+        iridescenceThicknessRange={iridescenceThicknessRange}
+        sheen={sheen}
+        sheenColor={sheenColor ? new THREE.Color(sheenColor) : undefined}
+        sheenRoughness={sheenRoughness}
+        attenuationColor={attenuationColor ? new THREE.Color(attenuationColor) : undefined}
+        attenuationDistance={attenuationDistance || undefined}
         flatShading={flatShading}
         wireframe={wireframe}
         transparent={opacity < 1 || transmission > 0}
@@ -2255,6 +2287,76 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
   );
 }
 
+function AutoSceneLightingEngine() {
+  const settings = useEditorStore(state => state.settings);
+  const objects = useEditorStore(state => state.objects);
+
+  const materialAnalysis = React.useMemo(() => {
+    let hasPBR = false;
+    let hasGlass = false;
+    let hasMetallic = false;
+    let hasIridescence = false;
+
+    Object.values(objects).forEach(obj => {
+      const props = obj?.properties || {};
+      if (props.transmission > 0 || (props.opacity !== undefined && props.opacity < 1)) hasGlass = true;
+      if (props.metalness && props.metalness > 0.2) hasMetallic = true;
+      if (props.clearcoat > 0 || props.iridescence > 0) hasIridescence = true;
+      if (obj?.type === 'model' || props.shaderType === 'physical') hasPBR = true;
+    });
+
+    return { hasPBR, hasGlass, hasMetallic, hasIridescence };
+  }, [objects]);
+
+  const hdrEnabled = settings.hdrEnvironmentEnabled ?? true;
+  const hdrPreset = settings.hdrPreset || 'studio';
+  const hdrBackground = settings.hdrBackgroundEnabled ?? false;
+  const hdrType = settings.hdrEnvironmentType || 'preset';
+  const hdrUrl = settings.hdrEnvironmentUrl;
+
+  return (
+    <>
+      <ambientLight intensity={materialAnalysis.hasGlass ? 0.7 : 0.5} />
+      <directionalLight
+        position={[10, 15, 10]}
+        intensity={materialAnalysis.hasMetallic ? 1.6 : 1.3}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-bias={-0.0001}
+      />
+      <directionalLight
+        position={[-10, 5, -10]}
+        intensity={0.6}
+        color="#e0f2fe"
+      />
+      <directionalLight
+        position={[0, 10, -15]}
+        intensity={0.8}
+        color="#fdf4ff"
+      />
+
+      {hdrEnabled && (
+        <Environment
+          files={hdrType === 'custom' ? hdrUrl : undefined}
+          preset={hdrType !== 'custom' ? (hdrPreset as any) : undefined}
+          background={hdrBackground}
+        />
+      )}
+
+      <ContactShadows
+        position={[0, -0.01, 0]}
+        opacity={0.55}
+        scale={20}
+        blur={2.5}
+        far={8}
+        resolution={512}
+        color="#000000"
+      />
+    </>
+  );
+}
+
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
   const orbitControlsRef = useRef<any>(null);
@@ -2801,16 +2903,7 @@ export function Viewport() {
                 onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
               >
                 
-                <ambientLight intensity={0.6} />
-                <directionalLight position={[10, 10, 5]} intensity={1.2} />
-
-                {settings.hdrEnvironmentEnabled && (
-                  <Environment 
-                    files={settings.hdrEnvironmentType === 'custom' ? settings.hdrEnvironmentUrl : undefined} 
-                    preset={settings.hdrEnvironmentType !== 'custom' ? (settings.hdrPreset || 'studio') : undefined}
-                    background={settings.hdrBackgroundEnabled ?? false}
-                  />
-                )}
+                <AutoSceneLightingEngine />
                 
                 {rootObjects.map(id => (
                   <ObjectRenderer key={id} id={id} />

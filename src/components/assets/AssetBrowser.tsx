@@ -29,10 +29,13 @@ import {
   Sun,
   Globe,
   Folder,
-  LayoutGrid
+  LayoutGrid,
+  Palette,
+  Grid
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
+import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, GeneratedARTexture } from '../../lib/splineMaterials';
 
 // Premium high-quality stable GLB presets for instant AR experience
 const PRESET_MODELS = [
@@ -561,7 +564,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'templates' | 'icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
+type CategoryTab = 'templates' | 'materials' | 'textures' | 'icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
 
 export function AssetBrowser() {
   const { 
@@ -587,6 +590,10 @@ export function AssetBrowser() {
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [selectedIconCategory, setSelectedIconCategory] = useState<string>('All');
   const [selectedIconMaterialStyle, setSelectedIconMaterialStyle] = useState<string>('glossy');
+  const [selectedMaterialCategory, setSelectedMaterialCategory] = useState<string>('All');
+  const [materialSearchQuery, setMaterialSearchQuery] = useState('');
+  const [selectedTextureCategory, setSelectedTextureCategory] = useState<string>('All');
+  const [textureSearchQuery, setTextureSearchQuery] = useState('');
   const [selectedAudioCategory, setSelectedAudioCategory] = useState<string>('All');
   const [selectedLightingCategory, setSelectedLightingCategory] = useState<string>('All');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -597,6 +604,90 @@ export function AssetBrowser() {
   const [searchCategory, setSearchCategory] = useState('all');
   const [customImportUrl, setCustomImportUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleApplySplineMaterial = (preset: SplineMaterialPreset) => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    if (selectedObjectId && objects[selectedObjectId]) {
+      const targetObj = objects[selectedObjectId];
+      updateObject(selectedObjectId, {
+        properties: {
+          ...targetObj.properties,
+          ...preset.materialProps,
+        }
+      });
+      setNotification(`✨ Applied "${preset.name}" to ${targetObj.name}`);
+      setTimeout(() => setNotification(null), 3000);
+    } else {
+      const newId = uuidv4();
+      const newObj: SceneObject = {
+        id: newId,
+        name: `${preset.name} Sphere`,
+        type: 'sphere',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: null,
+        properties: {
+          color: preset.materialProps.color,
+          roughness: preset.materialProps.roughness,
+          metalness: preset.materialProps.metalness,
+          ...preset.materialProps,
+        }
+      };
+      addObject(newObj);
+      useEditorStore.getState().selectObject(newId);
+      setNotification(`Created sphere with "${preset.name}" material`);
+      setTimeout(() => setNotification(null), 3000);
+    }
+  };
+
+  const handleApplyARTexture = (tex: GeneratedARTexture) => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    if (selectedObjectId && objects[selectedObjectId]) {
+      const targetObj = objects[selectedObjectId];
+      updateObject(selectedObjectId, {
+        properties: {
+          ...targetObj.properties,
+          textureUrl: tex.previewUrl,
+          normalMapUrl: tex.normalMapUrl,
+          roughnessMapUrl: tex.roughnessMapUrl,
+          textureRepeatX: tex.recommendedScale[0],
+          textureRepeatY: tex.recommendedScale[1],
+        }
+      });
+      setNotification(`🎨 Applied "${tex.name}" AR texture map to ${targetObj.name}`);
+      setTimeout(() => setNotification(null), 3000);
+    } else {
+      const newId = uuidv4();
+      const newObj: SceneObject = {
+        id: newId,
+        name: `${tex.name} Surface`,
+        type: 'plane',
+        position: [0, 0, 0],
+        rotation: [-Math.PI / 2, 0, 0],
+        scale: [2, 2, 1],
+        visible: true,
+        children: [],
+        parentId: null,
+        properties: {
+          color: '#ffffff',
+          roughness: 0.4,
+          metalness: 0.1,
+          textureUrl: tex.previewUrl,
+          normalMapUrl: tex.normalMapUrl,
+          roughnessMapUrl: tex.roughnessMapUrl,
+          textureRepeatX: tex.recommendedScale[0],
+          textureRepeatY: tex.recommendedScale[1],
+        }
+      };
+      addObject(newObj);
+      useEditorStore.getState().selectObject(newId);
+      setNotification(`Created AR surface with "${tex.name}" texture`);
+      setTimeout(() => setNotification(null), 3000);
+    }
+  };
 
   const handleAdd3DIcon = (icon: SplineIconMetadata) => {
     let parentId = selectedObjectId;
@@ -1681,6 +1772,24 @@ export function AssetBrowser() {
             <span className="font-medium">3D Icons (Spline)</span>
             <span className="ml-auto bg-pink-500/20 text-pink-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">{SPLINE_3D_ICONS.length}</span>
           </button>
+
+          <button 
+            onClick={() => setActiveTab('materials')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'materials' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Palette size={16} className={activeTab === 'materials' ? 'text-white' : 'text-purple-400'} />
+            <span className="font-medium">Spline Materials</span>
+            <span className="ml-auto bg-purple-500/20 text-purple-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">{SPLINE_MATERIAL_PRESETS.length}</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('textures')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'textures' ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Grid size={16} className={activeTab === 'textures' ? 'text-white' : 'text-cyan-400'} />
+            <span className="font-medium">AR Textures</span>
+            <span className="ml-auto bg-cyan-500/20 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">PBR</span>
+          </button>
           <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-1">Library</div>
 
           <button onClick={() => setActiveTab('uploads')} className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'uploads' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}>
@@ -2029,6 +2138,206 @@ export function AssetBrowser() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* SPLINE MATERIALS TAB */}
+          {activeTab === 'materials' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-4 px-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Palette className="text-purple-400" /> Spline 3D Materials Library
+                  </h3>
+                  <span className="text-xs bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded-full font-mono font-bold border border-purple-500/30">
+                    40+ Presets • PBR & Shader Engine
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Realistic Spline3D material presets (Glass, Metallic, Holographic, Iridescent Sheen, Velvet, Neon). Select an object in the viewport and click any material to apply, or click + Spawn to create a 3D primitive with the material.
+                </p>
+              </div>
+
+              {/* Search & Category Filter */}
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search materials (e.g., gold, glass, holographic, velvet, neon)..."
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                    value={materialSearchQuery}
+                    onChange={(e) => setMaterialSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {['All', 'Clay & Matte', 'Glass & Crystal', 'Metals & Chrome', 'Holographic & Iridescent', 'Neon & Glow', 'Textures & Patterns', 'Organic & Fabric'].map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedMaterialCategory(cat)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                        selectedMaterialCategory === cat
+                          ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                          : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid of Materials */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 content-start overflow-y-auto pr-1 pb-20">
+                {SPLINE_MATERIAL_PRESETS
+                  .filter(m => selectedMaterialCategory === 'All' || m.category === selectedMaterialCategory)
+                  .filter(m => m.name.toLowerCase().includes(materialSearchQuery.toLowerCase()) || m.description.toLowerCase().includes(materialSearchQuery.toLowerCase()))
+                  .map(preset => {
+                    const isSelected = selectedObjectId && objects[selectedObjectId];
+                    return (
+                      <div
+                        key={preset.id}
+                        onClick={() => handleApplySplineMaterial(preset)}
+                        className="group relative bg-[#18181b] border border-white/10 rounded-xl overflow-hidden hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer flex flex-col p-3"
+                      >
+                        {/* Preview Swatch Sphere Circle */}
+                        <div 
+                          className="w-full aspect-square rounded-lg mb-2 flex items-center justify-center relative overflow-hidden shadow-inner border border-white/10" 
+                          style={preset.previewStyle || {
+                            background: `radial-gradient(circle at 35% 35%, #ffffff 0%, ${preset.previewColor} 55%, ${preset.secondaryColor || '#000000'} 100%)`,
+                            boxShadow: 'inset -2px -2px 6px rgba(0,0,0,0.4)'
+                          }}
+                        >
+                          <span className="text-2xl filter drop-shadow-md transition-transform group-hover:scale-125 duration-300">
+                            {preset.thumbnailEmoji || '🎨'}
+                          </span>
+                          <span className="absolute bottom-1 right-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/60 text-white/90 backdrop-blur-sm border border-white/10">
+                            {preset.materialProps.shaderType || 'physical'}
+                          </span>
+                        </div>
+
+                        {/* Text info */}
+                        <div className="flex flex-col flex-1">
+                          <span className="font-bold text-xs text-white group-hover:text-purple-300 transition-colors line-clamp-1">
+                            {preset.name}
+                          </span>
+                          <span className="text-[10px] text-gray-400 line-clamp-2 mt-0.5 leading-tight">
+                            {preset.description}
+                          </span>
+                        </div>
+
+                        {/* Apply or Create Button */}
+                        <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                          <span className="text-[9px] font-mono text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                            {preset.category.split(' ')[0]}
+                          </span>
+                          <span className="text-[10px] font-bold text-white bg-purple-600 group-hover:bg-purple-500 px-2 py-0.5 rounded flex items-center gap-1 transition-colors">
+                            {isSelected ? 'Apply' : '+ Spawn'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* AR TEXTURES TAB */}
+          {activeTab === 'textures' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-4 px-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Grid className="text-cyan-400" /> Mobile AR Optimized Textures Engine
+                  </h3>
+                  <span className="text-xs bg-cyan-500/20 text-cyan-300 px-2.5 py-1 rounded-full font-mono font-bold border border-cyan-500/30 flex items-center gap-1">
+                    ⚡ 512×512 Tileable PBR • Mobile AR
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Ultra-lightweight procedural PBR texture maps (Albedo, Normal Map, Roughness Map) tailored for maximum AR rendering performance on mobile browsers.
+                </p>
+              </div>
+
+              {/* Search & Category Filter */}
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search AR textures (marble, carbon, grid, wood, metal, neon)..."
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    value={textureSearchQuery}
+                    onChange={(e) => setTextureSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {['All', 'Marble', 'Pattern', 'Metal', 'Wood', 'Fabric', 'Grid', 'Noise'].map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedTextureCategory(cat)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                        selectedTextureCategory === cat
+                          ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
+                          : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid of Textures */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 content-start overflow-y-auto pr-1 pb-20">
+                {getOptimizedARTextures()
+                  .filter(t => selectedTextureCategory === 'All' || t.category === selectedTextureCategory)
+                  .filter(t => t.name.toLowerCase().includes(textureSearchQuery.toLowerCase()) || t.category.toLowerCase().includes(textureSearchQuery.toLowerCase()))
+                  .map(tex => {
+                    const isSelected = selectedObjectId && objects[selectedObjectId];
+                    return (
+                      <div
+                        key={tex.id}
+                        onClick={() => handleApplyARTexture(tex)}
+                        className="group relative bg-[#18181b] border border-white/10 rounded-xl overflow-hidden hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/10 transition-all cursor-pointer flex flex-col p-3"
+                      >
+                        {/* Texture Image Preview */}
+                        <div className="w-full aspect-square rounded-lg mb-2 bg-black relative overflow-hidden border border-white/10">
+                          <img
+                            src={tex.previewUrl}
+                            alt={tex.name}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-300"
+                          />
+                          <div className="absolute top-1 right-1 flex flex-col gap-0.5">
+                            <span className="text-[8px] font-mono bg-emerald-500/80 text-white px-1 py-0.5 rounded backdrop-blur-sm">Albedo</span>
+                            <span className="text-[8px] font-mono bg-purple-500/80 text-white px-1 py-0.5 rounded backdrop-blur-sm">Normal</span>
+                            <span className="text-[8px] font-mono bg-blue-500/80 text-white px-1 py-0.5 rounded backdrop-blur-sm">Roughness</span>
+                          </div>
+                        </div>
+
+                        {/* Text info */}
+                        <div className="flex flex-col flex-1">
+                          <span className="font-bold text-xs text-white group-hover:text-cyan-300 transition-colors line-clamp-1">
+                            {tex.name}
+                          </span>
+                          <span className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">
+                            Scale: {tex.recommendedScale[0]}x{tex.recommendedScale[1]} • 512² PBR
+                          </span>
+                        </div>
+
+                        {/* Apply or Create Button */}
+                        <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                          <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                            {tex.category}
+                          </span>
+                          <span className="text-[10px] font-bold text-white bg-cyan-600 group-hover:bg-cyan-500 px-2 py-0.5 rounded flex items-center gap-1 transition-colors">
+                            {isSelected ? 'Apply' : '+ Spawn'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
