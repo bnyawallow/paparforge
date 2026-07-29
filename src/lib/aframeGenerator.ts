@@ -258,6 +258,10 @@ export const generateAFrameScene = (state: any) => {
         entity += `${indent}  <a-entity position="0 0 0.11" scale="0.8 0.8 0.8" troika-text="value: ${btnText}; align: center; color: ${textColor}; fontSize: 0.25; maxWidth: 4"></a-entity>\n`;
       } else if (obj.type === 'youtube') {
         entity += `${indent}  <a-plane color="#ff0000" material="src: url(https://img.youtube.com/vi/${obj.properties.videoId || 'dQw4w9WgXcQ'}/0.jpg)" aspect-ratio="1.777"></a-plane>\n`;
+      } else if (obj.type === 'icon') {
+        const iconColor = obj.properties.color || '#ef4444';
+        const matAttr = buildMaterialAttr(obj.properties);
+        entity += `${indent}  <a-box material="${matAttr}"></a-box>\n`;
       } else if (obj.type === 'model') {
         const activeAnim = obj.properties.activeAnimation || '*';
         const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;

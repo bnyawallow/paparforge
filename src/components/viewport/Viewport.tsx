@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { GlassCard, GlassFAB } from '../ui/HudComponents';
 import { Overlay2DRenderer } from "./Overlay2DRenderer";
 import { BloomEffect } from './BloomEffect';
+import { Spline3DIconRenderer } from './Spline3DIconRenderer';
 import { 
   Maximize, 
   RotateCw, 
@@ -1836,6 +1837,8 @@ function ObjectRenderer({ id }: { id: string }) {
         );
       case 'hotspot':
         return <Hotspot3DRenderer obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
+      case 'icon':
+        return <Spline3DIconRenderer obj={obj} isPreviewMode={isPreviewMode} />;
       default:
         return null;
     }

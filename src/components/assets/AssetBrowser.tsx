@@ -32,6 +32,7 @@ import {
   LayoutGrid
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
+import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
 
 // Premium high-quality stable GLB presets for instant AR experience
 const PRESET_MODELS = [
@@ -560,7 +561,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'templates' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
+type CategoryTab = 'templates' | 'icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
 
 export function AssetBrowser() {
   const { 
@@ -583,6 +584,9 @@ export function AssetBrowser() {
   const [activeTab, setActiveTab] = useState<CategoryTab>('templates');
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
   const [templateFilterTag, setTemplateFilterTag] = useState('all');
+  const [iconSearchQuery, setIconSearchQuery] = useState('');
+  const [selectedIconCategory, setSelectedIconCategory] = useState<string>('All');
+  const [selectedIconMaterialStyle, setSelectedIconMaterialStyle] = useState<string>('glossy');
   const [selectedAudioCategory, setSelectedAudioCategory] = useState<string>('All');
   const [selectedLightingCategory, setSelectedLightingCategory] = useState<string>('All');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -593,6 +597,37 @@ export function AssetBrowser() {
   const [searchCategory, setSearchCategory] = useState('all');
   const [customImportUrl, setCustomImportUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleAdd3DIcon = (icon: SplineIconMetadata) => {
+    let parentId = selectedObjectId;
+    if (!parentId) {
+      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+      if (imageTarget) parentId = imageTarget.id;
+    }
+
+    const newObj: SceneObject = {
+      id: uuidv4(),
+      name: icon.name,
+      type: 'icon',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [],
+      parentId: parentId || null,
+      properties: {
+        iconType: icon.id,
+        color: icon.defaultColor,
+        secondaryColor: icon.secondaryColor,
+        materialStyle: selectedIconMaterialStyle || icon.materialStyle || 'glossy',
+        floatAnim: true,
+        rotationSpeed: 0.5,
+      }
+    };
+
+    addObject(newObj, parentId || undefined);
+    showToast(`Added 3D icon "${newObj.name}" to the scene.`);
+  };
 
   useEffect(() => {
     if (editingId && inputRef.current) {
@@ -1637,6 +1672,15 @@ export function AssetBrowser() {
             <Plus size={16} className={activeTab === 'templates' ? 'text-white' : 'text-emerald-400'} />
             <span className="font-medium">Primitives & UI</span>
           </button>
+
+          <button 
+            onClick={() => setActiveTab('icons')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'icons' ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-md shadow-pink-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Sparkles size={16} className={activeTab === 'icons' ? 'text-white' : 'text-pink-400'} />
+            <span className="font-medium">3D Icons (Spline)</span>
+            <span className="ml-auto bg-pink-500/20 text-pink-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">{SPLINE_3D_ICONS.length}</span>
+          </button>
           <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-4 mb-1">Library</div>
 
           <button onClick={() => setActiveTab('uploads')} className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'uploads' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}>
@@ -1853,6 +1897,138 @@ export function AssetBrowser() {
                     )}
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 3D ICONS TAB (Spline 3D Style) */}
+          {activeTab === 'icons' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-6 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Sparkles className="text-pink-400" /> 
+                    3D Icons Collection (Spline Style)
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Explore high-fidelity 3D claymorphic, glossy, glass, and metallic icons. Click to insert into scene.
+                  </p>
+                </div>
+                {/* Global Material Style Override Selector */}
+                <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-xl border border-white/10 shrink-0">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2">Material Finish:</span>
+                  {(['clay', 'glossy', 'metallic', 'glass', 'neon'] as const).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => setSelectedIconMaterialStyle(style)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
+                        selectedIconMaterialStyle === style 
+                          ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-sm' 
+                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search & Category Filtering */}
+              <div className="mb-6 flex flex-col md:flex-row gap-3 px-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search 3D icons by name, tag, or topic..."
+                    value={iconSearchQuery}
+                    onChange={(e) => setIconSearchQuery(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+                  />
+                  {iconSearchQuery && (
+                    <button 
+                      onClick={() => setIconSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {['All', 'Tech & Gadgets', 'Finance & Crypto', 'Social & Messaging', 'Creative & Design', 'Gaming & VFX', 'System & UI', 'Nature & Weather', 'E-Commerce'].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedIconCategory(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                        selectedIconCategory === cat
+                          ? 'bg-pink-600 text-white font-bold shadow-md shadow-pink-600/20'
+                          : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3D Icons Display Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-24 content-start">
+                {SPLINE_3D_ICONS.filter((icon) => {
+                  const q = iconSearchQuery.toLowerCase().trim();
+                  const matchesSearch = !q || 
+                    icon.name.toLowerCase().includes(q) || 
+                    icon.description.toLowerCase().includes(q) || 
+                    icon.tags.some(t => t.toLowerCase().includes(q));
+                  const matchesCategory = selectedIconCategory === 'All' || icon.category === selectedIconCategory;
+                  return matchesSearch && matchesCategory;
+                }).map((icon) => (
+                  <div
+                    key={icon.id}
+                    onClick={() => {
+                      handleAdd3DIcon(icon);
+                      setIsAssetBrowserOpen(false);
+                    }}
+                    className="group relative flex flex-col p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-pink-500/50 rounded-2xl transition-all cursor-pointer hover:scale-105 active:scale-95 text-left shadow-sm hover:shadow-pink-500/10 overflow-hidden"
+                  >
+                    {/* Background Radial Glow */}
+                    <div 
+                      className="absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl opacity-20 group-hover:opacity-50 transition-opacity pointer-events-none"
+                      style={{ backgroundColor: icon.defaultColor }}
+                    />
+
+                    {/* Preview Box */}
+                    <div className="relative w-full aspect-square mb-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden group-hover:bg-black/60 transition-colors">
+                      <div className="text-4xl transform group-hover:scale-125 transition-transform duration-300 drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
+                        {icon.previewEmoji}
+                      </div>
+                      
+                      {/* Material Style Tag */}
+                      <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono uppercase tracking-wider bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-pink-300 border border-white/10">
+                        {selectedIconMaterialStyle || icon.materialStyle}
+                      </span>
+                    </div>
+
+                    {/* Meta info */}
+                    <div className="flex-1 flex flex-col">
+                      <h4 className="text-sm font-bold text-white group-hover:text-pink-300 transition-colors line-clamp-1">
+                        {icon.name}
+                      </h4>
+                      <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2 leading-tight">
+                        {icon.description}
+                      </p>
+
+                      <div className="mt-auto pt-3 flex items-center justify-between">
+                        <span className="text-[9px] text-gray-500 font-medium">
+                          {icon.category}
+                        </span>
+                        <span className="text-xs font-bold text-pink-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                          + Add
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
