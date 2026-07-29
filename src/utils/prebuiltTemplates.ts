@@ -148,7 +148,7 @@ export const PREBUILT_TEMPLATES: PrebuiltTemplate[] = [
     type: u.target,
     description: u.description,
     objectType: u.objectType,
-    tags: [u.badge.toLowerCase(), ...u.tags],
+    tags: Array.from(new Set([u.badge.toLowerCase(), ...u.tags])),
     properties: u.properties,
     scale: u.scale,
     position: u.position,

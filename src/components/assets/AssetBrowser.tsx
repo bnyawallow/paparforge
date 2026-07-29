@@ -2019,8 +2019,8 @@ export function AssetBrowser() {
                       </p>
 
                       <div className="flex flex-wrap gap-1 mt-3">
-                        {kit.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-[9px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                        {kit.tags.slice(0, 3).map((tag, idx) => (
+                          <span key={`${tag}-${idx}`} className="text-[9px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
                             #{tag}
                           </span>
                         ))}
@@ -2108,8 +2108,8 @@ export function AssetBrowser() {
                     </h3>
                     <p className="text-[10px] text-gray-400 leading-snug line-clamp-3">{t.description}</p>
                     <div className="mt-auto pt-2 flex flex-wrap gap-1">
-                      {t.tags?.map(tag => (
-                        <span key={tag} className="text-[8px] uppercase tracking-wider font-bold bg-white/5 px-2 py-0.5 rounded text-gray-300">
+                      {t.tags?.map((tag, idx) => (
+                        <span key={`${tag}-${idx}`} className="text-[8px] uppercase tracking-wider font-bold bg-white/5 px-2 py-0.5 rounded text-gray-300">
                           {tag}
                         </span>
                       ))}
