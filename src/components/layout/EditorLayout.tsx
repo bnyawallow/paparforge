@@ -263,7 +263,7 @@ export function EditorLayout() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 30 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="flex h-full shrink-0"
+              className="flex h-full shrink-0 relative z-[45]"
             >
               <div 
                 onMouseDown={startResizeRight}

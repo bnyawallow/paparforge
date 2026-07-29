@@ -2285,11 +2285,14 @@ export function InspectorPanel({ width }: { width?: number }) {
     <aside 
       style={{ width: width ? `${width}px` : '288px' }}
       className={cn(
-        "border-l flex flex-col shrink-0 overflow-hidden relative z-30 transition-colors duration-200",
+        "border-l flex flex-col shrink-0 relative z-[45] transition-colors duration-200",
         t.bgPanel,
         t.border
       )}
     >
+      {/* Portal target for nested flyouts/panels so they don't get clipped by overflow containers */}
+      <div id="inspector-flyout-portal" className="absolute top-0 right-0 pointer-events-none" style={{ zIndex: 100 }} />
+
       {/* Tab Switcher */}
       <div className={cn("flex border-b shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
         <button
@@ -3172,6 +3175,13 @@ export function InspectorPanel({ width }: { width?: number }) {
           <div className="flex flex-col gap-4">
             {/* --- 1. PRIMITIVES SECTION --- */}
             {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(obj.type) && (
+              <ModelMaterialEditor 
+                obj={obj} 
+                handlePropertyChange={handlePropertyChange} 
+                handleMultiplePropertiesChange={handleMultiplePropertiesChange} 
+              />
+            )}
+            {false && ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane'].includes(obj.type) && (
               <div className="bg-[#141414]/80 border border-[#222] rounded-xl p-3 flex flex-col gap-4">
                 <div className="flex items-center justify-between border-b border-[#222] pb-2">
                   <span className="text-[11px] font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
@@ -4458,7 +4468,11 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
 
                 <div className="border-t border-[#222] pt-3.5 mt-1">
-                  <ModelMaterialEditor obj={obj} handlePropertyChange={handlePropertyChange} />
+                  <ModelMaterialEditor 
+                    obj={obj} 
+                    handlePropertyChange={handlePropertyChange} 
+                    handleMultiplePropertiesChange={handleMultiplePropertiesChange} 
+                  />
                 </div>
 
                 {/* --- MODEL SUB-OBJECT TRANSFORM & VISIBILITY OVERRIDES --- */}
