@@ -599,6 +599,20 @@ export const SPLINE_SOUND_PRESETS: SplineSoundPreset[] = [
 class WebAudioSoundEngine {
   private ctx: AudioContext | null = null;
 
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const unlock = () => {
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      };
+      window.addEventListener('pointerdown', unlock, { passive: true });
+      window.addEventListener('click', unlock, { passive: true });
+      window.addEventListener('touchstart', unlock, { passive: true });
+      window.addEventListener('keydown', unlock, { passive: true });
+    }
+  }
+
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {

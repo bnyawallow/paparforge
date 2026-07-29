@@ -263,15 +263,21 @@ export const generateAFrameScene = (state: any) => {
         const matAttr = buildMaterialAttr(obj.properties);
         entity += `${indent}  <a-box material="${matAttr}"></a-box>\n`;
       } else if (obj.type === 'model') {
-        const activeAnim = obj.properties.activeAnimation || '*';
-        const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;
-        const loopAnim = obj.properties.loopAnimation !== false;
-        const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: ${loopAnim ? 'repeat' : 'once'}"`;
-        const wireframeAttr = ` model-wireframe="enabled: ${obj.properties.wireframe ?? false}"`;
-        const matOverridesStr = JSON.stringify(obj.properties.materialOverrides || {}).replace(/"/g, '&quot;');
-        const subOverridesStr = JSON.stringify(obj.properties.subObjectOverrides || {}).replace(/"/g, '&quot;');
-        const overridesAttr = ` model-overrides="materials: ${matOverridesStr}; subObjects: ${subOverridesStr}"`;
-        entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}${overridesAttr}></a-entity>\n`;
+        if (obj.properties.url && obj.properties.url.startsWith('primitive:')) {
+          const prim = obj.properties.url.replace('primitive:', '').toLowerCase();
+          const geomType = prim === 'cube' ? 'box' : prim === 'knot' ? 'torusKnot' : prim;
+          entity += `${indent}  <a-entity geometry="primitive: ${geomType}; radius: 0.5" material="color: ${obj.properties.color || '#3b82f6'}"></a-entity>\n`;
+        } else {
+          const activeAnim = obj.properties.activeAnimation || '*';
+          const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;
+          const loopAnim = obj.properties.loopAnimation !== false;
+          const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: ${loopAnim ? 'repeat' : 'once'}"`;
+          const wireframeAttr = ` model-wireframe="enabled: ${obj.properties.wireframe ?? false}"`;
+          const matOverridesStr = JSON.stringify(obj.properties.materialOverrides || {}).replace(/"/g, '&quot;');
+          const subOverridesStr = JSON.stringify(obj.properties.subObjectOverrides || {}).replace(/"/g, '&quot;');
+          const overridesAttr = ` model-overrides="materials: ${matOverridesStr}; subObjects: ${subOverridesStr}"`;
+          entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}${overridesAttr}></a-entity>\n`;
+        }
       } else if (obj.type === 'audio') {
         const soundUrl = obj.properties.soundUrl || '';
         if (soundUrl) audioAssetUrls.add(soundUrl);

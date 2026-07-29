@@ -295,6 +295,105 @@ function buildSubObjectTree(node: any, indexPath: string = '0'): any {
 }
 
 // Robust GLTF / GLB 3D Model with Full Animation Clip Mixer support
+function PrimitiveModelRenderer({ url, properties }: { url: string; properties: any }) {
+  const primitiveType = (url || '').replace('primitive:', '').toLowerCase();
+  
+  switch (primitiveType) {
+    case 'sphere':
+      return (
+        <mesh castShadow receiveShadow>
+          <sphereGeometry args={[0.5, 32, 32]} />
+          <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
+        </mesh>
+      );
+    case 'cube':
+    case 'box':
+      return (
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[1, 1, 1]} />
+          <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
+        </mesh>
+      );
+    case 'cylinder':
+      return (
+        <mesh castShadow receiveShadow>
+          <cylinderGeometry args={[0.5, 0.5, 1, 32]} />
+          <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
+        </mesh>
+      );
+    case 'torus':
+      return (
+        <mesh castShadow receiveShadow>
+          <torusGeometry args={[0.4, 0.12, 16, 64]} />
+          <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
+        </mesh>
+      );
+    case 'cone':
+      return (
+        <mesh castShadow receiveShadow>
+          <coneGeometry args={[0.5, 1, 32]} />
+          <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
+        </mesh>
+      );
+    case 'plane':
+      return (
+        <mesh castShadow receiveShadow>
+          <planeGeometry args={[1, 1]} />
+          <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#3b82f6" />
+        </mesh>
+      );
+    case 'pyramid':
+      return (
+        <mesh castShadow receiveShadow>
+          <coneGeometry args={[0.7, 1, 4]} />
+          <TexturedMaterial properties={properties} defaultColor="#eab308" />
+        </mesh>
+      );
+    case 'capsule':
+      return (
+        <mesh castShadow receiveShadow>
+          <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
+          <TexturedMaterial properties={properties} defaultColor="#a855f7" />
+        </mesh>
+      );
+    case 'dodecahedron':
+      return (
+        <mesh castShadow receiveShadow>
+          <dodecahedronGeometry args={[0.5]} />
+          <TexturedMaterial properties={properties} defaultColor="#ec4899" />
+        </mesh>
+      );
+    case 'octahedron':
+      return (
+        <mesh castShadow receiveShadow>
+          <octahedronGeometry args={[0.5]} />
+          <TexturedMaterial properties={properties} defaultColor="#10b981" />
+        </mesh>
+      );
+    case 'icosahedron':
+      return (
+        <mesh castShadow receiveShadow>
+          <icosahedronGeometry args={[0.5]} />
+          <TexturedMaterial properties={properties} defaultColor="#06b6d4" />
+        </mesh>
+      );
+    case 'knot':
+      return (
+        <mesh castShadow receiveShadow>
+          <torusKnotGeometry args={[0.3, 0.1, 64, 16]} />
+          <TexturedMaterial properties={properties} defaultColor="#f97316" />
+        </mesh>
+      );
+    default:
+      return (
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[0.8, 0.8, 0.8]} />
+          <TexturedMaterial properties={properties} defaultColor="#6366f1" />
+        </mesh>
+      );
+  }
+}
+
 function GLTFModel({ url, properties, id }: { url: string; properties: any; id: string }) {
   const group = useRef<THREE.Group>(null);
   const { scene, animations } = useGLTF(url);
@@ -1712,19 +1811,11 @@ function ObjectRenderer({ id }: { id: string }) {
       selectObject(id, isMulti);
     }
     
-    if (isPreviewMode) {
-      const hasTapBehavior = (obj.properties.visualBehaviors || []).some((b: any) => b.trigger === 'onTap');
-      const hasScriptTap = scriptCallbacksRef.current.onTap && (obj.properties.scriptEnabled ?? true);
-      const isButton = obj.type === 'button';
-      const hasBasicSound = !!obj.properties.soundUrl;
-      if (!hasTapBehavior && !hasScriptTap && !isButton && !hasBasicSound) {
-        return; // Only objects with relevant behaviours attached should receive clicks/tap events.
-      }
-    }
-
-    // Standard Audio playback on click if a sound asset is attached
+    // Standard Audio playback on click if a sound asset is attached, OR default interactive tap feedback in preview mode!
     if (obj.properties.soundUrl) {
       playCachedAudio(obj.properties.soundUrl, false, 0.5);
+    } else if (isPreviewMode) {
+      playCachedAudio('sfx-ui-cyber-click', false, 0.4);
     }
 
     // Button redirect in live preview
@@ -1850,12 +1941,57 @@ function ObjectRenderer({ id }: { id: string }) {
             </Suspense>
           </ErrorBoundary>
         );
+      case 'pyramid':
+        return (
+          <mesh castShadow receiveShadow>
+            <coneGeometry args={[0.7, 1, 4]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#eab308" />
+          </mesh>
+        );
+      case 'capsule':
+        return (
+          <mesh castShadow receiveShadow>
+            <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#a855f7" />
+          </mesh>
+        );
+      case 'dodecahedron':
+        return (
+          <mesh castShadow receiveShadow>
+            <dodecahedronGeometry args={[0.5]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#ec4899" />
+          </mesh>
+        );
+      case 'octahedron':
+        return (
+          <mesh castShadow receiveShadow>
+            <octahedronGeometry args={[0.5]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#10b981" />
+          </mesh>
+        );
+      case 'icosahedron':
+        return (
+          <mesh castShadow receiveShadow>
+            <icosahedronGeometry args={[0.5]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#06b6d4" />
+          </mesh>
+        );
+      case 'knot':
+        return (
+          <mesh castShadow receiveShadow>
+            <torusKnotGeometry args={[0.3, 0.1, 64, 16]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#f97316" />
+          </mesh>
+        );
       case 'model':
+        if (obj.properties.url && obj.properties.url.startsWith('primitive:')) {
+          return <PrimitiveModelRenderer url={obj.properties.url} properties={obj.properties} />;
+        }
         return obj.properties.url ? (
           <ErrorBoundary fallback={
-            <mesh>
-              <boxGeometry args={[1, 1, 1]} />
-              <meshStandardMaterial color="#ef4444" wireframe />
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[0.8, 0.8, 0.8]} />
+              <TexturedMaterial properties={obj.properties} defaultColor="#6366f1" />
             </mesh>
           }>
             <Suspense fallback={<ModelLoadingFallback />}>
@@ -1863,9 +1999,9 @@ function ObjectRenderer({ id }: { id: string }) {
             </Suspense>
           </ErrorBoundary>
         ) : (
-          <mesh>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshStandardMaterial color="#888" wireframe />
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.8, 0.8, 0.8]} />
+            <TexturedMaterial properties={obj.properties} defaultColor="#3b82f6" />
           </mesh>
         );
       case 'hotspot':

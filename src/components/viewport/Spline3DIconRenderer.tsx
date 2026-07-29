@@ -1546,6 +1546,172 @@ function ProceduralIconShape({ iconType, color, secondaryColor, style }: { iconT
         </group>
       );
 
+    case 'shopping_bag':
+      return (
+        <group>
+          <mesh position={[0, -0.1, 0]}>
+            <boxGeometry args={[0.7, 0.7, 0.4]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          <mesh position={[-0.18, 0.35, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[0.15, 0.03, 16, 32, Math.PI]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style="glossy" />
+          </mesh>
+          <mesh position={[0.18, 0.35, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[0.15, 0.03, 16, 32, Math.PI]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style="glossy" />
+          </mesh>
+        </group>
+      );
+
+    case 'credit_card':
+      return (
+        <group rotation={[0.2, -0.3, 0.1]}>
+          <mesh>
+            <boxGeometry args={[0.9, 0.55, 0.05]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          <mesh position={[-0.25, 0.05, 0.03]}>
+            <boxGeometry args={[0.18, 0.15, 0.02]} />
+            <IconMaterial color="#f59e0b" secondaryColor="#d97706" style="metallic" />
+          </mesh>
+        </group>
+      );
+
+    case 'diamond_gem':
+      return (
+        <group>
+          <mesh position={[0, 0.15, 0]}>
+            <coneGeometry args={[0.45, 0.35, 8]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glass" />
+          </mesh>
+          <mesh position={[0, -0.25, 0]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.45, 0.5, 8]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glass" />
+          </mesh>
+        </group>
+      );
+
+    case 'infinity_symbol':
+      return (
+        <group rotation={[0, 0, Math.PI / 4]}>
+          <mesh position={[-0.25, 0, 0]}>
+            <torusGeometry args={[0.25, 0.08, 16, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          <mesh position={[0.25, 0, 0]}>
+            <torusGeometry args={[0.25, 0.08, 16, 32]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style={style} />
+          </mesh>
+        </group>
+      );
+
+    case 'headset_vr':
+      return (
+        <group>
+          <mesh position={[0, 0, 0.1]}>
+            <boxGeometry args={[0.7, 0.4, 0.35]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          <mesh position={[0, 0, 0.28]}>
+            <planeGeometry args={[0.6, 0.3]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.8} />
+          </mesh>
+          <mesh position={[0, 0, -0.1]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.38, 0.05, 16, 32]} />
+            <IconMaterial color="#262626" secondaryColor="#171717" style="matte" />
+          </mesh>
+        </group>
+      );
+
+    case 'microchip':
+      return (
+        <group>
+          <mesh>
+            <boxGeometry args={[0.65, 0.65, 0.1]} />
+            <IconMaterial color="#1e293b" secondaryColor="#0f172a" style="matte" />
+          </mesh>
+          <mesh position={[0, 0, 0.06]}>
+            <boxGeometry args={[0.35, 0.35, 0.02]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {[-0.38, 0.38].map((x, i) => (
+            <group key={i}>
+              {[-0.2, 0, 0.2].map((y, j) => (
+                <mesh key={j} position={[x, y, 0]}>
+                  <boxGeometry args={[0.15, 0.04, 0.04]} />
+                  <IconMaterial color="#f59e0b" secondaryColor="#d97706" style="metallic" />
+                </mesh>
+              ))}
+            </group>
+          ))}
+        </group>
+      );
+
+    case 'game_sword':
+      return (
+        <group rotation={[0, 0, Math.PI / 4]}>
+          <mesh position={[0, 0.25, 0]}>
+            <boxGeometry args={[0.1, 0.7, 0.03]} />
+            <IconMaterial color="#e2e8f0" secondaryColor="#94a3b8" style="metallic" />
+          </mesh>
+          <mesh position={[0, -0.15, 0]}>
+            <boxGeometry args={[0.35, 0.06, 0.06]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glossy" />
+          </mesh>
+          <mesh position={[0, -0.32, 0]}>
+            <cylinderGeometry args={[0.04, 0.04, 0.25, 16]} />
+            <IconMaterial color="#78350f" secondaryColor="#451a03" style="matte" />
+          </mesh>
+        </group>
+      );
+
+    case 'portal_ring':
+      return (
+        <group>
+          <mesh>
+            <torusGeometry args={[0.45, 0.08, 16, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          <mesh>
+            <planeGeometry args={[0.8, 0.8]} />
+            <meshBasicMaterial color="#a855f7" transparent opacity={0.6} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      );
+
+    case 'vinyl_disk':
+      return (
+        <group rotation={[Math.PI / 3, 0, 0]}>
+          <mesh>
+            <cylinderGeometry args={[0.5, 0.5, 0.03, 32]} />
+            <IconMaterial color="#171717" secondaryColor="#262626" style="glossy" />
+          </mesh>
+          <mesh position={[0, 0.02, 0]}>
+            <cylinderGeometry args={[0.2, 0.2, 0.005, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glossy" />
+          </mesh>
+        </group>
+      );
+
+    case 'chest_box':
+      return (
+        <group>
+          <mesh position={[0, -0.12, 0]}>
+            <boxGeometry args={[0.7, 0.4, 0.45]} />
+            <IconMaterial color="#854d0e" secondaryColor="#713f12" style="matte" />
+          </mesh>
+          <mesh position={[0, 0.12, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.225, 0.225, 0.7, 16]} />
+            <IconMaterial color="#a16207" secondaryColor="#854d0e" style="matte" />
+          </mesh>
+          <mesh position={[0, 0, 0.23]}>
+            <boxGeometry args={[0.08, 0.1, 0.02]} />
+            <IconMaterial color="#f59e0b" secondaryColor="#d97706" style="metallic" />
+          </mesh>
+        </group>
+      );
+
     default:
       // Generic fallback 3D glossy rounded cube
       return (
