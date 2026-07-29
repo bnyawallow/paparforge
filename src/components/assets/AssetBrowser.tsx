@@ -40,6 +40,7 @@ import { SPLINE_2D_ICONS, Spline2DIconMetadata } from '../../lib/spline2DIcons';
 import * as LucideIcons from 'lucide-react';
 import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, GeneratedARTexture } from '../../lib/splineMaterials';
 import { UI_KIT_PRESETS, UIKitCategory, UIKitPreset } from '../../lib/uiKits';
+import { TEXT_STYLE_PRESETS, TextStyleCategory, TextStylePreset } from '../../lib/textStylesCollection';
 
 // Premium high-quality stable GLB presets for instant AR experience
 const PRESET_MODELS = [
@@ -568,7 +569,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'ui-kits' | 'templates' | 'materials' | 'textures' | 'icons' | '2d-icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
+type CategoryTab = 'ui-kits' | 'text-styles' | 'templates' | 'materials' | 'textures' | 'icons' | '2d-icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
 
 export function AssetBrowser() {
   const { 
@@ -588,10 +589,13 @@ export function AssetBrowser() {
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<CategoryTab>('ui-kits');
+  const [activeTab, setActiveTab] = useState<CategoryTab>('text-styles');
   const [uiKitSearchQuery, setUiKitSearchQuery] = useState('');
   const [selectedUiKitCategory, setSelectedUiKitCategory] = useState<string>('All');
   const [selectedUiKitTarget, setSelectedUiKitTarget] = useState<string>('All');
+  const [textStyleSearchQuery, setTextStyleSearchQuery] = useState('');
+  const [selectedTextStyleCategory, setSelectedTextStyleCategory] = useState<string>('All');
+  const [selectedTextStyleTarget, setSelectedTextStyleTarget] = useState<string>('All');
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
   const [templateFilterTag, setTemplateFilterTag] = useState('all');
   const [iconSearchQuery, setIconSearchQuery] = useState('');
@@ -1805,6 +1809,15 @@ export function AssetBrowser() {
           </button>
 
           <button 
+            onClick={() => setActiveTab('text-styles')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'text-styles' ? 'bg-gradient-to-r from-amber-500 to-pink-600 text-white shadow-md shadow-amber-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Type size={16} className={activeTab === 'text-styles' ? 'text-white' : 'text-amber-400'} />
+            <span className="font-medium">Text Styles Studio</span>
+            <span className="ml-auto bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">{TEXT_STYLE_PRESETS.length}</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('templates')}
             className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'templates' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
@@ -2050,6 +2063,170 @@ export function AssetBrowser() {
                     >
                       <Plus size={14} className="stroke-[3]" />
                       <span>Add Kit to Scene</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TEXT STYLES TAB */}
+          {activeTab === 'text-styles' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-6 px-2 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Type className="text-amber-400" /> Text Styles Studio
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Canva-inspired visual collection with over 60 customizable 2D HUD and 3D scene text presets. Click to add any style and edit its content and typography in the Inspector.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-mono text-amber-300 bg-amber-950/60 border border-amber-800/40 px-3 py-1.5 rounded-full self-start md:self-auto shrink-0">
+                  <Sparkles size={14} className="text-amber-400" />
+                  <span>{TEXT_STYLE_PRESETS.length} PRESET STYLES</span>
+                </div>
+              </div>
+
+              {/* Search & Category Filter Bar */}
+              <div className="mb-6 flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Search text styles by name, category, font, or tag..." 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors"
+                    value={textStyleSearchQuery}
+                    onChange={(e) => setTextStyleSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={selectedTextStyleCategory}
+                    onChange={(e) => setSelectedTextStyleCategory(e.target.value)}
+                    className="bg-white/5 border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    <option value="All" className="bg-slate-900 text-white">All Categories</option>
+                    <option value="Hero & Display" className="bg-slate-900 text-white">Hero & Display</option>
+                    <option value="Subtitle & Eyebrows" className="bg-slate-900 text-white">Subtitle & Eyebrows</option>
+                    <option value="Cyber & Neon" className="bg-slate-900 text-white">Cyber & Neon</option>
+                    <option value="Glass & Holographic" className="bg-slate-900 text-white">Glass & Holographic</option>
+                    <option value="CTA & Buttons" className="bg-slate-900 text-white">CTA & Buttons</option>
+                    <option value="AR Telemetry & Metrics" className="bg-slate-900 text-white">AR Telemetry & Metrics</option>
+                    <option value="Retro & Vintage" className="bg-slate-900 text-white">Retro & Vintage</option>
+                    <option value="Gradients & Metallic" className="bg-slate-900 text-white">Gradients & Metallic</option>
+                    <option value="Badges & Labels" className="bg-slate-900 text-white">Badges & Labels</option>
+                  </select>
+
+                  <select
+                    value={selectedTextStyleTarget}
+                    onChange={(e) => setSelectedTextStyleTarget(e.target.value)}
+                    className="bg-white/5 border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    <option value="All" className="bg-slate-900 text-white">All Surfaces</option>
+                    <option value="2D HUD" className="bg-slate-900 text-white">2D HUD Overlays</option>
+                    <option value="3D Scene" className="bg-slate-900 text-white">3D Scene Objects</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid of Canva-style Text Style Presets */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 overflow-y-auto pr-2 pb-20">
+                {TEXT_STYLE_PRESETS.filter(ts => {
+                  const matchesSearch = !textStyleSearchQuery || 
+                    ts.name.toLowerCase().includes(textStyleSearchQuery.toLowerCase()) ||
+                    ts.category.toLowerCase().includes(textStyleSearchQuery.toLowerCase()) ||
+                    ts.sampleText.toLowerCase().includes(textStyleSearchQuery.toLowerCase()) ||
+                    ts.description.toLowerCase().includes(textStyleSearchQuery.toLowerCase()) ||
+                    ts.tags.some(t => t.toLowerCase().includes(textStyleSearchQuery.toLowerCase()));
+                  const matchesCat = selectedTextStyleCategory === 'All' || ts.category === selectedTextStyleCategory;
+                  const matchesTarget = selectedTextStyleTarget === 'All' || ts.target === selectedTextStyleTarget;
+                  return matchesSearch && matchesCat && matchesTarget;
+                }).map(ts => (
+                  <div 
+                    key={ts.id}
+                    className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-500/50 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/10 hover:-translate-y-1"
+                  >
+                    <div>
+                      {/* Header info */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-950/80 border border-amber-800/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          {ts.badge}
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                          ts.target === '2D HUD' 
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        }`}>
+                          {ts.target}
+                        </span>
+                      </div>
+
+                      {/* Visual Sample Canvas Box (Canva-inspired preview) */}
+                      <div className="my-3 h-28 w-full bg-slate-950/80 border border-white/10 rounded-xl flex items-center justify-center p-3 relative overflow-hidden group-hover:border-amber-500/30 transition-colors">
+                        <div 
+                          className="text-center truncate max-w-full select-none"
+                          style={{
+                            fontFamily: ts.previewStyle.fontFamily || 'sans-serif',
+                            fontSize: ts.previewStyle.fontSize || '16px',
+                            fontWeight: ts.previewStyle.fontWeight || 'normal',
+                            color: ts.previewStyle.color || '#ffffff',
+                            background: ts.previewStyle.background,
+                            border: ts.previewStyle.border,
+                            borderRadius: ts.previewStyle.borderRadius,
+                            padding: ts.previewStyle.padding,
+                            textShadow: ts.previewStyle.textShadow,
+                            letterSpacing: ts.previewStyle.letterSpacing,
+                            fontStyle: ts.previewStyle.fontStyle,
+                            textTransform: ts.previewStyle.textTransform,
+                            boxShadow: ts.previewStyle.boxShadow,
+                            backdropFilter: ts.previewStyle.backdropFilter,
+                          }}
+                        >
+                          {ts.sampleText}
+                        </div>
+                      </div>
+
+                      <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
+                        {ts.name}
+                      </h4>
+                      <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                        {ts.description}
+                      </p>
+
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {ts.tags.slice(0, 3).map((tag, idx) => (
+                          <span key={`${tag}-${idx}`} className="text-[9px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        playCachedAudio('/sounds/click.wav', false, 0.4);
+                        const newObj: SceneObject = {
+                          id: uuidv4(),
+                          name: ts.name,
+                          type: ts.objectType,
+                          position: ts.position || [0, 0, 0],
+                          rotation: ts.rotation || [0, 0, 0],
+                          scale: ts.scale || [1, 1, 1],
+                          visible: true,
+                          children: [],
+                          parentId: null,
+                          properties: { ...ts.properties }
+                        };
+                        addObject(newObj);
+                        setNotification(`✨ Added "${ts.name}" style to scene`);
+                        setTimeout(() => setNotification(null), 3000);
+                      }}
+                      className="mt-4 w-full bg-gradient-to-r from-amber-500 to-pink-600 hover:from-amber-400 hover:to-pink-500 text-slate-950 font-bold text-xs py-2.5 rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Plus size={14} className="stroke-[3]" />
+                      <span>Add Style to Scene</span>
                     </button>
                   </div>
                 ))}
