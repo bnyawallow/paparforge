@@ -378,6 +378,9 @@ export function getOptimizedARTextures(): GeneratedARTexture[] {
 // --------------------------------------------------
 // SPLINE 3D MATERIAL PRESETS COLLECTION (40+ PRESETS)
 // --------------------------------------------------
+// SPLINE MATERIAL PRESETS
+// High fidelity 3D material presets with rich previews
+// --------------------------------------------------
 export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
   // --- CLAY & MATTE ---
   {
@@ -385,6 +388,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Soft Peach Clay',
     category: 'Clay & Matte',
     previewColor: '#fda4af',
+    secondaryColor: '#f43f5e',
+    thumbnailEmoji: '🍑',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #ffe4e6 0%, #fda4af 60%, #e11d48 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3), inset 2px 2px 4px rgba(255,255,255,0.6)'
+    },
     description: 'Smooth matte clay finish in warm pastel peach',
     materialProps: {
       shaderType: 'physical',
@@ -400,6 +409,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Minty Fresh Clay',
     category: 'Clay & Matte',
     previewColor: '#6ee7b7',
+    secondaryColor: '#059669',
+    thumbnailEmoji: '🌱',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #d1fae5 0%, #6ee7b7 60%, #047857 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3), inset 2px 2px 4px rgba(255,255,255,0.6)'
+    },
     description: 'Soothing mint green matte clay texture',
     materialProps: {
       shaderType: 'physical',
@@ -414,6 +429,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Lavender Clay',
     category: 'Clay & Matte',
     previewColor: '#c084fc',
+    secondaryColor: '#7e22ce',
+    thumbnailEmoji: '🪻',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #f3e8ff 0%, #c084fc 60%, #6b21a8 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3), inset 2px 2px 4px rgba(255,255,255,0.6)'
+    },
     description: 'Pastel purple claymorphic material',
     materialProps: {
       shaderType: 'physical',
@@ -428,6 +449,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Soft Charcoal Matte',
     category: 'Clay & Matte',
     previewColor: '#334155',
+    secondaryColor: '#0f172a',
+    thumbnailEmoji: '🖤',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #64748b 0%, #334155 60%, #020617 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.5), inset 2px 2px 4px rgba(255,255,255,0.2)'
+    },
     description: 'Deep sleek matte slate dark clay',
     materialProps: {
       shaderType: 'physical',
@@ -442,6 +469,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Butter Yellow Clay',
     category: 'Clay & Matte',
     previewColor: '#fde047',
+    secondaryColor: '#ca8a04',
+    thumbnailEmoji: '🧈',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #fef9c3 0%, #fde047 60%, #a16207 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3), inset 2px 2px 4px rgba(255,255,255,0.6)'
+    },
     description: 'Vibrant soft yellow clay coating',
     materialProps: {
       shaderType: 'physical',
@@ -458,6 +491,13 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Crystal Prism Glass',
     category: 'Glass & Crystal',
     previewColor: '#ffffff',
+    secondaryColor: '#38bdf8',
+    thumbnailEmoji: '💎',
+    previewStyle: {
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(56,189,248,0.4) 50%, rgba(236,72,153,0.5) 100%)',
+      backdropFilter: 'blur(8px)',
+      boxShadow: 'inset 0 0 12px rgba(255,255,255,0.8), 0 4px 15px rgba(56,189,248,0.3)'
+    },
     description: 'High refraction crystal clear glass with high transmission and clearcoat',
     materialProps: {
       shaderType: 'physical',
@@ -477,6 +517,13 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Frosted Glass',
     category: 'Glass & Crystal',
     previewColor: '#e2e8f0',
+    secondaryColor: '#94a3b8',
+    thumbnailEmoji: '🧊',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #ffffff 0%, #cbd5e1 60%, #64748b 100%)',
+      opacity: 0.85,
+      boxShadow: 'inset -2px -2px 6px rgba(0,0,0,0.2), inset 2px 2px 4px rgba(255,255,255,0.8)'
+    },
     description: 'Diffused frosted glass with soft light dispersion',
     materialProps: {
       shaderType: 'physical',
@@ -495,6 +542,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Ruby Tinted Glass',
     category: 'Glass & Crystal',
     previewColor: '#f43f5e',
+    secondaryColor: '#9f1239',
+    thumbnailEmoji: '🔻',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #fda4af 0%, #f43f5e 60%, #881337 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.4), inset 2px 2px 6px rgba(255,255,255,0.7)'
+    },
     description: 'Rich translucent crimson glass with density attenuation',
     materialProps: {
       shaderType: 'physical',
@@ -515,6 +568,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Emerald Crystal',
     category: 'Glass & Crystal',
     previewColor: '#10b981',
+    secondaryColor: '#064e3b',
+    thumbnailEmoji: '❇️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #6ee7b7 0%, #10b981 60%, #022c22 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.4), inset 2px 2px 6px rgba(255,255,255,0.7)'
+    },
     description: 'Deep green facet gem glass refraction',
     materialProps: {
       shaderType: 'physical',
@@ -536,6 +595,11 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     category: 'Glass & Crystal',
     previewColor: '#38bdf8',
     secondaryColor: '#ec4899',
+    thumbnailEmoji: '🫧',
+    previewStyle: {
+      background: 'conic-gradient(from 180deg at 50% 50%, #38bdf8 0deg, #a855f7 70deg, #ec4899 140deg, #fde047 220deg, #4ade80 290deg, #38bdf8 360deg)',
+      boxShadow: 'inset 0 0 10px rgba(255,255,255,0.9), 0 4px 12px rgba(168,85,247,0.3)'
+    },
     description: 'Iridescent soap bubble glass with prism reflections',
     materialProps: {
       shaderType: 'physical',
@@ -557,6 +621,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Obsidian Tinted Glass',
     category: 'Glass & Crystal',
     previewColor: '#1e293b',
+    secondaryColor: '#020617',
+    thumbnailEmoji: '🕶️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #475569 0%, #1e293b 60%, #020617 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.6), inset 2px 2px 4px rgba(255,255,255,0.3)'
+    },
     description: 'Sleek dark smoked glass finish',
     materialProps: {
       shaderType: 'physical',
@@ -578,6 +648,11 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     category: 'Metals & Chrome',
     previewColor: '#f59e0b',
     secondaryColor: '#fef08a',
+    thumbnailEmoji: '🪙',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #b45309 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.4), inset 3px 3px 6px rgba(255,255,255,0.8), 0 4px 12px rgba(245,158,11,0.3)'
+    },
     description: 'Pure polished yellow gold with glossy specular reflections',
     materialProps: {
       shaderType: 'physical',
@@ -593,6 +668,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Titanium Steel',
     category: 'Metals & Chrome',
     previewColor: '#94a3b8',
+    secondaryColor: '#334155',
+    thumbnailEmoji: '⚙️',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #f8fafc 0%, #94a3b8 50%, #334155 100%)',
+      boxShadow: 'inset -3px -3px 6px rgba(0,0,0,0.4), inset 2px 2px 5px rgba(255,255,255,0.7)'
+    },
     description: 'Anodized silver titanium metal with subtle roughness',
     materialProps: {
       shaderType: 'physical',
@@ -607,6 +688,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Rose Gold Metallic',
     category: 'Metals & Chrome',
     previewColor: '#fb7185',
+    secondaryColor: '#be123c',
+    thumbnailEmoji: '✨',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #ffe4e6 0%, #fb7185 50%, #9f1239 100%)',
+      boxShadow: 'inset -3px -3px 6px rgba(0,0,0,0.4), inset 2px 2px 5px rgba(255,255,255,0.7)'
+    },
     description: 'Luxury polished rose gold sheen',
     materialProps: {
       shaderType: 'physical',
@@ -621,6 +708,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Brushed Copper',
     category: 'Metals & Chrome',
     previewColor: '#ea580c',
+    secondaryColor: '#7c2d12',
+    thumbnailEmoji: '🥉',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #ffedd5 0%, #ea580c 50%, #7c2d12 100%)',
+      boxShadow: 'inset -3px -3px 6px rgba(0,0,0,0.4), inset 2px 2px 5px rgba(255,255,255,0.6)'
+    },
     description: 'Warm reddish brushed copper metal',
     materialProps: {
       shaderType: 'physical',
@@ -635,6 +728,11 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     category: 'Metals & Chrome',
     previewColor: '#a855f7',
     secondaryColor: '#06b6d4',
+    thumbnailEmoji: '🪩',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #38bdf8 0%, #a855f7 35%, #ec4899 70%, #fde047 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3), inset 2px 2px 6px rgba(255,255,255,0.8), 0 4px 15px rgba(168,85,247,0.4)'
+    },
     description: 'Liquid chrome reflecting dynamic rainbow spectra',
     materialProps: {
       shaderType: 'physical',
@@ -655,6 +753,11 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     category: 'Holographic & Iridescent',
     previewColor: '#38bdf8',
     secondaryColor: '#a855f7',
+    thumbnailEmoji: '🌌',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 40%, #a855f7 100%)',
+      boxShadow: '0 0 15px rgba(56,189,248,0.5), inset 0 0 10px rgba(255,255,255,0.6)'
+    },
     description: 'Shifting cyan-purple cosmic iridescent sheen',
     materialProps: {
       shaderType: 'physical',
@@ -673,6 +776,11 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     category: 'Holographic & Iridescent',
     previewColor: '#f472b6',
     secondaryColor: '#fde047',
+    thumbnailEmoji: '🦪',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f472b6 50%, #fde047 100%)',
+      boxShadow: 'inset -2px -2px 6px rgba(0,0,0,0.2), inset 2px 2px 6px rgba(255,255,255,0.9)'
+    },
     description: 'Mother-of-pearl iridescent lustre finish',
     materialProps: {
       shaderType: 'physical',
@@ -693,6 +801,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Cyber Cyan Glow',
     category: 'Neon & Glow',
     previewColor: '#06b6d4',
+    secondaryColor: '#0891b2',
+    thumbnailEmoji: '⚡',
+    previewStyle: {
+      background: 'radial-gradient(circle at 50% 50%, #22d3ee 0%, #06b6d4 60%, #155e75 100%)',
+      boxShadow: '0 0 20px #06b6d4, inset 0 0 10px #ffffff'
+    },
     description: 'High intensity emissive electric cyan plasma',
     materialProps: {
       shaderType: 'physical',
@@ -708,6 +822,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Vaporwave Electric Pink',
     category: 'Neon & Glow',
     previewColor: '#ec4899',
+    secondaryColor: '#be185d',
+    thumbnailEmoji: '💖',
+    previewStyle: {
+      background: 'radial-gradient(circle at 50% 50%, #f472b6 0%, #ec4899 60%, #831843 100%)',
+      boxShadow: '0 0 20px #ec4899, inset 0 0 10px #ffffff'
+    },
     description: 'Vibrant glowing magenta neon source',
     materialProps: {
       shaderType: 'physical',
@@ -723,6 +843,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Glowing Solar Amber',
     category: 'Neon & Glow',
     previewColor: '#eab308',
+    secondaryColor: '#ca8a04',
+    thumbnailEmoji: '☀️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 50% 50%, #fef08a 0%, #eab308 60%, #713f12 100%)',
+      boxShadow: '0 0 20px #eab308, inset 0 0 10px #ffffff'
+    },
     description: 'Radiant golden sun flame luminescence',
     materialProps: {
       shaderType: 'physical',
@@ -739,6 +865,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Terrazzo Marble Pattern',
     category: 'Textures & Patterns',
     previewColor: '#f8fafc',
+    secondaryColor: '#cbd5e1',
+    thumbnailEmoji: '🧱',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f1f5f9 60%, #94a3b8 100%)',
+      boxShadow: 'inset -2px -2px 6px rgba(0,0,0,0.3)'
+    },
     description: 'Terrazzo stone pattern with roughness bump map',
     materialProps: {
       shaderType: 'physical',
@@ -758,6 +890,13 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Carbon Fiber Weave',
     category: 'Textures & Patterns',
     previewColor: '#1f2937',
+    secondaryColor: '#030712',
+    thumbnailEmoji: '🏁',
+    previewStyle: {
+      background: 'linear-gradient(45deg, #111827 25%, #1f2937 25%, #1f2937 50%, #111827 50%, #111827 75%, #1f2937 75%, #1f2937 100%)',
+      backgroundSize: '12px 12px',
+      boxShadow: 'inset 0 0 8px rgba(0,0,0,0.8)'
+    },
     description: 'Dark diagonal carbon weave with specular normal shine',
     materialProps: {
       shaderType: 'physical',
@@ -778,6 +917,13 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Neon Cyber Grid Pattern',
     category: 'Textures & Patterns',
     previewColor: '#09090b',
+    secondaryColor: '#06b6d4',
+    thumbnailEmoji: '🌐',
+    previewStyle: {
+      background: 'radial-gradient(circle, rgba(6,182,212,0.3) 0%, rgba(9,9,11,1) 80%)',
+      border: '1px solid #06b6d4',
+      boxShadow: 'inset 0 0 10px #06b6d4'
+    },
     description: 'Dark background with luminous blue grid lines',
     materialProps: {
       shaderType: 'physical',
@@ -798,6 +944,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Soft Pink Velvet',
     category: 'Organic & Fabric',
     previewColor: '#f472b6',
+    secondaryColor: '#be185d',
+    thumbnailEmoji: '🛋️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 40% 40%, #fbcfe8 0%, #f472b6 60%, #9d174d 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3)'
+    },
     description: 'Plush textile velvet with directional sheen reflections',
     materialProps: {
       shaderType: 'physical',
@@ -814,6 +966,12 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
     name: 'Royal Blue Velvet',
     category: 'Organic & Fabric',
     previewColor: '#3b82f6',
+    secondaryColor: '#1e3a8a',
+    thumbnailEmoji: '🎀',
+    previewStyle: {
+      background: 'radial-gradient(circle at 40% 40%, #bfdbfe 0%, #3b82f6 60%, #1e3a8a 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3)'
+    },
     description: 'Rich royal blue fabric with soft sheen highlights',
     materialProps: {
       shaderType: 'physical',

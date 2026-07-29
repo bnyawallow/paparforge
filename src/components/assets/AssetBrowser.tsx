@@ -31,10 +31,13 @@ import {
   Folder,
   LayoutGrid,
   Palette,
-  Grid
+  Grid,
+  Shapes
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
+import { SPLINE_2D_ICONS, Spline2DIconMetadata } from '../../lib/spline2DIcons';
+import * as LucideIcons from 'lucide-react';
 import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, GeneratedARTexture } from '../../lib/splineMaterials';
 
 // Premium high-quality stable GLB presets for instant AR experience
@@ -564,7 +567,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'templates' | 'materials' | 'textures' | 'icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
+type CategoryTab = 'templates' | 'materials' | 'textures' | 'icons' | '2d-icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
 
 export function AssetBrowser() {
   const { 
@@ -589,6 +592,8 @@ export function AssetBrowser() {
   const [templateFilterTag, setTemplateFilterTag] = useState('all');
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [selectedIconCategory, setSelectedIconCategory] = useState<string>('All');
+  const [icon2DSearchQuery, setIcon2DSearchQuery] = useState('');
+  const [selected2DIconCategory, setSelected2DIconCategory] = useState<string>('All');
   const [selectedIconMaterialStyle, setSelectedIconMaterialStyle] = useState<string>('glossy');
   const [selectedMaterialCategory, setSelectedMaterialCategory] = useState<string>('All');
   const [materialSearchQuery, setMaterialSearchQuery] = useState('');
@@ -718,6 +723,36 @@ export function AssetBrowser() {
 
     addObject(newObj, parentId || undefined);
     showToast(`Added 3D icon "${newObj.name}" to the scene.`);
+  };
+
+  const handleAdd2DIcon = (icon: Spline2DIconMetadata) => {
+    let parentId = selectedObjectId;
+    if (!parentId) {
+      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+      if (imageTarget) parentId = imageTarget.id;
+    }
+
+    const newObj: SceneObject = {
+      id: uuidv4(),
+      name: icon.name,
+      type: 'icon2d' as any,
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [],
+      parentId: parentId || null,
+      properties: {
+        iconName: icon.iconName,
+        color: icon.defaultColor,
+        secondaryColor: icon.secondaryColor,
+        badgeStyle: icon.badgeStyle,
+        text: icon.name,
+      }
+    };
+
+    addObject(newObj, parentId || undefined);
+    showToast(`Added 2D icon badge "${icon.name}" to the scene.`);
   };
 
   useEffect(() => {
@@ -1774,6 +1809,15 @@ export function AssetBrowser() {
           </button>
 
           <button 
+            onClick={() => setActiveTab('2d-icons')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === '2d-icons' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Shapes size={16} className={activeTab === '2d-icons' ? 'text-white' : 'text-blue-400'} />
+            <span className="font-medium">2D Vector Badges</span>
+            <span className="ml-auto bg-blue-500/20 text-blue-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">{SPLINE_2D_ICONS.length}</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('materials')}
             className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'materials' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
@@ -2108,7 +2152,13 @@ export function AssetBrowser() {
 
                     {/* Preview Box */}
                     <div className="relative w-full aspect-square mb-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden group-hover:bg-black/60 transition-colors">
-                      <div className="text-4xl transform group-hover:scale-125 transition-transform duration-300 drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]">
+                      <div 
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl transform group-hover:scale-110 transition-transform duration-300 shadow-lg"
+                        style={{
+                          background: `radial-gradient(circle at 35% 35%, ${icon.defaultColor} 0%, ${icon.secondaryColor || '#1e1b4b'} 100%)`,
+                          boxShadow: `0 8px 20px ${icon.defaultColor}40, inset 0 0 10px rgba(255,255,255,0.4)`
+                        }}
+                      >
                         {icon.previewEmoji}
                       </div>
                       
@@ -2138,6 +2188,136 @@ export function AssetBrowser() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* 2D VECTOR BADGES TAB (Spline Style) */}
+          {activeTab === '2d-icons' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-6 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Shapes className="text-blue-400" /> 
+                    2D Vector Icon Badges (Spline 2D)
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Lightweight, resolution-independent 2D icon badges optimized for mobile AR HUDs & UI panels.
+                  </p>
+                </div>
+              </div>
+
+              {/* Search & Category Filtering */}
+              <div className="mb-6 flex flex-col md:flex-row gap-3 px-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search 2D vector icons by name or tag..."
+                    value={icon2DSearchQuery}
+                    onChange={(e) => setIcon2DSearchQuery(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                  {icon2DSearchQuery && (
+                    <button 
+                      onClick={() => setIcon2DSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {['All', 'UI & Navigation', 'Media & Audio', 'Tech & Dev', 'Commerce & Finance', 'Social & Comm', 'Status & Badges'].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelected2DIconCategory(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                        selected2DIconCategory === cat
+                          ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20'
+                          : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2D Icons Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-24 content-start">
+                {SPLINE_2D_ICONS.filter((icon) => {
+                  const q = icon2DSearchQuery.toLowerCase().trim();
+                  const matchesSearch = !q || 
+                    icon.name.toLowerCase().includes(q) || 
+                    icon.description.toLowerCase().includes(q) || 
+                    icon.tags.some(t => t.toLowerCase().includes(q));
+                  const matchesCategory = selected2DIconCategory === 'All' || icon.category === selected2DIconCategory;
+                  return matchesSearch && matchesCategory;
+                }).map((icon) => {
+                  const IconComp = (LucideIcons[icon.iconName as keyof typeof LucideIcons] as React.ComponentType<{ size?: number; className?: string }>) || LucideIcons.Sparkles;
+                  return (
+                    <div
+                      key={icon.id}
+                      onClick={() => {
+                        handleAdd2DIcon(icon);
+                        setIsAssetBrowserOpen(false);
+                      }}
+                      className="group relative flex flex-col p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/50 rounded-2xl transition-all cursor-pointer hover:scale-105 active:scale-95 text-left shadow-sm hover:shadow-blue-500/10 overflow-hidden"
+                    >
+                      {/* Background Radial Glow */}
+                      <div 
+                        className="absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl opacity-20 group-hover:opacity-50 transition-opacity pointer-events-none"
+                        style={{ backgroundColor: icon.defaultColor }}
+                      />
+
+                      {/* 2D Badge Preview Box */}
+                      <div className="relative w-full aspect-square mb-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden group-hover:bg-black/60 transition-colors">
+                        <div 
+                          className="w-14 h-14 rounded-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300 shadow-lg"
+                          style={{
+                            background: icon.badgeStyle === 'gradient'
+                              ? `linear-gradient(135deg, ${icon.defaultColor} 0%, #ec4899 100%)`
+                              : icon.badgeStyle === 'neon'
+                              ? 'rgba(15, 23, 42, 0.9)'
+                              : `radial-gradient(circle at 35% 35%, ${icon.defaultColor} 0%, ${icon.secondaryColor || '#1e1b4b'} 100%)`,
+                            border: icon.badgeStyle === 'neon' ? `2px solid ${icon.defaultColor}` : '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: `0 8px 20px ${icon.defaultColor}40, inset 0 0 10px rgba(255,255,255,0.4)`,
+                            color: icon.badgeStyle === 'neon' ? icon.defaultColor : '#ffffff'
+                          }}
+                        >
+                          <IconComp size={28} />
+                        </div>
+                        
+                        {/* Badge Style Tag */}
+                        <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono uppercase tracking-wider bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-blue-300 border border-white/10">
+                          {icon.badgeStyle}
+                        </span>
+                      </div>
+
+                      {/* Meta info */}
+                      <div className="flex-1 flex flex-col">
+                        <h4 className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors line-clamp-1">
+                          {icon.name}
+                        </h4>
+                        <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2 leading-tight">
+                          {icon.description}
+                        </p>
+
+                        <div className="mt-auto pt-3 flex items-center justify-between">
+                          <span className="text-[9px] text-gray-500 font-medium">
+                            {icon.category}
+                          </span>
+                          <span className="text-xs font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            + Add
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

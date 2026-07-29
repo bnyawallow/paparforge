@@ -1097,6 +1097,345 @@ function ProceduralIconShape({ iconType, color, secondaryColor, style }: { iconT
         </group>
       );
 
+    case 'battery':
+      return (
+        <group>
+          {/* Main cell body */}
+          <mesh>
+            <boxGeometry args={[0.45, 0.8, 0.3]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Top terminal cap */}
+          <mesh position={[0, 0.46, 0]}>
+            <cylinderGeometry args={[0.12, 0.12, 0.12, 16]} />
+            <AccentMaterial color="#e2e8f0" style="metallic" />
+          </mesh>
+          {/* 3 Charge Status Level Bars */}
+          {[-0.2, 0, 0.2].map((y, idx) => (
+            <mesh key={idx} position={[0, y, 0.16]}>
+              <boxGeometry args={[0.3, 0.12, 0.04]} />
+              <AccentMaterial color="#22c55e" style="neon" />
+            </mesh>
+          ))}
+        </group>
+      );
+
+    case 'wallet':
+      return (
+        <group rotation={[0, 0.2, 0]}>
+          {/* Folded Leather Body */}
+          <mesh>
+            <boxGeometry args={[0.8, 0.52, 0.22]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Metallic Clasp */}
+          <mesh position={[0.25, 0, 0.12]}>
+            <sphereGeometry args={[0.08, 16, 16]} />
+            <AccentMaterial color="#eab308" style="metallic" />
+          </mesh>
+          {/* Protruding Cash Notes */}
+          <mesh position={[-0.1, 0.22, 0]}>
+            <boxGeometry args={[0.6, 0.2, 0.04]} />
+            <AccentMaterial color="#22c55e" style="clay" />
+          </mesh>
+        </group>
+      );
+
+    case 'vault':
+      return (
+        <group>
+          {/* Steel Safe Box */}
+          <mesh>
+            <boxGeometry args={[0.8, 0.8, 0.65]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          {/* Vault Round Door */}
+          <mesh position={[0, 0, 0.34]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.32, 0.32, 0.08, 32]} />
+            <AccentMaterial color="#94a3b8" style="metallic" />
+          </mesh>
+          {/* Combination Wheel Handle */}
+          <mesh position={[0, 0, 0.4]}>
+            <torusGeometry args={[0.14, 0.03, 16, 32]} />
+            <AccentMaterial color="#e2e8f0" style="metallic" />
+          </mesh>
+        </group>
+      );
+
+    case 'thumbs_up':
+      return (
+        <group rotation={[0, -0.3, 0]}>
+          {/* Wrist cuff */}
+          <mesh position={[0, -0.35, 0]}>
+            <cylinderGeometry args={[0.22, 0.22, 0.25, 32]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style={style} />
+          </mesh>
+          {/* Hand Fist block */}
+          <mesh position={[0, -0.05, 0]}>
+            <boxGeometry args={[0.42, 0.42, 0.35]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Extended Thumb Cylinder */}
+          <mesh position={[0.08, 0.28, 0]} rotation={[0, 0, -0.2]}>
+            <cylinderGeometry args={[0.12, 0.14, 0.45, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          <mesh position={[0.12, 0.48, 0]}>
+            <sphereGeometry args={[0.13, 16, 16]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+        </group>
+      );
+
+    case 'mail':
+      return (
+        <group rotation={[0.1, 0, 0]}>
+          {/* Envelope Body */}
+          <mesh>
+            <boxGeometry args={[0.9, 0.6, 0.1]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Flap Prism Top */}
+          <mesh position={[0, 0.12, 0.06]} rotation={[0.4, 0, 0]}>
+            <coneGeometry args={[0.42, 0.3, 3]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style={style} />
+          </mesh>
+          {/* Red Seal */}
+          <mesh position={[0, 0, 0.07]}>
+            <sphereGeometry args={[0.08, 16, 16]} />
+            <AccentMaterial color="#ef4444" style="glossy" />
+          </mesh>
+        </group>
+      );
+
+    case 'magic_wand':
+      return (
+        <group rotation={[0, 0, -0.6]}>
+          {/* Wand Shaft */}
+          <mesh position={[0, 0, 0]}>
+            <cylinderGeometry args={[0.04, 0.06, 1.1, 16]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="clay" />
+          </mesh>
+          {/* Wand Tip Cap */}
+          <mesh position={[0, 0.52, 0]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.18, 16]} />
+            <AccentMaterial color="#e2e8f0" style="metallic" />
+          </mesh>
+          {/* Star Top */}
+          <mesh position={[0, 0.68, 0]}>
+            <octahedronGeometry args={[0.18, 0]} />
+            <AccentMaterial color={secondaryColor} style="neon" />
+          </mesh>
+        </group>
+      );
+
+    case 'compass':
+      return (
+        <group rotation={[Math.PI / 3, 0, 0]}>
+          {/* Brass Housing */}
+          <mesh>
+            <cylinderGeometry args={[0.55, 0.55, 0.12, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          {/* Glass Face */}
+          <mesh position={[0, 0.07, 0]}>
+            <cylinderGeometry args={[0.48, 0.48, 0.02, 32]} />
+            <AccentMaterial color="#e0f2fe" style="glass" />
+          </mesh>
+          {/* North Red Pointer */}
+          <mesh position={[0, 0.08, -0.18]} rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.08, 0.32, 4]} />
+            <AccentMaterial color="#ef4444" style="glossy" />
+          </mesh>
+          {/* South Blue Pointer */}
+          <mesh position={[0, 0.08, 0.18]} rotation={[-Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.08, 0.32, 4]} />
+            <AccentMaterial color="#3b82f6" style="glossy" />
+          </mesh>
+        </group>
+      );
+
+    case 'key':
+      return (
+        <group rotation={[0, 0, 0.4]}>
+          {/* Ring Bow Head */}
+          <mesh position={[0, 0.38, 0]}>
+            <torusGeometry args={[0.2, 0.05, 16, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          {/* Key Stem Shaft */}
+          <mesh position={[0, -0.12, 0]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.75, 16]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          {/* Key Notch Teeth */}
+          <mesh position={[0.08, -0.38, 0]}>
+            <boxGeometry args={[0.12, 0.22, 0.05]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+        </group>
+      );
+
+    case 'folder':
+      return (
+        <group rotation={[0, -0.2, 0]}>
+          {/* Main Folder Base */}
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.85, 0.6, 0.16]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Folder Top Tab */}
+          <mesh position={[-0.26, 0.36, 0]}>
+            <boxGeometry args={[0.32, 0.14, 0.16]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Inner Document Paper Sheet */}
+          <mesh position={[0, 0.1, 0.04]} rotation={[-0.15, 0, 0]}>
+            <boxGeometry args={[0.7, 0.55, 0.04]} />
+            <AccentMaterial color="#ffffff" style="clay" />
+          </mesh>
+        </group>
+      );
+
+    case 'search':
+      return (
+        <group rotation={[0, 0, -0.5]}>
+          {/* Magnifying Glass Rim */}
+          <mesh position={[0, 0.22, 0]}>
+            <torusGeometry args={[0.3, 0.05, 16, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          {/* Lens Glass Center */}
+          <mesh position={[0, 0.22, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.28, 0.28, 0.02, 32]} />
+            <AccentMaterial color="#38bdf8" style="glass" />
+          </mesh>
+          {/* Handle Shaft */}
+          <mesh position={[0, -0.25, 0]}>
+            <cylinderGeometry args={[0.06, 0.07, 0.5, 16]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="clay" />
+          </mesh>
+        </group>
+      );
+
+    case 'pin':
+      return (
+        <group>
+          {/* Top Pin Sphere */}
+          <mesh position={[0, 0.28, 0]}>
+            <sphereGeometry args={[0.3, 32, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Tapered Bottom Cone */}
+          <mesh position={[0, -0.15, 0]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.3, 0.55, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Center Pin Cutout Hole */}
+          <mesh position={[0, 0.28, 0.22]}>
+            <torusGeometry args={[0.1, 0.03, 16, 32]} />
+            <AccentMaterial color="#ffffff" style="glossy" />
+          </mesh>
+        </group>
+      );
+
+    case 'target':
+      return (
+        <group rotation={[Math.PI / 4, 0, 0]}>
+          {/* Outer Red Ring */}
+          <mesh position={[0, 0, 0]}>
+            <torusGeometry args={[0.45, 0.07, 16, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glossy" />
+          </mesh>
+          {/* Middle White Ring */}
+          <mesh position={[0, 0, 0]}>
+            <torusGeometry args={[0.3, 0.06, 16, 32]} />
+            <AccentMaterial color="#ffffff" style="clay" />
+          </mesh>
+          {/* Center Bullseye Sphere */}
+          <mesh position={[0, 0, 0]}>
+            <sphereGeometry args={[0.16, 32, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glossy" />
+          </mesh>
+        </group>
+      );
+
+    case 'calendar':
+      return (
+        <group rotation={[0.1, 0, 0]}>
+          {/* Calendar Plaque Slab */}
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.8, 0.7, 0.12]} />
+            <AccentMaterial color="#ffffff" style="clay" />
+          </mesh>
+          {/* Top Header Banner Strip */}
+          <mesh position={[0, 0.24, 0.02]}>
+            <boxGeometry args={[0.8, 0.22, 0.12]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style={style} />
+          </mesh>
+          {/* Top Binder Ring Toruses */}
+          {[-0.22, 0.22].map((x, i) => (
+            <mesh key={i} position={[x, 0.38, 0]}>
+              <torusGeometry args={[0.07, 0.02, 16, 32]} />
+              <AccentMaterial color="#94a3b8" style="metallic" />
+            </mesh>
+          ))}
+        </group>
+      );
+
+    case 'hourglass':
+      return (
+        <group>
+          {/* Top & Bottom End Plates */}
+          <mesh position={[0, 0.42, 0]}>
+            <cylinderGeometry args={[0.38, 0.38, 0.08, 32]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style="metallic" />
+          </mesh>
+          <mesh position={[0, -0.42, 0]}>
+            <cylinderGeometry args={[0.38, 0.38, 0.08, 32]} />
+            <IconMaterial color={secondaryColor} secondaryColor={color} style="metallic" />
+          </mesh>
+          {/* Upper Glass Bulb */}
+          <mesh position={[0, 0.18, 0]}>
+            <coneGeometry args={[0.3, 0.4, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glass" />
+          </mesh>
+          {/* Lower Glass Bulb */}
+          <mesh position={[0, -0.18, 0]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.3, 0.4, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="glass" />
+          </mesh>
+        </group>
+      );
+
+    case 'crown':
+      return (
+        <group>
+          {/* Golden Rim Base */}
+          <mesh position={[0, -0.22, 0]}>
+            <cylinderGeometry args={[0.42, 0.45, 0.15, 32]} />
+            <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+          </mesh>
+          {/* 5 Spikes/Peaks */}
+          {[0, 72, 144, 216, 288].map((deg, i) => {
+            const rad = (deg * Math.PI) / 180;
+            const r = 0.38;
+            return (
+              <group key={i} position={[Math.sin(rad) * r, 0.1, Math.cos(rad) * r]}>
+                <mesh>
+                  <coneGeometry args={[0.1, 0.45, 4]} />
+                  <IconMaterial color={color} secondaryColor={secondaryColor} style="metallic" />
+                </mesh>
+                <mesh position={[0, 0.25, 0]}>
+                  <sphereGeometry args={[0.06, 16, 16]} />
+                  <AccentMaterial color="#ef4444" style="glossy" />
+                </mesh>
+              </group>
+            );
+          })}
+        </group>
+      );
+
     default:
       // Generic fallback 3D glossy rounded cube
       return (
