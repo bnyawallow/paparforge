@@ -39,6 +39,7 @@ import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRen
 import { SPLINE_2D_ICONS, Spline2DIconMetadata } from '../../lib/spline2DIcons';
 import * as LucideIcons from 'lucide-react';
 import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, GeneratedARTexture } from '../../lib/splineMaterials';
+import { UI_KIT_PRESETS, UIKitCategory, UIKitPreset } from '../../lib/uiKits';
 
 // Premium high-quality stable GLB presets for instant AR experience
 const PRESET_MODELS = [
@@ -567,7 +568,7 @@ const SKETCHFAB_WEB_MODELS = [
   }
 ];
 
-type CategoryTab = 'templates' | 'materials' | 'textures' | 'icons' | '2d-icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
+type CategoryTab = 'ui-kits' | 'templates' | 'materials' | 'textures' | 'icons' | '2d-icons' | 'uploads' | 'sketchfab' | 'models' | 'markers' | 'audio' | 'behaviors' | 'lighting' | 'layouts';
 
 export function AssetBrowser() {
   const { 
@@ -587,7 +588,10 @@ export function AssetBrowser() {
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<CategoryTab>('templates');
+  const [activeTab, setActiveTab] = useState<CategoryTab>('ui-kits');
+  const [uiKitSearchQuery, setUiKitSearchQuery] = useState('');
+  const [selectedUiKitCategory, setSelectedUiKitCategory] = useState<string>('All');
+  const [selectedUiKitTarget, setSelectedUiKitTarget] = useState<string>('All');
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
   const [templateFilterTag, setTemplateFilterTag] = useState('all');
   const [iconSearchQuery, setIconSearchQuery] = useState('');
@@ -1792,6 +1796,15 @@ export function AssetBrowser() {
 
           <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-2 mb-1">Creation</div>
           <button 
+            onClick={() => setActiveTab('ui-kits')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'ui-kits' ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/20 font-bold' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
+          >
+            <Layers size={16} className={activeTab === 'ui-kits' ? 'text-white' : 'text-cyan-400'} />
+            <span className="font-medium">UI Kits Collection</span>
+            <span className="ml-auto bg-cyan-500/20 text-cyan-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">{UI_KIT_PRESETS.length}</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('templates')}
             className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'templates' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
@@ -1907,6 +1920,142 @@ export function AssetBrowser() {
 
         {/* Assets Grid */}
         <div className="flex-1 overflow-y-auto p-6 bg-black/40">
+
+          {/* UI KITS TAB */}
+          {activeTab === 'ui-kits' && (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-6 px-2 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Layers className="text-cyan-400" /> UI Kits Collection
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Premium HUD and 3D spatial UI kits inspired by Vision OS, Cyberpunk Tactical, Smart Home IoT, E-Commerce AR, Fintech & Spatial Audio.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/40 px-3 py-1.5 rounded-full self-start md:self-auto shrink-0">
+                  <Sparkles size={14} className="text-cyan-400" />
+                  <span>{UI_KIT_PRESETS.length} READY-TO-USE KITS</span>
+                </div>
+              </div>
+
+              {/* Search & Category Filter Bar */}
+              <div className="mb-6 flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Search UI Kits by name, category, or tag..." 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                    value={uiKitSearchQuery}
+                    onChange={(e) => setUiKitSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={selectedUiKitCategory}
+                    onChange={(e) => setSelectedUiKitCategory(e.target.value)}
+                    className="bg-white/5 border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  >
+                    <option value="All" className="bg-slate-900 text-white">All Categories</option>
+                    <option value="Vision OS Spatial" className="bg-slate-900 text-white">Vision OS Spatial</option>
+                    <option value="Cyberpunk Tactical" className="bg-slate-900 text-white">Cyberpunk Tactical</option>
+                    <option value="Smart Home IoT" className="bg-slate-900 text-white">Smart Home IoT</option>
+                    <option value="E-Commerce AR" className="bg-slate-900 text-white">E-Commerce AR</option>
+                    <option value="Fintech & Crypto" className="bg-slate-900 text-white">Fintech & Crypto</option>
+                    <option value="Spatial Audio" className="bg-slate-900 text-white">Spatial Audio</option>
+                    <option value="AR Wayfinding" className="bg-slate-900 text-white">AR Wayfinding</option>
+                    <option value="Studio Productivity" className="bg-slate-900 text-white">Studio Productivity</option>
+                  </select>
+
+                  <select
+                    value={selectedUiKitTarget}
+                    onChange={(e) => setSelectedUiKitTarget(e.target.value)}
+                    className="bg-white/5 border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 cursor-pointer"
+                  >
+                    <option value="All" className="bg-slate-900 text-white">All Surfaces</option>
+                    <option value="2D HUD" className="bg-slate-900 text-white">2D HUD Overlays</option>
+                    <option value="3D Scene" className="bg-slate-900 text-white">3D Scene Objects</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid of UI Kits */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 overflow-y-auto pr-2 pb-20">
+                {UI_KIT_PRESETS.filter(kit => {
+                  const matchesSearch = !uiKitSearchQuery || 
+                    kit.name.toLowerCase().includes(uiKitSearchQuery.toLowerCase()) ||
+                    kit.category.toLowerCase().includes(uiKitSearchQuery.toLowerCase()) ||
+                    kit.description.toLowerCase().includes(uiKitSearchQuery.toLowerCase()) ||
+                    kit.tags.some(t => t.toLowerCase().includes(uiKitSearchQuery.toLowerCase()));
+                  const matchesCat = selectedUiKitCategory === 'All' || kit.category === selectedUiKitCategory;
+                  const matchesTarget = selectedUiKitTarget === 'All' || kit.target === selectedUiKitTarget;
+                  return matchesSearch && matchesCat && matchesTarget;
+                }).map(kit => (
+                  <div 
+                    key={kit.id}
+                    className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-500/50 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:shadow-cyan-500/10 hover:-translate-y-1"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          {kit.badge}
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                          kit.target === '2D HUD' 
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        }`}>
+                          {kit.target}
+                        </span>
+                      </div>
+
+                      <h4 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
+                        {kit.name}
+                      </h4>
+                      <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 leading-relaxed">
+                        {kit.description}
+                      </p>
+
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {kit.tags.slice(0, 3).map(tag => (
+                          <span key={tag} className="text-[9px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        playCachedAudio('/sounds/click.wav', false, 0.4);
+                        const newObj: SceneObject = {
+                          id: uuidv4(),
+                          name: kit.name,
+                          type: kit.objectType,
+                          position: kit.position || [0, 0, 0],
+                          rotation: kit.rotation || [0, 0, 0],
+                          scale: kit.scale || [1, 1, 1],
+                          visible: true,
+                          children: [],
+                          parentId: null,
+                          properties: { ...kit.properties }
+                        };
+                        addObject(newObj);
+                        setNotification(`✨ Added "${kit.name}" to scene`);
+                        setTimeout(() => setNotification(null), 3000);
+                      }}
+                      className="mt-4 w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs py-2.5 rounded-xl shadow-lg shadow-cyan-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Plus size={14} className="stroke-[3]" />
+                      <span>Add Kit to Scene</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* TEMPLATES TAB */}
           {activeTab === 'templates' && (

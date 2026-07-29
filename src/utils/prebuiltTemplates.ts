@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { SceneObject, Vector3Data } from '../types';
 import { useEditorStore } from '../store/useEditorStore';
+import { UI_KIT_PRESETS } from '../lib/uiKits';
 
 export interface PrebuiltTemplate {
   id: string;
@@ -15,7 +16,7 @@ export interface PrebuiltTemplate {
   rotation?: Vector3Data;
 }
 
-export const PREBUILT_TEMPLATES: PrebuiltTemplate[] = [
+const PRIMITIVE_TEMPLATES: PrebuiltTemplate[] = [
   {
     id: 'glass-panel',
     name: 'Glassmorphism Panel',
@@ -137,6 +138,22 @@ export const PREBUILT_TEMPLATES: PrebuiltTemplate[] = [
     position: [0, 1.2, 0],
     rotation: [0, 0, 0]
   }
+];
+
+export const PREBUILT_TEMPLATES: PrebuiltTemplate[] = [
+  ...PRIMITIVE_TEMPLATES,
+  ...UI_KIT_PRESETS.map(u => ({
+    id: u.id,
+    name: u.name,
+    type: u.target,
+    description: u.description,
+    objectType: u.objectType,
+    tags: [u.badge.toLowerCase(), ...u.tags],
+    properties: u.properties,
+    scale: u.scale,
+    position: u.position,
+    rotation: u.rotation,
+  }))
 ];
 
 export function instantiateTemplate(templateId: string, parentId?: string): SceneObject | null {
