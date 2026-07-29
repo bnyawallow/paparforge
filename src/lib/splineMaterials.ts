@@ -982,6 +982,441 @@ export const SPLINE_MATERIAL_PRESETS: SplineMaterialPreset[] = [
       sheenColor: '#93c5fd',
       sheenRoughness: 0.4,
     }
+  },
+
+  // --- ADDITIONAL 25+ HIGH QUALITY PRESETS (50+ TOTAL) ---
+  {
+    id: 'terracotta_earth',
+    name: 'Terracotta Earth Clay',
+    category: 'Clay & Matte',
+    previewColor: '#c2410c',
+    secondaryColor: '#7c2d12',
+    thumbnailEmoji: '🏺',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #ffedd5 0%, #ea580c 60%, #7c2d12 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3)'
+    },
+    description: 'Warm organic burnt terracotta clay with matte texture',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#c2410c',
+      roughness: 0.92,
+      metalness: 0.0,
+    }
+  },
+  {
+    id: 'sage_green_matte',
+    name: 'Sage Green Matte',
+    category: 'Clay & Matte',
+    previewColor: '#84cc16',
+    secondaryColor: '#3f6212',
+    thumbnailEmoji: '🌿',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #ecfccb 0%, #84cc16 60%, #3f6212 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3)'
+    },
+    description: 'Calming earthy sage green matte finish',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#84cc16',
+      roughness: 0.88,
+      metalness: 0.0,
+    }
+  },
+  {
+    id: 'deep_navy_clay',
+    name: 'Deep Navy Velvet Clay',
+    category: 'Clay & Matte',
+    previewColor: '#1e3a8a',
+    secondaryColor: '#0f172a',
+    thumbnailEmoji: '🌌',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #93c5fd 0%, #1e3a8a 60%, #0f172a 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3)'
+    },
+    description: 'Deep royal navy blue matte clay finish',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#1e3a8a',
+      roughness: 0.9,
+      metalness: 0.0,
+    }
+  },
+  {
+    id: 'sapphire_refraction_glass',
+    name: 'Sapphire Crystal Glass',
+    category: 'Glass & Crystal',
+    previewColor: '#3b82f6',
+    secondaryColor: '#1d4ed8',
+    thumbnailEmoji: '💎',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #dbeafe 0%, #3b82f6 50%, #1e40af 100%)',
+      boxShadow: '0 0 15px rgba(59,130,246,0.5)',
+      backdropFilter: 'blur(8px)'
+    },
+    description: 'Deep translucent blue sapphire glass with high IOR refraction',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#3b82f6',
+      roughness: 0.05,
+      transmission: 0.92,
+      thickness: 1.2,
+      ior: 1.77,
+      attenuationColor: '#1d4ed8',
+      attenuationDistance: 0.5,
+    }
+  },
+  {
+    id: 'diamond_prism_crystal',
+    name: 'Diamond Prism Crystal',
+    category: 'Glass & Crystal',
+    previewColor: '#ffffff',
+    secondaryColor: '#38bdf8',
+    thumbnailEmoji: '✨',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #e0f2fe 40%, #818cf8 100%)',
+      boxShadow: '0 0 20px rgba(255,255,255,0.8)',
+    },
+    description: 'High-dispersion diamond crystal with prismatic rainbow caustic highlights',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#ffffff',
+      roughness: 0.01,
+      transmission: 0.98,
+      thickness: 1.8,
+      ior: 2.42,
+      iridescence: 1.0,
+      iridescenceIOR: 1.3,
+    }
+  },
+  {
+    id: 'amber_stained_glass',
+    name: 'Amber Stained Glass',
+    category: 'Glass & Crystal',
+    previewColor: '#f59e0b',
+    secondaryColor: '#78350f',
+    thumbnailEmoji: '🥃',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #fef3c7 0%, #f59e0b 60%, #78350f 100%)',
+      boxShadow: '0 0 12px rgba(245,158,11,0.4)',
+    },
+    description: 'Warm golden amber vintage stained glass with realistic light transmission',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#f59e0b',
+      roughness: 0.1,
+      transmission: 0.88,
+      thickness: 0.8,
+      ior: 1.52,
+      attenuationColor: '#92400e',
+      attenuationDistance: 0.4,
+    }
+  },
+  {
+    id: 'translucent_ice',
+    name: 'Glacial Ice Crystal',
+    category: 'Glass & Crystal',
+    previewColor: '#a5f3fc',
+    secondaryColor: '#0284c7',
+    thumbnailEmoji: '🧊',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #a5f3fc 60%, #0284c7 100%)',
+      boxShadow: '0 0 10px rgba(165,243,252,0.6)',
+    },
+    description: 'Frosty sub-zero glacial ice block with internal volume scattering',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#cffaff',
+      roughness: 0.18,
+      transmission: 0.85,
+      thickness: 1.5,
+      ior: 1.31,
+      attenuationColor: '#0284c7',
+      attenuationDistance: 0.6,
+    }
+  },
+  {
+    id: 'cyber_platinum_metal',
+    name: 'Cyber Platinum Chrome',
+    category: 'Metals & Chrome',
+    previewColor: '#e2e8f0',
+    secondaryColor: '#475569',
+    thumbnailEmoji: '🥈',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #cbd5e1 50%, #475569 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.5), 0 0 10px rgba(255,255,255,0.4)',
+    },
+    description: 'Ultra-pure reflective cyber platinum mirror chrome metal',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#f8fafc',
+      roughness: 0.02,
+      metalness: 0.98,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
+    }
+  },
+  {
+    id: 'burnished_brass',
+    name: 'Burnished Brass',
+    category: 'Metals & Chrome',
+    previewColor: '#ca8a04',
+    secondaryColor: '#713f12',
+    thumbnailEmoji: '🎺',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #fef08a 0%, #ca8a04 60%, #713f12 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.5)',
+    },
+    description: 'Warm antique burnished brass metal with subtle micro-roughness',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#eab308',
+      roughness: 0.3,
+      metalness: 0.88,
+    }
+  },
+  {
+    id: 'anodized_violet_aluminum',
+    name: 'Anodized Violet Aluminum',
+    category: 'Metals & Chrome',
+    previewColor: '#8b5cf6',
+    secondaryColor: '#4c1d95',
+    thumbnailEmoji: '💜',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #ddd6fe 0%, #8b5cf6 60%, #4c1d95 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.5)',
+    },
+    description: 'Satin anodized metallic purple aluminum finish',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#a855f7',
+      roughness: 0.25,
+      metalness: 0.85,
+    }
+  },
+  {
+    id: 'liquid_mercury',
+    name: 'Liquid Mercury',
+    category: 'Metals & Chrome',
+    previewColor: '#94a3b8',
+    secondaryColor: '#1e293b',
+    thumbnailEmoji: '💧',
+    previewStyle: {
+      background: 'radial-gradient(circle at 25% 25%, #ffffff 0%, #94a3b8 50%, #1e293b 100%)',
+      boxShadow: 'inset -4px -4px 10px rgba(0,0,0,0.6), 0 0 15px rgba(148,163,184,0.5)',
+    },
+    description: 'Fluid mirror-finish liquid metal with perfect specular reflection',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#cbd5e1',
+      roughness: 0.0,
+      metalness: 1.0,
+      clearcoat: 1.0,
+    }
+  },
+  {
+    id: 'rainbow_foil_film',
+    name: 'Rainbow Iridescent Foil',
+    category: 'Holographic & Iridescent',
+    previewColor: '#ec4899',
+    secondaryColor: '#06b6d4',
+    thumbnailEmoji: '🌈',
+    previewStyle: {
+      background: 'linear-gradient(135deg, #f43f5e, #eab308, #10b981, #06b6d4, #a855f7)',
+      boxShadow: '0 0 15px rgba(236,72,153,0.5)',
+    },
+    description: 'Dynamic light-diffracting metallic holographic rainbow foil',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#f8fafc',
+      roughness: 0.1,
+      metalness: 0.8,
+      iridescence: 1.0,
+      iridescenceIOR: 1.6,
+      iridescenceThicknessRange: [100, 800],
+    }
+  },
+  {
+    id: 'opal_gemstone_shimmer',
+    name: 'Opal Gemstone Shimmer',
+    category: 'Holographic & Iridescent',
+    previewColor: '#f0fdf4',
+    secondaryColor: '#a855f7',
+    thumbnailEmoji: '🔮',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #c084fc 40%, #34d399 70%, #38bdf8 100%)',
+      boxShadow: '0 0 12px rgba(192,132,252,0.6)',
+    },
+    description: 'Precious opal gemstone material with internal color fire shimmer',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#f8fafc',
+      roughness: 0.15,
+      metalness: 0.1,
+      iridescence: 1.0,
+      iridescenceIOR: 1.45,
+      transmission: 0.4,
+    }
+  },
+  {
+    id: 'toxic_lime_plasma',
+    name: 'Toxic Lime Plasma Glow',
+    category: 'Neon & Glow',
+    previewColor: '#84cc16',
+    secondaryColor: '#3f6212',
+    thumbnailEmoji: '☣️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #bef264 0%, #84cc16 60%, #3f6212 100%)',
+      boxShadow: '0 0 20px #84cc16',
+    },
+    description: 'High voltage radioactive lime green emissive glow',
+    materialProps: {
+      shaderType: 'standard',
+      color: '#a3e635',
+      roughness: 0.2,
+      emissiveColor: '#84cc16',
+      emissiveIntensity: 3.5,
+    }
+  },
+  {
+    id: 'laser_red_pulsar',
+    name: 'Laser Red Pulsar Glow',
+    category: 'Neon & Glow',
+    previewColor: '#ef4444',
+    secondaryColor: '#7f1d1d',
+    thumbnailEmoji: '🔴',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #fca5a5 0%, #ef4444 60%, #7f1d1d 100%)',
+      boxShadow: '0 0 20px #ef4444',
+    },
+    description: 'Concentrated crimson red laser light emission',
+    materialProps: {
+      shaderType: 'standard',
+      color: '#f87171',
+      roughness: 0.2,
+      emissiveColor: '#ef4444',
+      emissiveIntensity: 4.0,
+    }
+  },
+  {
+    id: 'violet_matrix_glow',
+    name: 'Violet Matrix Energy',
+    category: 'Neon & Glow',
+    previewColor: '#c084fc',
+    secondaryColor: '#581c87',
+    thumbnailEmoji: '⚡',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #e9d5ff 0%, #c084fc 60%, #581c87 100%)',
+      boxShadow: '0 0 20px #c084fc',
+    },
+    description: 'Pulsing ultra-bright purple plasma energy emission',
+    materialProps: {
+      shaderType: 'standard',
+      color: '#d8b4fe',
+      roughness: 0.2,
+      emissiveColor: '#a855f7',
+      emissiveIntensity: 3.2,
+    }
+  },
+  {
+    id: 'calacatta_marble',
+    name: 'Calacatta White Gold Marble',
+    category: 'Textures & Patterns',
+    previewColor: '#ffffff',
+    secondaryColor: '#ca8a04',
+    thumbnailEmoji: '🏛️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #f1f5f9 60%, #cbd5e1 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.2)',
+    },
+    description: 'Luxury polished white marble with soft grey and golden vein patterns',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#f8fafc',
+      roughness: 0.1,
+      metalness: 0.05,
+      clearcoat: 0.8,
+    }
+  },
+  {
+    id: 'hex_shield_pattern',
+    name: 'Hexagon Energy Grid Shield',
+    category: 'Textures & Patterns',
+    previewColor: '#38bdf8',
+    secondaryColor: '#0f172a',
+    thumbnailEmoji: '⬡',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #7dd3fc 0%, #0284c7 60%, #0f172a 100%)',
+      boxShadow: '0 0 15px rgba(56,189,248,0.6)',
+    },
+    description: 'Translucent tactical cyber hexagon barrier pattern',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#38bdf8',
+      roughness: 0.2,
+      metalness: 0.3,
+      emissiveColor: '#0284c7',
+      emissiveIntensity: 1.5,
+    }
+  },
+  {
+    id: 'burnished_leather',
+    name: 'Warm Italian Burnished Leather',
+    category: 'Organic & Fabric',
+    previewColor: '#78350f',
+    secondaryColor: '#451a03',
+    thumbnailEmoji: '🛋️',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #d97706 0%, #78350f 60%, #451a03 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.5)',
+    },
+    description: 'Rich cognac brown polished leather texture with realistic organic specular response',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#92400e',
+      roughness: 0.6,
+      metalness: 0.0,
+      clearcoat: 0.3,
+    }
+  },
+  {
+    id: 'natural_oak_wood',
+    name: 'Natural Scandinavian Oak',
+    category: 'Organic & Fabric',
+    previewColor: '#d97706',
+    secondaryColor: '#78350f',
+    thumbnailEmoji: '🪵',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #fde68a 0%, #d97706 60%, #78350f 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.3)',
+    },
+    description: 'Satin finished natural light oak wood grain texture',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#b45309',
+      roughness: 0.7,
+      metalness: 0.0,
+    }
+  },
+  {
+    id: 'dark_ebony_wood',
+    name: 'Dark Architectural Ebony Wood',
+    category: 'Organic & Fabric',
+    previewColor: '#1c1917',
+    secondaryColor: '#0c0a09',
+    thumbnailEmoji: '🪵',
+    previewStyle: {
+      background: 'radial-gradient(circle at 35% 35%, #44403c 0%, #1c1917 60%, #0c0a09 100%)',
+      boxShadow: 'inset -3px -3px 8px rgba(0,0,0,0.5)',
+    },
+    description: 'Sleek luxury dark ebony wood grain with clearcoat sheen',
+    materialProps: {
+      shaderType: 'physical',
+      color: '#262626',
+      roughness: 0.4,
+      metalness: 0.0,
+      clearcoat: 0.6,
+    }
   }
 ];
 

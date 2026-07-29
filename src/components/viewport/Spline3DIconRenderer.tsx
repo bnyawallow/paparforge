@@ -471,6 +471,116 @@ export const SPLINE_3D_ICONS: SplineIconMetadata[] = [
     description: 'Golden royal crown with 5 spikes and embedded ruby spheres',
     materialStyle: 'metallic',
     tags: ['ecommerce', 'vip', 'king', 'crown']
+  },
+  {
+    id: 'shopping_bag',
+    name: '3D Shopping Bag',
+    category: 'E-Commerce',
+    previewEmoji: '🛍️',
+    defaultColor: '#ec4899',
+    secondaryColor: '#f472b6',
+    description: 'Retail shopping bag with folded handles',
+    materialStyle: 'glossy',
+    tags: ['ecommerce', 'bag', 'shop', 'buy']
+  },
+  {
+    id: 'credit_card',
+    name: '3D Credit Card',
+    category: 'Finance & Crypto',
+    previewEmoji: '💳',
+    defaultColor: '#3b82f6',
+    secondaryColor: '#f59e0b',
+    description: 'Chipped metallic credit card badge',
+    materialStyle: 'metallic',
+    tags: ['finance', 'card', 'credit', 'pay']
+  },
+  {
+    id: 'diamond_gem',
+    name: '3D Diamond Gem',
+    category: 'Gaming & VFX',
+    previewEmoji: '💎',
+    defaultColor: '#38bdf8',
+    secondaryColor: '#ffffff',
+    description: 'Brilliant cut translucent sapphire diamond',
+    materialStyle: 'glass',
+    tags: ['gaming', 'gem', 'diamond', 'crystal']
+  },
+  {
+    id: 'infinity_symbol',
+    name: '3D Infinity Loop',
+    category: 'Creative & Design',
+    previewEmoji: '♾️',
+    defaultColor: '#a855f7',
+    secondaryColor: '#06b6d4',
+    description: 'Continuous Möbius strip infinity loop',
+    materialStyle: 'neon',
+    tags: ['creative', 'infinity', 'loop', 'meta']
+  },
+  {
+    id: 'headset_vr',
+    name: '3D AR VR Headset',
+    category: 'Tech & Gadgets',
+    previewEmoji: '🥽',
+    defaultColor: '#0f172a',
+    secondaryColor: '#38bdf8',
+    description: 'Spatial computing glass visor headset',
+    materialStyle: 'glossy',
+    tags: ['tech', 'vr', 'ar', 'visor']
+  },
+  {
+    id: 'microchip',
+    name: '3D Silicon Microchip',
+    category: 'Tech & Gadgets',
+    previewEmoji: '🔲',
+    defaultColor: '#10b981',
+    secondaryColor: '#eab308',
+    description: 'Golden pinned AI neural network chip',
+    materialStyle: 'metallic',
+    tags: ['tech', 'chip', 'ai', 'silicon']
+  },
+  {
+    id: 'game_sword',
+    name: '3D Cyber Sword',
+    category: 'Gaming & VFX',
+    previewEmoji: '⚔️',
+    defaultColor: '#06b6d4',
+    secondaryColor: '#e2e8f0',
+    description: 'Neon blade cybernetic sword with hilt',
+    materialStyle: 'neon',
+    tags: ['gaming', 'sword', 'blade', 'cyber']
+  },
+  {
+    id: 'portal_ring',
+    name: '3D Warp Portal Ring',
+    category: 'Gaming & VFX',
+    previewEmoji: '🌀',
+    defaultColor: '#ec4899',
+    secondaryColor: '#38bdf8',
+    description: 'Floating energy torus portal ring',
+    materialStyle: 'neon',
+    tags: ['gaming', 'portal', 'ring', 'warp']
+  },
+  {
+    id: 'vinyl_disk',
+    name: '3D Vinyl Record',
+    category: 'Tech & Gadgets',
+    previewEmoji: '📀',
+    defaultColor: '#18181b',
+    secondaryColor: '#ef4444',
+    description: 'Grooved retro music vinyl record with center label',
+    materialStyle: 'glossy',
+    tags: ['tech', 'vinyl', 'music', 'disk']
+  },
+  {
+    id: 'chest_box',
+    name: '3D Treasure Chest',
+    category: 'Gaming & VFX',
+    previewEmoji: '📦',
+    defaultColor: '#b45309',
+    secondaryColor: '#eab308',
+    description: 'Golden rimmed wooden treasure chest box',
+    materialStyle: 'clay',
+    tags: ['gaming', 'chest', 'box', 'treasure']
   }
 ];
 

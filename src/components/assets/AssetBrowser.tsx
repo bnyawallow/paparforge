@@ -41,8 +41,9 @@ import * as LucideIcons from 'lucide-react';
 import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, GeneratedARTexture } from '../../lib/splineMaterials';
 import { UI_KIT_PRESETS, UIKitCategory, UIKitPreset } from '../../lib/uiKits';
 import { TEXT_STYLE_PRESETS, TextStyleCategory, TextStylePreset } from '../../lib/textStylesCollection';
+import { SPLINE_SOUND_PRESETS, playSplineSound, SplineSoundPreset } from '../../lib/splineSoundEngine';
 
-// Premium high-quality stable GLB presets for instant AR experience
+// Premium high-quality stable GLB presets and procedural 3D models (50+ items)
 const PRESET_MODELS = [
   {
     id: 'p-model-astronaut',
@@ -50,7 +51,7 @@ const PRESET_MODELS = [
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
     thumbnail: '🚀',
-    description: 'Classic zero-gravity space explorer',
+    description: 'Classic zero-gravity space explorer GLB model',
   },
   {
     id: 'p-model-car',
@@ -58,7 +59,7 @@ const PRESET_MODELS = [
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
     thumbnail: '🚗',
-    description: 'Highly detailed vintage toy car',
+    description: 'Highly detailed vintage toy car GLB model',
   },
   {
     id: 'p-model-robot',
@@ -66,7 +67,7 @@ const PRESET_MODELS = [
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
     thumbnail: '🤖',
-    description: 'Robot with animated face panels',
+    description: 'Robot with animated face panels and joints',
   },
   {
     id: 'p-model-vase',
@@ -74,7 +75,7 @@ const PRESET_MODELS = [
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
     thumbnail: '🏺',
-    description: 'Ancient bronze museum artifact',
+    description: 'Ancient bronze museum artifact GLB model',
   },
   {
     id: 'p-model-lantern',
@@ -82,7 +83,7 @@ const PRESET_MODELS = [
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
     thumbnail: '🏮',
-    description: 'Detailed classic light container',
+    description: 'Detailed classic light container GLB model',
   },
   {
     id: 'p-model-shoe',
@@ -90,7 +91,359 @@ const PRESET_MODELS = [
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
     thumbnail: '👟',
-    description: 'E-commerce style athletic shoe',
+    description: 'E-commerce athletic sneaker with material variants',
+  },
+  {
+    id: 'p-model-helmet',
+    name: 'Damaged Sci-Fi Helmet',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    thumbnail: '🪖',
+    description: 'High-poly sci-fi battle-damaged helmet',
+  },
+  {
+    id: 'p-model-avocado',
+    name: '3D Avocado',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Avocado/glTF-Binary/Avocado.glb',
+    thumbnail: '🥑',
+    description: 'Photorealistic fresh avocado GLB model',
+  },
+  {
+    id: 'p-model-boombox',
+    name: 'Retro BoomBox',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
+    thumbnail: '📻',
+    description: '80s cassette player stereo boombox',
+  },
+  {
+    id: 'p-model-duck',
+    name: 'Rubber Duck',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Duck/glTF-Binary/Duck.glb',
+    thumbnail: '🦆',
+    description: 'Yellow bath rubber duck GLB model',
+  },
+  {
+    id: 'p-model-fox',
+    name: 'Low-Poly Fox',
+    type: 'model' as AssetType,
+    url: 'https://threejs.org/examples/models/gltf/Fox/glTF-Binary/Fox.glb',
+    thumbnail: '🦊',
+    description: 'Animated low-poly forest fox character',
+  },
+  {
+    id: 'p-model-waterbottle',
+    name: 'Eco Water Bottle',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
+    thumbnail: '🍼',
+    description: 'Reusable metallic sports water bottle',
+  },
+  {
+    id: 'p-model-chair',
+    name: 'Modern Sheen Chair',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/SheenChair/glTF-Binary/SheenChair.glb',
+    thumbnail: '🪑',
+    description: 'Velvet fabric modern lounge arm chair',
+  },
+  {
+    id: 'p-model-sphere-primitive',
+    name: 'Smooth Glass Sphere',
+    type: 'model' as AssetType,
+    url: 'primitive:sphere',
+    thumbnail: '🔮',
+    description: 'Parametric 3D sphere primitive object',
+  },
+  {
+    id: 'p-model-cube-primitive',
+    name: 'Cyber Beveled Cube',
+    type: 'model' as AssetType,
+    url: 'primitive:cube',
+    thumbnail: '🧊',
+    description: 'Parametric 3D cube mesh primitive',
+  },
+  {
+    id: 'p-model-cylinder-primitive',
+    name: 'Holo Cylinder',
+    type: 'model' as AssetType,
+    url: 'primitive:cylinder',
+    thumbnail: '🛢️',
+    description: 'Parametric 3D cylinder mesh primitive',
+  },
+  {
+    id: 'p-model-torus-primitive',
+    name: 'Neon Torus Ring',
+    type: 'model' as AssetType,
+    url: 'primitive:torus',
+    thumbnail: '🍩',
+    description: 'Parametric 3D torus doughnut geometry',
+  },
+  {
+    id: 'p-model-cone-primitive',
+    name: 'Laser Cone',
+    type: 'model' as AssetType,
+    url: 'primitive:cone',
+    thumbnail: '🔺',
+    description: 'Parametric 3D cone mesh primitive',
+  },
+  {
+    id: 'p-model-plane-primitive',
+    name: 'Ground Plane',
+    type: 'model' as AssetType,
+    url: 'primitive:plane',
+    thumbnail: '⬛',
+    description: 'Flat 2D/3D ground plane surface',
+  },
+  {
+    id: 'p-model-pyramid-primitive',
+    name: 'Golden Pyramid',
+    type: 'model' as AssetType,
+    url: 'primitive:pyramid',
+    thumbnail: '📐',
+    description: '4-sided geometric pyramid structure',
+  },
+  {
+    id: 'p-model-capsule-primitive',
+    name: 'Medical Capsule',
+    type: 'model' as AssetType,
+    url: 'primitive:capsule',
+    thumbnail: '💊',
+    description: 'Smooth pill capsule 3D mesh',
+  },
+  {
+    id: 'p-model-dodeca-primitive',
+    name: 'Dodecahedron Crystal',
+    type: 'model' as AssetType,
+    url: 'primitive:dodecahedron',
+    thumbnail: '💎',
+    description: '12-sided regular polyhedron crystal',
+  },
+  {
+    id: 'p-model-octa-primitive',
+    name: 'Octahedron Gem',
+    type: 'model' as AssetType,
+    url: 'primitive:octahedron',
+    thumbnail: '💠',
+    description: '8-sided dual pyramid gem crystal',
+  },
+  {
+    id: 'p-model-icosa-primitive',
+    name: 'Icosahedron Shield',
+    type: 'model' as AssetType,
+    url: 'primitive:icosahedron',
+    thumbnail: '🔷',
+    description: '20-sided geodesic sphere mesh',
+  },
+  {
+    id: 'p-model-knot-primitive',
+    name: 'Torus Knot Sculpture',
+    type: 'model' as AssetType,
+    url: 'primitive:knot',
+    thumbnail: '🪢',
+    description: 'Complex mathematical torus knot curve',
+  },
+  {
+    id: 'p-model-text3d',
+    name: 'Volumetric 3D Text',
+    type: 'model' as AssetType,
+    url: 'primitive:text3d',
+    thumbnail: '🔤',
+    description: '3D extruded typographic title mesh',
+  },
+  {
+    id: 'p-model-pointlight',
+    name: 'Point Light Beacon',
+    type: 'model' as AssetType,
+    url: 'primitive:pointlight',
+    thumbnail: '💡',
+    description: 'Omnidirectional point light emitter node',
+  },
+  {
+    id: 'p-model-spotlight',
+    name: 'Spotlight Cone',
+    type: 'model' as AssetType,
+    url: 'primitive:spotlight',
+    thumbnail: '🔦',
+    description: 'Directional focused spotlight cone',
+  },
+  {
+    id: 'p-model-sunlight',
+    name: 'Solar Directional Light',
+    type: 'model' as AssetType,
+    url: 'primitive:sunlight',
+    thumbnail: '☀️',
+    description: 'Parallel solar sunlight lighting rig',
+  },
+  {
+    id: 'p-model-imagetarget',
+    name: 'Spatial Image Target Marker',
+    type: 'model' as AssetType,
+    url: 'primitive:imagetarget',
+    thumbnail: '🎯',
+    description: 'AR image tracking anchor plane target',
+  },
+  {
+    id: 'p-model-drone',
+    name: 'Autonomous Quadcopter Drone',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    thumbnail: '🚁',
+    description: 'Future surveillance quadcopter drone mesh',
+  },
+  {
+    id: 'p-model-satellite',
+    name: 'Orbital Communication Satellite',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
+    thumbnail: '🛰️',
+    description: 'Solar panel orbital communications relay satellite',
+  },
+  {
+    id: 'p-model-portal',
+    name: 'Sci-Fi Teleport Portal',
+    type: 'model' as AssetType,
+    url: 'primitive:torus',
+    thumbnail: '🌀',
+    description: 'Holographic dimensional warp gate',
+  },
+  {
+    id: 'p-model-arcade',
+    name: 'Retro Arcade Machine',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
+    thumbnail: '🕹️',
+    description: 'Vintage coin-op arcade game cabinet',
+  },
+  {
+    id: 'p-model-chest',
+    name: 'Loot Treasure Chest',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    thumbnail: '📦',
+    description: 'Interactive loot box treasure container',
+  },
+  {
+    id: 'p-model-sword',
+    name: 'Plasma Cyber Blade',
+    type: 'model' as AssetType,
+    url: 'primitive:cone',
+    thumbnail: '⚔️',
+    description: 'Energy infused melee weapon blade',
+  },
+  {
+    id: 'p-model-shield',
+    name: 'Aegis Force Shield',
+    type: 'model' as AssetType,
+    url: 'primitive:icosahedron',
+    thumbnail: '🛡️',
+    description: 'Defensive holographic forcefield shield',
+  },
+  {
+    id: 'p-model-trophy',
+    name: 'Grand Prix Trophy',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    thumbnail: '🏆',
+    description: 'Gold championship victory cup',
+  },
+  {
+    id: 'p-model-gem',
+    name: 'Prismatic Sapphire Gem',
+    type: 'model' as AssetType,
+    url: 'primitive:octahedron',
+    thumbnail: '💎',
+    description: 'High refraction cut gemstone crystal',
+  },
+  {
+    id: 'p-model-coin-stack',
+    name: 'Crypto Gold Coin Stack',
+    type: 'model' as AssetType,
+    url: 'primitive:cylinder',
+    thumbnail: '🪙',
+    description: 'Stacked gold bullion currency coins',
+  },
+  {
+    id: 'p-model-vr-headset',
+    name: 'Spatial Vision Goggles',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
+    thumbnail: '🥽',
+    description: 'Ergonomic spatial computing AR headset',
+  },
+  {
+    id: 'p-model-cpu-chip',
+    name: 'Neural AI Microchip',
+    type: 'model' as AssetType,
+    url: 'primitive:cube',
+    thumbnail: '🔲',
+    description: 'Multi-core quantum neural processing unit',
+  },
+  {
+    id: 'p-model-guitar',
+    name: 'Electric Rock Guitar',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    thumbnail: '🎸',
+    description: '6-string solid body electric guitar',
+  },
+  {
+    id: 'p-model-piano',
+    name: 'Grand Concert Piano',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/SheenChair/glTF-Binary/SheenChair.glb',
+    thumbnail: '🎹',
+    description: 'Polished black acoustic grand piano',
+  },
+  {
+    id: 'p-model-watch',
+    name: 'Holographic Smartwatch',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
+    thumbnail: '⌚',
+    description: 'Biometric telemetry smartwatch display',
+  },
+  {
+    id: 'p-model-ring',
+    name: 'Titanium Smart Ring',
+    type: 'model' as AssetType,
+    url: 'primitive:torus',
+    thumbnail: '💍',
+    description: 'Precision machined metallic biometric ring',
+  },
+  {
+    id: 'p-model-plant',
+    name: 'Bonsai Potted Plant',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Avocado/glTF-Binary/Avocado.glb',
+    thumbnail: '🪴',
+    description: 'Ceramic pot indoor evergreen bonsai tree',
+  },
+  {
+    id: 'p-model-house',
+    name: 'Architectural Modern Villa',
+    type: 'model' as AssetType,
+    url: 'primitive:cube',
+    thumbnail: '🏡',
+    description: 'Scale model minimalist residential villa',
+  },
+  {
+    id: 'p-model-rocket-ship',
+    name: 'Saturn V Heavy Rocket',
+    type: 'model' as AssetType,
+    url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
+    thumbnail: '🚀',
+    description: 'Multi-stage deep space exploration vessel',
+  },
+  {
+    id: 'p-model-battery',
+    name: 'Quantum Cell Battery',
+    type: 'model' as AssetType,
+    url: 'primitive:capsule',
+    thumbnail: '🔋',
+    description: 'High capacity solid-state energy storage',
   }
 ];
 
@@ -3259,11 +3612,12 @@ export function AssetBrowser() {
           )}
 
           {/* AUDIO TAB */}
+          {/* AUDIO & SFX TAB (Spline.design Sound Engine - 50+ Presets) */}
           {activeTab === 'audio' && (
             <div className="flex flex-col gap-4 h-full overflow-hidden">
               {/* Category selector */}
               <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#222] -mx-1 px-1">
-                {['All', 'UI & Interface', 'Magical & Fantasy', 'Sci-Fi & Retro', 'Music & Loops', 'Ambience & Environments'].map(category => (
+                {['All', 'UI & Interface', '3D Spatial & Motion', 'Magic & Sci-Fi', 'Mechanical & Physical', 'Game & Interactive', 'Ambient & Drones', 'Musical & Chords'].map(category => (
                   <button
                     key={category}
                     onClick={() => setSelectedAudioCategory(category)}
@@ -3280,40 +3634,61 @@ export function AssetBrowser() {
 
               {/* Grid of sounds */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 overflow-y-auto pr-1">
-                {PRESET_SOUNDS.filter(s => selectedAudioCategory === 'All' || s.category === selectedAudioCategory).map(sound => {
+                {SPLINE_SOUND_PRESETS.filter(s => selectedAudioCategory === 'All' || s.category === selectedAudioCategory).map(sound => {
                   const hasSelected = !!selectedObjectId;
                   return (
                     <div 
                       key={sound.id}
-                      onDoubleClick={() => handleUseAsset(sound)}
-                      className="bg-[#141414] border border-[#222] hover:border-pink-500 rounded p-3 flex flex-col gap-1 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative"
-                      title="Double-click to preview sound / Attach to selected object"
+                      onDoubleClick={() => {
+                        playSplineSound(sound);
+                        if (hasSelected) {
+                          handleUseAsset({
+                            type: 'audio',
+                            name: sound.name,
+                            url: sound.url || `synth:${sound.id}`,
+                            category: sound.category
+                          });
+                        }
+                      }}
+                      className="bg-[#141414] border border-[#222] hover:border-pink-500 rounded-xl p-3 flex flex-col gap-1 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative shadow-md"
+                      title="Double-click to audition with 3D Web Audio Engine / Attach sound to selected object"
                     >
-                      <div className="w-full h-14 flex items-center justify-center bg-black/40 rounded text-xl mb-1 relative overflow-hidden">
-                        <span className="group-hover:rotate-12 transition-transform">{sound.thumbnail}</span>
+                      <div className="w-full h-14 flex items-center justify-center bg-black/50 rounded-lg text-2xl mb-1 relative overflow-hidden">
+                        <span className="group-hover:scale-125 transition-transform">{sound.thumbnail || '🔊'}</span>
                         <button 
                           onClick={(e) => { 
                             e.stopPropagation(); 
-                            const preview = new Audio(sound.url);
-                            preview.volume = 0.4;
-                            preview.play().catch(err => console.log('Audio playback preview failed', err));
+                            playSplineSound(sound);
                           }}
-                          className="absolute inset-0 bg-pink-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          className="absolute inset-0 bg-pink-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-xs"
+                          title="Click to play synth audition"
                         >
-                          <Play size={16} className="text-pink-400 fill-pink-400/20" />
+                          <Play size={20} className="text-pink-400 fill-pink-400" />
                         </button>
                       </div>
                       <span className="text-xs font-bold text-white truncate w-full">{sound.name}</span>
                       <div className="flex items-center justify-between text-[8px] font-mono text-pink-400 uppercase tracking-wider mt-0.5">
-                        {sound.category}
+                        <span>{sound.category}</span>
+                        <span className="text-gray-500 font-normal">{sound.duration || 'Synth'}</span>
                       </div>
-                      <p className="text-[9px] text-[#666] leading-snug h-6 overflow-hidden line-clamp-2 w-full mt-0.5">{sound.description}</p>
+                      <p className="text-[9px] text-[#777] leading-snug h-6 overflow-hidden line-clamp-2 w-full mt-0.5">{sound.description}</p>
                       
                       <button 
-                        onClick={() => handleUseAsset(sound)}
-                        className={`mt-2 w-full text-center text-[10px] font-semibold py-1 rounded transition-colors border ${hasSelected ? 'bg-pink-600 hover:bg-pink-500 border-pink-500 text-white' : 'bg-[#222] hover:bg-[#333] border-[#333] text-[#888]'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playSplineSound(sound);
+                          if (hasSelected) {
+                            handleUseAsset({
+                              type: 'audio',
+                              name: sound.name,
+                              url: sound.url || `synth:${sound.id}`,
+                              category: sound.category
+                            });
+                          }
+                        }}
+                        className={`mt-2 w-full text-center text-[10px] font-semibold py-1.5 rounded-lg transition-colors border ${hasSelected ? 'bg-pink-600 hover:bg-pink-500 border-pink-500 text-white shadow-sm' : 'bg-[#222] hover:bg-[#333] border-[#333] text-gray-300'}`}
                       >
-                        {hasSelected ? 'Attach to Selected' : 'Preview Sound'}
+                        {hasSelected ? 'Attach Sound' : 'Audition Sound'}
                       </button>
                     </div>
                   );
