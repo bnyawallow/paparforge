@@ -2266,23 +2266,6 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
           ))
         )
       )}
-
-      {/* Refined Floating HTML Selection Badge */}
-      <Html
-        position={[0, hy + 0.18, 0]}
-        center
-        distanceFactor={6}
-        zIndexRange={[100, 0]}
-        pointerEvents="none"
-      >
-        <div className="flex items-center gap-2 px-2.5 py-1 bg-stone-900/90 border border-orange-500/40 text-orange-200 rounded-md shadow-lg shadow-black/60 backdrop-blur-md select-none text-[10px] font-mono tracking-wide uppercase whitespace-nowrap">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_6px_#f97316]" />
-          <span className="font-semibold text-white tracking-normal text-[11px]">{obj.name}</span>
-          <span className="text-orange-300/80 border-l border-white/10 pl-2 text-[9px] font-mono">
-            {sx.toFixed(2)}m × {sy.toFixed(2)}m × {sz.toFixed(2)}m
-          </span>
-        </div>
-      </Html>
     </group>
   );
 }
