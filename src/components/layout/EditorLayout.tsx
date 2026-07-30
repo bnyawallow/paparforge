@@ -118,9 +118,9 @@ export function EditorLayout() {
           useEditorStore.getState().pasteObject();
         } else if (e.key.toLowerCase() === 'd') {
           const state = useEditorStore.getState();
-          if (state.selectedObjectId) {
+          if (state.selectedObjectId || state.selectedObjectIds.length > 0) {
             e.preventDefault();
-            state.duplicateObject(state.selectedObjectId);
+            state.duplicateSelection();
           }
         }
       } else if (!e.altKey && !e.ctrlKey && !e.metaKey) {

@@ -347,7 +347,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['star', 'rating', 'favorite', 'quality']
   },
   {
-    id: '2d_shield',
+    id: '2d_security_shield',
     name: 'Security Shield',
     category: 'Status & Badges',
     iconName: 'Shield',
@@ -377,7 +377,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['globe', 'world', 'network', 'web']
   },
   {
-    id: '2d_wifi',
+    id: '2d_wifi_gauge',
     name: 'Wireless Signal',
     category: 'Tech & Dev',
     iconName: 'Wifi',
@@ -387,7 +387,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['wifi', 'network', 'connect', 'signal']
   },
   {
-    id: '2d_cpu',
+    id: '2d_cpu_chip',
     name: 'Processor Chip',
     category: 'Tech & Dev',
     iconName: 'Cpu',
@@ -397,7 +397,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['cpu', 'chip', 'tech', 'hardware']
   },
   {
-    id: '2d_database',
+    id: '2d_database_storage',
     name: 'Data Storage',
     category: 'Tech & Dev',
     iconName: 'Database',
@@ -407,7 +407,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['database', 'data', 'cloud', 'storage']
   },
   {
-    id: '2d_terminal',
+    id: '2d_terminal_console',
     name: 'CLI Terminal',
     category: 'Tech & Dev',
     iconName: 'Terminal',
@@ -437,7 +437,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['percent', 'discount', 'offer', 'sale']
   },
   {
-    id: '2d_camera',
+    id: '2d_camera_ar',
     name: 'AR Lens Camera',
     category: 'Media & Audio',
     iconName: 'Camera',
@@ -447,7 +447,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
     tags: ['camera', 'photo', 'ar', 'lens']
   },
   {
-    id: '2d_mic',
+    id: '2d_mic_studio',
     name: 'Voice Studio Mic',
     category: 'Media & Audio',
     iconName: 'Mic',

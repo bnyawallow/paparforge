@@ -842,6 +842,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   // Camera & View modes
   cameraType: 'perspective',
   wireframeEnabled: false,
+  collisionDebuggerEnabled: false,
   editorTheme: 'dark',
   
   // History state
@@ -1602,6 +1603,399 @@ export const useEditorStore = create<EditorState>((set) => ({
       future: [],
       hasUnsavedChanges: true,
       toasts: [...state.toasts, { id: toastId, message: `Duplicated "${original.name}"` }]
+    };
+  }),
+
+  duplicateSelection: () => set((state) => {
+    const idsToDuplicate = state.selectedObjectIds.length > 0 
+      ? state.selectedObjectIds 
+      : (state.selectedObjectId ? [state.selectedObjectId] : []);
+
+    const validIds = idsToDuplicate.filter(id => {
+      const obj = state.objects[id];
+      return obj && obj.type !== 'imageTarget';
+    });
+
+    if (validIds.length === 0) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const newObjects = { ...state.objects };
+    let newRootObjects = [...state.rootObjects];
+    const newSelectedIds: string[] = [];
+
+    const topIds = validIds.filter(id => {
+      let current = state.objects[id];
+      if (!current) return false;
+      while (current.parentId) {
+        if (validIds.includes(current.parentId)) {
+          return false;
+        }
+        current = state.objects[current.parentId];
+      }
+      return true;
+    });
+
+    topIds.forEach(id => {
+      const original = state.objects[id];
+      if (!original) return;
+
+      const rootClone = cloneObjectSubtree(id, original.parentId, state.objects, newObjects, true);
+      if (rootClone) {
+        newSelectedIds.push(rootClone.id);
+
+        if (original.parentId && newObjects[original.parentId]) {
+          const parent = newObjects[original.parentId];
+          const index = parent.children.indexOf(id);
+          const newChildren = [...parent.children];
+          if (index !== -1) {
+            newChildren.splice(index + 1, 0, rootClone.id);
+          } else {
+            newChildren.push(rootClone.id);
+          }
+          newObjects[original.parentId] = {
+            ...parent,
+            children: newChildren
+          };
+        } else {
+          const index = newRootObjects.indexOf(id);
+          if (index !== -1) {
+            newRootObjects.splice(index + 1, 0, rootClone.id);
+          } else {
+            newRootObjects.push(rootClone.id);
+          }
+        }
+      }
+    });
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      objects: newObjects,
+      rootObjects: newRootObjects,
+      selectedObjectId: newSelectedIds[newSelectedIds.length - 1] || null,
+      selectedObjectIds: newSelectedIds,
+      selectedObjectRef: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Duplicated selection (${topIds.length} items)` }]
+    };
+  }),
+
+  alignSelectedObjects: (axis, type) => set((state) => {
+    const ids = state.selectedObjectIds.length > 0 
+      ? state.selectedObjectIds 
+      : (state.selectedObjectId ? [state.selectedObjectId] : []);
+
+    const targetObjects = ids.map(id => state.objects[id]).filter(Boolean);
+    if (targetObjects.length === 0) return state;
+
+    const is2D = targetObjects.every(obj => 
+      ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type)
+    );
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const newObjects = { ...state.objects };
+
+    if (is2D) {
+      const getWidth = (obj: SceneObject) => {
+        return obj.properties?.width !== undefined 
+          ? obj.properties.width 
+          : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : 150));
+      };
+      const getHeight = (obj: SceneObject) => {
+        return obj.properties?.height !== undefined 
+          ? obj.properties.height 
+          : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : 40));
+      };
+      const getLeft = (obj: SceneObject) => obj.properties?.left !== undefined ? obj.properties.left : 20;
+      const getTop = (obj: SceneObject) => obj.properties?.top !== undefined ? obj.properties.top : 20;
+
+      if (ids.length > 1) {
+        let minLeft = Infinity;
+        let minTop = Infinity;
+        let maxRight = -Infinity;
+        let maxBottom = -Infinity;
+
+        targetObjects.forEach(obj => {
+          const l = getLeft(obj);
+          const t = getTop(obj);
+          const w = getWidth(obj);
+          const h = getHeight(obj);
+
+          if (l < minLeft) minLeft = l;
+          if (t < minTop) minTop = t;
+          if (l + w > maxRight) maxRight = l + w;
+          if (t + h > maxBottom) maxBottom = t + h;
+        });
+
+        const centerLeft = (minLeft + maxRight) / 2;
+        const centerTop = (minTop + maxBottom) / 2;
+
+        targetObjects.forEach(obj => {
+          const props = { ...obj.properties };
+          if (axis === 'x') {
+            if (type === 'min') {
+              props.left = minLeft;
+            } else if (type === 'center') {
+              props.left = centerLeft - getWidth(obj) / 2;
+            } else if (type === 'max') {
+              props.left = maxRight - getWidth(obj);
+            }
+          } else if (axis === 'y') {
+            if (type === 'min') {
+              props.top = minTop;
+            } else if (type === 'center') {
+              props.top = centerTop - getHeight(obj) / 2;
+            } else if (type === 'max') {
+              props.top = maxBottom - getHeight(obj);
+            }
+          }
+          newObjects[obj.id] = {
+            ...obj,
+            properties: props
+          };
+        });
+      } else {
+        const obj = targetObjects[0];
+        const parentId = obj.parentId;
+        const parent = parentId ? state.objects[parentId] : null;
+        const pW = parent && parent.properties?.width !== undefined ? parent.properties.width : 1000;
+        const pH = parent && parent.properties?.height !== undefined ? parent.properties.height : 1000;
+
+        const props = { ...obj.properties };
+        if (axis === 'x') {
+          if (type === 'min') {
+            props.left = 0;
+          } else if (type === 'center') {
+            props.left = (pW - getWidth(obj)) / 2;
+          } else if (type === 'max') {
+            props.left = pW - getWidth(obj);
+          }
+        } else if (axis === 'y') {
+          if (type === 'min') {
+            props.top = 0;
+          } else if (type === 'center') {
+            props.top = (pH - getHeight(obj)) / 2;
+          } else if (type === 'max') {
+            props.top = pH - getHeight(obj);
+          }
+        }
+        newObjects[obj.id] = {
+          ...obj,
+          properties: props
+        };
+      }
+    } else {
+      const axisIdx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+
+      if (ids.length > 1) {
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+
+        targetObjects.forEach(obj => {
+          const val = obj.position[axisIdx];
+          if (val < minVal) minVal = val;
+          if (val > maxVal) maxVal = val;
+        });
+
+        const centerVal = (minVal + maxVal) / 2;
+
+        targetObjects.forEach(obj => {
+          const newPos = [...obj.position] as [number, number, number];
+          if (type === 'min') {
+            newPos[axisIdx] = minVal;
+          } else if (type === 'center') {
+            newPos[axisIdx] = centerVal;
+          } else if (type === 'max') {
+            newPos[axisIdx] = maxVal;
+          }
+          newObjects[obj.id] = {
+            ...obj,
+            position: newPos
+          };
+        });
+      } else {
+        const obj = targetObjects[0];
+        const newPos = [...obj.position] as [number, number, number];
+        newPos[axisIdx] = 0;
+        newObjects[obj.id] = {
+          ...obj,
+          position: newPos
+        };
+      }
+    }
+
+    return {
+      objects: newObjects,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
+
+  distributeSelectedObjects: (axis) => set((state) => {
+    const ids = state.selectedObjectIds;
+    if (ids.length < 3) return state;
+
+    const targetObjects = ids.map(id => state.objects[id]).filter(Boolean);
+    const is2D = targetObjects.every(obj => 
+      ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type)
+    );
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const newObjects = { ...state.objects };
+
+    if (is2D) {
+      const getLeft = (obj: SceneObject) => obj.properties?.left !== undefined ? obj.properties.left : 20;
+      const getTop = (obj: SceneObject) => obj.properties?.top !== undefined ? obj.properties.top : 20;
+
+      if (axis === 'x') {
+        const sorted = [...targetObjects].sort((a, b) => getLeft(a) - getLeft(b));
+        const firstLeft = getLeft(sorted[0]);
+        const lastLeft = getLeft(sorted[sorted.length - 1]);
+        const totalDistance = lastLeft - firstLeft;
+        const step = totalDistance / (sorted.length - 1);
+
+        sorted.forEach((obj, idx) => {
+          newObjects[obj.id] = {
+            ...obj,
+            properties: {
+              ...obj.properties,
+              left: Math.round(firstLeft + idx * step)
+            }
+          };
+        });
+      } else if (axis === 'y') {
+        const sorted = [...targetObjects].sort((a, b) => getTop(a) - getTop(b));
+        const firstTop = getTop(sorted[0]);
+        const lastTop = getTop(sorted[sorted.length - 1]);
+        const totalDistance = lastTop - firstTop;
+        const step = totalDistance / (sorted.length - 1);
+
+        sorted.forEach((obj, idx) => {
+          newObjects[obj.id] = {
+            ...obj,
+            properties: {
+              ...obj.properties,
+              top: Math.round(firstTop + idx * step)
+            }
+          };
+        });
+      }
+    } else {
+      const axisIdx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+      const sorted = [...targetObjects].sort((a, b) => a.position[axisIdx] - b.position[axisIdx]);
+      const firstVal = sorted[0].position[axisIdx];
+      const lastVal = sorted[sorted.length - 1].position[axisIdx];
+      const totalDistance = lastVal - firstVal;
+      const step = totalDistance / (sorted.length - 1);
+
+      sorted.forEach((obj, idx) => {
+        const newPos = [...obj.position] as [number, number, number];
+        newPos[axisIdx] = firstVal + idx * step;
+        newObjects[obj.id] = {
+          ...obj,
+          position: newPos
+        };
+      });
+    }
+
+    return {
+      objects: newObjects,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
+
+  centerGroupPivot: (groupId) => set((state) => {
+    const groupObj = state.objects[groupId];
+    if (!groupObj || groupObj.type !== 'group' || groupObj.children.length === 0) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const newObjects = { ...state.objects };
+
+    let sumX = 0, sumY = 0, sumZ = 0;
+    let validChildrenCount = 0;
+
+    groupObj.children.forEach(childId => {
+      const child = state.objects[childId];
+      if (child) {
+        sumX += child.position[0];
+        sumY += child.position[1];
+        sumZ += child.position[2];
+        validChildrenCount++;
+      }
+    });
+
+    if (validChildrenCount === 0) return state;
+
+    const avgX = sumX / validChildrenCount;
+    const avgY = sumY / validChildrenCount;
+    const avgZ = sumZ / validChildrenCount;
+
+    if (Math.abs(avgX) < 0.0001 && Math.abs(avgY) < 0.0001 && Math.abs(avgZ) < 0.0001) return state;
+
+    const newGroupPos = [
+      groupObj.position[0] + avgX,
+      groupObj.position[1] + avgY,
+      groupObj.position[2] + avgZ
+    ] as [number, number, number];
+
+    newObjects[groupId] = {
+      ...groupObj,
+      position: newGroupPos
+    };
+
+    groupObj.children.forEach(childId => {
+      const child = state.objects[childId];
+      if (child) {
+        newObjects[childId] = {
+          ...child,
+          position: [
+            child.position[0] - avgX,
+            child.position[1] - avgY,
+            child.position[2] - avgZ
+          ] as [number, number, number]
+        };
+      }
+    });
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      objects: newObjects,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Centered Pivot of "${groupObj.name}"` }]
     };
   }),
 
@@ -2390,6 +2784,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   setCameraType: (cameraType) => set({ cameraType }),
   setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),
+  setCollisionDebuggerEnabled: (enabled) => set({ collisionDebuggerEnabled: enabled }),
   toggleEditorTheme: () => set((state) => ({ editorTheme: state.editorTheme === 'dark' ? 'light' : 'dark' })),
 
   createVersionSnapshot: (customName?: string) => set((state) => {

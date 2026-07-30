@@ -129,7 +129,7 @@ const PRESET_MODELS = [
     id: 'p-model-fox',
     name: 'Low-Poly Fox',
     type: 'model' as AssetType,
-    url: 'https://threejs.org/examples/models/gltf/Fox/glTF-Binary/Fox.glb',
+    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Fox/glTF-Binary/Fox.glb',
     thumbnail: '🦊',
     description: 'Animated low-poly forest fox character',
   },
@@ -151,139 +151,139 @@ const PRESET_MODELS = [
   },
   {
     id: 'p-model-sphere-primitive',
-    name: 'Smooth Glass Sphere',
+    name: 'Sample Mesh Sphere',
     type: 'model' as AssetType,
-    url: 'primitive:sphere',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Sphere/glTF-Binary/Sphere.glb',
     thumbnail: '🔮',
-    description: 'Parametric 3D sphere primitive object',
+    description: 'Online GLB high-poly sphere mesh asset',
   },
   {
     id: 'p-model-cube-primitive',
-    name: 'Cyber Beveled Cube',
+    name: 'Sample Mesh Box',
     type: 'model' as AssetType,
-    url: 'primitive:cube',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
     thumbnail: '🧊',
-    description: 'Parametric 3D cube mesh primitive',
+    description: 'Online GLB textured box mesh asset',
   },
   {
     id: 'p-model-cylinder-primitive',
-    name: 'Holo Cylinder',
+    name: 'Antique Camera',
     type: 'model' as AssetType,
-    url: 'primitive:cylinder',
-    thumbnail: '🛢️',
-    description: 'Parametric 3D cylinder mesh primitive',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/AntiqueCamera/glTF-Binary/AntiqueCamera.glb',
+    thumbnail: '📷',
+    description: 'Detailed vintage antique camera GLB mesh',
   },
   {
     id: 'p-model-torus-primitive',
-    name: 'Neon Torus Ring',
+    name: 'Cesium Explorer',
     type: 'model' as AssetType,
-    url: 'primitive:torus',
-    thumbnail: '🍩',
-    description: 'Parametric 3D torus doughnut geometry',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/CesiumMan/glTF-Binary/CesiumMan.glb',
+    thumbnail: '🚶‍♂️',
+    description: 'Animated walking explorer GLB mesh',
   },
   {
     id: 'p-model-cone-primitive',
-    name: 'Laser Cone',
+    name: 'Suzanne Monkey Mesh',
     type: 'model' as AssetType,
-    url: 'primitive:cone',
-    thumbnail: '🔺',
-    description: 'Parametric 3D cone mesh primitive',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Suzanne/glTF-Binary/Suzanne.glb',
+    thumbnail: '🐵',
+    description: 'Classic Blender Suzanne monkey head 3D mesh',
   },
   {
     id: 'p-model-plane-primitive',
-    name: 'Ground Plane',
+    name: 'Stained Glass Lamp',
     type: 'model' as AssetType,
-    url: 'primitive:plane',
-    thumbnail: '⬛',
-    description: 'Flat 2D/3D ground plane surface',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/StainedGlassLamp/glTF-Binary/StainedGlassLamp.glb',
+    thumbnail: '🪔',
+    description: 'Ornate stained glass table lamp GLB mesh',
   },
   {
     id: 'p-model-pyramid-primitive',
-    name: 'Golden Pyramid',
+    name: 'Flight Helmet',
     type: 'model' as AssetType,
-    url: 'primitive:pyramid',
-    thumbnail: '📐',
-    description: '4-sided geometric pyramid structure',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/FlightHelmet/glTF-Binary/FlightHelmet.glb',
+    thumbnail: '🪖',
+    description: 'PBR military pilot flight helmet GLB',
   },
   {
     id: 'p-model-capsule-primitive',
-    name: 'Medical Capsule',
+    name: 'Anatomical Brain Stem',
     type: 'model' as AssetType,
-    url: 'primitive:capsule',
-    thumbnail: '💊',
-    description: 'Smooth pill capsule 3D mesh',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/BrainStem/glTF-Binary/BrainStem.glb',
+    thumbnail: '🧠',
+    description: 'Medical anatomical brain stem 3D mesh',
   },
   {
     id: 'p-model-dodeca-primitive',
-    name: 'Dodecahedron Crystal',
+    name: 'Corset Fashion Dress',
     type: 'model' as AssetType,
-    url: 'primitive:dodecahedron',
-    thumbnail: '💎',
-    description: '12-sided regular polyhedron crystal',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Corset/glTF-Binary/Corset.glb',
+    thumbnail: '👗',
+    description: 'High quality textile corset 3D model',
   },
   {
     id: 'p-model-octa-primitive',
-    name: 'Octahedron Gem',
+    name: 'Buggy Offroad Vehicle',
     type: 'model' as AssetType,
-    url: 'primitive:octahedron',
-    thumbnail: '💠',
-    description: '8-sided dual pyramid gem crystal',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Buggy/glTF-Binary/Buggy.glb',
+    thumbnail: '🏎️',
+    description: 'Complex offroad motorsport buggy mesh',
   },
   {
     id: 'p-model-icosa-primitive',
-    name: 'Icosahedron Shield',
+    name: 'Tropical Flamingo',
     type: 'model' as AssetType,
-    url: 'primitive:icosahedron',
-    thumbnail: '🔷',
-    description: '20-sided geodesic sphere mesh',
+    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Flamingo.glb',
+    thumbnail: '🦩',
+    description: 'Animated flying tropical flamingo mesh',
   },
   {
     id: 'p-model-knot-primitive',
-    name: 'Torus Knot Sculpture',
+    name: 'Wild Stallion Horse',
     type: 'model' as AssetType,
-    url: 'primitive:knot',
-    thumbnail: '🪢',
-    description: 'Complex mathematical torus knot curve',
+    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Horse.glb',
+    thumbnail: '🐎',
+    description: 'Galloping wild stallion horse GLB model',
   },
   {
     id: 'p-model-text3d',
-    name: 'Volumetric 3D Text',
+    name: 'Exotic Parrot',
     type: 'model' as AssetType,
-    url: 'primitive:text3d',
-    thumbnail: '🔤',
-    description: '3D extruded typographic title mesh',
+    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Parrot.glb',
+    thumbnail: '🦜',
+    description: 'Animated flying jungle parrot mesh',
   },
   {
     id: 'p-model-pointlight',
-    name: 'Point Light Beacon',
+    name: 'Graceful Stork',
     type: 'model' as AssetType,
-    url: 'primitive:pointlight',
-    thumbnail: '💡',
-    description: 'Omnidirectional point light emitter node',
+    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Stork.glb',
+    thumbnail: '🦢',
+    description: 'Animated soaring stork GLB 3D model',
   },
   {
     id: 'p-model-spotlight',
-    name: 'Spotlight Cone',
+    name: 'Sci-Fi Combat Helmet',
     type: 'model' as AssetType,
-    url: 'primitive:spotlight',
-    thumbnail: '🔦',
-    description: 'Directional focused spotlight cone',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    thumbnail: '🪖',
+    description: 'High detail battle suit combat visor',
   },
   {
     id: 'p-model-sunlight',
-    name: 'Solar Directional Light',
+    name: 'Solar Generator',
     type: 'model' as AssetType,
-    url: 'primitive:sunlight',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
     thumbnail: '☀️',
-    description: 'Parallel solar sunlight lighting rig',
+    description: 'Solar power cell light generator mesh',
   },
   {
     id: 'p-model-imagetarget',
-    name: 'Spatial Image Target Marker',
+    name: 'Spatial Anchor Plane',
     type: 'model' as AssetType,
-    url: 'primitive:imagetarget',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
     thumbnail: '🎯',
-    description: 'AR image tracking anchor plane target',
+    description: 'AR image tracking anchor plane target mesh',
   },
   {
     id: 'p-model-drone',
@@ -305,9 +305,9 @@ const PRESET_MODELS = [
     id: 'p-model-portal',
     name: 'Sci-Fi Teleport Portal',
     type: 'model' as AssetType,
-    url: 'primitive:torus',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/StainedGlassLamp/glTF-Binary/StainedGlassLamp.glb',
     thumbnail: '🌀',
-    description: 'Holographic dimensional warp gate',
+    description: 'Holographic dimensional warp gate GLB',
   },
   {
     id: 'p-model-arcade',
@@ -329,15 +329,15 @@ const PRESET_MODELS = [
     id: 'p-model-sword',
     name: 'Plasma Cyber Blade',
     type: 'model' as AssetType,
-    url: 'primitive:cone',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/AntiqueCamera/glTF-Binary/AntiqueCamera.glb',
     thumbnail: '⚔️',
-    description: 'Energy infused melee weapon blade',
+    description: 'Energy infused melee weapon blade GLB',
   },
   {
     id: 'p-model-shield',
     name: 'Aegis Force Shield',
     type: 'model' as AssetType,
-    url: 'primitive:icosahedron',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Sphere/glTF-Binary/Sphere.glb',
     thumbnail: '🛡️',
     description: 'Defensive holographic forcefield shield',
   },
@@ -353,7 +353,7 @@ const PRESET_MODELS = [
     id: 'p-model-gem',
     name: 'Prismatic Sapphire Gem',
     type: 'model' as AssetType,
-    url: 'primitive:octahedron',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Suzanne/glTF-Binary/Suzanne.glb',
     thumbnail: '💎',
     description: 'High refraction cut gemstone crystal',
   },
@@ -361,7 +361,7 @@ const PRESET_MODELS = [
     id: 'p-model-coin-stack',
     name: 'Crypto Gold Coin Stack',
     type: 'model' as AssetType,
-    url: 'primitive:cylinder',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
     thumbnail: '🪙',
     description: 'Stacked gold bullion currency coins',
   },
@@ -377,7 +377,7 @@ const PRESET_MODELS = [
     id: 'p-model-cpu-chip',
     name: 'Neural AI Microchip',
     type: 'model' as AssetType,
-    url: 'primitive:cube',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
     thumbnail: '🔲',
     description: 'Multi-core quantum neural processing unit',
   },
@@ -409,7 +409,7 @@ const PRESET_MODELS = [
     id: 'p-model-ring',
     name: 'Titanium Smart Ring',
     type: 'model' as AssetType,
-    url: 'primitive:torus',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Sphere/glTF-Binary/Sphere.glb',
     thumbnail: '💍',
     description: 'Precision machined metallic biometric ring',
   },
@@ -425,7 +425,7 @@ const PRESET_MODELS = [
     id: 'p-model-house',
     name: 'Architectural Modern Villa',
     type: 'model' as AssetType,
-    url: 'primitive:cube',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
     thumbnail: '🏡',
     description: 'Scale model minimalist residential villa',
   },
@@ -441,7 +441,7 @@ const PRESET_MODELS = [
     id: 'p-model-battery',
     name: 'Quantum Cell Battery',
     type: 'model' as AssetType,
-    url: 'primitive:capsule',
+    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
     thumbnail: '🔋',
     description: 'High capacity solid-state energy storage',
   }
@@ -942,6 +942,13 @@ export function AssetBrowser() {
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hoverTimeoutRef = useRef<Record<string, any>>({});
+  
+  useEffect(() => {
+    return () => {
+      Object.values(hoverTimeoutRef.current).forEach(clearTimeout);
+    };
+  }, []);
   const [activeTab, setActiveTab] = useState<CategoryTab>('text-styles');
   const [uiKitSearchQuery, setUiKitSearchQuery] = useState('');
   const [selectedUiKitCategory, setSelectedUiKitCategory] = useState<string>('All');
@@ -3632,6 +3639,14 @@ export function AssetBrowser() {
                 ))}
               </div>
 
+              {/* CSS Keyframes for Audio Visualizer wavebars */}
+              <style dangerouslySetInnerHTML={{__html: `
+                @keyframes wavebar {
+                  0%, 100% { transform: scaleY(0.3); }
+                  50% { transform: scaleY(1.2); }
+                }
+              `}} />
+
               {/* Grid of sounds */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 overflow-y-auto pr-1">
                 {SPLINE_SOUND_PRESETS.filter(s => selectedAudioCategory === 'All' || s.category === selectedAudioCategory).map(sound => {
@@ -3650,11 +3665,35 @@ export function AssetBrowser() {
                           });
                         }
                       }}
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current[sound.id]) {
+                          clearTimeout(hoverTimeoutRef.current[sound.id]);
+                        }
+                        hoverTimeoutRef.current[sound.id] = setTimeout(() => {
+                          playSplineSound(sound);
+                        }, 180);
+                      }}
+                      onMouseLeave={() => {
+                        if (hoverTimeoutRef.current[sound.id]) {
+                          clearTimeout(hoverTimeoutRef.current[sound.id]);
+                          delete hoverTimeoutRef.current[sound.id];
+                        }
+                      }}
                       className="bg-[#141414] border border-[#222] hover:border-pink-500 rounded-xl p-3 flex flex-col gap-1 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative shadow-md"
-                      title="Double-click to audition with 3D Web Audio Engine / Attach sound to selected object"
+                      title="Hover to preview / Double-click to attach sound to selected object"
                     >
-                      <div className="w-full h-14 flex items-center justify-center bg-black/50 rounded-lg text-2xl mb-1 relative overflow-hidden">
-                        <span className="group-hover:scale-125 transition-transform">{sound.thumbnail || '🔊'}</span>
+                      <div className="w-full h-14 flex items-center justify-center bg-black/50 rounded-lg text-2xl mb-1 relative overflow-hidden transition-all duration-300 group-hover:bg-[#111]">
+                        <span className="group-hover:scale-110 group-hover:opacity-20 transition-all duration-300">{sound.thumbnail || '🔊'}</span>
+                        
+                        {/* Audio wave dynamic CSS bars visualizer on hover */}
+                        <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                          <div className="w-1 bg-pink-500 rounded-full h-4 origin-bottom group-hover:animate-[wavebar_0.6s_ease-in-out_infinite]" style={{ animationDelay: '0.1s' }} />
+                          <div className="w-1 bg-pink-400 rounded-full h-6 origin-bottom group-hover:animate-[wavebar_0.6s_ease-in-out_infinite]" style={{ animationDelay: '0.3s' }} />
+                          <div className="w-1 bg-pink-500 rounded-full h-5 origin-bottom group-hover:animate-[wavebar_0.6s_ease-in-out_infinite]" style={{ animationDelay: '0.5s' }} />
+                          <div className="w-1 bg-pink-400 rounded-full h-7 origin-bottom group-hover:animate-[wavebar_0.6s_ease-in-out_infinite]" style={{ animationDelay: '0.2s' }} />
+                          <div className="w-1 bg-pink-500 rounded-full h-4 origin-bottom group-hover:animate-[wavebar_0.6s_ease-in-out_infinite]" style={{ animationDelay: '0.4s' }} />
+                        </div>
+
                         <button 
                           onClick={(e) => { 
                             e.stopPropagation(); 

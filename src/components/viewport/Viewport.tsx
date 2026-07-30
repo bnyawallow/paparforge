@@ -42,7 +42,8 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronRight,
-  Crosshair
+  Crosshair,
+  Shield
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -1408,12 +1409,121 @@ function LightNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
   );
 }
 
+function CollisionDebuggerOverlay({ obj }: { obj: any }) {
+  const isSelected = useEditorStore(state => state.selectedObjectIds.includes(obj.id));
+  const wireframeColor = isSelected ? "#38bdf8" : "#f97316";
+  
+  let geometry = null;
+  let label = "Box Collider";
+  
+  switch (obj.type) {
+    case 'box':
+    case 'button':
+    case 'youtube':
+      geometry = <boxGeometry args={[1.02, 1.02, 1.02]} />;
+      label = "Box Collider";
+      break;
+    case 'sphere':
+      geometry = <sphereGeometry args={[0.51, 16, 16]} />;
+      label = "Sphere Collider";
+      break;
+    case 'plane':
+    case 'image':
+    case 'video':
+      geometry = <planeGeometry args={[1.02, 1.02]} />;
+      label = "Plane Collider";
+      break;
+    case 'cylinder':
+      geometry = <cylinderGeometry args={[0.51, 0.51, 1.02, 16]} />;
+      label = "Cylinder Collider";
+      break;
+    case 'cone':
+    case 'pyramid':
+      geometry = <coneGeometry args={[0.51, 1.02, obj.type === 'pyramid' ? 4 : 16]} />;
+      label = "Cone/Pyramid Collider";
+      break;
+    case 'torus':
+      geometry = <torusGeometry args={[0.41, 0.13, 8, 32]} />;
+      label = "Torus Collider";
+      break;
+    case 'capsule':
+      geometry = <capsuleGeometry args={[0.31, 0.61, 8, 16]} />;
+      label = "Capsule Collider";
+      break;
+    case 'dodecahedron':
+      geometry = <dodecahedronGeometry args={[0.51]} />;
+      label = "Polyhedron Collider";
+      break;
+    case 'octahedron':
+      geometry = <octahedronGeometry args={[0.51]} />;
+      label = "Octahedron Collider";
+      break;
+    case 'icosahedron':
+      geometry = <icosahedronGeometry args={[0.51]} />;
+      label = "Geodesic Collider";
+      break;
+    case 'knot':
+      geometry = <torusKnotGeometry args={[0.31, 0.11, 32, 8]} />;
+      label = "Mesh Collider";
+      break;
+    case 'model':
+      geometry = <boxGeometry args={[1.1, 1.1, 1.1]} />;
+      label = "OBB Bounding Box";
+      break;
+    case 'icon':
+    case 'icon2d':
+      geometry = <boxGeometry args={[0.8, 0.8, 0.3]} />;
+      label = "Billboard Collider";
+      break;
+    default:
+      geometry = <boxGeometry args={[1, 1, 1]} />;
+      label = "Generic Collider";
+      break;
+  }
+
+  return (
+    <group>
+      <mesh>
+        {geometry}
+        <meshBasicMaterial 
+          color={wireframeColor} 
+          wireframe 
+          transparent 
+          opacity={0.8} 
+          depthTest={false} 
+        />
+      </mesh>
+      
+      <mesh>
+        {geometry}
+        <meshBasicMaterial 
+          color={wireframeColor} 
+          transparent 
+          opacity={0.12} 
+          depthWrite={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      
+      <Html distanceFactor={4} position={[0, 0.7, 0]} center>
+        <div className="bg-black/85 border border-[#333] text-[9px] text-white px-2 py-0.5 rounded font-mono flex items-center gap-1.5 whitespace-nowrap shadow-xl">
+          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-cyan-400 animate-ping" : "bg-orange-500 animate-pulse"}`}></span>
+          <span className="text-[#999]">{obj.name.slice(0, 10)}:</span>
+          <span className="text-gray-200 font-bold">{label}</span>
+          <span className="text-[7px] text-[#555] font-normal">| AR READY</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 function ObjectRenderer({ id }: { id: string }) {
   const obj = useEditorStore(state => state.objects[id]);
   const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
   const selectObject = useEditorStore(state => state.selectObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const collisionDebuggerEnabled = useEditorStore(state => state.collisionDebuggerEnabled);
   const meshRef = useRef<THREE.Group>(null);
   
   const isSelected = selectedObjectIds.includes(id);
@@ -2054,6 +2164,7 @@ function ObjectRenderer({ id }: { id: string }) {
       raycast={obj.properties.ignoreClicks ? () => null : undefined}
     >
       {renderGeometry()}
+      {collisionDebuggerEnabled && <CollisionDebuggerOverlay obj={obj} />}
       {obj.children.map(childId => (
         <ObjectRenderer key={childId} id={childId} />
       ))}
@@ -2501,7 +2612,9 @@ export function Viewport() {
     setWireframeEnabled,
     isPreviewMode,
     transformGizmoEnabled,
-    setTransformGizmoEnabled
+    setTransformGizmoEnabled,
+    collisionDebuggerEnabled,
+    setCollisionDebuggerEnabled
   } = useEditorStore();
 
   const objectsRef = useRef(objects);
@@ -2804,14 +2917,12 @@ export function Viewport() {
         }
       }
 
-      // Ctrl+D or Cmd+D or D: Duplicate selected object
+      // Ctrl+D or Cmd+D or D: Duplicate selected objects / selection
       if (e.key.toLowerCase() === 'd') {
-        if (selectedObjectId) {
-          const selectedObj = useEditorStore.getState().objects[selectedObjectId];
-          if (selectedObj && selectedObj.type !== 'imageTarget') {
-            e.preventDefault();
-            useEditorStore.getState().duplicateObject(selectedObjectId);
-          }
+        const state = useEditorStore.getState();
+        if (state.selectedObjectId || state.selectedObjectIds.length > 0) {
+          e.preventDefault();
+          state.duplicateSelection();
         }
       }
 
@@ -3471,6 +3582,18 @@ export function Viewport() {
             title={wireframeEnabled ? "Disable wireframe view" : "Enable wireframe view"}
           >
             <Layers size={14} />
+          </button>
+
+          {/* Collision Debugger toggle */}
+          <button
+            onClick={() => setCollisionDebuggerEnabled(!collisionDebuggerEnabled)}
+            className={`w-8 h-8 rounded flex items-center justify-center transition-all duration-300 relative ${collisionDebuggerEnabled ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 scale-105 shadow-[0_0_10px_rgba(249,115,22,0.2)]' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
+            title={collisionDebuggerEnabled ? "Disable Collision Mesh Debugger" : "Enable Collision Mesh Debugger (Visualizes AR physics hitboxes)"}
+          >
+            <Shield size={14} className={collisionDebuggerEnabled ? 'animate-pulse' : ''} />
+            {collisionDebuggerEnabled && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-ping" />
+            )}
           </button>
 
           {/* Performance Monitor toggle */}

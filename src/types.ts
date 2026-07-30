@@ -135,6 +135,8 @@ export interface EditorState {
   setCameraType: (type: 'perspective' | 'orthographic') => void;
   wireframeEnabled: boolean;
   setWireframeEnabled: (enabled: boolean) => void;
+  collisionDebuggerEnabled: boolean;
+  setCollisionDebuggerEnabled: (enabled: boolean) => void;
   editorTheme: 'dark' | 'light';
   toggleEditorTheme: () => void;
   
@@ -176,6 +178,10 @@ export interface EditorState {
   setTransformGizmoEnabled: (enabled: boolean) => void;
   moveObject: (draggedId: string, targetId: string) => void;
   duplicateObject: (id: string) => void;
+  duplicateSelection: () => void;
+  alignSelectedObjects: (axis: 'x' | 'y' | 'z', type: 'min' | 'center' | 'max') => void;
+  distributeSelectedObjects: (axis: 'x' | 'y' | 'z') => void;
+  centerGroupPivot: (groupId: string) => void;
   copyObject: (id: string) => void;
   pasteObject: () => void;
   addAsset: (asset: Asset) => void;

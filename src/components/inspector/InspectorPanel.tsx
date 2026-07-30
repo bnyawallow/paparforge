@@ -324,7 +324,11 @@ import {
   AlignRight,
   AlignJustify,
   LayoutGrid,
-  Palette
+  Palette,
+  MoveHorizontal,
+  MoveVertical,
+  Maximize,
+  Copy
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../lib/theme';
@@ -861,7 +865,11 @@ export function InspectorPanel({ width }: { width?: number }) {
     hudDebugGridEnabled,
     setHudDebugGridEnabled,
     settings,
-    updateSettings
+    updateSettings,
+    duplicateSelection,
+    alignSelectedObjects,
+    distributeSelectedObjects,
+    centerGroupPivot
   } = useEditorStore();
 
   const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography' | 'theme'>('inspector');
@@ -2490,6 +2498,175 @@ export function InspectorPanel({ width }: { width?: number }) {
                 )}
               </div>
               <div className="p-4 flex flex-col gap-6">
+                {/* Layout Alignment & Distribution Panel */}
+                {(() => {
+                  const targetObjects = (selectedObjectIds.length > 0 ? selectedObjectIds : [selectedObjectId!])
+                    .map(id => objects[id])
+                    .filter(Boolean);
+                  if (targetObjects.length === 0) return null;
+
+                  const isAll2D = targetObjects.every(o => 
+                    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type)
+                  );
+
+                  return (
+                    <div className="flex flex-col gap-3 bg-[#1A1A1A]/40 p-3 rounded-lg border border-[#2A2A2A]/60">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1 select-none">
+                          <LayoutGrid size={11} className="text-blue-400" />
+                          <span>Align & Distribute</span>
+                        </span>
+                        {selectedObjectIds.length > 1 && (
+                          <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full font-semibold border border-blue-500/30 select-none">
+                            {selectedObjectIds.length} Selected
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Alignment Button Grid */}
+                      <div className="flex flex-col gap-2">
+                        {/* Horizontal Alignments */}
+                        <div className="grid grid-cols-4 gap-1">
+                          <button
+                            onClick={() => alignSelectedObjects('x', 'min')}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title={isAll2D ? "Align Left (Edges)" : "Align Left (X Min)"}
+                          >
+                            <AlignLeft size={14} className="text-blue-400/80 group-hover:text-blue-400" />
+                            <span className="text-[8px] font-mono opacity-60">Left</span>
+                          </button>
+                          <button
+                            onClick={() => alignSelectedObjects('x', 'center')}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title={isAll2D ? "Align Horizontal Center" : "Align Center (X)"}
+                          >
+                            <AlignCenter size={14} className="text-blue-400/80 group-hover:text-blue-400" />
+                            <span className="text-[8px] font-mono opacity-60">Center X</span>
+                          </button>
+                          <button
+                            onClick={() => alignSelectedObjects('x', 'max')}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title={isAll2D ? "Align Right (Edges)" : "Align Right (X Max)"}
+                          >
+                            <AlignRight size={14} className="text-blue-400/80 group-hover:text-blue-400" />
+                            <span className="text-[8px] font-mono opacity-60">Right</span>
+                          </button>
+                          <button
+                            onClick={() => duplicateSelection()}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title="Duplicate Selection (Offset Clone)"
+                          >
+                            <Copy size={13} className="text-emerald-400/80 group-hover:text-emerald-400" />
+                            <span className="text-[8px] font-mono opacity-60 text-emerald-400/80">Clone</span>
+                          </button>
+                        </div>
+
+                        {/* Vertical Alignments */}
+                        <div className="grid grid-cols-4 gap-1">
+                          <button
+                            onClick={() => alignSelectedObjects('y', 'min')}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title={isAll2D ? "Align Top (Edges)" : "Align Bottom (Y Min)"}
+                          >
+                            <AlignLeft size={14} className="rotate-90 text-cyan-400/80 group-hover:text-cyan-400" />
+                            <span className="text-[8px] font-mono opacity-60">{isAll2D ? "Top" : "Min Y"}</span>
+                          </button>
+                          <button
+                            onClick={() => alignSelectedObjects('y', 'center')}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title={isAll2D ? "Align Vertical Center" : "Align Center (Y)"}
+                          >
+                            <AlignCenter size={14} className="rotate-90 text-cyan-400/80 group-hover:text-cyan-400" />
+                            <span className="text-[8px] font-mono opacity-60">Center Y</span>
+                          </button>
+                          <button
+                            onClick={() => alignSelectedObjects('y', 'max')}
+                            className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                            title={isAll2D ? "Align Bottom (Edges)" : "Align Top (Y Max)"}
+                          >
+                            <AlignRight size={14} className="rotate-90 text-cyan-400/80 group-hover:text-cyan-400" />
+                            <span className="text-[8px] font-mono opacity-60">{isAll2D ? "Bottom" : "Max Y"}</span>
+                          </button>
+
+                          {/* Distribute X button */}
+                          <button
+                            onClick={() => distributeSelectedObjects('x')}
+                            disabled={selectedObjectIds.length < 3}
+                            className={cn(
+                              "p-2 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer",
+                              selectedObjectIds.length >= 3 
+                                ? "bg-black/40 hover:bg-white/5 text-gray-300 hover:text-white" 
+                                : "bg-black/10 text-gray-600 border-gray-800/40 cursor-not-allowed opacity-40"
+                            )}
+                            title="Distribute Horizontally (Needs at least 3 selected)"
+                          >
+                            <MoveHorizontal size={13} className={selectedObjectIds.length >= 3 ? "text-purple-400/80 group-hover:text-purple-400" : "text-gray-600"} />
+                            <span className="text-[8px] font-mono opacity-60">Dist X</span>
+                          </button>
+                        </div>
+
+                        {/* Z-Depth Alignment & Distribute Y (for 3D Objects only) */}
+                        {!isAll2D && (
+                          <div className="grid grid-cols-4 gap-1 border-t border-[#222]/40 pt-1.5 mt-0.5">
+                            <button
+                              onClick={() => alignSelectedObjects('z', 'min')}
+                              className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                              title="Align Front (Z Min)"
+                            >
+                              <AlignLeft size={14} className="rotate-180 text-indigo-400/80 group-hover:text-indigo-400" />
+                              <span className="text-[8px] font-mono opacity-60">Front Z</span>
+                            </button>
+                            <button
+                              onClick={() => alignSelectedObjects('z', 'center')}
+                              className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                              title="Align Center (Z)"
+                            >
+                              <AlignCenter size={14} className="rotate-180 text-indigo-400/80 group-hover:text-indigo-400" />
+                              <span className="text-[8px] font-mono opacity-60">Center Z</span>
+                            </button>
+                            <button
+                              onClick={() => alignSelectedObjects('z', 'max')}
+                              className="p-2 bg-black/40 hover:bg-white/5 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-white transition-all group cursor-pointer"
+                              title="Align Back (Z Max)"
+                            >
+                              <AlignRight size={14} className="rotate-180 text-indigo-400/80 group-hover:text-indigo-400" />
+                              <span className="text-[8px] font-mono opacity-60">Back Z</span>
+                            </button>
+
+                            {/* Distribute Y button */}
+                            <button
+                              onClick={() => distributeSelectedObjects('y')}
+                              disabled={selectedObjectIds.length < 3}
+                              className={cn(
+                                "p-2 border border-[#2A2A2A] rounded flex flex-col items-center justify-center gap-1 transition-all group cursor-pointer",
+                                selectedObjectIds.length >= 3 
+                                  ? "bg-black/40 hover:bg-white/5 text-gray-300 hover:text-white" 
+                                  : "bg-black/10 text-gray-600 border-gray-800/40 cursor-not-allowed opacity-40"
+                              )}
+                              title="Distribute Vertically (Needs at least 3 selected)"
+                            >
+                              <MoveVertical size={13} className={selectedObjectIds.length >= 3 ? "text-purple-400/80 group-hover:text-purple-400" : "text-gray-600"} />
+                              <span className="text-[8px] font-mono opacity-60">Dist Y</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Contextual actions */}
+                      {obj.type === 'group' && (
+                        <button
+                          onClick={() => centerGroupPivot(selectedObjectId!)}
+                          className="w-full py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                          title="Center the group's pivot point to the absolute center of its child objects, maintaining their world positions intact."
+                        >
+                          <Maximize size={12} className="rotate-45" />
+                          Center Group Pivot Point
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Entity Name & Type */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3 bg-[#1A1A1A] p-3 rounded border border-[#2A2A2A]">
@@ -5105,7 +5282,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <label className="text-[10px] text-[#666] font-medium">Font Size (px)</label>
                         <input 
                           type="number"
-                          value={obj.properties.fontSize || 24}
+                          value={parseInt(String(obj.properties.fontSize || 24)) || 24}
                           onChange={(e) => handlePropertyChange('fontSize', parseInt(e.target.value) || 24)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         />
@@ -5184,7 +5361,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                           step="0.1"
                           min="0.5"
                           max="3.0"
-                          value={obj.properties.lineHeight !== undefined ? obj.properties.lineHeight : 1.2}
+                          value={parseFloat(String(obj.properties.lineHeight !== undefined ? obj.properties.lineHeight : 1.2)) || 1.2}
                           onChange={(e) => handlePropertyChange('lineHeight', parseFloat(e.target.value) || 1.2)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         />
@@ -5194,7 +5371,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <input 
                           type="number"
                           step="0.5"
-                          value={obj.properties.letterSpacing !== undefined ? obj.properties.letterSpacing : 0}
+                          value={parseFloat(String(obj.properties.letterSpacing !== undefined ? obj.properties.letterSpacing : 0)) || 0}
                           onChange={(e) => handlePropertyChange('letterSpacing', parseFloat(e.target.value) || 0)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         />
