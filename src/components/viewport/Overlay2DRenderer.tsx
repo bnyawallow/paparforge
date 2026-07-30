@@ -17,6 +17,48 @@ const LucideIcon = ({ name, size = 16, className }: { name: string; size?: numbe
 
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
   const { objects, selectedObjectId, selectedObjectIds, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize, settings } = useEditorStore();
+
+  const [containerSize, setContainerSize] = React.useState({ width: 1000, height: 1000 });
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect && rect.width > 0 && rect.height > 0) {
+        if (!isPreviewMode) {
+          localStorage.setItem('ar_forge_editor_2d_width', String(Math.round(rect.width)));
+          localStorage.setItem('ar_forge_editor_2d_height', String(Math.round(rect.height)));
+        }
+        setContainerSize({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateSize();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateSize);
+      observer.observe(containerRef.current);
+      return () => observer.disconnect();
+    } else {
+      window.addEventListener('resize', updateSize);
+      return () => window.removeEventListener('resize', updateSize);
+    }
+  }, [isPreviewMode]);
+
+  const savedEditorWidth = React.useMemo(() => {
+    const saved = localStorage.getItem('ar_forge_editor_2d_width');
+    return saved ? parseInt(saved) : 1000;
+  }, [isPreviewMode]);
+
+  const savedEditorHeight = React.useMemo(() => {
+    const saved = localStorage.getItem('ar_forge_editor_2d_height');
+    return saved ? parseInt(saved) : 1000;
+  }, [isPreviewMode]);
+
+  const scale = React.useMemo(() => {
+    if (!isPreviewMode) return 1;
+    return Math.min(containerSize.width / savedEditorWidth, containerSize.height / savedEditorHeight);
+  }, [isPreviewMode, containerSize.width, containerSize.height, savedEditorWidth, savedEditorHeight]);
   const [showGridSettings, setShowGridSettings] = React.useState(false);
   const [activeSnapLines, setActiveSnapLines] = React.useState<Array<{ type: 'v' | 'h'; coord: number }>>([]);
   const [draggingObj, setDraggingObj] = React.useState<{
@@ -544,7 +586,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
+    <div ref={containerRef} className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
       {!isPreviewMode && is2DSelected && overlayGridEnabled && (
         <div 
           className="absolute inset-0 pointer-events-none opacity-20"
@@ -591,6 +633,25 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
         </div>
       )}
 
+      <div
+        style={isPreviewMode ? {
+          width: `${savedEditorWidth}px`,
+          height: `${savedEditorHeight}px`,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          position: 'absolute',
+          top: `${(containerSize.height - savedEditorHeight * scale) / 2}px`,
+          left: `${(containerSize.width - savedEditorWidth * scale) / 2}px`,
+          pointerEvents: 'none',
+        } : {
+          width: '100%',
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          pointerEvents: 'none',
+        }}
+      >
       {(() => {
         // Helper to convert hex to rgba for background transparency so children aren't made transparent
         const hexToRgba = (hex: string, alpha: number) => {
@@ -971,6 +1032,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
         return rootOverlayObjects.map((obj: any) => renderOverlayObject(obj));
       })()}
+      </div>
 
       {activeSnapLines.map((line, i) => (
         <div
