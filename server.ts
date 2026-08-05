@@ -13,7 +13,9 @@ async function startServer() {
   // Ensure papar directory exists
   const isProd = process.env.NODE_ENV === "production";
   const publicDir = isProd ? path.join(process.cwd(), "dist") : path.join(process.cwd(), "public");
-  const paparDir = path.join(publicDir, "papar");
+  const paparDir = isProd
+    ? path.join(process.cwd(), "papar_data", "papar")
+    : path.join(publicDir, "papar");
   
   try {
     await fs.mkdir(paparDir, { recursive: true });

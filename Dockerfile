@@ -36,7 +36,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/index.html ./index.html
 
 # Ensure directories exist for persistent database and published WebAR scenes
-RUN mkdir -p /app/dist/papar /app/data
+RUN mkdir -p /app/papar_data/papar
 
 EXPOSE 3000
 

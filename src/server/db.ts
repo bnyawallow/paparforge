@@ -1,8 +1,17 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 import bcrypt from 'bcryptjs';
 
-const dbPath = path.join(process.cwd(), 'users.db');
+const isProd = process.env.NODE_ENV === "production";
+const dbDir = isProd ? path.join(process.cwd(), 'papar_data') : process.cwd();
+
+// Ensure db directory exists before initializing database
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const dbPath = path.join(dbDir, 'users.db');
 const db = new Database(dbPath);
 
 // Initialize tables
