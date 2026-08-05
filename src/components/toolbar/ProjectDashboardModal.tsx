@@ -1,10 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, Plus, Trash2, Copy, FileDown, FileUp, Folder, Calendar, ArrowRight, Sparkles, 
-  Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload, Edit2, FolderOpen
+  Layers, User, ShoppingBag, GraduationCap, Check, AlertTriangle, Upload, Edit2, FolderOpen,
+  Tv, Car, Utensils, Crown, Building2, BarChart2
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
+import { TemplateType } from '../../types';
+import { AnalyticsDashboardOverlay } from '../dashboard/AnalyticsDashboardOverlay';
 
 interface ProjectDashboardModalProps {
   onClose: () => void;
@@ -24,9 +27,10 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
   } = useEditorStore();
 
   const [newProjectName, setNewProjectName] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<'empty' | 'business_card' | 'product_showcase' | 'educational'>('empty');
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('empty');
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [analyticsProjectId, setAnalyticsProjectId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   
@@ -71,32 +75,83 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
     reader.readAsText(file);
   };
 
-  const templates = [
+  const templates: {
+    id: TemplateType;
+    name: string;
+    badge: string;
+    description: string;
+    icon: any;
+    color: string;
+  }[] = [
     {
       id: 'empty',
-      name: 'Empty Scene',
+      name: 'Empty Canvas',
+      badge: 'Clean Slate',
       description: 'A clean slate with a single trackable Image Target to place models.',
       icon: Layers,
       color: 'text-gray-400 bg-gray-500/10 border-gray-500/20'
     },
     {
-      id: 'business_card',
-      name: 'AR Business Card',
-      description: 'Interactive social card with contact details, links, and profile videos.',
-      icon: User,
+      id: 'product_showcase',
+      name: 'Tech Gadget Launch',
+      badge: 'Interactive Product',
+      description: '3D product reveal with metallic pedestal, price tag, feature callouts, and Pre-Order button.',
+      icon: ShoppingBag,
+      color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20'
+    },
+    {
+      id: 'billboard_poster',
+      name: 'AR Holographic Billboard',
+      badge: 'Embedded Video',
+      description: '3D billboard with embedded YouTube trailer, neon title, ticket links, and HUD promo voucher.',
+      icon: Tv,
+      color: 'text-pink-400 bg-pink-500/10 border-pink-500/20'
+    },
+    {
+      id: 'automobile_showroom',
+      name: '3D EV Showroom Ad',
+      badge: 'Vehicle Showcase',
+      description: 'Electric vehicle showroom with reflective podium, performance specs, color swatches, and Test Drive CTA.',
+      icon: Car,
+      color: 'text-red-400 bg-red-500/10 border-red-500/20'
+    },
+    {
+      id: 'fast_food_beverage',
+      name: 'Food & Beverage Promo',
+      badge: 'Interactive Coupon',
+      description: 'Dynamic 3D drink can and burger combo with floating particles, 25% coupon code, and order CTA.',
+      icon: Utensils,
+      color: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+    },
+    {
+      id: 'luxury_fashion',
+      name: 'Luxury Fragrance & Fashion',
+      badge: 'Elegance',
+      description: 'Marble display pedestal with gold halo accents, floating crystal perfume bottle, and Explore CTA.',
+      icon: Crown,
+      color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'
+    },
+    {
+      id: 'real_estate',
+      name: 'Architectural Villa & Property',
+      badge: 'Property Tour',
+      description: '3D penthouse villa model on dark podium, amenity hotspots, pricing details, and Virtual Tour booking.',
+      icon: Building2,
       color: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
     },
     {
-      id: 'product_showcase',
-      name: 'Product Showcase',
-      description: 'Interactive product demo with price tag, order buttons, and visual animations.',
-      icon: ShoppingBag,
-      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+      id: 'business_card',
+      name: 'AR Business Card & Identity',
+      badge: 'Social Card',
+      description: 'Interactive social identity card with contact buttons, website links, and embedded intro video pitch reel.',
+      icon: User,
+      color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
     },
     {
       id: 'educational',
-      name: 'Educational Simulation',
-      description: 'Spatial orbits demo with structural grouping and educational labeling.',
+      name: 'Spatial Interactive Journey',
+      badge: 'Spatial Simulation',
+      description: 'Interactive spatial solar orbit with spinning Earth core, floating satellite, and annotated orbital labels.',
       icon: GraduationCap,
       color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
     }
@@ -236,12 +291,22 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
               <p className="text-[11px] text-[#777]">Create, switch, clone, backup and manage your local AR scenes</p>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 hover:bg-[#2A2A2A] rounded-lg text-[#888] hover:text-white transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAnalyticsProjectId(currentProjectId || projectsList[0]?.id || null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-950/60 hover:bg-blue-900/60 text-blue-400 border border-blue-800/50 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-sm"
+              title="Open Published AR Engagement Analytics Overlay"
+            >
+              <BarChart2 size={14} />
+              <span className="hidden sm:inline">Engagement Analytics</span>
+            </button>
+            <button 
+              onClick={onClose}
+              className="p-1.5 hover:bg-[#2A2A2A] rounded-lg text-[#888] hover:text-white transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Outer Split Pane Layout */}
@@ -424,6 +489,14 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                       )}
                       
                       <button
+                        onClick={() => setAnalyticsProjectId(project.id)}
+                        className="p-1.5 bg-[#202020] hover:bg-blue-600/20 text-[#888] hover:text-blue-400 border border-[#2A2A2A] hover:border-blue-500/40 rounded-lg transition-colors cursor-pointer"
+                        title="View Published AR Engagement Analytics & Scan Metrics"
+                      >
+                        <BarChart2 size={13} />
+                      </button>
+
+                      <button
                         onClick={() => {
                           setRenamingProjectId(project.id);
                           setRenameValue(project.name);
@@ -493,6 +566,15 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
               </button>
             </div>
         </GlassModal>
+      )}
+
+      {/* Published AR Experience Engagement Analytics Overlay */}
+      {analyticsProjectId && (
+        <AnalyticsDashboardOverlay
+          projectId={analyticsProjectId}
+          projectName={projectsList.find(p => p.id === analyticsProjectId)?.name || 'AR Experience'}
+          onClose={() => setAnalyticsProjectId(null)}
+        />
       )}
     </>
   );

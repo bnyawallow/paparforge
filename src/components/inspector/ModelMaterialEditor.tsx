@@ -336,6 +336,7 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
   
   // Preset list filtering state
   const [presetSearch, setPresetSearch] = useState('');
+  const [flyoutSearchQuery, setFlyoutSearchQuery] = useState('');
   const [selectedPresetCollection, setSelectedPresetCollection] = useState<string>('All');
 
   // Set default material selection for models
@@ -344,6 +345,27 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
       setSelectedMaterial(discoveredMaterials[0]);
     }
   }, [discoveredMaterials, selectedMaterial, isModel]);
+
+  // Sync selectedMaterial with selectedSubObjectPath's materialName if available
+  useEffect(() => {
+    if (isModel && obj.properties?.selectedSubObjectPath && obj.properties?.discoveredSubObjects) {
+      const findSubObjectByPath = (node: any, targetPath: string): any => {
+        if (!node) return null;
+        if (node.id === targetPath) return node;
+        if (node.children) {
+          for (const child of node.children) {
+            const found = findSubObjectByPath(child, targetPath);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      const subNode = findSubObjectByPath(obj.properties.discoveredSubObjects, obj.properties.selectedSubObjectPath);
+      if (subNode && subNode.materialName && discoveredMaterials.includes(subNode.materialName)) {
+        setSelectedMaterial(subNode.materialName);
+      }
+    }
+  }, [obj.properties?.selectedSubObjectPath, obj.properties?.discoveredSubObjects, discoveredMaterials, isModel]);
 
   // Read field helper that abstracts Models (overrides) vs Primitives (direct properties)
   const getFieldValue = (key: string, defaultValue: any) => {
@@ -814,29 +836,32 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
             </button>
           </div>
 
+          {/* Search Filter Input at the top of Flyout Panel */}
+          <div className="relative shrink-0 border-b border-white/5 pb-2">
+            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder={`Search ${activeFlyout} collections or material properties...`}
+              value={flyoutSearchQuery}
+              onChange={(e) => {
+                setFlyoutSearchQuery(e.target.value);
+                setPresetSearch(e.target.value);
+              }}
+              className="w-full pl-7 pr-7 py-1.5 bg-black/50 text-[10.5px] border border-white/10 rounded-lg focus:border-blue-500 outline-none font-mono text-white placeholder-gray-500 transition-colors"
+            />
+            {flyoutSearchQuery && (
+              <button onClick={() => { setFlyoutSearchQuery(''); setPresetSearch(''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                <X size={10} />
+              </button>
+            )}
+          </div>
+
           {/* Flyout Contents */}
           <div className="flex-1 overflow-y-auto pr-1 max-h-[440px] scrollbar-thin scrollbar-thumb-white/10 flex flex-col gap-3.5">
             
             {/* VIEW A: PRESETS LIBRARY */}
             {activeFlyout === 'presets' && (
               <div className="flex flex-col gap-3">
-                {/* Search Bar */}
-                <div className="relative shrink-0">
-                  <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
-                  <input
-                    type="text"
-                    placeholder="Search premium presets..."
-                    value={presetSearch}
-                    onChange={(e) => setPresetSearch(e.target.value)}
-                    className="w-full pl-7 pr-7 py-1.5 bg-black/40 text-[10.5px] border border-white/5 rounded-md focus:border-blue-500 outline-none font-mono text-white placeholder-gray-500"
-                  />
-                  {presetSearch && (
-                    <button onClick={() => setPresetSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-
                 {/* Categories Tab Selector */}
                 <div className="flex gap-1 overflow-x-auto pb-1.5 scrollbar-none -mx-1 px-1 shrink-0">
                   {['All', 'Metals', 'Glass & Gems', 'Toon & Pop', 'Abstract & Glow', 'Stone & Organic'].map(cat => (
@@ -858,7 +883,10 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
                 {/* Presets Grid */}
                 <div className="grid grid-cols-2 gap-2 pb-2">
                   {SPLINE_MATERIAL_PRESETS.filter(p => {
-                    const matchesSearch = p.name.toLowerCase().includes(presetSearch.toLowerCase()) || p.description.toLowerCase().includes(presetSearch.toLowerCase());
+                    const query = (flyoutSearchQuery || presetSearch).toLowerCase();
+                    const matchesSearch = p.name.toLowerCase().includes(query) || 
+                                         p.description.toLowerCase().includes(query) ||
+                                         p.collection.toLowerCase().includes(query);
                     const matchesCat = selectedPresetCollection === 'All' || p.collection === selectedPresetCollection;
                     return matchesSearch && matchesCat;
                   }).map(preset => {
@@ -869,8 +897,19 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
                       <button
                         key={preset.id}
                         onClick={() => handleApplyPreset(preset)}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('material-preset', JSON.stringify(preset.properties));
+                          e.dataTransfer.setData('material-name', preset.name);
+                          e.dataTransfer.setData('application/json', JSON.stringify({
+                            type: 'material',
+                            preset: preset.properties,
+                            name: preset.name
+                          }));
+                        }}
+                        title="Click to apply or Drag & Drop directly onto 3D Object in Viewport"
                         className={cn(
-                          "p-2 rounded-xl border text-left flex flex-col gap-1.5 transition-all group cursor-pointer",
+                          "p-2 rounded-xl border text-left flex flex-col gap-1.5 transition-all group cursor-grab active:cursor-grabbing",
                           isApplied 
                             ? "bg-blue-600/10 border-blue-500 shadow-md shadow-blue-500/5" 
                             : "bg-black/30 border-white/5 hover:border-gray-500 hover:bg-black/40"

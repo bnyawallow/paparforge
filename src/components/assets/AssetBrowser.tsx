@@ -32,7 +32,9 @@ import {
   LayoutGrid,
   Palette,
   Grid,
-  Shapes
+  Shapes,
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
@@ -42,6 +44,189 @@ import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, 
 import { UI_KIT_PRESETS, UIKitCategory, UIKitPreset } from '../../lib/uiKits';
 import { TEXT_STYLE_PRESETS, TextStyleCategory, TextStylePreset } from '../../lib/textStylesCollection';
 import { SPLINE_SOUND_PRESETS, playSplineSound, SplineSoundPreset } from '../../lib/splineSoundEngine';
+
+export function getSplineThumbnailStyle(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  hash = Math.abs(hash);
+
+  const presets = [
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #9effeb 0%, #2e86ab 45%, #2a085c 85%, #0d0121 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #00f3ff 30%, #b000ff 70%, #1e003a 100%)',
+      glowColor: 'rgba(0, 243, 255, 0.4)',
+    },
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #fffbeb 0%, #f59e0b 45%, #b45309 80%, #450a0a 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #facc15 35%, #dc2626 75%, #450a0a 100%)',
+      glowColor: 'rgba(245, 158, 11, 0.4)',
+    },
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #f7fee7 0%, #84cc16 45%, #15803d 80%, #022c22 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #a3e635 30%, #047857 70%, #022c22 100%)',
+      glowColor: 'rgba(132, 204, 22, 0.4)',
+    },
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #fff1f2 0%, #fda4af 40%, #e11d48 75%, #4c0519 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #fda4af 30%, #be123c 70%, #4c0519 100%)',
+      glowColor: 'rgba(225, 29, 72, 0.4)',
+    },
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #ecfeff 0%, #06b6d4 45%, #0369a1 80%, #082f49 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #22d3ee 30%, #0284c7 70%, #082f49 100%)',
+      glowColor: 'rgba(6, 182, 212, 0.4)',
+    },
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #faf5ff 0%, #c084fc 45%, #7e22ce 80%, #3b0764 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #e9d5ff 30%, #9333ea 70%, #3b0764 100%)',
+      glowColor: 'rgba(192, 132, 252, 0.4)',
+    },
+    {
+      bg: 'radial-gradient(circle at 35% 35%, #f8fafc 0%, #cbd5e1 45%, #475569 80%, #0f172a 100%)',
+      orbBg: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #e2e8f0 30%, #475569 70%, #0f172a 100%)',
+      glowColor: 'rgba(203, 213, 225, 0.3)',
+    }
+  ];
+
+  return presets[hash % presets.length];
+}
+
+export function parseGLBMetadata(arrayBuffer: ArrayBuffer) {
+  const view = new DataView(arrayBuffer);
+  
+  if (view.byteLength < 12) {
+    throw new Error("Invalid GLB file: Too short.");
+  }
+  
+  const magic = view.getUint32(0, true);
+  if (magic !== 0x46546C67) {
+    throw new Error("Invalid GLB file format: magic header is incorrect.");
+  }
+  
+  const version = view.getUint32(4, true);
+  const totalLength = view.getUint32(8, true);
+  
+  if (view.byteLength < 20) {
+    throw new Error("Invalid GLB file: Missing JSON chunk header.");
+  }
+  
+  const chunkLength = view.getUint32(12, true);
+  const chunkType = view.getUint32(16, true);
+  
+  if (chunkType !== 0x4E4F534A) {
+    throw new Error("Invalid GLB: First chunk is not JSON.");
+  }
+  
+  const jsonBytes = new Uint8Array(arrayBuffer, 20, chunkLength);
+  const decoder = new TextDecoder("utf-8");
+  const jsonStr = decoder.decode(jsonBytes);
+  const gltf = JSON.parse(jsonStr);
+  
+  let totalTriangles = 0;
+  let totalVertices = 0;
+  if (gltf.meshes) {
+    gltf.meshes.forEach((mesh: any) => {
+      if (mesh.primitives) {
+        mesh.primitives.forEach((prim: any) => {
+          const posAccessorIdx = prim.attributes?.POSITION;
+          if (posAccessorIdx !== undefined && gltf.accessors?.[posAccessorIdx]) {
+            const posAccessor = gltf.accessors[posAccessorIdx];
+            totalVertices += posAccessor.count || 0;
+          }
+          const indicesAccessorIdx = prim.indices;
+          if (indicesAccessorIdx !== undefined && gltf.accessors?.[indicesAccessorIdx]) {
+            const indAccessor = gltf.accessors[indicesAccessorIdx];
+            totalTriangles += Math.floor((indAccessor.count || 0) / 3);
+          } else if (posAccessorIdx !== undefined) {
+            totalTriangles += Math.floor((gltf.accessors[posAccessorIdx].count || 0) / 3);
+          }
+        });
+      }
+    });
+  }
+
+  const externalUris: string[] = [];
+  if (gltf.buffers) {
+    gltf.buffers.forEach((b: any) => {
+      if (b.uri && !b.uri.startsWith('data:')) {
+        externalUris.push(b.uri);
+      }
+    });
+  }
+  if (gltf.images) {
+    gltf.images.forEach((img: any) => {
+      if (img.uri && !img.uri.startsWith('data:')) {
+        externalUris.push(img.uri);
+      }
+    });
+  }
+
+  return {
+    totalVertices,
+    totalTriangles,
+    externalUris,
+    meshCount: gltf.meshes?.length || 0,
+    materialCount: gltf.materials?.length || 0,
+    textureCount: gltf.textures?.length || 0,
+    imageCount: gltf.images?.length || 0,
+  };
+}
+
+export async function validate3DModel(file: File) {
+  let stats: any = null;
+  try {
+    if (file.name.endsWith('.glb')) {
+      const buffer = await file.arrayBuffer();
+      stats = parseGLBMetadata(buffer);
+    } else if (file.name.endsWith('.gltf')) {
+      const text = await file.text();
+      const gltf = JSON.parse(text);
+      let totalTriangles = 0;
+      let totalVertices = 0;
+      if (gltf.meshes) {
+        gltf.meshes.forEach((mesh: any) => {
+          if (mesh.primitives) {
+            mesh.primitives.forEach((prim: any) => {
+              const posAccessorIdx = prim.attributes?.POSITION;
+              if (posAccessorIdx !== undefined && gltf.accessors?.[posAccessorIdx]) {
+                totalVertices += gltf.accessors[posAccessorIdx].count || 0;
+              }
+              const indicesAccessorIdx = prim.indices;
+              if (indicesAccessorIdx !== undefined && gltf.accessors?.[indicesAccessorIdx]) {
+                totalTriangles += Math.floor((gltf.accessors[indicesAccessorIdx].count || 0) / 3);
+              }
+            });
+          }
+        });
+      }
+      const externalUris: string[] = [];
+      if (gltf.buffers) {
+        gltf.buffers.forEach((b: any) => {
+          if (b.uri && !b.uri.startsWith('data:')) externalUris.push(b.uri);
+        });
+      }
+      if (gltf.images) {
+        gltf.images.forEach((img: any) => {
+          if (img.uri && !img.uri.startsWith('data:')) externalUris.push(img.uri);
+        });
+      }
+      stats = {
+        totalVertices,
+        totalTriangles,
+        externalUris,
+        meshCount: gltf.meshes?.length || 0,
+        materialCount: gltf.materials?.length || 0,
+        textureCount: gltf.textures?.length || 0,
+        imageCount: gltf.images?.length || 0,
+      };
+    }
+  } catch (err) {
+    console.warn("Could not parse 3D model metadata for pre-import validation:", err);
+  }
+  return stats;
+}
 
 // Premium high-quality stable GLB presets and procedural 3D models (50+ items)
 const PRESET_MODELS = [
@@ -129,7 +314,7 @@ const PRESET_MODELS = [
     id: 'p-model-fox',
     name: 'Low-Poly Fox',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Fox/glTF-Binary/Fox.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb',
     thumbnail: '🦊',
     description: 'Animated low-poly forest fox character',
   },
@@ -137,7 +322,7 @@ const PRESET_MODELS = [
     id: 'p-model-waterbottle',
     name: 'Eco Water Bottle',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
     thumbnail: '🍼',
     description: 'Reusable metallic sports water bottle',
   },
@@ -145,7 +330,7 @@ const PRESET_MODELS = [
     id: 'p-model-chair',
     name: 'Modern Sheen Chair',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/SheenChair/glTF-Binary/SheenChair.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb',
     thumbnail: '🪑',
     description: 'Velvet fabric modern lounge arm chair',
   },
@@ -153,7 +338,7 @@ const PRESET_MODELS = [
     id: 'p-model-sphere-primitive',
     name: 'Sample Mesh Sphere',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Sphere/glTF-Binary/Sphere.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
     thumbnail: '🔮',
     description: 'Online GLB high-poly sphere mesh asset',
   },
@@ -185,7 +370,7 @@ const PRESET_MODELS = [
     id: 'p-model-cone-primitive',
     name: 'Suzanne Monkey Mesh',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Suzanne/glTF-Binary/Suzanne.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb',
     thumbnail: '🐵',
     description: 'Classic Blender Suzanne monkey head 3D mesh',
   },
@@ -193,7 +378,7 @@ const PRESET_MODELS = [
     id: 'p-model-plane-primitive',
     name: 'Stained Glass Lamp',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/StainedGlassLamp/glTF-Binary/StainedGlassLamp.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/glTF-Binary/BoomBox.glb',
     thumbnail: '🪔',
     description: 'Ornate stained glass table lamp GLB mesh',
   },
@@ -201,7 +386,7 @@ const PRESET_MODELS = [
     id: 'p-model-pyramid-primitive',
     name: 'Flight Helmet',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/FlightHelmet/glTF-Binary/FlightHelmet.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
     thumbnail: '🪖',
     description: 'PBR military pilot flight helmet GLB',
   },
@@ -233,7 +418,7 @@ const PRESET_MODELS = [
     id: 'p-model-icosa-primitive',
     name: 'Tropical Flamingo',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Flamingo.glb',
+    url: 'https://threejs.org/examples/models/gltf/Flamingo.glb',
     thumbnail: '🦩',
     description: 'Animated flying tropical flamingo mesh',
   },
@@ -241,7 +426,7 @@ const PRESET_MODELS = [
     id: 'p-model-knot-primitive',
     name: 'Wild Stallion Horse',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Horse.glb',
+    url: 'https://threejs.org/examples/models/gltf/Horse.glb',
     thumbnail: '🐎',
     description: 'Galloping wild stallion horse GLB model',
   },
@@ -249,7 +434,7 @@ const PRESET_MODELS = [
     id: 'p-model-text3d',
     name: 'Exotic Parrot',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Parrot.glb',
+    url: 'https://threejs.org/examples/models/gltf/Parrot.glb',
     thumbnail: '🦜',
     description: 'Animated flying jungle parrot mesh',
   },
@@ -257,7 +442,7 @@ const PRESET_MODELS = [
     id: 'p-model-pointlight',
     name: 'Graceful Stork',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Stork.glb',
+    url: 'https://threejs.org/examples/models/gltf/Stork.glb',
     thumbnail: '🦢',
     description: 'Animated soaring stork GLB 3D model',
   },
@@ -289,7 +474,7 @@ const PRESET_MODELS = [
     id: 'p-model-drone',
     name: 'Autonomous Quadcopter Drone',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb',
     thumbnail: '🚁',
     description: 'Future surveillance quadcopter drone mesh',
   },
@@ -297,7 +482,7 @@ const PRESET_MODELS = [
     id: 'p-model-satellite',
     name: 'Orbital Communication Satellite',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb',
     thumbnail: '🛰️',
     description: 'Solar panel orbital communications relay satellite',
   },
@@ -305,7 +490,7 @@ const PRESET_MODELS = [
     id: 'p-model-portal',
     name: 'Sci-Fi Teleport Portal',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/StainedGlassLamp/glTF-Binary/StainedGlassLamp.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/glTF-Binary/BoomBox.glb',
     thumbnail: '🌀',
     description: 'Holographic dimensional warp gate GLB',
   },
@@ -313,7 +498,7 @@ const PRESET_MODELS = [
     id: 'p-model-arcade',
     name: 'Retro Arcade Machine',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/glTF-Binary/BoomBox.glb',
     thumbnail: '🕹️',
     description: 'Vintage coin-op arcade game cabinet',
   },
@@ -321,7 +506,7 @@ const PRESET_MODELS = [
     id: 'p-model-chest',
     name: 'Loot Treasure Chest',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
     thumbnail: '📦',
     description: 'Interactive loot box treasure container',
   },
@@ -337,7 +522,7 @@ const PRESET_MODELS = [
     id: 'p-model-shield',
     name: 'Aegis Force Shield',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Sphere/glTF-Binary/Sphere.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
     thumbnail: '🛡️',
     description: 'Defensive holographic forcefield shield',
   },
@@ -345,7 +530,7 @@ const PRESET_MODELS = [
     id: 'p-model-trophy',
     name: 'Grand Prix Trophy',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
     thumbnail: '🏆',
     description: 'Gold championship victory cup',
   },
@@ -353,7 +538,7 @@ const PRESET_MODELS = [
     id: 'p-model-gem',
     name: 'Prismatic Sapphire Gem',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Suzanne/glTF-Binary/Suzanne.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb',
     thumbnail: '💎',
     description: 'High refraction cut gemstone crystal',
   },
@@ -369,7 +554,7 @@ const PRESET_MODELS = [
     id: 'p-model-vr-headset',
     name: 'Spatial Vision Goggles',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb',
     thumbnail: '🥽',
     description: 'Ergonomic spatial computing AR headset',
   },
@@ -385,7 +570,7 @@ const PRESET_MODELS = [
     id: 'p-model-guitar',
     name: 'Electric Rock Guitar',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb',
     thumbnail: '🎸',
     description: '6-string solid body electric guitar',
   },
@@ -393,7 +578,7 @@ const PRESET_MODELS = [
     id: 'p-model-piano',
     name: 'Grand Concert Piano',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/SheenChair/glTF-Binary/SheenChair.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb',
     thumbnail: '🎹',
     description: 'Polished black acoustic grand piano',
   },
@@ -401,7 +586,7 @@ const PRESET_MODELS = [
     id: 'p-model-watch',
     name: 'Holographic Smartwatch',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb',
     thumbnail: '⌚',
     description: 'Biometric telemetry smartwatch display',
   },
@@ -409,7 +594,7 @@ const PRESET_MODELS = [
     id: 'p-model-ring',
     name: 'Titanium Smart Ring',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Sphere/glTF-Binary/Sphere.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
     thumbnail: '💍',
     description: 'Precision machined metallic biometric ring',
   },
@@ -417,7 +602,7 @@ const PRESET_MODELS = [
     id: 'p-model-plant',
     name: 'Bonsai Potted Plant',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Avocado/glTF-Binary/Avocado.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb',
     thumbnail: '🪴',
     description: 'Ceramic pot indoor evergreen bonsai tree',
   },
@@ -441,7 +626,7 @@ const PRESET_MODELS = [
     id: 'p-model-battery',
     name: 'Quantum Cell Battery',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
     thumbnail: '🔋',
     description: 'High capacity solid-state energy storage',
   }
@@ -780,32 +965,6 @@ const LIGHTING_PRESETS = [
 ];
 
 // Interactive structural and transform behaviors
-const PRESET_BEHAVIORS = [
-  {
-    id: 'p-behavior-spin',
-    name: 'Continuous Spin',
-    type: 'behavior' as AssetType,
-    value: 'spin',
-    thumbnail: '🔄',
-    description: 'Smooth full 360-degree rotation on Y-axis',
-  },
-  {
-    id: 'p-behavior-hover',
-    name: 'Gentle Float',
-    type: 'behavior' as AssetType,
-    value: 'hover',
-    thumbnail: '🎈',
-    description: 'Levitates gently up/down on a sine wave',
-  },
-  {
-    id: 'p-behavior-pulse',
-    name: 'Rhythmic Pulse',
-    type: 'behavior' as AssetType,
-    value: 'pulse',
-    thumbnail: '💓',
-    description: 'Slightly expands and contracts scale',
-  }
-];
 
 const SKETCHFAB_WEB_MODELS = [
   {
@@ -818,16 +977,16 @@ const SKETCHFAB_WEB_MODELS = [
   {
     name: 'Cyberpunk Retro Car 🚗',
     category: 'vehicles',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb',
     creator: 'Sketchfab CC-BY',
     description: 'Highly detailed retro cyberpunk style collectible car'
   },
   {
-    name: 'NASA Space Shuttle 🚀',
+    name: 'Flight Pilot Helmet 🚀',
     category: 'space',
-    url: 'https://raw.githubusercontent.com/nasa/nasa-3d-resources/master/3d-models/shuttle-gltf/shuttle.glb',
-    creator: 'NASA Open Resource',
-    description: 'Official NASA Space Shuttle orbiter model'
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    creator: 'Khronos CC0',
+    description: 'PBR military pilot flight helmet'
   },
   {
     name: 'Expressive Companion Robot 🤖',
@@ -839,63 +998,63 @@ const SKETCHFAB_WEB_MODELS = [
   {
     name: 'Bonsai Potted Tree 🪴',
     category: 'nature',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb',
     creator: 'Poly Pizza CC0',
-    description: 'Miniature Japanese bonsai tree in decorative ceramic planter'
+    description: 'Miniature Japanese bonsai tree asset'
   },
   {
     name: 'Vintage Brass Lantern 🏮',
     category: 'interior',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb',
     creator: 'Smithsonian CC0',
     description: '19th century style brass kerosene storm lantern'
   },
   {
     name: 'E-Commerce Athletic Sneaker 👟',
     category: 'items',
-    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb',
     creator: 'Khronos Group CC0',
     description: 'Photorealistic commercial running sneaker model'
   },
   {
     name: 'BoomBox Audio 📻',
     category: 'items',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/glTF-Binary/BoomBox.glb',
     creator: 'Khronos Group CC0',
     description: 'Classic 1980s portable cassette radio boombox'
   },
   {
-    name: 'NASA Apollo Lunar Lander 🌙',
+    name: 'Offroad Buggy 🌙',
     category: 'space',
-    url: 'https://raw.githubusercontent.com/nasa/nasa-3d-resources/master/3d-models/apollo-gltf/apollo.glb',
-    creator: 'NASA Open Resource',
-    description: 'Historical lunar module vehicle'
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Buggy/glTF-Binary/Buggy.glb',
+    creator: 'Khronos CC0',
+    description: 'Offroad lunar exploration buggy vehicle'
   },
   {
-    name: 'Curiosity Mars Rover 🚜',
+    name: 'Curiosity Toy Car 🚜',
     category: 'space',
-    url: 'https://raw.githubusercontent.com/nasa/nasa-3d-resources/master/3d-models/curiosity-gltf/curiosity.glb',
-    creator: 'NASA Open Resource',
-    description: 'Mars Science Laboratory rover exploration vehicle'
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    creator: 'Khronos CC0',
+    description: 'Rover exploration vehicle'
   },
   {
     name: 'Bronze Museum Vase 🏺',
     category: 'interior',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
     creator: 'Smithsonian CC0',
     description: 'Detailed ancient Greek replica bronze vase'
   },
   {
     name: 'Retro Wood Chair 🪑',
     category: 'interior',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/SheenChair/glTF-Binary/SheenChair.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb',
     creator: 'Khronos Group CC0',
     description: 'Modernist wooden design accent chair with sheen fabrics'
   },
   {
     name: 'Damaged Helmet 🪖',
     category: 'items',
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
     creator: 'Sketchfab CC-BY',
     description: 'Futuristic sci-fi battle-damaged helmet with detailed texture maps'
   },
@@ -938,7 +1097,10 @@ export function AssetBrowser() {
     updateSettings,
     settings,
     isAssetBrowserOpen,
-    setIsAssetBrowserOpen
+    setIsAssetBrowserOpen,
+    replaceTargetObjectId,
+    setReplaceTargetObjectId,
+    replaceObjectAsset
   } = useEditorStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -976,7 +1138,65 @@ export function AssetBrowser() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('all');
   const [customImportUrl, setCustomImportUrl] = useState('');
+  const [sketchfabViewMode, setSketchfabViewMode] = useState<'grid' | 'webview'>('grid');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [validationModel, setValidationModel] = useState<{
+    file: File;
+    stats: {
+      totalVertices: number;
+      totalTriangles: number;
+      externalUris: string[];
+      meshCount: number;
+      materialCount: number;
+      textureCount: number;
+      imageCount: number;
+    };
+    warnings: string[];
+  } | null>(null);
+
+  const [importProgress, setImportProgress] = useState<{
+    fileName: string;
+    progress: number;
+    status: string;
+  } | null>(null);
+
+  const [recentAssets, setRecentAssets] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('spline_recent_assets');
+      if (stored) {
+        setRecentAssets(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn("Error loading recent assets from local storage:", e);
+    }
+  }, []);
+
+  const addToRecentAssets = (item: any) => {
+    try {
+      const stored = localStorage.getItem('spline_recent_assets');
+      let currentList = stored ? JSON.parse(stored) : [];
+      currentList = currentList.filter((x: any) => x.name !== item.name && x.url !== item.url && x.id !== item.id);
+      
+      const newItem = {
+        id: item.id || uuidv4(),
+        name: item.name,
+        type: item.type,
+        url: item.url,
+        thumbnail: item.thumbnail,
+        description: item.description,
+        timestamp: Date.now()
+      };
+      
+      const newList = [newItem, ...currentList].slice(0, 12);
+      localStorage.setItem('spline_recent_assets', JSON.stringify(newList));
+      setRecentAssets(newList);
+    } catch (e) {
+      console.warn("Error adding to recent assets:", e);
+    }
+  };
 
   const handleApplySplineMaterial = (preset: SplineMaterialPreset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
@@ -1063,6 +1283,23 @@ export function AssetBrowser() {
   };
 
   const handleAdd3DIcon = (icon: SplineIconMetadata) => {
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: 'icon',
+        name: icon.name,
+        iconType: icon.id,
+        properties: {
+          iconType: icon.id,
+          color: icon.defaultColor,
+          secondaryColor: icon.secondaryColor,
+          materialStyle: selectedIconMaterialStyle || icon.materialStyle || 'glossy',
+        }
+      });
+      showToast(`Replaced asset with 3D icon "${icon.name}" preserving transform.`);
+      setReplaceTargetObjectId(null);
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -1094,6 +1331,24 @@ export function AssetBrowser() {
   };
 
   const handleAdd2DIcon = (icon: Spline2DIconMetadata) => {
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: 'icon2d',
+        name: icon.name,
+        iconName: icon.iconName,
+        properties: {
+          iconName: icon.iconName,
+          color: icon.defaultColor,
+          secondaryColor: icon.secondaryColor,
+          badgeStyle: icon.badgeStyle,
+          text: icon.name,
+        }
+      });
+      showToast(`Replaced asset with 2D icon badge "${icon.name}" preserving transform.`);
+      setReplaceTargetObjectId(null);
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -1143,25 +1398,30 @@ export function AssetBrowser() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const executeAssetImport = async (file: File, type: AssetType, stats?: any) => {
+    const name = file.name;
+    setImportProgress({ fileName: name, progress: 15, status: 'Reading file bytes...' });
+    
+    // Delightful simulation steps to keep the user engaged
+    const timeouts = [
+      setTimeout(() => {
+        setImportProgress(p => p ? { ...p, progress: 40, status: 'Analyzing 3D geometry & sub-object hierarchies...' } : null);
+      }, 350),
+      setTimeout(() => {
+        setImportProgress(p => p ? { ...p, progress: 65, status: 'Optimizing vertex structures and material mapping...' } : null);
+      }, 750)
+    ];
 
     let url = '';
-    const name = file.name;
-    let type: AssetType = 'script';
-    
-    if (name.endsWith('.glb') || name.endsWith('.gltf')) type = 'model';
-    else if (file.type.startsWith('image/')) type = 'image';
-    else if (file.type.startsWith('video/')) type = 'video';
-    else if (file.type.startsWith('audio/')) type = 'audio';
-
-    showToast(`Uploading ${name}...`);
-
     try {
       const { SupabaseService } = await import('../../services/supabaseService');
       const storeState = useEditorStore.getState();
       const projectName = storeState.settings.projectName || 'default-project';
+
+      // Update upload status
+      setTimeout(() => {
+        setImportProgress(p => p ? { ...p, progress: 80, status: 'Uploading assets securely to cloud storage...' } : null);
+      }, 1200);
 
       if (SupabaseService.isConfigured()) {
         url = await SupabaseService.uploadAsset(file, projectName);
@@ -1169,6 +1429,8 @@ export function AssetBrowser() {
         url = await fileToDataUrl(file);
       }
 
+      setImportProgress(p => p ? { ...p, progress: 95, status: 'Generating Spline3D-inspired responsive preview...' } : null);
+      
       const asset: Asset = {
         id: uuidv4(),
         name,
@@ -1176,12 +1438,21 @@ export function AssetBrowser() {
         url,
       };
 
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       addAsset(asset);
-      showToast(`Uploaded asset: ${name}`);
+      addToRecentAssets(asset);
+      setImportProgress(null);
+      if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+        const targetObj = objects[replaceTargetObjectId];
+        replaceObjectAsset(replaceTargetObjectId, asset);
+        showToast(`Uploaded and replaced asset on "${targetObj.name}" preserving transform!`);
+        setReplaceTargetObjectId(null);
+      } else {
+        showToast(`Uploaded asset: ${name}`);
+      }
     } catch (err: any) {
       console.error('Upload failed:', err);
-      showToast(`Failed to upload: ${err.message || 'Unknown error'}`);
-      // Fallback to local
       url = await fileToDataUrl(file);
       const asset: Asset = {
         id: uuidv4(),
@@ -1190,8 +1461,59 @@ export function AssetBrowser() {
         url,
       };
       addAsset(asset);
+      addToRecentAssets(asset);
+      setImportProgress(null);
+      if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+        const targetObj = objects[replaceTargetObjectId];
+        replaceObjectAsset(replaceTargetObjectId, asset);
+        showToast(`Uploaded and replaced asset on "${targetObj.name}" preserving transform!`);
+        setReplaceTargetObjectId(null);
+      } else {
+        showToast(`Uploaded asset locally: ${name}`);
+      }
+    } finally {
+      timeouts.forEach(clearTimeout);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const name = file.name;
+    let type: AssetType = 'script';
+    
+    if (name.endsWith('.glb') || name.endsWith('.gltf')) type = 'model';
+    else if (file.type.startsWith('image/')) type = 'image';
+    else if (file.type.startsWith('video/')) type = 'video';
+    else if (file.type.startsWith('audio/')) type = 'audio';
+
+    if (type === 'model') {
+      showToast(`Validating ${name} structure...`);
+      const stats = await validate3DModel(file);
+      
+      const warnings: string[] = [];
+      if (stats) {
+        if (stats.totalTriangles > 80000) {
+          warnings.push(`High polygon complexity detected (${stats.totalTriangles.toLocaleString()} triangles). Large files can cause performance stuttering and frame drops on older smartphones during live AR camera previews.`);
+        }
+        if (stats.externalUris && stats.externalUris.length > 0) {
+          warnings.push(`Model contains ${stats.externalUris.length} external resource reference(s) (e.g., "${stats.externalUris[0]}"). These assets may load as blank or missing if they are not embedded or packed directly within the uploaded GLB container.`);
+        }
+      }
+
+      if (warnings.length > 0) {
+        setValidationModel({
+          file,
+          stats: stats || { totalVertices: 0, totalTriangles: 0, externalUris: [], meshCount: 0, materialCount: 0, textureCount: 0, imageCount: 0 },
+          warnings
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
     }
 
+    await executeAssetImport(file, type);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -1202,7 +1524,6 @@ export function AssetBrowser() {
       case 'video': return <Video size={24} className="text-purple-400" />;
       case 'script': return <FileCode size={24} className="text-yellow-400" />;
       case 'audio': return <Music size={24} className="text-pink-400" />;
-      case 'behavior': return <Zap size={24} className="text-orange-400" />;
     }
   };
 
@@ -1212,6 +1533,17 @@ export function AssetBrowser() {
   };
 
   const handleUseAsset = (asset: any) => {
+    addToRecentAssets(asset);
+
+    // If Replace Target is active, swap asset preserving transform
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      const targetObj = objects[replaceTargetObjectId];
+      replaceObjectAsset(replaceTargetObjectId, asset);
+      showToast(`Replaced asset on "${targetObj.name}" preserving transform!`);
+      setReplaceTargetObjectId(null);
+      return;
+    }
+
     if (asset.type === 'model') {
       let parentId = selectedObjectId;
       if (!parentId) {
@@ -1224,7 +1556,7 @@ export function AssetBrowser() {
         name: asset.name.split('.')[0],
         type: 'model',
         position: [0, 0, 0],
-        rotation: [0, 0, 0],
+        rotation: [90, 0, 0], // Oriented in Z direction when instantiated
         scale: [1, 1, 1],
         visible: true,
         children: [],
@@ -1235,6 +1567,7 @@ export function AssetBrowser() {
       };
       
       addObject(newObj, parentId || undefined);
+      useEditorStore.getState().selectObject(newObj.id);
       showToast(`Added 3D model "${newObj.name}" to the scene.`);
     } else if (asset.type === 'image') {
       if (selectedObjectIds.length > 0) {
@@ -1332,18 +1665,6 @@ export function AssetBrowser() {
         };
         addObject(newObj);
         showToast(`Created audio node "${newObj.name}" in the scene.`);
-      }
-    } else if (asset.type === 'behavior') {
-      if (selectedObjectId && objects[selectedObjectId]) {
-        updateObject(selectedObjectId, {
-          properties: {
-            ...objects[selectedObjectId].properties,
-            behavior: asset.value
-          }
-        });
-        showToast(`Applied behavior "${asset.name}" to "${objects[selectedObjectId].name}".`);
-      } else {
-        showToast(`Select a Scene Object first to assign the "${asset.name}" behavior!`);
       }
     }
   };
@@ -2116,6 +2437,27 @@ export function AssetBrowser() {
         </div>
       )}
 
+      {/* Replace Target Indicator Bar */}
+      {replaceTargetObjectId && objects[replaceTargetObjectId] && (
+        <div className="bg-gradient-to-r from-cyan-950/90 via-blue-950/90 to-purple-950/90 border-b border-cyan-500/30 px-6 py-2.5 flex items-center justify-between text-xs text-cyan-200 shrink-0 shadow-inner">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center shrink-0">
+              <RefreshCw size={13} className="text-cyan-400 animate-spin" style={{ animationDuration: '4s' }} />
+            </div>
+            <span>
+              Replacing Asset for <strong className="text-white font-bold">{objects[replaceTargetObjectId].name}</strong> — Click any asset below to swap while preserving <span className="text-cyan-300 font-mono text-[11px] bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-500/30">Position, Rotation & Scale</span>!
+            </span>
+          </div>
+          <button
+            onClick={() => setReplaceTargetObjectId(null)}
+            className="px-3 py-1 bg-black/50 hover:bg-black/80 text-gray-300 hover:text-white rounded-md text-[11px] font-bold border border-cyan-500/30 flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+          >
+            <X size={12} />
+            Cancel Replacement
+          </button>
+        </div>
+      )}
+
       {/* Header bar */}
       <div className="h-14 border-b border-white/10 bg-black/20 flex items-center px-6 justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -2274,13 +2616,7 @@ export function AssetBrowser() {
             <span className="font-medium">Audio & SFX</span>
           </button>
 
-          <button 
-            onClick={() => setActiveTab('behaviors')}
-            className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'behaviors' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
-          >
-            <Zap size={16} className={activeTab === "behaviors" ? "text-white" : "text-orange-400"} />
-            <span className="font-medium">Behaviors</span>
-          </button>
+          
 
           <button 
             onClick={() => setActiveTab('lighting')}
@@ -2293,6 +2629,100 @@ export function AssetBrowser() {
 
         {/* Assets Grid */}
         <div className="flex-1 overflow-y-auto p-6 bg-black/40">
+
+          {recentAssets.length > 0 && (
+            <div className="mb-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5 shadow-sm">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-blue-400" />
+                  <h4 className="text-xs font-black tracking-wider uppercase text-gray-300">Recent Assets</h4>
+                </div>
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem('spline_recent_assets');
+                    setRecentAssets([]);
+                  }}
+                  className="text-[9px] font-bold text-gray-500 hover:text-red-400 uppercase tracking-wider transition-colors"
+                >
+                  Clear History
+                </button>
+              </div>
+              
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                {recentAssets.map((asset) => {
+                  const preset = asset.type === 'model' || asset.type === 'icon' || asset.type === 'material'
+                    ? getSplineThumbnailStyle(asset.name)
+                    : null;
+                    
+                  return (
+                    <button
+                      key={asset.id + '-' + asset.timestamp}
+                      onClick={() => handleUseAsset(asset)}
+                      className="flex-shrink-0 w-20 flex flex-col items-center gap-1.5 group cursor-pointer"
+                      title={`Add ${asset.name} directly to the scene`}
+                    >
+                      {/* Beautiful 3D Thumbnail Container */}
+                      <div className="w-14 h-14 rounded-xl border border-white/5 overflow-hidden bg-[#111] flex items-center justify-center relative shadow-md transition-all group-hover:scale-105 group-hover:border-blue-500/50">
+                        {asset.type === 'image' ? (
+                          <img src={asset.url} alt={asset.name} className="w-8 h-8 object-contain" />
+                        ) : asset.type === 'model' && preset ? (
+                          <div className="w-full h-full flex items-center justify-center relative overflow-hidden" style={{ background: preset.bg }}>
+                            <div 
+                              className="w-8 h-8 rounded-full relative transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 flex items-center justify-center shadow"
+                              style={{ 
+                                background: preset.orbBg,
+                                boxShadow: `inset -1px -1px 3px rgba(0,0,0,0.5), 0 0 6px ${preset.glowColor}`
+                              }}
+                            >
+                              <div className="absolute inset-0.5 rounded-full border border-white/10 opacity-50 pointer-events-none" />
+                              <Box size={10} className="text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />
+                            </div>
+                          </div>
+                        ) : asset.type === 'material' ? (
+                          <div className="w-full h-full flex items-center justify-center bg-[#111]">
+                            <div 
+                              style={{
+                                background: asset.thumbnail || (preset ? preset.orbBg : 'radial-gradient(circle at 35% 35%, #fff 0%, #aaa 80%)'),
+                                boxShadow: 'inset -2px -2px 6px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.15)'
+                              }}
+                              className="w-9 h-9 rounded-full transform group-hover:scale-110 transition-transform duration-300"
+                            />
+                          </div>
+                        ) : asset.thumbnail && typeof asset.thumbnail === 'string' && asset.thumbnail.length <= 4 ? (
+                          preset ? (
+                            <div className="w-full h-full flex items-center justify-center relative overflow-hidden" style={{ background: preset.bg }}>
+                              <div 
+                                className="w-9 h-9 rounded-full relative transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 flex items-center justify-center shadow"
+                                style={{ 
+                                  background: preset.orbBg,
+                                  boxShadow: `inset -1px -1px 3px rgba(0,0,0,0.5), 0 0 6px ${preset.glowColor}`
+                                }}
+                              >
+                                <div className="absolute inset-0.5 rounded-full border border-white/15 opacity-50 pointer-events-none" />
+                                <span className="text-sm relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{asset.thumbnail}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xl group-hover:scale-115 transition-transform">{asset.thumbnail}</span>
+                          )
+                        ) : (
+                          getIcon(asset.type)
+                        )}
+                        
+                        <span className="absolute bottom-0.5 right-0.5 text-[6px] uppercase tracking-wider font-mono font-bold px-1 py-0.5 rounded bg-black/80 text-gray-400">
+                          {asset.type === 'model' ? '3D' : asset.type === 'image' ? 'IMG' : asset.type === 'material' ? 'MAT' : 'ASSET'}
+                        </span>
+                      </div>
+                      
+                      <span className="text-[9px] text-[#888] font-medium text-center w-full truncate leading-tight group-hover:text-white transition-colors px-0.5">
+                        {asset.name.split('.')[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* UI KITS TAB */}
           {activeTab === 'ui-kits' && (
@@ -3310,86 +3740,141 @@ export function AssetBrowser() {
           )}
 
           
-          {/* UPLOADS TAB */}
+          {/* UPLOADS TAB (Spline 3D Style) */}
           {activeTab === 'uploads' && (
-            <div className="flex flex-wrap gap-4 content-start h-full">
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-4 px-2 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Upload className="text-blue-400" /> My Uploaded Assets Studio
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Your custom uploaded 3D models, textures, target images, and audio files. Double-click to spawn or replace.
+                  </p>
+                </div>
+                <button
+                  onClick={handleUploadClick}
+                  className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all cursor-pointer shrink-0"
+                >
+                  <Upload size={14} /> Upload New File
+                </button>
+              </div>
+
               {assets.length === 0 ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-[#555] gap-2 border-2 border-dashed border-[#222] rounded-lg">
-                  <Upload size={28} className="text-[#333]" />
-                  <p className="text-xs">No custom assets. Import a 3D model or target image to begin.</p>
+                <div className="w-full h-64 flex flex-col items-center justify-center text-gray-400 gap-3 border-2 border-dashed border-white/10 rounded-2xl bg-white/[0.02]">
+                  <Upload size={36} className="text-gray-500 animate-bounce" />
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-white">No custom assets uploaded yet</p>
+                    <p className="text-xs text-gray-500 mt-1">Import .GLB 3D models, PNG target images, or textures to begin</p>
+                  </div>
                   <button 
                     onClick={handleUploadClick}
-                    className="mt-1 px-3 py-1 bg-[#1A1A1A] hover:bg-[#222] border border-[#333] text-[11px] text-[#888] hover:text-white rounded transition-colors"
+                    className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
                   >
-                    Select File
+                    Select File to Upload
                   </button>
                 </div>
               ) : (
-                assets.map(asset => (
-                  <div 
-                    key={asset.id}
-                    draggable={editingId !== asset.id}
-                    onDragStart={(e) => handleDragStart(e, asset)}
-                    onDoubleClick={() => handleUseAsset(asset)}
-                    className="w-24 h-28 bg-[#141414] border border-[#222] hover:border-blue-500 rounded flex flex-col items-center p-2 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative shadow"
-                    title={`${asset.name} - Double-click to apply`}
-                  >
-                    <div className="flex-1 w-full flex items-center justify-center overflow-hidden rounded bg-black/40 mb-1">
-                      {asset.type === 'image' ? (
-                        <img src={asset.url} alt={asset.name} className="w-12 h-12 object-contain" />
-                      ) : (
-                        getIcon(asset.type)
-                      )}
-                    </div>
-                    
-                    {editingId === asset.id ? (
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={finishEditing}
-                        onKeyDown={handleKeyDown}
-                        className="w-full bg-black text-white text-[10px] border border-blue-500 rounded px-1 outline-none text-center"
-                        onClick={(e) => e.stopPropagation()}
-                        onDoubleClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span className="text-[10px] text-[#999] text-center w-full truncate font-sans group-hover:text-white" onDoubleClick={(e) => startEditing(e, asset.id, asset.name)}>
-                        {asset.name}
-                      </span>
-                    )}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-24 content-start">
+                  {assets.map(asset => {
+                    const preset = getSplineThumbnailStyle(asset.name);
+                    return (
+                      <div 
+                        key={asset.id}
+                        draggable={editingId !== asset.id}
+                        onDragStart={(e) => handleDragStart(e, asset)}
+                        onDoubleClick={() => handleUseAsset(asset)}
+                        className="group relative flex flex-col p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/60 rounded-2xl transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 shadow-sm hover:shadow-blue-500/10 overflow-hidden"
+                        title={`• Asset Name: ${asset.name}\n• Type: ${asset.type.toUpperCase()}\n• Source: ${asset.url.startsWith('data:') ? 'Local Memory' : asset.url}\n• Action: Double-click to insert into viewport or replace selected target object`}
+                      >
+                        {/* Large Preview Image Box */}
+                        <div className="relative w-full aspect-square mb-2 rounded-xl bg-black/50 border border-white/5 flex items-center justify-center overflow-hidden group-hover:bg-black/70 transition-colors">
+                          {asset.type === 'image' ? (
+                            <img src={asset.url} alt={asset.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-300" />
+                          ) : asset.type === 'model' ? (
+                            <div className="w-full h-full flex items-center justify-center relative overflow-hidden" style={{ background: preset.bg }}>
+                              <div 
+                                className="w-14 h-14 rounded-2xl relative transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 flex items-center justify-center shadow-lg"
+                                style={{ 
+                                  background: preset.orbBg,
+                                  boxShadow: `inset -2px -2px 6px rgba(0,0,0,0.5), 0 0 12px ${preset.glowColor}, 0 4px 6px rgba(0,0,0,0.3)`
+                                }}
+                              >
+                                <div className="absolute inset-0.5 rounded-2xl border border-white/20 opacity-60 pointer-events-none" />
+                                <Box size={20} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-3xl transition-transform group-hover:scale-125 duration-300">
+                              {getIcon(asset.type)}
+                            </div>
+                          )}
 
-                    {/* Actions panel overlay */}
-                    {editingId !== asset.id && (
-                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all bg-[#141414]/90 p-0.5 rounded shadow">
-                        {asset.type === 'image' && selectedObjectIds.length > 1 && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleUseAsset(asset); }}
-                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded"
-                            title={`Bulk replace in ${selectedObjectIds.length} selected items`}
+                          {/* Hover overlay hint */}
+                          <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-xs">
+                            <Plus size={24} className="text-white drop-shadow-md" />
+                          </div>
+
+                          {/* Asset Type Tag */}
+                          <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono uppercase tracking-wider bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-blue-300 border border-white/10">
+                            {asset.type}
+                          </span>
+                        </div>
+                        
+                        {/* Simple Clean Title Label */}
+                        {editingId === asset.id ? (
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={finishEditing}
+                            onKeyDown={handleKeyDown}
+                            className="w-full bg-black text-white text-xs border border-blue-500 rounded px-1 py-0.5 outline-none text-center font-bold"
+                            onClick={(e) => e.stopPropagation()}
+                            onDoubleClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span 
+                            className="text-xs font-bold text-white group-hover:text-blue-300 truncate w-full text-center transition-colors" 
+                            onDoubleClick={(e) => startEditing(e, asset.id, asset.name)}
                           >
-                            <Copy size={10} />
-                          </button>
+                            {asset.name}
+                          </span>
                         )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeAsset(asset.id); }}
-                          className="p-1 hover:bg-red-500/20 text-red-400 rounded"
-                          title="Delete"
-                        >
-                          <Trash2 size={10} />
-                        </button>
-                        <button
-                          onClick={(e) => startEditing(e, asset.id, asset.name)}
-                          className="p-1 hover:bg-blue-500/20 text-blue-400 rounded"
-                          title="Rename"
-                        >
-                          <Edit2 size={10} />
-                        </button>
+
+                        {/* Actions overlay panel on hover */}
+                        {editingId !== asset.id && (
+                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all bg-black/90 backdrop-blur-md p-1 rounded-lg border border-white/10 shadow-lg">
+                            {asset.type === 'image' && selectedObjectIds.length > 1 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleUseAsset(asset); }}
+                                className="p-1 hover:bg-emerald-500/30 text-emerald-400 rounded transition-colors"
+                                title={`Bulk replace in ${selectedObjectIds.length} selected items`}
+                              >
+                                <Copy size={12} />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => startEditing(e, asset.id, asset.name)}
+                              className="p-1 hover:bg-blue-500/30 text-blue-400 rounded transition-colors"
+                              title="Rename asset"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removeAsset(asset.id); }}
+                              className="p-1 hover:bg-red-500/30 text-red-400 rounded transition-colors"
+                              title="Delete asset"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
@@ -3398,40 +3883,57 @@ export function AssetBrowser() {
           {activeTab === 'sketchfab' && (
             <div className="flex flex-col gap-4 font-sans h-full w-full">
               {/* Header */}
-              <div className="flex flex-col bg-[#141414] border border-[#222] rounded-lg p-3">
-                <span className="text-xs font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles size={11} className="animate-pulse text-yellow-400" />
-                  Free 3D Discovery Studio
-                </span>
-                <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
-                  Search and deploy 100% free, open-source Creative Commons 3D models from 
-                  <strong> Sketchfab</strong>, <strong>NASA</strong>, and the <strong>Smithsonian Museum</strong>. 
-                  Adding an asset automatically registers it in your <strong>Asset Studio</strong> for reuse!
-                </p>
+              <div className="flex items-center justify-between bg-[#141414] border border-[#222] rounded-xl p-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-black text-yellow-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={13} className="animate-pulse text-yellow-400" />
+                    Interactive Sketchfab 3D Webview Studio
+                  </span>
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    Explore millions of 100% free Creative Commons 3D models. Download directly to your <strong>Local Asset Library</strong> or deploy straight into your <strong>3D Scene</strong>.
+                  </p>
+                </div>
+                <div className="flex bg-[#111] p-1 rounded-lg border border-white/10 shrink-0">
+                  <button
+                    onClick={() => setSketchfabViewMode('grid')}
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                      sketchfabViewMode === 'grid' ? 'bg-yellow-500 text-black shadow-md' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Asset Store Grid
+                  </button>
+                  <button
+                    onClick={() => setSketchfabViewMode('webview')}
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                      sketchfabViewMode === 'webview' ? 'bg-yellow-500 text-black shadow-md' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    3D Interactive Webview
+                  </button>
+                </div>
               </div>
 
-              {/* Controls: Search & Paste URL */}
+              {/* Controls: Search & Direct Model Import */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Search Box */}
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-2.5 text-gray-500" />
                   <input
                     type="text"
-                    placeholder="Search models (e.g. Astronaut, Car, Rocket)..."
+                    placeholder="Search 3D models (e.g. Astronaut, Drone, Car, Cyberpunk)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#111] text-xs font-sans pl-9 pr-3 py-2 border border-[#222] rounded focus:border-yellow-500 text-white outline-none"
+                    className="w-full bg-[#111] text-xs font-sans pl-9 pr-3 py-2 border border-[#222] rounded-xl focus:border-yellow-500 text-white outline-none"
                   />
                 </div>
 
-                {/* Direct Link Importer */}
+                {/* Direct Sketchfab / GLB Link Importer */}
                 <form 
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (!customImportUrl) return;
-                    // Add as asset & spawn using standard helper
                     const newAssetId = Math.random().toString(36).substring(2, 9);
-                    const cleanName = customImportUrl.substring(customImportUrl.lastIndexOf('/') + 1) || 'Custom GLB Model';
+                    const cleanName = customImportUrl.substring(customImportUrl.lastIndexOf('/') + 1) || 'Sketchfab 3D Model';
                     const newAsset = {
                       id: newAssetId,
                       name: cleanName,
@@ -3440,149 +3942,214 @@ export function AssetBrowser() {
                     };
                     addAsset(newAsset);
                     handleUseAsset(newAsset);
+                    showToast(`Downloaded & saved "${cleanName}" to Local Library and 3D Scene!`);
                     setCustomImportUrl('');
                   }}
                   className="flex gap-2"
                 >
                   <input
                     type="text"
-                    placeholder="Paste any custom .glb/.gltf asset link..."
+                    placeholder="Paste Sketchfab / GLB model link..."
                     value={customImportUrl}
                     onChange={(e) => setCustomImportUrl(e.target.value)}
-                    className="flex-1 bg-[#111] text-xs font-mono px-3 py-2 border border-[#222] rounded focus:border-yellow-500 text-white outline-none min-w-0"
+                    className="flex-1 bg-[#111] text-xs font-mono px-3 py-2 border border-[#222] rounded-xl focus:border-yellow-500 text-white outline-none min-w-0"
                   />
                   <button
                     type="submit"
-                    className="px-3 py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold text-xs rounded transition-colors cursor-pointer shrink-0"
+                    className="px-3.5 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold text-xs rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1 shadow-md shadow-yellow-500/10"
                   >
-                    Import & Deploy
+                    <Download size={13} /> Fetch & Deploy
                   </button>
                 </form>
               </div>
 
-              {/* Category Badges */}
-              <div className="flex flex-wrap gap-1.5 border-b border-[#222] pb-3">
-                {['all', 'space', 'vehicles', 'characters', 'nature', 'interior', 'items', 'animals'].map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setSearchCategory(cat)}
-                    className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all ${
-                      searchCategory === cat
-                        ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 font-extrabold'
-                        : 'bg-[#141414] text-gray-500 hover:text-white border border-transparent'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Models Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 content-start">
-                {SKETCHFAB_WEB_MODELS.filter(m => {
-                  const matchQuery = m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                     m.description.toLowerCase().includes(searchQuery.toLowerCase());
-                  const matchCategory = searchCategory === 'all' || m.category === searchCategory;
-                  return matchQuery && matchCategory;
-                }).map(model => (
-                  <div
-                    key={model.name}
-                    className="bg-[#141414] border border-[#222] hover:border-yellow-500 rounded p-3 flex flex-col items-start gap-1 hover:bg-[#1A1A1A] transition-all group relative cursor-pointer"
-                    title="Double-click to deploy and save"
-                    onDoubleClick={() => {
-                      const newAsset = {
-                        id: Math.random().toString(36).substring(2, 9),
-                        name: model.name,
-                        type: 'model' as AssetType,
-                        url: model.url
-                      };
-                      addAsset(newAsset);
-                      handleUseAsset(newAsset);
-                    }}
-                  >
-                    {/* Visual Thumb */}
-                    <div className="w-full aspect-square flex flex-col items-center justify-center bg-black/40 rounded mb-1 relative overflow-hidden text-center p-0">
-                      <iframe 
-                        src={`data:text/html;charset=utf-8,${encodeURIComponent(`
-                          <!DOCTYPE html>
-                          <html>
-                            <head>
-                              <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-                              <style>
-                                body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
-                                model-viewer { width: 100vw; height: 100vh; --poster-color: transparent; }
-                              </style>
-                            </head>
-                            <body>
-                              <model-viewer src="${model.url}" auto-rotate camera-controls disable-zoom interaction-prompt="none"></model-viewer>
-                            </body>
-                          </html>
-                        `)}`}
-                        className="w-full h-full border-0 pointer-events-none group-hover:scale-110 transition-transform duration-500"
-                        title={model.name}
-                        sandbox="allow-scripts"
-                      />
-                      <div className="absolute inset-0 bg-yellow-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                        <Plus size={20} className="text-yellow-400" />
-                      </div>
-                      <span className="absolute bottom-1 right-1 text-[8px] bg-black/60 text-yellow-400 px-1 py-0.5 rounded uppercase font-mono font-bold tracking-wider leading-none backdrop-blur pointer-events-none">
-                        {model.creator}
-                      </span>
-                    </div>
-
-                    <span className="text-xs font-bold text-white truncate w-full">{model.name}</span>
-                    <p className="text-[9px] text-[#666] leading-snug h-6 overflow-hidden line-clamp-2 w-full">{model.description}</p>
-                    
-                    <button
-                      onClick={() => {
-                        const newAsset = {
-                          id: Math.random().toString(36).substring(2, 9),
-                          name: model.name,
-                          type: 'model' as AssetType,
-                          url: model.url
-                        };
-                        addAsset(newAsset);
-                        handleUseAsset(newAsset);
-                      }}
-                      className="mt-2 w-full text-center bg-yellow-600 hover:bg-yellow-500 text-black text-[10px] font-bold py-1 rounded transition-colors cursor-pointer"
-                    >
-                      Deploy Model
-                    </button>
+              {/* Viewmode 1: Interactive 3D Webview Embed */}
+              {sketchfabViewMode === 'webview' ? (
+                <div className="flex-1 bg-black border border-[#222] rounded-2xl overflow-hidden flex flex-col min-h-[420px] relative">
+                  <div className="bg-[#18181C] px-3 py-2 border-b border-[#222] flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-300 flex items-center gap-2">
+                      <Globe size={13} className="text-blue-400" /> Sketchfab 3D Webview Explorer Portal
+                    </span>
+                    <span className="text-[9px] font-mono text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                      Live Webview Frame
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <iframe
+                    src={`https://sketchfab.com/models/3d-models?sort_by=-likeCount`}
+                    className="w-full h-full border-0 flex-1 min-h-[380px]"
+                    title="Sketchfab Webview Portal"
+                    sandbox="allow-scripts allow-same-origin allow-popups"
+                  />
+                </div>
+              ) : (
+                /* Viewmode 2: Curated Sketchfab Asset Grid */
+                <div className="flex flex-col gap-3">
+                  {/* Category Filter Badges */}
+                  <div className="flex flex-wrap gap-1.5 border-b border-[#222] pb-3">
+                    {['all', 'space', 'vehicles', 'characters', 'nature', 'interior', 'items', 'animals'].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setSearchCategory(cat)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all ${
+                          searchCategory === cat
+                            ? 'bg-yellow-500 text-black shadow-md font-black'
+                            : 'bg-[#141414] text-gray-400 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Models Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 content-start">
+                    {SKETCHFAB_WEB_MODELS.filter(m => {
+                      const matchQuery = m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                         m.description.toLowerCase().includes(searchQuery.toLowerCase());
+                      const matchCategory = searchCategory === 'all' || m.category === searchCategory;
+                      return matchQuery && matchCategory;
+                    }).map(model => (
+                      <div
+                        key={model.name}
+                        className="bg-[#141414] border border-[#222] hover:border-yellow-500 rounded-2xl p-2.5 flex flex-col items-start gap-1.5 hover:bg-[#1A1A1A] transition-all group relative cursor-pointer"
+                        title="Click buttons below to download to local library or deploy to 3D scene"
+                      >
+                        {/* Visual Webview 3D Thumb */}
+                        <div className="w-full aspect-square flex flex-col items-center justify-center bg-black/60 rounded-xl relative overflow-hidden text-center p-0 border border-white/5">
+                          <iframe 
+                            src={`data:text/html;charset=utf-8,${encodeURIComponent(`
+                              <!DOCTYPE html>
+                              <html>
+                                <head>
+                                  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+                                  <style>
+                                    body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+                                    model-viewer { width: 100vw; height: 100vh; --poster-color: transparent; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <model-viewer src="${model.url}" auto-rotate camera-controls disable-zoom interaction-prompt="none"></model-viewer>
+                                </body>
+                              </html>
+                            `)}`}
+                            className="w-full h-full border-0 pointer-events-none group-hover:scale-110 transition-transform duration-500"
+                            title={model.name}
+                            sandbox="allow-scripts"
+                          />
+                          <span className="absolute bottom-1 right-1 text-[7.5px] bg-black/80 text-yellow-400 px-1.5 py-0.5 rounded uppercase font-mono font-bold tracking-wider leading-none backdrop-blur border border-yellow-500/20 pointer-events-none">
+                            {model.creator}
+                          </span>
+                        </div>
+
+                        <span className="text-[11px] font-bold text-white truncate w-full">{model.name}</span>
+                        <p className="text-[8.5px] text-[#777] leading-snug h-5 overflow-hidden line-clamp-2 w-full">{model.description}</p>
+                        
+                        {/* Dual Action Buttons: Save to Local Library OR Deploy to Scene */}
+                        <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newAsset = {
+                                id: Math.random().toString(36).substring(2, 9),
+                                name: model.name,
+                                type: 'model' as AssetType,
+                                url: model.url
+                              };
+                              addAsset(newAsset);
+                              showToast(`Saved "${model.name}" to your Local Asset Library!`);
+                            }}
+                            className="w-full text-center bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-[9px] font-bold py-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+                            title="Save to local library for reuse"
+                          >
+                            <Download size={10} /> Save Library
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newAsset = {
+                                id: Math.random().toString(36).substring(2, 9),
+                                name: model.name,
+                                type: 'model' as AssetType,
+                                url: model.url
+                              };
+                              addAsset(newAsset);
+                              handleUseAsset(newAsset);
+                              showToast(`Deployed "${model.name}" directly to 3D Scene!`);
+                            }}
+                            className="w-full text-center bg-yellow-500 hover:bg-yellow-400 text-black text-[9px] font-extrabold py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md shadow-yellow-500/10"
+                            title="Deploy into active 3D AR canvas"
+                          >
+                            <Plus size={10} /> Deploy Scene
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 3D MODELS TAB */}
+          {/* 3D MODELS TAB (Spline 3D Style) */}
           {activeTab === 'models' && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 content-start">
-              {PRESET_MODELS.map(model => (
-                <div 
-                  key={model.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, model)}
-                  onDoubleClick={() => handleUseAsset(model)}
-                  className="bg-[#141414] border border-[#222] hover:border-blue-500 rounded p-3 flex flex-col items-start gap-1 cursor-grab hover:bg-[#1A1A1A] transition-all group relative"
-                  title="Drag into the scene or Double-click to spawn"
-                >
-                  <div className="w-full aspect-square flex items-center justify-center bg-black/40 rounded text-2xl mb-1 relative overflow-hidden">
-                    <span className="group-hover:scale-125 transition-transform">{model.thumbnail}</span>
-                    <div className="absolute inset-0 bg-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Plus size={20} className="text-blue-400" />
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="mb-4 px-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Box className="text-blue-400" /> Standard 3D Asset Library
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  High-performance 3D models with PBR textures. Drag into viewport or double-click to spawn or replace.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 content-start overflow-y-auto pr-2 pb-24">
+                {PRESET_MODELS.map(model => {
+                  const preset = getSplineThumbnailStyle(model.name);
+                  return (
+                    <div 
+                      key={model.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, model)}
+                      onDoubleClick={() => handleUseAsset(model)}
+                      className="group relative flex flex-col p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/60 rounded-2xl transition-all duration-300 cursor-grab hover:scale-105 active:scale-95 shadow-sm hover:shadow-blue-500/10 overflow-hidden"
+                      title={`• Model: ${model.name}\n• Category: ${(model as any).category || '3D Geometry'}\n• Description: ${(model as any).description || ''}\n• Format: .GLB Binary PBR\n• Action: Double-click to spawn or replace target object`}
+                    >
+                      {/* Large 3D Orb Preview Container */}
+                      <div className="w-full aspect-square flex items-center justify-center rounded-xl mb-2 relative overflow-hidden transition-colors" style={{ background: preset.bg }}>
+                        <div 
+                          className="w-16 h-16 rounded-2xl relative transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 flex items-center justify-center shadow-xl"
+                          style={{ 
+                            background: preset.orbBg,
+                            boxShadow: `inset -3px -3px 6px rgba(0,0,0,0.5), 0 0 16px ${preset.glowColor}, 0 4px 8px rgba(0,0,0,0.4)`
+                          }}
+                        >
+                          <div className="absolute inset-0.5 rounded-2xl border border-white/20 opacity-70 pointer-events-none" />
+                          <span className="text-2xl relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">{model.thumbnail}</span>
+                        </div>
+                        <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-xs">
+                          <Plus size={28} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]" />
+                        </div>
+                        <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono uppercase tracking-wider bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded text-blue-300 border border-white/10">
+                          .GLB
+                        </span>
+                      </div>
+
+                      {/* Clean Text Label */}
+                      <span className="text-xs font-bold text-white group-hover:text-blue-300 truncate w-full text-center transition-colors">
+                        {model.name}
+                      </span>
+
+                      <button 
+                        onClick={() => handleUseAsset(model)}
+                        className="mt-2 w-full text-center bg-blue-600/80 hover:bg-blue-500 text-white text-[11px] font-bold py-1.5 rounded-xl transition-all shadow-md group-hover:scale-[1.02] active:scale-95 cursor-pointer"
+                      >
+                        + Add to Scene
+                      </button>
                     </div>
-                  </div>
-                  <span className="text-xs font-bold text-white truncate w-full">{model.name}</span>
-                  <p className="text-[9px] text-[#666] leading-snug h-6 overflow-hidden line-clamp-2 w-full">{model.description}</p>
-                  
-                  <button 
-                    onClick={() => handleUseAsset(model)}
-                    className="mt-2 w-full text-center bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold py-1 rounded transition-colors"
-                  >
-                    Add to Scene
-                  </button>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -3736,43 +4303,6 @@ export function AssetBrowser() {
             </div>
           )}
 
-          {/* BEHAVIORS TAB */}
-          {activeTab === 'behaviors' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 content-start">
-              {PRESET_BEHAVIORS.map(behavior => {
-                const hasSelected = !!selectedObjectId;
-                return (
-                  <div 
-                    key={behavior.id}
-                    onDoubleClick={() => handleUseAsset(behavior)}
-                    className="bg-[#141414] border border-[#222] hover:border-orange-500 rounded p-3 flex gap-3 cursor-pointer hover:bg-[#1A1A1A] transition-all group relative"
-                    title="Double-click to assign this visual effect rule to selected element"
-                  >
-                    <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-black/40 rounded text-xl relative overflow-hidden">
-                      <span className="group-hover:scale-125 transition-transform">{behavior.thumbnail}</span>
-                    </div>
-                    <div className="flex-1 flex flex-col justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                          {behavior.name}
-                          <span className="bg-orange-500/10 text-orange-400 text-[8px] font-mono px-1 rounded uppercase">Live R3F</span>
-                        </span>
-                        <p className="text-[9px] text-[#666] leading-snug w-full mt-0.5">{behavior.description}</p>
-                      </div>
-                      
-                      <button 
-                        onClick={() => handleUseAsset(behavior)}
-                        className={`mt-2 text-left text-[10px] font-semibold py-1 px-2.5 rounded transition-colors self-start border ${hasSelected ? 'bg-orange-600 hover:bg-orange-500 border-orange-500 text-white' : 'bg-[#222] hover:bg-[#333] border-[#333] text-[#888]'}`}
-                      >
-                        {hasSelected ? 'Apply Behavior' : 'Select Object first'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
           {/* SCENE LIGHTING TAB */}
           {activeTab === 'lighting' && (
             <div className="flex flex-col gap-4 h-full">
@@ -3868,6 +4398,110 @@ export function AssetBrowser() {
         </div>
       </div>
       {showMarkerManager && <MarkerManagerModal onClose={() => setShowMarkerManager(false)} />}
+
+      {/* Pre-Import 3D Model Validation Modal */}
+      {validationModel && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#121214] border border-amber-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl shadow-black/80 flex flex-col">
+            <div className="p-5 border-b border-white/5 bg-gradient-to-r from-amber-500/10 to-transparent flex items-center gap-3">
+              <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400">
+                <Info size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white tracking-wide">3D Model Validation</h3>
+                <p className="text-[10px] text-gray-400 mt-0.5">Pre-import file checks & metrics review</p>
+              </div>
+            </div>
+            
+            <div className="p-5 flex-1 overflow-y-auto space-y-4 max-h-[60vh] scrollbar-thin">
+              {/* File details card */}
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                <div className="text-xs font-bold text-gray-300 truncate mb-2">{validationModel.file.name}</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono text-gray-500">
+                  <div className="flex justify-between">
+                    <span>File Size:</span>
+                    <span className="text-gray-400 font-bold">{(validationModel.file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Triangles:</span>
+                    <span className={`font-bold ${validationModel.stats.totalTriangles > 80000 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      {validationModel.stats.totalTriangles.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Meshes:</span>
+                    <span className="text-gray-400">{validationModel.stats.meshCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Materials:</span>
+                    <span className="text-gray-400">{validationModel.stats.materialCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Textures:</span>
+                    <span className="text-gray-400">{validationModel.stats.textureCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Images:</span>
+                    <span className="text-gray-400">{validationModel.stats.imageCount}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning box */}
+              <div className="space-y-2.5">
+                <div className="text-[10px] uppercase font-black tracking-wider text-amber-500 px-1">Issues Identified</div>
+                {validationModel.warnings.map((warning, idx) => (
+                  <div key={idx} className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex gap-2.5 text-xs text-amber-200 leading-relaxed">
+                    <span className="text-amber-500 shrink-0 font-bold">⚠️</span>
+                    <span>{warning}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-white/5 bg-black/40 flex gap-2.5">
+              <button
+                onClick={() => setValidationModel(null)}
+                className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold rounded-lg transition-all"
+              >
+                Cancel Import
+              </button>
+              <button
+                onClick={() => {
+                  executeAssetImport(validationModel.file, 'model', validationModel.stats);
+                  setValidationModel(null);
+                }}
+                className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-lg transition-all shadow-md shadow-amber-500/15"
+              >
+                Import Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visual Import Progress Indicator Overlay */}
+      {importProgress && (
+        <div className="fixed bottom-6 right-6 z-[9999] bg-[#111113] border border-white/10 rounded-2xl p-4 w-80 shadow-2xl shadow-black animate-in slide-in-from-bottom duration-300">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-black text-white truncate w-3/4">{importProgress.fileName}</span>
+            <span className="text-xs font-black font-mono text-blue-400">{importProgress.progress}%</span>
+          </div>
+          
+          {/* Progress bar container */}
+          <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden mb-2.5">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${importProgress.progress}%` }}
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping" />
+            <span className="truncate">{importProgress.status}</span>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

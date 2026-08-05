@@ -67,6 +67,49 @@ export function ViewerLayout() {
   // inheritance (e.g. camera, sensors) since the origin is secure and identical,
   // while avoiding parser-blocking document.write blocking and Three.js duplicate imports.
   useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'loadScene' && event.data?.sceneId) {
+        if (!projectId) return;
+        const targetSceneId = event.data.sceneId;
+        
+        // Retrieve from current html content's source data
+        // We'll re-fetch or use local state to rebuild
+        setLoading(true);
+        (async () => {
+          try {
+            let projectData: any = null;
+            if (SupabaseService.isConfigured()) {
+              try {
+                projectData = await SupabaseService.loadProject(projectId);
+              } catch (err) {}
+            }
+            if (!projectData) {
+              const localDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);
+              if (localDataStr) projectData = JSON.parse(localDataStr);
+            }
+            
+            if (projectData && projectData.scenes && projectData.scenes[targetSceneId]) {
+              const targetScene = projectData.scenes[targetSceneId];
+              projectData.objects = targetScene.objects;
+              projectData.rootObjects = targetScene.rootObjects;
+              projectData.activeSceneId = targetSceneId;
+              const html = generateAFrameScene(projectData);
+              setHtmlContent(html);
+            } else {
+              console.warn('Target scene not found');
+            }
+          } finally {
+            setLoading(false);
+          }
+        })();
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [projectId]);
+
+  useEffect(() => {
     if (htmlContent) {
       const blob = new Blob([htmlContent], { type: 'text/html' });
       const url = URL.createObjectURL(blob);

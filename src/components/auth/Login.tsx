@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useEditorStore } from '../../store/useEditorStore';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, AlertCircle } from 'lucide-react';
 
@@ -43,6 +44,7 @@ export function Login() {
         setIsRegistering(false);
         setPassword('');
       } else {
+        useEditorStore.getState().closeProject();
         setAuth(data.token, data.user);
         navigate('/');
       }

@@ -1,7 +1,7 @@
 import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { EditorState, SceneObject, HistorySnapshot, ProjectVersion } from '../types';
+import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType } from '../types';
 
 const getStorageKey = (key: string) => {
   const user = useAuthStore.getState().user;
@@ -46,7 +46,7 @@ const defaultScene: Record<string, SceneObject> = {
 };
 
 // Generate template scenes to allow quick prototyping
-export const generateTemplate = (projectName: string, templateType: 'empty' | 'business_card' | 'product_showcase' | 'educational') => {
+export const generateTemplate = (projectName: string, templateType: TemplateType) => {
   const imageTargetId = uuidv4();
   const objects: Record<string, SceneObject> = {
     [imageTargetId]: {
@@ -67,8 +67,806 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
   };
   const rootObjects = [imageTargetId];
 
-  if (templateType === 'business_card') {
-    // Add business card box
+  if (templateType === 'product_showcase') {
+    // Tech Gadget / Sneaker Launch Ad
+    const pGroupId = uuidv4();
+    const pedestalId = uuidv4();
+    const heroProductSphereId = uuidv4();
+    const ringGlowId = uuidv4();
+    const textTitleId = uuidv4();
+    const textPriceId = uuidv4();
+    const btnBuyId = uuidv4();
+    const specCalloutId = uuidv4();
+
+    objects[imageTargetId].children = [pGroupId];
+    objects[pGroupId] = {
+      id: pGroupId,
+      name: 'Tech Gadget Launch Group',
+      type: 'group',
+      position: [0, 0, 0.1],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [pedestalId, heroProductSphereId, ringGlowId, textTitleId, textPriceId, btnBuyId, specCalloutId],
+      parentId: imageTargetId,
+      properties: {}
+    };
+
+    objects[pedestalId] = {
+      id: pedestalId,
+      name: 'Cyber Metallic Pedestal',
+      type: 'cylinder',
+      position: [0, -0.3, 0],
+      rotation: [0, 0, 0],
+      scale: [0.6, 0.08, 0.6],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: { color: '#0F172A', metalness: 0.9, roughness: 0.2 }
+    };
+
+    objects[heroProductSphereId] = {
+      id: heroProductSphereId,
+      name: 'Hero Core Model',
+      type: 'sphere',
+      position: [0, 0.15, 0],
+      rotation: [0, 0, 0],
+      scale: [0.35, 0.35, 0.35],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: { color: '#00F3FF', behavior: 'spin', spinAxis: 'y', metalness: 0.7, roughness: 0.1 }
+    };
+
+    objects[ringGlowId] = {
+      id: ringGlowId,
+      name: 'Orbit Halo Ring',
+      type: 'torus',
+      position: [0, 0.15, 0],
+      rotation: [70, 0, 0],
+      scale: [0.55, 0.55, 0.03],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: { color: '#FF007F', behavior: 'spin', spinAxis: 'z' }
+    };
+
+    objects[textTitleId] = {
+      id: textTitleId,
+      name: 'Product Title',
+      type: 'text',
+      position: [0, 0.6, 0],
+      rotation: [0, 0, 0],
+      scale: [0.45, 0.45, 0.45],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: {
+        text: 'APEX NEOPODS PRO\nSpatial Lossless Audio',
+        color: '#00F3FF',
+        outlineColor: '#003B46',
+        outlineWidth: 0.02,
+        billboard: true
+      }
+    };
+
+    objects[textPriceId] = {
+      id: textPriceId,
+      name: 'Price Badge',
+      type: 'text',
+      position: [0, -0.1, 0.25],
+      rotation: [0, 0, 0],
+      scale: [0.35, 0.35, 0.35],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: { text: '⚡ $249.99 (In Stock)', color: '#10B981', billboard: true }
+    };
+
+    objects[btnBuyId] = {
+      id: btnBuyId,
+      name: 'Pre-Order Button',
+      type: 'button',
+      position: [0, -0.42, 0.2],
+      rotation: [0, 0, 0],
+      scale: [0.5, 0.12, 0.03],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: { text: 'PRE-ORDER NOW', color: '#FF007F', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+    objects[specCalloutId] = {
+      id: specCalloutId,
+      name: 'Feature Callout',
+      type: 'text',
+      position: [-0.6, 0.2, 0],
+      rotation: [0, 0, 0],
+      scale: [0.3, 0.3, 0.3],
+      visible: true,
+      children: [],
+      parentId: pGroupId,
+      properties: { text: '✓ ANC 2.0 Active Noise\n✓ 40 Hours Playback\n✓ IPX7 Waterproof', color: '#E2E8F0', billboard: true }
+    };
+
+  } else if (templateType === 'billboard_poster') {
+    // 3D Billboard & Movie / Brand Commercial Ad
+    const bGroupId = uuidv4();
+    const frameId = uuidv4();
+    const videoId = uuidv4();
+    const titleTextId = uuidv4();
+    const btnTicketsId = uuidv4();
+    const btnTrailerId = uuidv4();
+    const hudEmbedId = uuidv4();
+
+    objects[imageTargetId].children = [bGroupId];
+    objects[bGroupId] = {
+      id: bGroupId,
+      name: 'AR 3D Billboard Ad',
+      type: 'group',
+      position: [0, 0.2, 0.05],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [frameId, videoId, titleTextId, btnTicketsId, btnTrailerId, hudEmbedId],
+      parentId: imageTargetId,
+      properties: {}
+    };
+
+    objects[frameId] = {
+      id: frameId,
+      name: 'Billboard Frame Box',
+      type: 'box',
+      position: [0, 0.3, -0.02],
+      rotation: [0, 0, 0],
+      scale: [1.4, 0.85, 0.04],
+      visible: true,
+      children: [],
+      parentId: bGroupId,
+      properties: { color: '#09090B', metalness: 0.8, roughness: 0.2 }
+    };
+
+    objects[videoId] = {
+      id: videoId,
+      name: 'Commercial Video Player',
+      type: 'youtube',
+      position: [0, 0.3, 0.02],
+      rotation: [0, 0, 0],
+      scale: [1.3, 0.75, 0.1],
+      visible: true,
+      children: [],
+      parentId: bGroupId,
+      properties: { videoId: 'dQw4w9WgXcQ' }
+    };
+
+    objects[titleTextId] = {
+      id: titleTextId,
+      name: 'Billboard Title',
+      type: 'text',
+      position: [0, 0.82, 0.05],
+      rotation: [0, 0, 0],
+      scale: [0.55, 0.55, 0.55],
+      visible: true,
+      children: [],
+      parentId: bGroupId,
+      properties: {
+        text: 'CYBERPUNK 2088: REBOOT',
+        color: '#EC4899',
+        outlineColor: '#8B5CF6',
+        outlineWidth: 0.02,
+        billboard: true
+      }
+    };
+
+    objects[btnTicketsId] = {
+      id: btnTicketsId,
+      name: 'Buy Tickets Button',
+      type: 'button',
+      position: [-0.35, -0.22, 0.05],
+      rotation: [0, 0, 0],
+      scale: [0.45, 0.12, 0.03],
+      visible: true,
+      children: [],
+      parentId: bGroupId,
+      properties: { text: 'GET TICKETS $15', color: '#EC4899', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+    objects[btnTrailerId] = {
+      id: btnTrailerId,
+      name: 'Watch Trailer CTA',
+      type: 'button',
+      position: [0.35, -0.22, 0.05],
+      rotation: [0, 0, 0],
+      scale: [0.45, 0.12, 0.03],
+      visible: true,
+      children: [],
+      parentId: bGroupId,
+      properties: { text: 'SHARE PROMO 🚀', color: '#3B82F6', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+    objects[hudEmbedId] = {
+      id: hudEmbedId,
+      name: 'Promo Coupon HUD Overlay',
+      type: 'hudEmbed',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [],
+      parentId: bGroupId,
+      properties: {
+        url: `data:text/html,<html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="m-0 bg-slate-950/80 backdrop-blur-md text-white p-3 font-sans overflow-hidden"><div class="flex items-center justify-between border-b border-pink-500/30 pb-2"><span class="text-[10px] uppercase font-bold text-pink-400 tracking-wider">🎟️ Special Offer</span><span class="text-[9px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded font-mono">LIMITED</span></div><p class="text-[11px] text-slate-300 mt-2">Use code <strong class="text-yellow-400">CYBER2088</strong> for 20% off IMAX premiere tickets!</p></body></html>`,
+        width: 320,
+        height: 100,
+        alignment: 'bottom-left',
+        offsetX: 20,
+        offsetY: 20,
+        borderRadius: 12,
+        borderEnabled: true,
+        borderColor: '#EC4899'
+      }
+    };
+
+  } else if (templateType === 'automobile_showroom') {
+    // 3D Car & Electric Vehicle Showroom Ad
+    const cGroupId = uuidv4();
+    const stageCylinderId = uuidv4();
+    const chassisId = uuidv4();
+    const windshieldId = uuidv4();
+    const wheel1 = uuidv4();
+    const wheel2 = uuidv4();
+    const titleTextId = uuidv4();
+    const specTextId = uuidv4();
+    const btnDriveId = uuidv4();
+    const btnColorRedId = uuidv4();
+    const btnColorBlackId = uuidv4();
+
+    objects[imageTargetId].children = [cGroupId];
+    objects[cGroupId] = {
+      id: cGroupId,
+      name: 'Electric Vehicle Showroom',
+      type: 'group',
+      position: [0, 0.1, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [stageCylinderId, chassisId, windshieldId, wheel1, wheel2, titleTextId, specTextId, btnDriveId, btnColorRedId, btnColorBlackId],
+      parentId: imageTargetId,
+      properties: {}
+    };
+
+    objects[stageCylinderId] = {
+      id: stageCylinderId,
+      name: 'Reflective Showroom Podium',
+      type: 'cylinder',
+      position: [0, -0.25, 0],
+      rotation: [0, 0, 0],
+      scale: [1.2, 0.06, 1.2],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { color: '#1E293B', metalness: 0.95, roughness: 0.1 }
+    };
+
+    objects[chassisId] = {
+      id: chassisId,
+      name: 'Vehicle Aerodynamic Body',
+      type: 'box',
+      position: [0, 0.05, 0],
+      rotation: [0, 0, 0],
+      scale: [0.8, 0.22, 0.42],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { color: '#DC2626', behavior: 'spin', spinAxis: 'y', metalness: 0.9, roughness: 0.15 }
+    };
+
+    objects[windshieldId] = {
+      id: windshieldId,
+      name: 'Windshield Canopy',
+      type: 'box',
+      position: [0, 0.2, 0],
+      rotation: [0, 0, 0],
+      scale: [0.45, 0.15, 0.35],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { color: '#0284C7', opacity: 0.6, transparent: true }
+    };
+
+    objects[wheel1] = {
+      id: wheel1,
+      name: 'Front Alloy Wheel',
+      type: 'cylinder',
+      position: [-0.25, -0.1, 0.22],
+      rotation: [90, 0, 0],
+      scale: [0.14, 0.06, 0.14],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { color: '#09090B' }
+    };
+
+    objects[wheel2] = {
+      id: wheel2,
+      name: 'Rear Alloy Wheel',
+      type: 'cylinder',
+      position: [0.25, -0.1, 0.22],
+      rotation: [90, 0, 0],
+      scale: [0.14, 0.06, 0.14],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { color: '#09090B' }
+    };
+
+    objects[titleTextId] = {
+      id: titleTextId,
+      name: 'Vehicle Title Header',
+      type: 'text',
+      position: [0, 0.65, 0],
+      rotation: [0, 0, 0],
+      scale: [0.5, 0.5, 0.5],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: {
+        text: 'APEX GT HYPER-EV',
+        color: '#F97316',
+        outlineColor: '#7C2D12',
+        outlineWidth: 0.02,
+        billboard: true
+      }
+    };
+
+    objects[specTextId] = {
+      id: specTextId,
+      name: 'Performance Specs',
+      type: 'text',
+      position: [0, 0.45, 0],
+      rotation: [0, 0, 0],
+      scale: [0.32, 0.32, 0.32],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { text: '⚡ 0-60 MPH: 2.3s  |  RANGE: 520 MILES  |  1,020 HP', color: '#F3F4F6', billboard: true }
+    };
+
+    objects[btnDriveId] = {
+      id: btnDriveId,
+      name: 'Test Drive CTA Button',
+      type: 'button',
+      position: [0, -0.38, 0.3],
+      rotation: [0, 0, 0],
+      scale: [0.55, 0.12, 0.03],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { text: 'BOOK TEST DRIVE', color: '#DC2626', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+    objects[btnColorRedId] = {
+      id: btnColorRedId,
+      name: 'Color Red Swatch',
+      type: 'button',
+      position: [-0.3, -0.38, 0.3],
+      rotation: [0, 0, 0],
+      scale: [0.2, 0.08, 0.02],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { text: 'CRIMSON', color: '#DC2626' }
+    };
+
+    objects[btnColorBlackId] = {
+      id: btnColorBlackId,
+      name: 'Color Black Swatch',
+      type: 'button',
+      position: [0.3, -0.38, 0.3],
+      rotation: [0, 0, 0],
+      scale: [0.2, 0.08, 0.02],
+      visible: true,
+      children: [],
+      parentId: cGroupId,
+      properties: { text: 'OBSIDIAN', color: '#18181B' }
+    };
+
+  } else if (templateType === 'fast_food_beverage') {
+    // Fast Food & Beverage Promo Ad
+    const fGroupId = uuidv4();
+    const canId = uuidv4();
+    const burgerBoxId = uuidv4();
+    const sliceRingId = uuidv4();
+    const headerTextId = uuidv4();
+    const couponBadgeId = uuidv4();
+    const btnOrderDeliveryId = uuidv4();
+    const btnStoreId = uuidv4();
+
+    objects[imageTargetId].children = [fGroupId];
+    objects[fGroupId] = {
+      id: fGroupId,
+      name: 'Food & Beverage Promo',
+      type: 'group',
+      position: [0, 0.1, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [canId, burgerBoxId, sliceRingId, headerTextId, couponBadgeId, btnOrderDeliveryId, btnStoreId],
+      parentId: imageTargetId,
+      properties: {}
+    };
+
+    objects[canId] = {
+      id: canId,
+      name: 'Dynamic Beverage Can',
+      type: 'cylinder',
+      position: [-0.22, 0.1, 0],
+      rotation: [0, 0, 0],
+      scale: [0.18, 0.45, 0.18],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: { color: '#FACC15', behavior: 'float', metalness: 0.8, roughness: 0.2 }
+    };
+
+    objects[burgerBoxId] = {
+      id: burgerBoxId,
+      name: 'Gourmet Burger Combo',
+      type: 'box',
+      position: [0.2, 0.05, 0],
+      rotation: [0, 15, 0],
+      scale: [0.38, 0.25, 0.38],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: { color: '#EA580C', behavior: 'spin', spinAxis: 'y' }
+    };
+
+    objects[sliceRingId] = {
+      id: sliceRingId,
+      name: 'Floating Flavor Particles',
+      type: 'torus',
+      position: [-0.22, 0.38, 0],
+      rotation: [90, 0, 0],
+      scale: [0.28, 0.28, 0.03],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: { color: '#EF4444', behavior: 'spin', spinAxis: 'z' }
+    };
+
+    objects[headerTextId] = {
+      id: headerTextId,
+      name: 'Promo Header Text',
+      type: 'text',
+      position: [0, 0.65, 0],
+      rotation: [0, 0, 0],
+      scale: [0.5, 0.5, 0.5],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: {
+        text: '🔥 CRISPY COMBO BOX\nSAVE 25% TODAY',
+        color: '#FACC15',
+        outlineColor: '#4338CA',
+        outlineWidth: 0.025,
+        billboard: true
+      }
+    };
+
+    objects[couponBadgeId] = {
+      id: couponBadgeId,
+      name: 'Coupon Code Pill',
+      type: 'text',
+      position: [0, -0.15, 0.25],
+      rotation: [0, 0, 0],
+      scale: [0.35, 0.35, 0.35],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: { text: 'PROMO CODE: YUMMY25', color: '#10B981', billboard: true }
+    };
+
+    objects[btnOrderDeliveryId] = {
+      id: btnOrderDeliveryId,
+      name: 'Order Delivery Button',
+      type: 'button',
+      position: [-0.28, -0.38, 0.25],
+      rotation: [0, 0, 0],
+      scale: [0.42, 0.11, 0.025],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: { text: 'ORDER DELIVERY 🍔', color: '#EA580C', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+    objects[btnStoreId] = {
+      id: btnStoreId,
+      name: 'Store Finder Button',
+      type: 'button',
+      position: [0.28, -0.38, 0.25],
+      rotation: [0, 0, 0],
+      scale: [0.42, 0.11, 0.025],
+      visible: true,
+      children: [],
+      parentId: fGroupId,
+      properties: { text: 'NEARBY STORES 📍', color: '#CA8A04', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+  } else if (templateType === 'luxury_fashion') {
+    // Luxury Fashion & Perfume Cosmetics Ad
+    const lGroupId = uuidv4();
+    const marblePedestalId = uuidv4();
+    const goldRingId = uuidv4();
+    const bottleBodyId = uuidv4();
+    const bottleCapId = uuidv4();
+    const titleTextId = uuidv4();
+    const descTextId = uuidv4();
+    const btnDiscoverId = uuidv4();
+
+    objects[imageTargetId].children = [lGroupId];
+    objects[lGroupId] = {
+      id: lGroupId,
+      name: 'Luxury Fragrance Ad',
+      type: 'group',
+      position: [0, 0.1, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [marblePedestalId, goldRingId, bottleBodyId, bottleCapId, titleTextId, descTextId, btnDiscoverId],
+      parentId: imageTargetId,
+      properties: {}
+    };
+
+    objects[marblePedestalId] = {
+      id: marblePedestalId,
+      name: 'Marble Display Stand',
+      type: 'cylinder',
+      position: [0, -0.25, 0],
+      rotation: [0, 0, 0],
+      scale: [0.55, 0.08, 0.55],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: { color: '#F8FAFC', roughness: 0.1 }
+    };
+
+    objects[goldRingId] = {
+      id: goldRingId,
+      name: 'Gold Halo Accent',
+      type: 'torus',
+      position: [0, -0.2, 0],
+      rotation: [90, 0, 0],
+      scale: [0.58, 0.58, 0.02],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: { color: '#FFD700', metalness: 0.95 }
+    };
+
+    objects[bottleBodyId] = {
+      id: bottleBodyId,
+      name: 'Crystal Glass Perfume Bottle',
+      type: 'box',
+      position: [0, 0.12, 0],
+      rotation: [0, 0, 0],
+      scale: [0.22, 0.42, 0.14],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: { color: '#38BDF8', opacity: 0.75, transparent: true, behavior: 'float' }
+    };
+
+    objects[bottleCapId] = {
+      id: bottleCapId,
+      name: 'Gold Crown Cap',
+      type: 'box',
+      position: [0, 0.38, 0],
+      rotation: [0, 0, 0],
+      scale: [0.1, 0.1, 0.1],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: { color: '#FFD700', metalness: 0.9 }
+    };
+
+    objects[titleTextId] = {
+      id: titleTextId,
+      name: 'Brand Header',
+      type: 'text',
+      position: [0, 0.65, 0],
+      rotation: [0, 0, 0],
+      scale: [0.45, 0.45, 0.45],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: {
+        text: 'NOCTURNE PARIS\nEAU DE PARFUM',
+        color: '#FFD700',
+        outlineColor: '#8B6508',
+        outlineWidth: 0.018,
+        billboard: true
+      }
+    };
+
+    objects[descTextId] = {
+      id: descTextId,
+      name: 'Fragrance Notes',
+      type: 'text',
+      position: [0, -0.1, 0.2],
+      rotation: [0, 0, 0],
+      scale: [0.32, 0.32, 0.32],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: { text: 'Notes of French Rose, Sandalwood & Amber', color: '#F1F5F9', billboard: true }
+    };
+
+    objects[btnDiscoverId] = {
+      id: btnDiscoverId,
+      name: 'Explore Collection Button',
+      type: 'button',
+      position: [0, -0.38, 0.25],
+      rotation: [0, 0, 0],
+      scale: [0.5, 0.11, 0.025],
+      visible: true,
+      children: [],
+      parentId: lGroupId,
+      properties: { text: 'EXPLORE COLLECTION 👑', color: '#D97706', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+  } else if (templateType === 'real_estate') {
+    // Architectural Property & Luxury Villa Ad
+    const rGroupId = uuidv4();
+    const podiumId = uuidv4();
+    const mainSlabId = uuidv4();
+    const glassFacadeId = uuidv4();
+    const roofOverhangId = uuidv4();
+    const titleTextId = uuidv4();
+    const priceBadgeId = uuidv4();
+    const hotspot1Id = uuidv4();
+    const hotspot2Id = uuidv4();
+    const btnTourId = uuidv4();
+
+    objects[imageTargetId].children = [rGroupId];
+    objects[rGroupId] = {
+      id: rGroupId,
+      name: 'Luxury Villa Real Estate Ad',
+      type: 'group',
+      position: [0, 0.1, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      children: [podiumId, mainSlabId, glassFacadeId, roofOverhangId, titleTextId, priceBadgeId, hotspot1Id, hotspot2Id, btnTourId],
+      parentId: imageTargetId,
+      properties: {}
+    };
+
+    objects[podiumId] = {
+      id: podiumId,
+      name: 'Podium Ground Base',
+      type: 'box',
+      position: [0, -0.22, 0],
+      rotation: [0, 0, 0],
+      scale: [1.1, 0.04, 0.8],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { color: '#0F172A', roughness: 0.2 }
+    };
+
+    objects[mainSlabId] = {
+      id: mainSlabId,
+      name: 'Concrete Floor Slabs',
+      type: 'box',
+      position: [0, 0.05, 0],
+      rotation: [0, 0, 0],
+      scale: [0.75, 0.35, 0.5],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { color: '#E2E8F0' }
+    };
+
+    objects[glassFacadeId] = {
+      id: glassFacadeId,
+      name: 'Panoramic Glass Wall',
+      type: 'box',
+      position: [0.1, 0.05, 0.26],
+      rotation: [0, 0, 0],
+      scale: [0.5, 0.32, 0.02],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { color: '#38BDF8', opacity: 0.5, transparent: true }
+    };
+
+    objects[roofOverhangId] = {
+      id: roofOverhangId,
+      name: 'Modernist Roof Canopy',
+      type: 'box',
+      position: [0, 0.25, 0],
+      rotation: [0, 0, 0],
+      scale: [0.85, 0.04, 0.6],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { color: '#1E293B' }
+    };
+
+    objects[titleTextId] = {
+      id: titleTextId,
+      name: 'Property Header',
+      type: 'text',
+      position: [0, 0.62, 0],
+      rotation: [0, 0, 0],
+      scale: [0.45, 0.45, 0.45],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: {
+        text: 'SKYLINE RESIDENCES & VILLAS',
+        color: '#FFFFFF',
+        outlineColor: '#0F172A',
+        outlineWidth: 0.02,
+        billboard: true
+      }
+    };
+
+    objects[priceBadgeId] = {
+      id: priceBadgeId,
+      name: 'Price Tag Pill',
+      type: 'text',
+      position: [0, 0.42, 0],
+      rotation: [0, 0, 0],
+      scale: [0.35, 0.35, 0.35],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { text: '💎 Luxury Units from $850,000', color: '#10B981', billboard: true }
+    };
+
+    objects[hotspot1Id] = {
+      id: hotspot1Id,
+      name: 'Infinity Pool Hotspot',
+      type: 'text',
+      position: [-0.45, 0.1, 0.3],
+      rotation: [0, 0, 0],
+      scale: [0.28, 0.28, 0.28],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { text: '📍 Private Infinity Pool', color: '#38BDF8', billboard: true }
+    };
+
+    objects[hotspot2Id] = {
+      id: hotspot2Id,
+      name: 'Solar Grid Hotspot',
+      type: 'text',
+      position: [0.45, 0.1, 0.3],
+      rotation: [0, 0, 0],
+      scale: [0.28, 0.28, 0.28],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { text: '📍 Smart Solar Energy', color: '#FACC15', billboard: true }
+    };
+
+    objects[btnTourId] = {
+      id: btnTourId,
+      name: 'Schedule Virtual Tour CTA',
+      type: 'button',
+      position: [0, -0.38, 0.35],
+      rotation: [0, 0, 0],
+      scale: [0.55, 0.12, 0.03],
+      visible: true,
+      children: [],
+      parentId: rGroupId,
+      properties: { text: 'BOOK VIRTUAL TOUR 🏡', color: '#2563EB', textColor: '#FFFFFF', url: 'https://example.com' }
+    };
+
+  } else if (templateType === 'business_card') {
+    // AR Business Card & Identity
     const cardId = uuidv4();
     const textNameId = uuidv4();
     const btnId = uuidv4();
@@ -98,7 +896,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       visible: true,
       children: [],
       parentId: cardId,
-      properties: { text: 'Alex Carter\nCreative Developer', color: '#60a5fa' }
+      properties: { text: 'Alex Carter\nCreative AR Director', color: '#60a5fa' }
     };
 
     objects[btnId] = {
@@ -111,7 +909,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       visible: true,
       children: [],
       parentId: cardId,
-      properties: { text: 'Visit Website', color: '#2563eb', url: 'https://example.com' }
+      properties: { text: 'Visit Website 🌐', color: '#2563eb', url: 'https://example.com' }
     };
 
     objects[ytId] = {
@@ -126,65 +924,9 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       parentId: cardId,
       properties: { videoId: 'dQw4w9WgXcQ' }
     };
-  } else if (templateType === 'product_showcase') {
-    const pGroupId = uuidv4();
-    const sphereId = uuidv4();
-    const textPriceId = uuidv4();
-    const btnBuyId = uuidv4();
 
-    objects[imageTargetId].children = [pGroupId];
-    objects[pGroupId] = {
-      id: pGroupId,
-      name: 'Product Group',
-      type: 'group',
-      position: [0, 0, 0.2],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1],
-      visible: true,
-      children: [sphereId, textPriceId, btnBuyId],
-      parentId: imageTargetId,
-      properties: {}
-    };
-
-    objects[sphereId] = {
-      id: sphereId,
-      name: 'Product Model Sphere',
-      type: 'sphere',
-      position: [0, 0.1, 0],
-      rotation: [0, 0, 0],
-      scale: [0.3, 0.3, 0.3],
-      visible: true,
-      children: [],
-      parentId: pGroupId,
-      properties: { color: '#ef4444' }
-    };
-
-    objects[textPriceId] = {
-      id: textPriceId,
-      name: 'Product Label',
-      type: 'text',
-      position: [0, 0.4, 0],
-      rotation: [0, 0, 0],
-      scale: [0.4, 0.4, 0.4],
-      visible: true,
-      children: [],
-      parentId: pGroupId,
-      properties: { text: 'Fusion Sphere XT\n$199.99', color: '#10b981' }
-    };
-
-    objects[btnBuyId] = {
-      id: btnBuyId,
-      name: 'Buy Button',
-      type: 'button',
-      position: [0, -0.2, 0],
-      rotation: [0, 0, 0],
-      scale: [0.4, 0.1, 0.02],
-      visible: true,
-      children: [],
-      parentId: pGroupId,
-      properties: { text: 'Order Now', color: '#ef4444', url: 'https://example.com' }
-    };
   } else if (templateType === 'educational') {
+    // Spatial Interactive Orbit
     const parentGroupId = uuidv4();
     const earthId = uuidv4();
     const satelliteId = uuidv4();
@@ -193,7 +935,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
     objects[imageTargetId].children = [parentGroupId];
     objects[parentGroupId] = {
       id: parentGroupId,
-      name: 'Solar Demo Group',
+      name: 'Solar Orbit Group',
       type: 'group',
       position: [0, 0, 0.15],
       rotation: [0, 0, 0],
@@ -214,7 +956,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       visible: true,
       children: [],
       parentId: parentGroupId,
-      properties: { color: '#3b82f6' }
+      properties: { color: '#3b82f6', behavior: 'spin', spinAxis: 'y' }
     };
 
     objects[satelliteId] = {
@@ -227,7 +969,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       visible: true,
       children: [],
       parentId: parentGroupId,
-      properties: { color: '#9ca3af' }
+      properties: { color: '#9ca3af', behavior: 'float' }
     };
 
     objects[labelId] = {
@@ -240,7 +982,7 @@ export const generateTemplate = (projectName: string, templateType: 'empty' | 'b
       visible: true,
       children: [],
       parentId: parentGroupId,
-      properties: { text: 'Low Earth Orbit (LEO) Simulation', color: '#ffffff' }
+      properties: { text: 'Low Earth Orbit (LEO) Spatial Simulation', color: '#ffffff', billboard: true }
     };
   }
 
@@ -395,11 +1137,37 @@ const ensureImageTargetLocked = (objects: Record<string, SceneObject>) => {
 };
 
 
-const sanitizeBlobUrls = (data: any) => {
+const correctAssetUrl = (url: string): string => {
+  if (!url) return url;
+  if (url.includes('mrdoob/three.js') && url.includes('Fox.glb')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb';
+  }
+  if (url.includes('glTF-Sample-Assets/main/Models/Fox') || url.includes('gltf/Fox')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb';
+  }
+  if (url.includes('glTF-Sample-Assets/main/Models/Sphere') || url.includes('gltf/Sphere')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';
+  }
+  if (url.includes('glTF-Sample-Assets/main/Models/Suzanne') || url.includes('glTF-Sample-Models/main/2.0/Suzanne') || url.includes('gltf/Suzanne')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb';
+  }
+  if (url.includes('glTF-Sample-Assets/main/Models/StainedGlassLamp') || url.includes('glTF-Sample-Models/main/2.0/StainedGlassLamp') || url.includes('gltf/StainedGlassLamp')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/glTF-Binary/BoomBox.glb';
+  }
+  if (url.includes('glTF-Sample-Assets/main/Models/FlightHelmet') || url.includes('glTF-Sample-Models/main/2.0/FlightHelmet') || url.includes('gltf/FlightHelmet')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';
+  }
+  if (url.includes('glTF-Sample-Assets/main/Models/Buggy') || url.includes('glTF-Sample-Models/main/2.0/Buggy') || url.includes('gltf/Buggy')) {
+    return 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb';
+  }
+  return url;
+};
+
+const sanitizeBlobUrls = (data: any): any => {
   if (!data) return data;
   if (typeof data === 'string') {
     if (data.startsWith('blob:')) return '';
-    return data;
+    return correctAssetUrl(data);
   }
   if (Array.isArray(data)) {
     return data.map(item => sanitizeBlobUrls(item));
@@ -407,10 +1175,14 @@ const sanitizeBlobUrls = (data: any) => {
   if (typeof data === 'object') {
     const copy = { ...data };
     for (const key in copy) {
-      if (typeof copy[key] === 'string' && copy[key].startsWith('blob:')) {
-         copy[key] = '';
+      if (typeof copy[key] === 'string') {
+        if (copy[key].startsWith('blob:')) {
+          copy[key] = '';
+        } else {
+          copy[key] = correctAssetUrl(copy[key]);
+        }
       } else if (typeof copy[key] === 'object') {
-         copy[key] = sanitizeBlobUrls(copy[key]);
+        copy[key] = sanitizeBlobUrls(copy[key]);
       }
     }
     return copy;
@@ -532,26 +1304,35 @@ const loadSavedState = () => {
       const activeProjData = sanitizeBlobUrls(JSON.parse(activeProjDataStr));
       let scenes = activeProjData.scenes;
       let activeSceneId = activeProjData.activeSceneId;
-      if (!scenes || !activeSceneId) {
+      if (!scenes || typeof scenes !== 'object' || Object.keys(scenes).length === 0) {
         activeSceneId = 'default';
         scenes = {
           'default': { id: 'default', name: 'Main Scene', objects: ensureImageTargetLocked(activeProjData.objects), rootObjects: activeProjData.rootObjects }
         };
-      } else {
-        const activeScene = scenes[activeSceneId];
-        if (activeScene) {
-          activeProjData.objects = ensureImageTargetLocked(activeScene.objects);
-          activeProjData.rootObjects = activeScene.rootObjects;
-        }
+      } else if (!activeSceneId || !scenes[activeSceneId]) {
+        activeSceneId = Object.keys(scenes)[0];
       }
+
+      const activeScene = scenes[activeSceneId];
+      const currentObjects = activeScene ? ensureImageTargetLocked(activeScene.objects) : ensureImageTargetLocked(activeProjData.objects);
+      const currentRootObjects = activeScene ? activeScene.rootObjects : activeProjData.rootObjects;
+
+      scenes = {
+        ...scenes,
+        [activeSceneId]: {
+          ...scenes[activeSceneId],
+          objects: currentObjects,
+          rootObjects: currentRootObjects
+        }
+      };
 
       return {
         currentProjectId: activeId,
         projectsList,
         scenes,
         activeSceneId,
-        objects: ensureImageTargetLocked(activeProjData.objects),
-        rootObjects: activeProjData.rootObjects,
+        objects: currentObjects,
+        rootObjects: currentRootObjects,
         settings: activeProjData.settings || { projectName: activeProjData.name || 'My AR Experience', imageTargetName: null },
         assets: activeProjData.assets || [],
         lastSavedTime: activeProjData.lastSavedTime || Date.now(),
@@ -659,6 +1440,10 @@ const initialAssets = savedData.assets;
 const initialLastSavedTime = savedData.lastSavedTime;
 const initialCurrentProjectId = savedData.currentProjectId;
 const initialProjectsList = savedData.projectsList;
+const initialActiveSceneId = savedData.activeSceneId || 'default';
+const initialScenes = savedData.scenes || {
+  'default': { id: 'default', name: 'Main Scene', objects: initialObjects, rootObjects: initialRootObjects }
+};
 
 // Cooldown state for property update snapshots
 let lastSnapshotTime = 0;
@@ -717,7 +1502,7 @@ const cloneObjectSubtree = (
   return clonedObj;
 };
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useEditorStore = create<EditorState>((set, get) => ({
   objects: initialObjects,
   rootObjects: initialRootObjects,
   selectedObjectId: null, selectedObjectIds: [],
@@ -726,6 +1511,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   transformMode: 'translate',
   transformSpace: 'world',
   transformGizmoEnabled: true,
+  transformApplyMode: 'activeStateOnly',
+  setTransformApplyMode: (mode) => set({ transformApplyMode: mode }),
   assets: initialAssets,
   copiedObjectData: null,
   isPreviewMode: false,
@@ -734,13 +1521,17 @@ export const useEditorStore = create<EditorState>((set) => ({
   lastSavedTime: initialLastSavedTime,
   hasUnsavedChanges: false,
   currentProjectId: initialCurrentProjectId,
+  isProjectOpen: false,
   projectsList: initialProjectsList,
   versions: loadVersionsForProject(initialCurrentProjectId),
-
-  activeSceneId: 'default',
-  scenes: {
-    'default': { id: 'default', name: 'Main Scene', objects: initialObjects, rootObjects: initialRootObjects }
+  openProject: (projectId: string) => {
+    get().loadProject(projectId);
+    set({ isProjectOpen: true });
   },
+  closeProject: () => set({ isProjectOpen: false }),
+
+  activeSceneId: initialActiveSceneId,
+  scenes: initialScenes,
   createScene: (name) => set((state) => {
     const newSceneId = `scene_${Date.now()}`;
     const newScene = { id: newSceneId, name, objects: JSON.parse(JSON.stringify(defaultScene)), rootObjects: [initialImageTargetId] };
@@ -755,8 +1546,28 @@ export const useEditorStore = create<EditorState>((set) => ({
       };
     }
     
+    const updatedScenes = { ...currentScenes, [newSceneId]: newScene };
+
+    // Auto-persist scene updates directly to storage
+    const projectData = {
+      id: state.currentProjectId,
+      name: state.settings.projectName,
+      objects: newScene.objects,
+      rootObjects: newScene.rootObjects,
+      settings: state.settings,
+      assets: state.assets,
+      scenes: updatedScenes,
+      activeSceneId: newSceneId,
+      lastSavedTime: Date.now()
+    };
+    try {
+      localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(projectData));
+    } catch (e) {
+      console.error('Failed to auto-save created scene:', e);
+    }
+
     return {
-      scenes: { ...currentScenes, [newSceneId]: newScene },
+      scenes: updatedScenes,
       activeSceneId: newSceneId,
       objects: newScene.objects,
       rootObjects: newScene.rootObjects,
@@ -764,9 +1575,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       selectedObjectIds: [],
       past: [],
       future: [],
-      hasUnsavedChanges: true
+      lastSavedTime: Date.now(),
+      hasUnsavedChanges: false
     };
   }),
+
   loadScene: (sceneId) => set((state) => {
     // Before switching, save current scene state
     const currentScenes = { ...state.scenes };
@@ -780,51 +1593,119 @@ export const useEditorStore = create<EditorState>((set) => ({
     const targetScene = currentScenes[sceneId];
     if (!targetScene) return state;
 
+    const targetObjects = ensureImageTargetLocked(targetScene.objects);
+
+    // Auto-persist scene updates directly to storage
+    const projectData = {
+      id: state.currentProjectId,
+      name: state.settings.projectName,
+      objects: targetObjects,
+      rootObjects: targetScene.rootObjects,
+      settings: state.settings,
+      assets: state.assets,
+      scenes: currentScenes,
+      activeSceneId: sceneId,
+      lastSavedTime: Date.now()
+    };
+    try {
+      localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(projectData));
+    } catch (e) {
+      console.error('Failed to auto-save loaded scene:', e);
+    }
+
     return {
       scenes: currentScenes,
       activeSceneId: sceneId,
-      objects: targetScene.objects,
+      objects: targetObjects,
       rootObjects: targetScene.rootObjects,
       selectedObjectId: null,
       selectedObjectIds: [],
       past: [],
       future: [],
-      hasUnsavedChanges: true
+      lastSavedTime: Date.now(),
+      hasUnsavedChanges: false
     };
   }),
+
   deleteScene: (sceneId) => set((state) => {
     if (Object.keys(state.scenes).length <= 1) return state; // Prevent deleting last scene
     const newScenes = { ...state.scenes };
     delete newScenes[sceneId];
     
+    let activeSceneId = state.activeSceneId;
+    let objects = state.objects;
+    let rootObjects = state.rootObjects;
+
     // If we deleted the active scene, switch to the first available one
     if (state.activeSceneId === sceneId) {
-      const firstAvailableId = Object.keys(newScenes)[0];
-      const targetScene = newScenes[firstAvailableId];
-      return {
-        scenes: newScenes,
-        activeSceneId: firstAvailableId,
-        objects: targetScene.objects,
-        rootObjects: targetScene.rootObjects,
-        selectedObjectId: null,
-        selectedObjectIds: [],
-        hasUnsavedChanges: true
-      };
+      activeSceneId = Object.keys(newScenes)[0];
+      const targetScene = newScenes[activeSceneId];
+      objects = ensureImageTargetLocked(targetScene.objects);
+      rootObjects = targetScene.rootObjects;
     }
-    
-    return { scenes: newScenes, hasUnsavedChanges: true };
+
+    // Auto-persist scene updates directly to storage
+    const projectData = {
+      id: state.currentProjectId,
+      name: state.settings.projectName,
+      objects,
+      rootObjects,
+      settings: state.settings,
+      assets: state.assets,
+      scenes: newScenes,
+      activeSceneId,
+      lastSavedTime: Date.now()
+    };
+    try {
+      localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(projectData));
+    } catch (e) {
+      console.error('Failed to auto-save deleted scene:', e);
+    }
+
+    return {
+      scenes: newScenes,
+      activeSceneId,
+      objects,
+      rootObjects,
+      selectedObjectId: null,
+      selectedObjectIds: [],
+      lastSavedTime: Date.now(),
+      hasUnsavedChanges: false
+    };
   }),
+
   renameScene: (sceneId, newName) => set((state) => {
     if (!state.scenes[sceneId]) return state;
+    const updatedScenes = {
+      ...state.scenes,
+      [sceneId]: {
+        ...state.scenes[sceneId],
+        name: newName
+      }
+    };
+
+    // Auto-persist scene updates directly to storage
+    const projectData = {
+      id: state.currentProjectId,
+      name: state.settings.projectName,
+      objects: state.objects,
+      rootObjects: state.rootObjects,
+      settings: state.settings,
+      assets: state.assets,
+      scenes: updatedScenes,
+      activeSceneId: state.activeSceneId,
+      lastSavedTime: Date.now()
+    };
+    try {
+      localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(projectData));
+    } catch (e) {
+      console.error('Failed to auto-save renamed scene:', e);
+    }
+
     return {
-      scenes: {
-        ...state.scenes,
-        [sceneId]: {
-          ...state.scenes[sceneId],
-          name: newName
-        }
-      },
-      hasUnsavedChanges: true
+      scenes: updatedScenes,
+      lastSavedTime: Date.now(),
+      hasUnsavedChanges: false
     };
   }),
 
@@ -835,6 +1716,116 @@ export const useEditorStore = create<EditorState>((set) => ({
   rotationSnapIncrement: 15,
   
   isAssetBrowserOpen: false,
+  setIsAssetBrowserOpen: (open) => set({ isAssetBrowserOpen: open }),
+  replaceTargetObjectId: null,
+  setReplaceTargetObjectId: (id) => set({ replaceTargetObjectId: id }),
+  replaceObjectAsset: (targetObjectId, newAsset) => set((state) => {
+    const obj = state.objects[targetObjectId];
+    if (!obj) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    // Preserve transforms & tree hierarchy strictly
+    const preservedPosition = [...obj.position] as [number, number, number];
+    const preservedRotation = [...obj.rotation] as [number, number, number];
+    const preservedScale = [...obj.scale] as [number, number, number];
+    const preservedParentId = obj.parentId;
+    const preservedChildren = [...obj.children];
+
+    let newType = obj.type;
+    let newProps = { ...obj.properties };
+
+    if (newAsset.type === 'model') {
+      newType = 'model';
+      newProps = {
+        ...newProps,
+        gltfUrl: newAsset.url || newAsset.properties?.gltfUrl || newAsset.properties?.url,
+        modelUrl: newAsset.url || newAsset.properties?.modelUrl || newAsset.properties?.url,
+        url: newAsset.url || newAsset.properties?.url,
+      };
+    } else if (newAsset.type === 'image') {
+      newType = 'image';
+      newProps = {
+        ...newProps,
+        textureUrl: newAsset.url || newAsset.textureUrl || newAsset.properties?.textureUrl,
+        opacity: newProps.opacity ?? 1,
+        doubleSided: newProps.doubleSided ?? true,
+      };
+    } else if (newAsset.type === 'video') {
+      newType = 'video';
+      newProps = {
+        ...newProps,
+        videoUrl: newAsset.url || newAsset.videoUrl || newAsset.properties?.videoUrl,
+        playing: true,
+        loop: true,
+        muted: true,
+      };
+    } else if (newAsset.type === 'audio') {
+      newType = 'audio';
+      newProps = {
+        ...newProps,
+        soundUrl: newAsset.url || newAsset.soundUrl || newAsset.properties?.soundUrl,
+        autoplay: true,
+        playing: true,
+        loop: true,
+      };
+    } else if (newAsset.type === 'icon') {
+      newType = 'icon';
+      newProps = {
+        ...newProps,
+        iconType: newAsset.iconType || newAsset.properties?.iconType,
+        color: newAsset.properties?.color || newProps.color || '#3b82f6',
+        secondaryColor: newAsset.properties?.secondaryColor || newProps.secondaryColor,
+      };
+    } else if (newAsset.type === 'icon2d') {
+      newType = 'icon2d' as any;
+      newProps = {
+        ...newProps,
+        iconName: newAsset.iconName || newAsset.properties?.iconName,
+        badgeStyle: newAsset.properties?.badgeStyle || newProps.badgeStyle,
+        color: newAsset.properties?.color || newProps.color || '#3b82f6',
+      };
+    } else if (newAsset.properties) {
+      if (newAsset.type) newType = newAsset.type as any;
+      newProps = {
+        ...newProps,
+        ...newAsset.properties
+      };
+    }
+
+    const updatedObj: SceneObject = {
+      ...obj,
+      name: newAsset.name || obj.name,
+      type: newType,
+      position: preservedPosition,
+      rotation: preservedRotation,
+      scale: preservedScale,
+      parentId: preservedParentId,
+      children: preservedChildren,
+      properties: newProps
+    };
+
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      objects: {
+        ...state.objects,
+        [targetObjectId]: updatedObj
+      },
+      replaceTargetObjectId: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Replaced asset on "${obj.name}" preserving transform!` }]
+    };
+  }),
   overlayGridEnabled: false,
   overlayGridSize: 50,
   hudDebugGridEnabled: false,
@@ -1004,10 +1995,59 @@ export const useEditorStore = create<EditorState>((set) => ({
     // Always update timestamp to roll the cooldown window
     lastSnapshotTime = now;
 
+    const curActiveStateId = state.activeStateId;
+    const applyMode = state.transformApplyMode ?? 'activeStateOnly';
+    const hasTransformUpdate = 'position' in updates || 'rotation' in updates || 'scale' in updates;
+    let finalObject = { ...state.objects[id] };
+
+    if (hasTransformUpdate && curActiveStateId && curActiveStateId !== 'base') {
+      if (applyMode === 'activeStateOnly') {
+        if (finalObject.states && finalObject.states.some(st => st.id === curActiveStateId)) {
+          finalObject.states = finalObject.states.map((st) => {
+            if (st.id === curActiveStateId) {
+              const updatedSt = { ...st };
+              if ('position' in updates && updates.position !== undefined) updatedSt.position = updates.position;
+              if ('rotation' in updates && updates.rotation !== undefined) updatedSt.rotation = updates.rotation;
+              if ('scale' in updates && updates.scale !== undefined) updatedSt.scale = updates.scale;
+              return updatedSt;
+            }
+            return st;
+          });
+        } else {
+          if ('position' in updates && updates.position !== undefined) finalObject.position = updates.position;
+          if ('rotation' in updates && updates.rotation !== undefined) finalObject.rotation = updates.rotation;
+          if ('scale' in updates && updates.scale !== undefined) finalObject.scale = updates.scale;
+        }
+      } else {
+        // applyMode === 'all': update base object AND all states
+        if ('position' in updates && updates.position !== undefined) finalObject.position = updates.position;
+        if ('rotation' in updates && updates.rotation !== undefined) finalObject.rotation = updates.rotation;
+        if ('scale' in updates && updates.scale !== undefined) finalObject.scale = updates.scale;
+        if (finalObject.states) {
+          finalObject.states = finalObject.states.map((st) => {
+            const updatedSt = { ...st };
+            if ('position' in updates && updates.position !== undefined) updatedSt.position = updates.position;
+            if ('rotation' in updates && updates.rotation !== undefined) updatedSt.rotation = updates.rotation;
+            if ('scale' in updates && updates.scale !== undefined) updatedSt.scale = updates.scale;
+            return updatedSt;
+          });
+        }
+      }
+
+      // Apply other updates that aren't transform properties to the base object
+      const otherUpdates = { ...updates };
+      delete otherUpdates.position;
+      delete otherUpdates.rotation;
+      delete otherUpdates.scale;
+      finalObject = { ...finalObject, ...otherUpdates };
+    } else {
+      finalObject = { ...finalObject, ...updates };
+    }
+
     return {
       objects: {
         ...state.objects,
-        [id]: { ...state.objects[id], ...updates }
+        [id]: finalObject
       },
       past: newPast,
       future: [], // Clear redo stack on new action
@@ -1040,7 +2080,8 @@ export const useEditorStore = create<EditorState>((set) => ({
     return { 
       selectedObjectId: id,
       selectedObjectIds: id ? [id] : [],
-      selectedObjectRef: state.selectedObjectId === id ? state.selectedObjectRef : null 
+      selectedObjectRef: state.selectedObjectId === id ? state.selectedObjectRef : null,
+      activeStateId: state.selectedObjectId === id ? state.activeStateId : null
     };
   }),
 
@@ -2136,9 +3177,105 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPreviewMode: (preview) => set({ isPreviewMode: preview }),
   
   // Script & behavior implementation
+  activeStateId: null,
+  setActiveStateId: (id) => set({ activeStateId: id }),
+  copiedStates: null,
+
+  copyObjectStates: (objectId) => set((state) => {
+    const obj = state.objects[objectId];
+    if (!obj || !obj.states || obj.states.length === 0) {
+      const toastId = Math.random().toString(36).substring(2, 9);
+      setTimeout(() => {
+        set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+      }, 3000);
+      return {
+        toasts: [...state.toasts, { id: toastId, message: `No custom states found on "${obj?.name || 'object'}"` }]
+      };
+    }
+
+    const copied = JSON.parse(JSON.stringify(obj.states)) as StateData[];
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      copiedStates: copied,
+      toasts: [...state.toasts, { id: toastId, message: `Copied ${copied.length} state configuration(s) from "${obj.name}"` }]
+    };
+  }),
+
+  copySingleState: (stateData) => set((state) => {
+    const copied = [JSON.parse(JSON.stringify(stateData))] as StateData[];
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      copiedStates: copied,
+      toasts: [...state.toasts, { id: toastId, message: `Copied state "${stateData.name}"` }]
+    };
+  }),
+
+  pasteObjectStates: (targetObjectId) => set((state) => {
+    const target = state.objects[targetObjectId];
+    if (!target || !state.copiedStates || state.copiedStates.length === 0) {
+      const toastId = Math.random().toString(36).substring(2, 9);
+      setTimeout(() => {
+        set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+      }, 3000);
+      return {
+        toasts: [...state.toasts, { id: toastId, message: 'No copied states available to paste' }]
+      };
+    }
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+
+    const existingStates = target.states || [];
+    const newStatesToAppend = state.copiedStates.map((s, idx) => {
+      let name = s.name;
+      const count = existingStates.filter(ex => ex.name.toLowerCase().startsWith(name.toLowerCase())).length;
+      if (count > 0) {
+        name = `${s.name} ${count + 1}`;
+      }
+
+      return {
+        ...JSON.parse(JSON.stringify(s)),
+        id: `state_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+        name
+      };
+    });
+
+    const updatedStates = [...existingStates, ...newStatesToAppend];
+    const toastId = Math.random().toString(36).substring(2, 9);
+    setTimeout(() => {
+      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
+    }, 3000);
+
+    return {
+      objects: {
+        ...state.objects,
+        [targetObjectId]: {
+          ...target,
+          states: updatedStates
+        }
+      },
+      activeStateId: newStatesToAppend[0]?.id || state.activeStateId,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: toastId, message: `Pasted ${newStatesToAppend.length} state configuration(s) to "${target.name}"` }]
+    };
+  }),
   editingScriptObjectId: null,
   toasts: [],
   arVideoPlaying: null,
+  activeTransitions: {},
   
   setEditingScriptObjectId: (id) => set({ editingScriptObjectId: id }),
   addToast: (message) => set((state) => {
@@ -2153,6 +3290,25 @@ export const useEditorStore = create<EditorState>((set) => ({
     toasts: state.toasts.filter((t) => t.id !== id)
   })),
   setARVideoPlaying: (video) => set({ arVideoPlaying: video }),
+  
+  triggerStateTransition: (objectId, targetStateId, duration, easing) => set((state) => {
+    const obj = state.objects[objectId];
+    if (!obj) return state;
+    return {
+      activeTransitions: {
+        ...state.activeTransitions,
+        [objectId]: {
+          targetStateId,
+          duration,
+          easing,
+          triggerTime: performance.now() / 1000,
+          fromPos: obj.position,
+          fromRot: obj.rotation,
+          fromScl: obj.scale
+        }
+      }
+    };
+  }),
 
   undo: () => set((state) => {
     if (state.past.length === 0) return state;
@@ -2208,6 +3364,34 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   loadProject: (projectId) => set((state) => {
     try {
+      // Save current project state before switching
+      if (state.currentProjectId) {
+        const currentScenes = { ...state.scenes };
+        if (currentScenes[state.activeSceneId]) {
+          currentScenes[state.activeSceneId] = {
+            ...currentScenes[state.activeSceneId],
+            objects: state.objects,
+            rootObjects: state.rootObjects
+          };
+        }
+        const currentData = {
+          id: state.currentProjectId,
+          name: state.settings.projectName,
+          objects: state.objects,
+          rootObjects: state.rootObjects,
+          settings: state.settings,
+          assets: state.assets,
+          scenes: currentScenes,
+          activeSceneId: state.activeSceneId,
+          lastSavedTime: Date.now()
+        };
+        try {
+          localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(currentData));
+        } catch (e) {
+          console.error('Failed to save previous project before switching:', e);
+        }
+      }
+
       const savedDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${projectId}`));
       if (!savedDataStr) return state;
 
@@ -2217,24 +3401,33 @@ export const useEditorStore = create<EditorState>((set) => ({
       let scenes = parsed.scenes;
       let activeSceneId = parsed.activeSceneId;
 
-      if (!scenes || !activeSceneId) {
+      if (!scenes || typeof scenes !== 'object' || Object.keys(scenes).length === 0) {
         activeSceneId = 'default';
         scenes = {
           'default': { id: 'default', name: 'Main Scene', objects: ensureImageTargetLocked(parsed.objects), rootObjects: parsed.rootObjects }
         };
-      } else {
-        // Ensure active scene is loaded
-        const activeScene = scenes[activeSceneId];
-        if (activeScene) {
-          parsed.objects = ensureImageTargetLocked(activeScene.objects);
-          parsed.rootObjects = activeScene.rootObjects;
-        }
+      } else if (!activeSceneId || !scenes[activeSceneId]) {
+        activeSceneId = Object.keys(scenes)[0];
       }
+
+      const activeScene = scenes[activeSceneId];
+      const objects = activeScene ? ensureImageTargetLocked(activeScene.objects) : ensureImageTargetLocked(parsed.objects);
+      const rootObjects = activeScene ? activeScene.rootObjects : parsed.rootObjects;
+
+      scenes = {
+        ...scenes,
+        [activeSceneId]: {
+          ...scenes[activeSceneId],
+          objects,
+          rootObjects
+        }
+      };
 
       return {
         currentProjectId: projectId,
-        objects: ensureImageTargetLocked(parsed.objects),
-        rootObjects: parsed.rootObjects,
+        isProjectOpen: true,
+        objects,
+        rootObjects,
         scenes,
         activeSceneId,
         settings: parsed.settings || { projectName: parsed.name || 'Untitled Project', imageTargetName: null },
@@ -2323,6 +3516,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
       return {
         currentProjectId: newId,
+        isProjectOpen: true,
         projectsList: updatedList,
         objects,
         rootObjects,
@@ -2578,6 +3772,8 @@ export const useEditorStore = create<EditorState>((set) => ({
         projectsList: updatedList,
         objects: ensureImageTargetLocked(projectData.objects),
         rootObjects: projectData.rootObjects,
+        scenes: projectData.scenes || { 'default': { id: 'default', name: 'Main Scene', objects: projectData.objects, rootObjects: projectData.rootObjects } },
+        activeSceneId: projectData.activeSceneId || 'default',
         settings: projectData.settings,
         assets: projectData.assets || [],
         selectedObjectId: null, selectedObjectIds: [],
@@ -2629,7 +3825,9 @@ export const useEditorStore = create<EditorState>((set) => ({
                 objects: state.objects,
                 rootObjects: state.rootObjects,
                 settings: state.settings,
-                assets: state.assets
+                assets: state.assets,
+                scenes: updatedScenes,
+                activeSceneId: state.activeSceneId
               }
             ).then(() => {
               console.log('Successfully synced current project configuration to the cloud.');
@@ -2649,6 +3847,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
       return {
         projectsList: updatedList,
+        scenes: updatedScenes,
         lastSavedTime: Date.now(),
         hasUnsavedChanges: false
       };
@@ -2737,6 +3936,11 @@ export const useEditorStore = create<EditorState>((set) => ({
         const updatedList = [metadata, ...state.projectsList];
         localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
+        const scenes = parsed.scenes || {
+          'default': { id: 'default', name: 'Main Scene', objects: parsed.objects, rootObjects: parsed.rootObjects }
+        };
+        const activeSceneId = parsed.activeSceneId || 'default';
+
         const projectData = {
           id: newId,
           name,
@@ -2744,6 +3948,8 @@ export const useEditorStore = create<EditorState>((set) => ({
           rootObjects: parsed.rootObjects,
           settings: parsed.settings || { projectName: name, imageTargetName: null },
           assets: parsed.assets || [],
+          scenes,
+          activeSceneId,
           lastSavedTime: Date.now()
         };
         localStorage.setItem(getStorageKey(`ar_forge_project_${newId}`), JSON.stringify(projectData));
@@ -2751,9 +3957,12 @@ export const useEditorStore = create<EditorState>((set) => ({
 
         return {
           currentProjectId: newId,
+          isProjectOpen: true,
           projectsList: updatedList,
           objects: ensureImageTargetLocked(projectData.objects),
           rootObjects: projectData.rootObjects,
+          scenes,
+          activeSceneId,
           settings: projectData.settings,
           assets: projectData.assets,
           selectedObjectId: null, selectedObjectIds: [],
@@ -2777,7 +3986,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   setRotationSnapEnabled: (enabled) => set({ rotationSnapEnabled: enabled }),
   setRotationSnapIncrement: (increment) => set({ rotationSnapIncrement: increment }),
 
-  setIsAssetBrowserOpen: (open) => set({ isAssetBrowserOpen: open }),
   setOverlayGridEnabled: (enabled) => set({ overlayGridEnabled: enabled }),
   setOverlayGridSize: (size) => set({ overlayGridSize: size }),
   setHudDebugGridEnabled: (enabled) => set({ hudDebugGridEnabled: enabled }),

@@ -8,7 +8,9 @@ import { EditorLayout } from './components/layout/EditorLayout';
 import { ViewerLayout } from './components/layout/ViewerLayout';
 import { Login } from './components/auth/Login';
 import { AdminDashboard } from './components/auth/AdminDashboard';
+import { ProjectManagerView } from './components/dashboard/ProjectManagerView';
 import { useAuthStore } from './store/useAuthStore';
+import { useEditorStore } from './store/useEditorStore';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -24,6 +26,16 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
   return <>{children}</>;
 }
 
+function WorkspaceRoute() {
+  const isProjectOpen = useEditorStore(state => state.isProjectOpen);
+
+  if (!isProjectOpen) {
+    return <ProjectManagerView />;
+  }
+
+  return <EditorLayout />;
+}
+
 export default function App() {
   const { isAuthenticated } = useAuthStore();
 
@@ -34,7 +46,7 @@ export default function App() {
         
         <Route path="/" element={
           <ProtectedRoute>
-            <EditorLayout />
+            <WorkspaceRoute />
           </ProtectedRoute>
         } />
         

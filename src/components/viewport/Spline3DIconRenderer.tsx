@@ -1723,7 +1723,8 @@ function ProceduralIconShape({ iconType, color, secondaryColor, style }: { iconT
   }
 }
 
-export function Spline3DIconRenderer({ obj, isPreviewMode }: { obj: SceneObject; isPreviewMode: boolean }) {
+
+export function Spline3DIconRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: (e: any) => void }) {
   const groupRef = useRef<THREE.Group>(null);
   const iconType = obj.properties?.iconType || 'rocket';
   const color = obj.properties?.color || '#ef4444';
@@ -1732,7 +1733,6 @@ export function Spline3DIconRenderer({ obj, isPreviewMode }: { obj: SceneObject;
   const enableFloat = obj.properties?.floatAnim !== false;
   const rotationSpeed = obj.properties?.rotationSpeed ?? 0.5;
 
-  // Realtime subtle floating animation loop
   useFrame((state, delta) => {
     if (groupRef.current && (enableFloat || isPreviewMode)) {
       const t = state.clock.getElapsedTime();
@@ -1745,14 +1745,30 @@ export function Spline3DIconRenderer({ obj, isPreviewMode }: { obj: SceneObject;
     }
   });
 
+  const fallbackShape = (
+    <ProceduralIconShape 
+      iconType={iconType} 
+      color={color} 
+      secondaryColor={secondaryColor} 
+      style={style} 
+    />
+  );
+
   return (
     <group ref={groupRef}>
-      <ProceduralIconShape 
-        iconType={iconType} 
-        color={color} 
-        secondaryColor={secondaryColor} 
-        style={style} 
-      />
+      <React.Suspense fallback={fallbackShape}>
+        <IconModel url={`/models/icons/${iconType}.glb`} fallback={fallbackShape} />
+      </React.Suspense>
     </group>
   );
+}
+
+import { useGLTF } from '@react-three/drei';
+function IconModel({ url, fallback }: { url: string; fallback: React.ReactNode }) {
+  try {
+    const { scene } = useGLTF(url);
+    return <primitive object={scene.clone()} scale={1.5} />;
+  } catch (e) {
+    return <>{fallback}</>;
+  }
 }

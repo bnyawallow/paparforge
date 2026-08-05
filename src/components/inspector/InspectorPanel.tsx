@@ -1,11 +1,74 @@
 import { playCachedAudio } from '../../lib/audioManager';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
-import { Upload } from 'lucide-react';
+import { Upload, Layers } from 'lucide-react';
 import { TextureOptimizerPanel } from './TextureOptimizerPanel';
 import { ModelMaterialEditor } from './ModelMaterialEditor';
+
+function cubicBezier(t: number, x1: number, y1: number, x2: number, y2: number): number {
+  let low = 0;
+  let high = 1;
+  let x = t;
+  for (let i = 0; i < 14; i++) {
+    const mid = (low + high) / 2;
+    const sampleX = 3 * Math.pow(1 - mid, 2) * mid * x1 + 3 * (1 - mid) * Math.pow(mid, 2) * x2 + Math.pow(mid, 3);
+    if (sampleX < x) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  const mid = (low + high) / 2;
+  const y = 3 * Math.pow(1 - mid, 2) * mid * y1 + 3 * (1 - mid) * Math.pow(mid, 2) * y2 + Math.pow(mid, 3);
+  return y;
+}
+
+function getEasingValue(type: string, t: number): number {
+  if (type.startsWith('cubic-bezier(')) {
+    const match = type.match(/cubic-bezier\(([^,]+),([^,]+),([^,]+),([^)]+)\)/);
+    if (match) {
+      const x1 = parseFloat(match[1]);
+      const y1 = parseFloat(match[2]);
+      const x2 = parseFloat(match[3]);
+      const y2 = parseFloat(match[4]);
+      if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2)) {
+        return cubicBezier(t, x1, y1, x2, y2);
+      }
+    }
+  }
+
+  switch (type) {
+    case 'ease-in':
+      return t * t;
+    case 'ease-out':
+      return t * (2 - t);
+    case 'ease-in-out':
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    case 'elastic': {
+      if (t === 0 || t === 1) return t;
+      return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1;
+    }
+    case 'bounce': {
+      const n1 = 7.5625;
+      const d1 = 2.75;
+      let tempT = t;
+      if (tempT < 1 / d1) {
+        return n1 * tempT * tempT;
+      } else if (tempT < 2 / d1) {
+        return n1 * (tempT -= 1.5 / d1) * tempT + 0.75;
+      } else if (tempT < 2.5 / d1) {
+        return n1 * (tempT -= 2.25 / d1) * tempT + 0.9375;
+      } else {
+        return n1 * (tempT -= 2.625 / d1) * tempT + 0.984375;
+      }
+    }
+    case 'linear':
+    default:
+      return t;
+  }
+}
 
 const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
   model: [
@@ -75,6 +138,122 @@ const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
     { name: 'Tech Matrix 💻', url: 'https://player.vimeo.com/external/430810795.sd.mp4?s=d740c83a15af820c7cc61899532551e18cc8ef24&profile_id=139&oauth2_token_id=57447761' }
   ]
 };
+
+interface DraggableNumberInputProps {
+  label?: string;
+  value: number;
+  onChange: (val: number) => void;
+  step?: number;
+  precision?: number;
+  disabled?: boolean;
+  className?: string;
+  labelClass?: string;
+  min?: number;
+  max?: number;
+}
+
+function DraggableNumberInput({
+  label,
+  value,
+  onChange,
+  step = 0.1,
+  precision = 2,
+  disabled = false,
+  className = "",
+  labelClass = "text-gray-500 font-bold bg-black/40 border-r border-[#222]/50 px-1.5",
+  min,
+  max
+}: DraggableNumberInputProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputText, setInputText] = useState("");
+  const dragStartPos = useRef<number>(0);
+  const dragStartValue = useRef<number>(0);
+
+  const safeVal = isNaN(value) ? 0 : value;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (disabled || e.button !== 0) return;
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartPos.current = e.clientX;
+    dragStartValue.current = safeVal;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - dragStartPos.current;
+      const multiplier = moveEvent.shiftKey ? 0.05 : moveEvent.altKey ? 5 : 1;
+      let newValue = dragStartValue.current + deltaX * step * multiplier * 0.5;
+      if (precision === 0) {
+        newValue = Math.round(newValue);
+      }
+      if (min !== undefined) newValue = Math.max(min, newValue);
+      if (max !== undefined) newValue = Math.min(max, newValue);
+      onChange(Number(newValue.toFixed(precision)));
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleFocus = () => {
+    setIsEditing(true);
+    setInputText(safeVal.toString());
+  };
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    const parsed = parseFloat(inputText);
+    if (!isNaN(parsed)) {
+      let finalVal = parsed;
+      if (min !== undefined) finalVal = Math.max(min, finalVal);
+      if (max !== undefined) finalVal = Math.min(max, finalVal);
+      onChange(Number(finalVal.toFixed(precision)));
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  return (
+    <div className={cn(
+      "flex items-center bg-[#0A0A0A] rounded border border-[#222] overflow-hidden focus-within:border-blue-500 transition-colors select-none",
+      isDragging && "border-blue-500 bg-blue-950/20",
+      className
+    )}>
+      {label && (
+        <span 
+          onMouseDown={handleMouseDown}
+          className={cn(
+            "cursor-ew-resize select-none shrink-0 transition-colors hover:text-white flex items-center justify-center",
+            labelClass
+          )}
+          title="Click & drag left/right to adjust value (Hold Shift for fine, Alt for fast)"
+        >
+          {label}
+        </span>
+      )}
+      <input
+        type="text"
+        disabled={disabled}
+        value={isEditing ? inputText : Number(safeVal.toFixed(precision)).toString()}
+        onFocus={handleFocus}
+        onChange={(e) => setInputText(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className="w-full bg-transparent p-1.5 text-white outline-none disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-center font-mono text-[10px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+    </div>
+  );
+}
 
 interface MediaAssetPickerProps {
   value: string;
@@ -328,7 +507,11 @@ import {
   MoveHorizontal,
   MoveVertical,
   Maximize,
-  Copy
+  Copy,
+  RefreshCw,
+  ClipboardCheck,
+  Camera,
+  X
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../lib/theme';
@@ -351,6 +534,160 @@ export const FONT_LIBRARY = [
   { name: 'Bangers', url: 'https://unpkg.com/@fontsource/bangers/files/bangers-latin-400-normal.woff' },
   { name: 'Righteous', url: 'https://unpkg.com/@fontsource/righteous/files/righteous-latin-400-normal.woff' },
   { name: 'Lobster', url: 'https://unpkg.com/@fontsource/lobster/files/lobster-latin-400-normal.woff' },
+];
+
+export interface TextPresetStyle {
+  id: string;
+  name: string;
+  category: string;
+  badge: string;
+  properties: {
+    color: string;
+    outlineColor: string;
+    outlineWidth: number;
+    letterSpacing: number;
+    lineHeight: number;
+    fontUrl?: string;
+    billboard?: boolean;
+  };
+}
+
+export const PRESET_TEXT_STYLES: TextPresetStyle[] = [
+  {
+    id: 'neon-cyber',
+    name: 'Neon Cyberpunk',
+    category: 'Glow / Sci-Fi',
+    badge: '⚡ Cyan & Magenta',
+    properties: {
+      color: '#00F3FF',
+      outlineColor: '#FF007F',
+      outlineWidth: 0.025,
+      letterSpacing: 0.08,
+      lineHeight: 1.2,
+      fontUrl: 'https://unpkg.com/@fontsource/orbitron/files/orbitron-latin-400-normal.woff',
+      billboard: true
+    }
+  },
+  {
+    id: 'gold-empire',
+    name: 'Golden Empire',
+    category: 'Metallic / Luxury',
+    badge: '👑 Gold & Bronze',
+    properties: {
+      color: '#FFD700',
+      outlineColor: '#8B6508',
+      outlineWidth: 0.018,
+      letterSpacing: 0.04,
+      lineHeight: 1.2,
+      fontUrl: 'https://unpkg.com/@fontsource/cinzel/files/cinzel-latin-400-normal.woff',
+      billboard: false
+    }
+  },
+  {
+    id: 'emerald-matrix',
+    name: 'Matrix Emerald',
+    category: 'Hologram',
+    badge: '💚 Neon Green',
+    properties: {
+      color: '#10B981',
+      outlineColor: '#064E3B',
+      outlineWidth: 0.02,
+      letterSpacing: 0.1,
+      lineHeight: 1.25,
+      fontUrl: 'https://unpkg.com/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff',
+      billboard: true
+    }
+  },
+  {
+    id: 'sunset-vapor',
+    name: 'Vaporwave Sunset',
+    category: 'Retro Glow',
+    badge: '🔮 Pink & Purple',
+    properties: {
+      color: '#EC4899',
+      outlineColor: '#8B5CF6',
+      outlineWidth: 0.022,
+      letterSpacing: 0.06,
+      lineHeight: 1.2,
+      fontUrl: 'https://unpkg.com/@fontsource/righteous/files/righteous-latin-400-normal.woff',
+      billboard: true
+    }
+  },
+  {
+    id: 'bold-clean',
+    name: 'Bold Display',
+    category: 'Modern / Clean',
+    badge: '🤍 White & Black',
+    properties: {
+      color: '#FFFFFF',
+      outlineColor: '#000000',
+      outlineWidth: 0.025,
+      letterSpacing: 0.02,
+      lineHeight: 1.1,
+      fontUrl: 'https://unpkg.com/@fontsource/montserrat/files/montserrat-latin-400-normal.woff',
+      billboard: false
+    }
+  },
+  {
+    id: 'slate-sub',
+    name: 'Minimal Subtitle',
+    category: 'HUD Label',
+    badge: '🌙 Slate & Dark',
+    properties: {
+      color: '#E2E8F0',
+      outlineColor: '#0F172A',
+      outlineWidth: 0.012,
+      letterSpacing: 0.05,
+      lineHeight: 1.3,
+      fontUrl: 'https://unpkg.com/@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff',
+      billboard: true
+    }
+  },
+  {
+    id: 'blaze-orange',
+    name: 'Blaze Fire',
+    category: 'High Impact',
+    badge: '🔥 Orange & Crimson',
+    properties: {
+      color: '#F97316',
+      outlineColor: '#DC2626',
+      outlineWidth: 0.02,
+      letterSpacing: 0.04,
+      lineHeight: 1.2,
+      fontUrl: 'https://unpkg.com/@fontsource/oswald/files/oswald-latin-400-normal.woff',
+      billboard: true
+    }
+  },
+  {
+    id: 'arcade-retro',
+    name: 'Arcade Pixel',
+    category: 'Retro Gaming',
+    badge: '🎮 Yellow & Indigo',
+    properties: {
+      color: '#FACC15',
+      outlineColor: '#4338CA',
+      outlineWidth: 0.03,
+      letterSpacing: 0.08,
+      lineHeight: 1.15,
+      fontUrl: 'https://unpkg.com/@fontsource/bangers/files/bangers-latin-400-normal.woff',
+      billboard: false
+    }
+  },
+  {
+    id: 'diamond-ice',
+    name: 'Diamond Ice',
+    category: 'Frost',
+    badge: '💎 Ice Blue & Navy',
+    properties: {
+      color: '#38BDF8',
+      outlineColor: '#1E3A8A',
+      outlineWidth: 0.02,
+      letterSpacing: 0.07,
+      lineHeight: 1.2,
+      fontUrl: 'https://unpkg.com/@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff',
+      billboard: true
+    }
+  }
 ];
 
 const MATERIAL_LIBRARY: Array<{
@@ -790,9 +1127,45 @@ const SOUND_OPTIONS = [
   { value: '/sounds/music/drum_beat.wav', label: '🥁 Drum Beat' },
 ];
 
-function InspectorSection({ title, defaultOpen = true, children, rightElement }: { title: React.ReactNode, defaultOpen?: boolean, children: React.ReactNode, rightElement?: React.ReactNode }) {
+function VisualCheckbox({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: React.ReactNode }) {
   return (
-    <details className="group [&_summary::-webkit-details-marker]:hidden border-t border-[#222] pt-4 first:border-0 first:pt-0" open={defaultOpen}>
+    <button 
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="flex items-center gap-2 cursor-pointer select-none group text-left outline-none border-none bg-transparent p-0"
+    >
+      <div 
+        className={cn(
+          "w-4 h-4 rounded border flex items-center justify-center transition-all duration-150 shrink-0",
+          checked 
+            ? "bg-blue-600 border-blue-500 text-white shadow-sm shadow-blue-500/10" 
+            : "bg-black/40 border-[#333] group-hover:border-[#555] text-transparent"
+        )}
+      >
+        <Check size={10} strokeWidth={3} className={cn("transition-transform duration-150 scale-0", checked && "scale-100")} />
+      </div>
+      {label && <span className="text-[10px] text-gray-300 font-medium select-none">{label}</span>}
+    </button>
+  );
+}
+
+function InspectorSection({ title, defaultOpen = true, isOpen, children, rightElement }: { title: React.ReactNode, defaultOpen?: boolean, isOpen?: boolean, children: React.ReactNode, rightElement?: React.ReactNode }) {
+  const [open, setOpen] = useState(isOpen !== undefined ? isOpen : defaultOpen);
+  
+  useEffect(() => {
+    if (isOpen !== undefined) {
+      setOpen(isOpen);
+    }
+  }, [isOpen]);
+
+  return (
+    <details 
+      className="group [&_summary::-webkit-details-marker]:hidden border-t border-[#222] pt-4 first:border-0 first:pt-0" 
+      open={open}
+      onToggle={(e: any) => {
+        setOpen(e.currentTarget.open);
+      }}
+    >
       <summary className="cursor-pointer list-none flex items-center justify-between select-none mb-3">
         <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#888] uppercase tracking-wider">
           {title}
@@ -869,11 +1242,20 @@ export function InspectorPanel({ width }: { width?: number }) {
     duplicateSelection,
     alignSelectedObjects,
     distributeSelectedObjects,
-    centerGroupPivot
+    centerGroupPivot,
+    activeStateId,
+    setActiveStateId,
+    copiedStates,
+    copyObjectStates,
+    pasteObjectStates,
+    setIsAssetBrowserOpen,
+    setReplaceTargetObjectId
   } = useEditorStore();
 
   const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography' | 'theme'>('inspector');
   const [linkAxes, setLinkAxes] = useState(false);
+  const [previewingPresetId, setPreviewingPresetId] = useState<string | null>(null);
+  const [originalTextProps, setOriginalTextProps] = useState<any | null>(null);
 
   const [textStyles, setTextStyles] = useState<Array<{
     id: string;
@@ -916,11 +1298,39 @@ export function InspectorPanel({ width }: { width?: number }) {
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false);
   const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({});
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [expandedActions, setExpandedActions] = useState<Record<string, boolean>>({});
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
+  const [isEventsSectionOpen, setIsEventsSectionOpen] = useState(false);
+  const [curveProgress, setCurveProgress] = useState(0);
+
+  useEffect(() => {
+    setIsEventsSectionOpen(false);
+  }, [selectedObjectId]);
+
+  useEffect(() => {
+    let animId: number;
+    const startTime = performance.now();
+    const tick = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      // Loop every 2 seconds
+      setCurveProgress((elapsed % 2.0) / 2.0);
+      animId = requestAnimationFrame(tick);
+    };
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
   const toggleRuleExpansion = (ruleId: string) => {
     setExpandedRules(prev => ({
       ...prev,
       [ruleId]: prev[ruleId] === undefined ? false : !prev[ruleId]
+    }));
+  };
+
+  const toggleActionExpansion = (actionId: string) => {
+    setExpandedActions(prev => ({
+      ...prev,
+      [actionId]: prev[actionId] === undefined ? false : !prev[actionId]
     }));
   };
 
@@ -962,70 +1372,89 @@ export function InspectorPanel({ width }: { width?: number }) {
     selectObject(id);
   };
 
-  const handleAddBehavior = () => {
+  const handleAddState = () => {
     if (!selectedObjectId || !objects[selectedObjectId]) return;
     const obj = objects[selectedObjectId];
-    const behaviors = obj.properties.visualBehaviors || [];
-    const newBehavior = {
+    const states = obj.states || [];
+    const newState = {
       id: Math.random().toString(36).substring(2, 9),
-      name: 'New Rule',
-      trigger: 'onTap',
-      action: 'toast',
-      toastMessage: 'Triggered Event Action!',
-      url: 'https://',
-      soundPreset: '/sounds/success_chime.wav',
-      targetObjectId: '',
-      proximityDistance: 2.0
+      name: `State ${states.length + 1}`,
+      position: [...obj.position] as Vector3Data,
+      rotation: [...obj.rotation] as Vector3Data,
+      scale: [...obj.scale] as Vector3Data,
     };
     
-    setExpandedRules(prev => ({ ...prev, [newBehavior.id]: true }));
     updateObject(selectedObjectId, {
-      properties: {
-        ...obj.properties,
-        visualBehaviors: [...behaviors, newBehavior]
-      }
+      states: [...states, newState]
+    });
+    setActiveStateId(newState.id);
+  };
+
+  const handleUpdateState = (id: string, updates: any) => {
+    if (!selectedObjectId || !objects[selectedObjectId]) return;
+    const obj = objects[selectedObjectId];
+    const states = obj.states || [];
+    const updated = states.map((s: any) => s.id === id ? { ...s, ...updates } : s);
+    updateObject(selectedObjectId, {
+      states: updated
     });
   };
 
-  const handleUpdateBehavior = (id: string, updates: any) => {
+  const handleRemoveState = (id: string) => {
     if (!selectedObjectId || !objects[selectedObjectId]) return;
     const obj = objects[selectedObjectId];
-    const behaviors = obj.properties.visualBehaviors || [];
-
-    // Validation for actions assigned to incompatible objects
-    if (updates.action || updates.targetObjectId) {
-      const b = behaviors.find((b: any) => b.id === id);
-      const action = updates.action || b?.action;
-      const targetId = updates.targetObjectId !== undefined ? updates.targetObjectId : b?.targetObjectId;
-      const targetObj = targetId ? objects[targetId] : obj;
-      
-      if (action === 'playModelAnimation' || action === 'pauseModelAnimation') {
-        if (targetObj && targetObj.type !== 'model') {
-          // Warning via window.alert since useEditorStore may not have toast easily accessible here, or better yet, maybe just alert for now.
-          window.alert(`Warning: '${action === 'playModelAnimation' ? 'Play Model Animation' : 'Pause Model Animation'}' action requires a 3D Model object. '${targetObj.name}' is a ${targetObj.type}.`);
-        }
-      }
+    const states = obj.states || [];
+    const updated = states.filter((s: any) => s.id !== id);
+    updateObject(selectedObjectId, {
+      states: updated
+    });
+    if (activeStateId === id) {
+      setActiveStateId(null);
     }
+  };
 
-    const updated = behaviors.map((b: any) => b.id === id ? { ...b, ...updates } : b);
+  const handleAddEvent = () => {
+    if (!selectedObjectId || !objects[selectedObjectId]) return;
+    const obj = objects[selectedObjectId];
+    const events = obj.events || [];
+    const actionId = Math.random().toString(36).substring(2, 9);
+    const newEvent = {
+      id: Math.random().toString(36).substring(2, 9),
+      name: 'New Event',
+      trigger: 'onTap',
+      actions: [{
+        id: actionId,
+        type: 'transition',
+        transitionTargetStateId: '',
+        transitionDuration: 1.0,
+      }]
+    };
+    
+    setIsEventsSectionOpen(true);
+    setExpandedRules(prev => ({ ...prev, [newEvent.id]: true }));
+    setExpandedActions(prev => ({ ...prev, [actionId]: true }));
     updateObject(selectedObjectId, {
-      properties: {
-        ...obj.properties,
-        visualBehaviors: updated
-      }
+      events: [...events, newEvent as any]
     });
   };
 
-  const handleRemoveBehavior = (id: string) => {
+  const handleUpdateEvent = (id: string, updates: any) => {
     if (!selectedObjectId || !objects[selectedObjectId]) return;
     const obj = objects[selectedObjectId];
-    const behaviors = obj.properties.visualBehaviors || [];
-    const updated = behaviors.filter((b: any) => b.id !== id);
+    const events = obj.events || [];
+    const updated = events.map((e: any) => e.id === id ? { ...e, ...updates } : e);
     updateObject(selectedObjectId, {
-      properties: {
-        ...obj.properties,
-        visualBehaviors: updated
-      }
+      events: updated
+    });
+  };
+
+  const handleRemoveEvent = (id: string) => {
+    if (!selectedObjectId || !objects[selectedObjectId]) return;
+    const obj = objects[selectedObjectId];
+    const events = obj.events || [];
+    const updated = events.filter((e: any) => e.id !== id);
+    updateObject(selectedObjectId, {
+      events: updated
     });
   };
 
@@ -1033,9 +1462,36 @@ export function InspectorPanel({ width }: { width?: number }) {
   const parentObj = obj?.parentId ? objects[obj.parentId] : null;
   const isParentAutoLayout = parentObj && parentObj.type === 'hudCanvas' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
-  const handleVectorChange = (prop: 'position' | 'rotation' | 'scale', index: number, value: string) => {
+  const activeStateObj = (activeStateId && activeStateId !== 'base' && obj?.states)
+    ? obj.states.find((s: any) => s.id === activeStateId)
+    : null;
+
+  const currentPos = activeStateObj?.position || obj?.position || [0, 0, 0];
+  const currentRot = activeStateObj?.rotation || obj?.rotation || [0, 0, 0];
+  const currentScl = activeStateObj?.scale || obj?.scale || [1, 1, 1];
+
+  const handleVectorChange = (prop: 'position' | 'rotation' | 'scale', index: number, value: string | number) => {
     if (!obj) return;
-    const numValue = parseFloat(value) || 0;
+    const numValue = typeof value === 'number' ? (isNaN(value) ? 0 : value) : (parseFloat(value) || 0);
+
+    if (activeStateId && activeStateId !== 'base' && obj.states) {
+      const currentStates = obj.states || [];
+      const targetState = currentStates.find((s: any) => s.id === activeStateId);
+      if (targetState) {
+        const baseVec = targetState[prop] ? [...targetState[prop]] : [...obj[prop]];
+        const newVec = baseVec as Vector3Data;
+        if (linkAxes) {
+          newVec[0] = numValue;
+          newVec[1] = numValue;
+          newVec[2] = numValue;
+        } else {
+          newVec[index] = numValue;
+        }
+        const updatedStates = currentStates.map((s: any) => s.id === activeStateId ? { ...s, [prop]: newVec } : s);
+        updateObject(selectedObjectId!, { states: updatedStates });
+        return;
+      }
+    }
 
     if (selectedObjectIds && selectedObjectIds.length > 0) {
       selectedObjectIds.forEach(id => {
@@ -2509,6 +2965,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                     ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type)
                   );
 
+                  if (!isAll2D) return null;
+
                   return (
                     <div className="flex flex-col gap-3 bg-[#1A1A1A]/40 p-3 rounded-lg border border-[#2A2A2A]/60">
                       <div className="flex items-center justify-between">
@@ -2683,6 +3141,19 @@ export function InspectorPanel({ width }: { width?: number }) {
               <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
             </div>
           </div>
+          {obj.type !== 'imageTarget' && obj.type !== 'group' && obj.type !== 'hudCanvas' && (
+            <button
+              onClick={() => {
+                setReplaceTargetObjectId(selectedObjectId);
+                setIsAssetBrowserOpen(true);
+              }}
+              className="w-full py-2 px-3 bg-gradient-to-r from-blue-600/20 via-cyan-600/20 to-purple-600/20 hover:from-blue-600/35 hover:to-purple-600/35 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm group"
+              title="Replace this object with another 3D asset, image, texture or media from Asset Browser while keeping exact Position, Rotation & Scale"
+            >
+              <RefreshCw size={13} className="text-cyan-400 group-hover:rotate-180 transition-transform duration-500" />
+              <span>Replace Asset (Keep Transform)</span>
+            </button>
+          )}
           {obj.type === 'group' && (
             <button
               onClick={() => ungroupObject(selectedObjectId)}
@@ -2694,282 +3165,559 @@ export function InspectorPanel({ width }: { width?: number }) {
           )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          {/* Lock / Unlock Toggle Panel */}
-          <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-            <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
-              {obj.locked ? (
-                <>
-                  <Lock size={12} className="text-red-400 animate-pulse" />
-                  <span className="text-red-400 font-semibold text-[11px]">Transform Locked</span>
-                </>
-              ) : (
-                <>
-                  <Unlock size={12} className="text-[#666]" />
-                  <span className="text-[11px]">Transform Unlocked</span>
-                </>
-              )}
-            </span>
-            <button
-              onClick={() => updateObject(selectedObjectId, { locked: !obj.locked })}
-              className={cn(
-                "px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-all tracking-wider border",
-                obj.locked 
-                  ? "bg-red-500/10 border-red-500/30 hover:bg-red-500/20 text-red-400" 
-                  : "bg-[#222] border-[#333] hover:border-[#444] text-[#888] hover:text-white"
-              )}
-              title={obj.locked ? "Unlock transforms" : "Lock transforms to prevent accidental movement"}
-            >
-              {obj.locked ? "Unlock" : "Lock"}
-            </button>
-          </div>
+        {obj.type !== 'imageTarget' && obj.type !== 'audio' && obj.type !== 'light' && (
+          <div className="flex flex-col gap-2">
 
-          {/* Ignore Clicks Toggle Panel */}
-          <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-            <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Ignore pointer events on this object (raycast pass-through)">
-              <MousePointerClick size={12} className={obj.properties.ignoreClicks ? "text-[#555]" : "text-blue-400"} />
-              <span className="text-[11px]">Receive Tap Events</span>
-            </span>
-            <button
-              onClick={() => handlePropertyChange('ignoreClicks', !obj.properties.ignoreClicks)}
-              className={cn(
-                "w-8 h-4 rounded-full transition-colors relative",
-                !obj.properties.ignoreClicks ? "bg-blue-600" : "bg-[#333]"
-              )}
-            >
-              <div className={cn(
-                "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
-                !obj.properties.ignoreClicks ? "left-[18px]" : "left-0.5"
-              )} />
-            </button>
-          </div>
-          
-          {/* Mouse Cursor Selector */}
-          {!obj.properties.ignoreClicks && (
+            {/* Always Face Camera Toggle Panel */}
             <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
-                <span className="text-[11px]">Custom AR Cursor</span>
+              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Keep this 3D object dynamically rotated toward the active camera (Billboard mode)">
+                <Camera size={12} className={obj.properties.billboard ? "text-cyan-400" : "text-[#555]"} />
+                <span className="text-[11px] font-semibold text-gray-200">Always Face Camera</span>
               </span>
-              <select
-                value={obj.properties.cursor || 'pointer'}
-                onChange={(e) => handlePropertyChange('cursor', e.target.value)}
-                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1 focus:border-blue-500 outline-none w-28"
+              <button
+                onClick={() => handlePropertyChange('billboard', !obj.properties.billboard)}
+                className={cn(
+                  "w-8 h-4 rounded-full transition-colors relative cursor-pointer",
+                  obj.properties.billboard ? "bg-cyan-600" : "bg-[#333]"
+                )}
+                title="Toggle Billboard mode (always face screen camera)"
               >
-                <option value="pointer">👆 Default Tap</option>
-                <option value="grab">🖐️ Grab</option>
-                <option value="zoom-in">🔍 Zoom</option>
-                <option value="crosshair">🎯 Target</option>
-                <option value="help">❓ Help</option>
-                <option value="not-allowed">🚫 Blocked</option>
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* Transform Component */}
-        <InspectorSection 
-          title="Transform" 
-          rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase">Locked</span>}
-        >
-          <div className="grid grid-cols-4 gap-2 text-[10px] font-mono">
-            <div className="flex items-center gap-2 col-span-4 border-b border-[#222]/40 pb-2 mb-1">
-              <input
-                type="checkbox"
-                id="link-axes"
-                checked={linkAxes}
-                onChange={(e) => setLinkAxes(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-[#0A0A0A] border border-[#222] text-blue-500 focus:ring-0 cursor-pointer"
-              />
-              <label htmlFor="link-axes" className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider cursor-pointer select-none flex items-center gap-1.5">
-                🔗 Edit Axes Uniformly
-              </label>
+                <div className={cn(
+                  "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
+                  obj.properties.billboard ? "left-[18px]" : "left-0.5"
+                )} />
+              </button>
             </div>
 
-            <span className="text-[#666] flex items-center">POS</span>
-            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[0] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-red-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[1] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-green-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.position[2] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('position', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-blue-400 outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <span className="text-[#666] flex items-center">ROT</span>
-            <input type="number" step="1" disabled={obj.locked} value={Number((obj.rotation[0] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('rotation', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="1" disabled={obj.locked} value={Number((obj.rotation[1] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('rotation', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="1" disabled={obj.locked} value={Number((obj.rotation[2] ?? 0).toFixed(2))} onChange={(e) => handleVectorChange('rotation', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <span className="text-[#666] flex items-center">SCL</span>
-            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.scale[0] ?? 1).toFixed(2))} onChange={(e) => handleVectorChange('scale', 0, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.scale[1] ?? 1).toFixed(2))} onChange={(e) => handleVectorChange('scale', 1, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-            <input type="number" step="0.1" disabled={obj.locked} value={Number((obj.scale[2] ?? 1).toFixed(2))} onChange={(e) => handleVectorChange('scale', 2, e.target.value)} className="bg-[#0A0A0A] p-1.5 rounded border border-[#222] text-center text-white outline-none focus:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed" />
-          </div>
-
-          {/* Snapping Configurations */}
-          <div className="mt-2 bg-[#1A1A1A]/30 border border-[#222] rounded p-3 flex flex-col gap-3">
-            {/* Rotation Snapping */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-[#AAA] font-semibold flex items-center gap-1.5">
-                  <RotateCw size={11} className={rotationSnapEnabled ? "text-emerald-400" : "text-[#555]"} />
-                  Rotation snapping
-                </span>
-                <button
-                  onClick={() => setRotationSnapEnabled(!rotationSnapEnabled)}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                    rotationSnapEnabled ? "bg-emerald-600 text-white" : "bg-[#222] text-[#666] hover:text-white"
-                  )}
-                >
-                  {rotationSnapEnabled ? "ON" : "OFF"}
-                </button>
-              </div>
-              
-              {rotationSnapEnabled && (
-                <div className="flex items-center gap-1 mt-1">
-                  {[5, 15, 30, 45, 90].map((deg) => (
-                    <button
-                      key={deg}
-                      onClick={() => setRotationSnapIncrement(deg)}
-                      className={cn(
-                        "flex-1 py-1 text-[9px] font-mono rounded transition-all border",
-                        rotationSnapIncrement === deg
-                          ? "bg-emerald-600/20 border-emerald-500 text-emerald-300 font-bold"
-                          : "bg-[#0C0C0C] border-transparent text-[#666] hover:text-white"
-                      )}
-                    >
-                      {deg}°
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* HUD Flexbox Grid Overlay Debugger */}
-            <div className="flex flex-col gap-1.5 border-t border-[#222]/50 pt-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-[#AAA] font-semibold flex items-center gap-1.5">
-                  <LayoutGrid size={11} className={hudDebugGridEnabled ? "text-pink-400 animate-pulse" : "text-[#555]"} />
-                  HUD Flexbox Debugger
-                </span>
-                <button
-                  onClick={() => setHudDebugGridEnabled(!hudDebugGridEnabled)}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer",
-                    hudDebugGridEnabled ? "bg-pink-600 text-white shadow shadow-pink-500/25" : "bg-[#222] text-[#666] hover:text-white"
-                  )}
-                >
-                  {hudDebugGridEnabled ? "ON" : "OFF"}
-                </button>
-              </div>
-              <p className="text-[8px] text-[#666] leading-relaxed">
-                Visualizes real-time container boundaries, padding areas, item distribution slots, and layout gaps.
-              </p>
-            </div>
-          </div>
-        </InspectorSection>
-
-        {/* AR Properties / Interactivity Panel */}
-        <InspectorSection 
-          title={
-            <>
-              <Sparkles size={11} className="text-orange-400 animate-pulse" />
-              AR Interactivity Traits
-            </>
-          }
-          defaultOpen={false}
-        >
-          <div className="flex flex-col gap-4">
-            {/* 1. Behavior Dropdown */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
-                <Zap size={10} className="text-orange-400" />
-                Live Behavior Rule
-              </label>
-              <select
-                value={obj.properties.behavior || ''}
-                onChange={(e) => handlePropertyChange('behavior', e.target.value)}
-                className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+            {/* Ignore Clicks Toggle Panel */}
+            <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Ignore pointer events on this object (raycast pass-through)">
+                <MousePointerClick size={12} className={obj.properties.ignoreClicks ? "text-[#555]" : "text-blue-400"} />
+                <span className="text-[11px]">Receive Tap Events</span>
+              </span>
+              <button
+                onClick={() => handlePropertyChange('ignoreClicks', !obj.properties.ignoreClicks)}
+                className={cn(
+                  "w-8 h-4 rounded-full transition-colors relative",
+                  !obj.properties.ignoreClicks ? "bg-blue-600" : "bg-[#333]"
+                )}
               >
-                {BEHAVIOR_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value} className="bg-[#141414]">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                <div className={cn(
+                  "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
+                  !obj.properties.ignoreClicks ? "left-[18px]" : "left-0.5"
+                )} />
+              </button>
             </div>
-
-            {obj.properties.behavior === 'spin' && (
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
-                  <Zap size={10} className="text-blue-400" />
-                  Spin Axis
-                </label>
+            
+            {/* Mouse Cursor Selector */}
+            {!obj.properties.ignoreClicks && (
+              <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+                <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
+                  <span className="text-[11px]">Custom AR Cursor</span>
+                </span>
                 <select
-                  value={obj.properties.spinAxis || 'z'}
-                  onChange={(e) => handlePropertyChange('spinAxis', e.target.value)}
-                  className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+                  value={obj.properties.cursor || 'pointer'}
+                  onChange={(e) => handlePropertyChange('cursor', e.target.value)}
+                  className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1 focus:border-blue-500 outline-none w-28"
                 >
-                  <option value="x">X Axis</option>
-                  <option value="y">Y Axis</option>
-                  <option value="z">Z Axis</option>
+                  <option value="pointer">👆 Default Tap</option>
+                  <option value="grab">🖐️ Grab</option>
+                  <option value="zoom-in">🔍 Zoom</option>
+                  <option value="crosshair">🎯 Target</option>
+                  <option value="help">❓ Help</option>
+                  <option value="not-allowed">🚫 Blocked</option>
                 </select>
               </div>
             )}
+          </div>
+        )}
 
-            {/* 2. Interactive Audio Trigger */}
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-[#666] font-medium flex items-center gap-1">
-                  <Volume2 size={10} className="text-pink-400" />
-                  Audio click Response
-                </span>
-                {obj.properties.soundUrl && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => playPreviewSound(obj.properties.soundUrl)}
-                      className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded text-[8px] uppercase font-bold transition-colors"
-                      title="Play Preview Sound"
-                    >
-                      <Play size={8} className="fill-pink-400/20" />
-                      <span>Test Play</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handlePropertyChange('soundUrl', undefined);
-                        handlePropertyChange('soundName', undefined);
-                      }}
-                      className="text-[#666] hover:text-red-400 transition-colors p-0.5 rounded hover:bg-black/25"
-                      title="Remove Sound"
-                    >
-                      <Trash2 size={10} />
-                    </button>
+        {/* Transform Component */}
+        {(() => {
+          const showRotation = obj.type !== 'audio' && !(obj.type === 'light' && obj.properties.lightType === 'point');
+          const showScale = obj.type !== 'audio' && obj.type !== 'light';
+          
+          return !obj.type.startsWith('hud') ? (
+            <InspectorSection 
+              title={
+                <div className="flex items-center justify-between w-full">
+                  <span className="flex items-center gap-1.5">Transform</span>
+                  {activeStateObj && (
+                    <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                      <Sparkles size={9} /> State: {activeStateObj.name}
+                    </span>
+                  )}
+                </div>
+              } 
+              rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase">Locked</span>}
+            >
+              <div className="flex flex-col gap-3">
+                {/* Scale Link Axes / Edit Uniformly (Only if Scale is shown) */}
+                {showScale && (
+                  <div className="flex items-center justify-between bg-black/30 px-2 py-1.5 rounded border border-[#222]/50">
+                    <span className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider select-none flex items-center gap-1.5">
+                      🔗 Link Axes (Uniform Scale)
+                    </span>
+                    <input
+                      type="checkbox"
+                      id="link-axes"
+                      checked={linkAxes}
+                      onChange={(e) => setLinkAxes(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded bg-black/50 border border-[#333] text-blue-500 focus:ring-0 cursor-pointer"
+                    />
+                  </div>
+                )}
+
+                {/* Position Block */}
+                <div className="flex flex-col gap-1.5 bg-black/20 p-2 rounded border border-[#222]/30">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    📍 Position
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
+                    <DraggableNumberInput
+                      label="X"
+                      step={0.1}
+                      disabled={obj.locked}
+                      value={currentPos[0] ?? 0}
+                      onChange={(v) => handleVectorChange('position', 0, v)}
+                      labelClass="px-1.5 text-red-500 font-bold border-r border-[#222]/50 bg-black/40"
+                      className="focus-within:border-red-500"
+                    />
+                    <DraggableNumberInput
+                      label="Y"
+                      step={0.1}
+                      disabled={obj.locked}
+                      value={currentPos[1] ?? 0}
+                      onChange={(v) => handleVectorChange('position', 1, v)}
+                      labelClass="px-1.5 text-green-500 font-bold border-r border-[#222]/50 bg-black/40"
+                      className="focus-within:border-green-500"
+                    />
+                    <DraggableNumberInput
+                      label="Z"
+                      step={0.1}
+                      disabled={obj.locked}
+                      value={currentPos[2] ?? 0}
+                      onChange={(v) => handleVectorChange('position', 2, v)}
+                      labelClass="px-1.5 text-blue-500 font-bold border-r border-[#222]/50 bg-black/40"
+                      className="focus-within:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Rotation Block */}
+                {showRotation && (
+                  <div className="flex flex-col gap-1.5 bg-black/20 p-2 rounded border border-[#222]/30">
+                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      🔄 Rotation (Degrees)
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
+                      <DraggableNumberInput
+                        label="X"
+                        step={1}
+                        disabled={obj.locked}
+                        value={currentRot[0] ?? 0}
+                        onChange={(v) => handleVectorChange('rotation', 0, v)}
+                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                      />
+                      <DraggableNumberInput
+                        label="Y"
+                        step={1}
+                        disabled={obj.locked}
+                        value={currentRot[1] ?? 0}
+                        onChange={(v) => handleVectorChange('rotation', 1, v)}
+                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                      />
+                      <DraggableNumberInput
+                        label="Z"
+                        step={1}
+                        disabled={obj.locked}
+                        value={currentRot[2] ?? 0}
+                        onChange={(v) => handleVectorChange('rotation', 2, v)}
+                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Scale Block */}
+                {showScale && (
+                  <div className="flex flex-col gap-1.5 bg-black/20 p-2 rounded border border-[#222]/30">
+                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      📐 Scale
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
+                      <DraggableNumberInput
+                        label="X"
+                        step={0.1}
+                        disabled={obj.locked}
+                        value={currentScl[0] ?? 1}
+                        onChange={(v) => handleVectorChange('scale', 0, v)}
+                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                      />
+                      <DraggableNumberInput
+                        label="Y"
+                        step={0.1}
+                        disabled={obj.locked}
+                        value={currentScl[1] ?? 1}
+                        onChange={(v) => handleVectorChange('scale', 1, v)}
+                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                      />
+                      <DraggableNumberInput
+                        label="Z"
+                        step={0.1}
+                        disabled={obj.locked}
+                        value={currentScl[2] ?? 1}
+                        onChange={(v) => handleVectorChange('scale', 2, v)}
+                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
-              <MediaAssetPicker 
-                value={obj.properties.soundUrl || ''}
-                onChange={(url) => {
-                  handlePropertyChange('soundUrl', url);
-                  handlePropertyChange('soundName', url.substring(url.lastIndexOf('/') + 1));
-                }}
-                type="audio"
-                accept="audio/*"
-                placeholder="Select SFX or Paste URL..."
-              />
-            </div>
-          </div>
-        </InspectorSection>
+            </InspectorSection>
+          ) : (
+            <InspectorSection 
+              title={
+                <div className="flex items-center justify-between w-full">
+                  <span className="flex items-center gap-1.5">Transform</span>
+                </div>
+              }
+            >
+              <div className="bg-cyan-950/20 border border-cyan-500/20 rounded p-2.5 text-center">
+                <p className="text-[10px] text-cyan-300 font-semibold leading-normal">
+                  📐 Responsive 2D Coordinates
+                </p>
+                <p className="text-[9px] text-gray-500 mt-1 leading-relaxed">
+                  This entity's layout, margins, and position are managed dynamically in the <b>Entity Parameters</b> section below.
+                </p>
+              </div>
+            </InspectorSection>
+          );
+        })()}
 
-        {/* No-Code Event Triggers & Actions */}
+        {/* AR Properties / Interactivity Panel */}
+        {obj.type !== 'imageTarget' && obj.type !== 'audio' && obj.type !== 'light' && (
+          <InspectorSection 
+            title={
+              <>
+                <Sparkles size={11} className="text-orange-400 animate-pulse" />
+                AR Interactivity Traits
+              </>
+            }
+            defaultOpen={false}
+          >
+            <div className="flex flex-col gap-4">
+              {/* 1. Behavior Dropdown */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
+                  <Zap size={10} className="text-orange-400" />
+                  Live Behavior Rule
+                </label>
+                <select
+                  value={obj.properties.behavior || ''}
+                  onChange={(e) => handlePropertyChange('behavior', e.target.value)}
+                  className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+                >
+                  {BEHAVIOR_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value} className="bg-[#141414]">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {obj.properties.behavior === 'spin' && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
+                    <Zap size={10} className="text-blue-400" />
+                    Spin Axis
+                  </label>
+                  <select
+                    value={obj.properties.spinAxis || 'z'}
+                    onChange={(e) => handlePropertyChange('spinAxis', e.target.value)}
+                    className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+                  >
+                    <option value="x">X Axis</option>
+                    <option value="y">Y Axis</option>
+                    <option value="z">Z Axis</option>
+                  </select>
+                </div>
+              )}
+
+              {/* 2. Interactive Audio Trigger */}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-[#666] font-medium flex items-center gap-1">
+                    <Volume2 size={10} className="text-pink-400" />
+                    Audio click Response
+                  </span>
+                  {obj.properties.soundUrl && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => playPreviewSound(obj.properties.soundUrl)}
+                        className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded text-[8px] uppercase font-bold transition-colors"
+                        title="Play Preview Sound"
+                      >
+                        <Play size={8} className="fill-pink-400/20" />
+                        <span>Test Play</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handlePropertyChange('soundUrl', undefined);
+                          handlePropertyChange('soundName', undefined);
+                        }}
+                        className="text-[#666] hover:text-red-400 transition-colors p-0.5 rounded hover:bg-black/25"
+                        title="Remove Sound"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <MediaAssetPicker 
+                  value={obj.properties.soundUrl || ''}
+                  onChange={(url) => {
+                    handlePropertyChange('soundUrl', url);
+                    handlePropertyChange('soundName', url.substring(url.lastIndexOf('/') + 1));
+                  }}
+                  type="audio"
+                  accept="audio/*"
+                  placeholder="Select SFX or Paste URL..."
+                />
+              </div>
+            </div>
+          </InspectorSection>
+        )}
+
+        {/* States Section */}
+        {obj.type !== 'imageTarget' && (
+          <InspectorSection
+            title={
+              <>
+                <Layers size={11} className="text-purple-400 fill-purple-500/20" />
+                States
+              </>
+            }
+            defaultOpen={true}
+            rightElement={
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    copyObjectStates(selectedObjectId!);
+                  }}
+                  disabled={!obj.states || obj.states.length === 0}
+                  className="p-1 rounded text-gray-400 hover:text-white bg-white/5 disabled:opacity-30 disabled:hover:text-gray-400 hover:bg-white/10 transition-all cursor-pointer select-none"
+                  title="Copy all state configurations of this object"
+                >
+                  <Copy size={11} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    pasteObjectStates(selectedObjectId!);
+                  }}
+                  disabled={!copiedStates || copiedStates.length === 0}
+                  className="p-1 rounded text-purple-400 hover:text-purple-300 bg-purple-500/10 disabled:opacity-30 disabled:hover:text-purple-400 disabled:bg-transparent hover:bg-purple-500/15 transition-all cursor-pointer select-none"
+                  title="Paste copied state configurations to this object"
+                >
+                  <ClipboardCheck size={11} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleAddState();
+                  }}
+                  className="p-1 rounded text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/15 transition-all cursor-pointer select-none"
+                  title="Add new keyframe state"
+                >
+                  <Plus size={11} />
+                </button>
+              </div>
+            }
+          >
+            <div className="flex flex-col gap-3">
+              {/* Spline-Style State Tabs Selector */}
+              <div className="flex items-center gap-1.5 flex-wrap bg-[#111] p-1.5 rounded-lg border border-[#222]">
+                {/* Base State Pill */}
+                <button
+                  onClick={() => setActiveStateId(null)}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[10px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none",
+                    (!activeStateId || activeStateId === 'base')
+                      ? "bg-purple-600 text-white font-bold shadow-sm shadow-purple-500/30"
+                      : "bg-[#1C1C1C] text-[#888] hover:text-white hover:bg-[#252525]"
+                  )}
+                >
+                  <div className={cn("w-1.5 h-1.5 rounded-full", (!activeStateId || activeStateId === 'base') ? "bg-white" : "bg-purple-400")} />
+                  Base State
+                </button>
+
+                {/* Custom State Pills */}
+                {(obj.states || []).map((state: any) => {
+                  const isActive = activeStateId === state.id;
+                  return (
+                    <button
+                      key={state.id}
+                      onClick={() => setActiveStateId(state.id)}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-[10px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none group",
+                        isActive
+                          ? "bg-purple-600 text-white font-bold shadow-sm shadow-purple-500/30"
+                          : "bg-[#1C1C1C] text-[#888] hover:text-white hover:bg-[#252525]"
+                      )}
+                    >
+                      <div className={cn("w-1.5 h-1.5 rounded-full", isActive ? "bg-white animate-pulse" : "bg-purple-400")} />
+                      <span>{state.name}</span>
+                    </button>
+                  );
+                })}
+
+                {/* Add State Pill */}
+                <button
+                  onClick={handleAddState}
+                  className="px-2 py-1 rounded text-[10px] font-bold text-purple-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                  title="Add New Keyframe State"
+                >
+                  <Plus size={10} />
+                  <span>New</span>
+                </button>
+              </div>
+
+              {/* Active State Details Panel */}
+              {(!activeStateId || activeStateId === 'base') ? (
+                <div className="bg-[#161616] border border-[#262626] rounded-lg p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-purple-300 flex items-center gap-1.5">
+                      <Sparkles size={11} className="text-purple-400" /> Base State Active
+                    </span>
+                    <span className="text-[9px] font-mono text-[#666]">Default</span>
+                  </div>
+                  <p className="text-[9px] text-[#888] leading-relaxed">
+                    Base State is the default transform of your object. Click any state pill above or press <strong>+ New</strong> to create keyframe states for transitions.
+                  </p>
+                </div>
+              ) : (
+                (() => {
+                  const activeStateObj = (obj.states || []).find((s: any) => s.id === activeStateId);
+                  if (!activeStateObj) return null;
+                  return (
+                    <div key={activeStateObj.id} className="bg-[#161616] border border-purple-500/30 rounded-lg p-3 flex flex-col gap-2.5 relative shadow-lg shadow-purple-950/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-purple-300 font-mono uppercase tracking-wider flex items-center gap-1">
+                            {editingRuleId === activeStateObj.id ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                defaultValue={activeStateObj.name}
+                                onBlur={(e) => {
+                                  handleUpdateState(activeStateObj.id, { name: e.target.value });
+                                  setEditingRuleId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleUpdateState(activeStateObj.id, { name: e.currentTarget.value });
+                                    setEditingRuleId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingRuleId(null);
+                                  }
+                                }}
+                                className="bg-black text-white px-1.5 py-0.5 border border-purple-500 rounded outline-none text-[10px] w-28"
+                              />
+                            ) : (
+                              <span className="flex items-center gap-1.5 cursor-pointer" onDoubleClick={() => setEditingRuleId(activeStateObj.id)}>
+                                <Layers size={12} className="text-purple-400" />
+                                <span className="font-bold text-white text-[11px]">{activeStateObj.name}</span>
+                              </span>
+                            )}
+                          </span>
+                          {editingRuleId !== activeStateObj.id && (
+                            <button onClick={() => setEditingRuleId(activeStateObj.id)} className="text-[#666] hover:text-white p-0.5" title="Rename State">
+                              <Edit2 size={10} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              useEditorStore.getState().copySingleState(activeStateObj);
+                            }}
+                            className="p-1 rounded text-gray-400 hover:text-purple-300 bg-[#222] hover:bg-[#2A2A2A] transition-colors cursor-pointer select-none"
+                            title="Copy this single state configuration"
+                          >
+                            <Copy size={11} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleUpdateState(activeStateObj.id, {
+                                position: [...obj.position],
+                                rotation: [...obj.rotation],
+                                scale: [...obj.scale]
+                              });
+                            }}
+                            className="p-1 rounded text-gray-400 hover:text-purple-300 bg-[#222] hover:bg-[#2A2A2A] transition-colors cursor-pointer select-none"
+                            title="Sync transforms with Base state"
+                          >
+                            <RefreshCw size={11} />
+                          </button>
+                          <button 
+                            onClick={() => handleRemoveState(activeStateObj.id)}
+                            className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer select-none"
+                            title="Remove State"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Editing guidance banner */}
+                      <div className="bg-purple-950/30 border border-purple-800/40 rounded p-2 text-[9px] text-purple-200/90 leading-relaxed flex items-start gap-1.5">
+                        <Sparkles size={12} className="text-purple-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Active State Selected:</strong> Adjust Position, Rotation, or Scale in the <strong>Transform panel above</strong> or drag the <strong>3D Gizmo</strong> in the viewport to update <strong>{activeStateObj.name}</strong>.
+                        </span>
+                      </div>
+
+                      {/* Transform Values Summary */}
+                      <div className="grid grid-cols-3 gap-1.5 text-[8px] font-mono bg-[#0D0D0D] p-2 rounded border border-[#222]">
+                        <div className="flex flex-col">
+                          <span className="text-[#555] font-bold">POS</span>
+                          <span className="text-purple-300">{(activeStateObj.position || obj.position).map((v: number) => v.toFixed(1)).join(', ')}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[#555] font-bold">ROT</span>
+                          <span className="text-purple-300">{(activeStateObj.rotation || obj.rotation).map((v: number) => Math.round(v)).join('°, ')}°</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[#555] font-bold">SCL</span>
+                          <span className="text-purple-300">{(activeStateObj.scale || obj.scale).map((v: number) => v.toFixed(1)).join(', ')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </InspectorSection>
+        )}
+
+        {/* Events Section */}
         {obj.type !== 'imageTarget' && (
           <InspectorSection
             title={
               <>
                 <Zap size={11} className="text-blue-400 fill-blue-500/20" />
-                No-Code Events
+                Events
               </>
             }
-            defaultOpen={false}
+            isOpen={isEventsSectionOpen}
             rightElement={
               <button
                 onClick={(e) => {
                   e.preventDefault();
-                  handleAddBehavior();
+                  handleAddEvent();
                 }}
                 className="text-[9px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-500/10 px-2 py-1 rounded hover:bg-blue-500/15 transition-all"
               >
@@ -2978,47 +3726,47 @@ export function InspectorPanel({ width }: { width?: number }) {
             }
           >
             <div className="flex flex-col gap-2.5">
-              {(obj.properties.visualBehaviors || []).length === 0 ? (
+              {(obj.events || []).length === 0 ? (
                 <div className="border border-[#222] border-dashed rounded p-3 text-center text-[9px] text-[#555]">
-                  No custom trigger-actions configured for this object yet.
+                  No custom events configured for this object yet.
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
-                  {(obj.properties.visualBehaviors || []).map((b: any) => {
-                    const isExpanded = expandedRules[b.id] ?? true;
+                  {(obj.events || []).map((evt: any) => {
+                    const isExpanded = expandedRules[evt.id] ?? true;
                     return (
-                      <div key={b.id} className="bg-[#181818] border border-[#262626] rounded-lg p-2 flex flex-col gap-2 relative">
-                        <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => toggleRuleExpansion(b.id)}>
+                      <div key={evt.id} className="bg-[#181818] border border-[#262626] rounded-lg p-2 flex flex-col gap-2 relative">
+                        <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => toggleRuleExpansion(evt.id)}>
                           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => toggleRuleExpansion(b.id)} className="text-[#888] hover:text-white transition-colors">
+                            <button onClick={() => toggleRuleExpansion(evt.id)} className="text-[#888] hover:text-white transition-colors">
                               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
                             <span className="text-[9px] font-bold text-blue-400 font-mono uppercase tracking-wider flex items-center gap-1">
-                              ⚡ {editingRuleId === b.id ? (
+                              ⚡ {editingRuleId === evt.id ? (
                                 <input
                                   type="text"
                                   autoFocus
-                                  defaultValue={b.name || 'Rule'}
+                                  defaultValue={evt.name || 'Event'}
                                   onBlur={(e) => {
-                                    handleUpdateBehavior(b.id, { name: e.target.value });
+                                    handleUpdateEvent(evt.id, { name: e.target.value });
                                     setEditingRuleId(null);
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
-                                      handleUpdateBehavior(b.id, { name: e.currentTarget.value });
+                                      handleUpdateEvent(evt.id, { name: e.currentTarget.value });
                                       setEditingRuleId(null);
                                     } else if (e.key === 'Escape') {
                                       setEditingRuleId(null);
                                     }
                                   }}
-                                  className="bg-black/50 text-white px-1 border border-blue-500 rounded outline-none"
+                                  className="bg-black/50 text-white px-1 border border-blue-500 rounded outline-none w-24"
                                 />
                               ) : (
-                                <span onDoubleClick={() => setEditingRuleId(b.id)}>{b.name || 'Rule'}</span>
+                                <span onDoubleClick={() => setEditingRuleId(evt.id)}>{evt.name || 'Event'}</span>
                               )}
                             </span>
-                            {editingRuleId !== b.id && (
-                              <button onClick={() => setEditingRuleId(b.id)} className="text-[#555] hover:text-white p-1 ml-1" title="Rename Rule">
+                            {editingRuleId !== evt.id && (
+                              <button onClick={() => setEditingRuleId(evt.id)} className="text-[#555] hover:text-white p-1 ml-1" title="Rename Event">
                                 <Edit2 size={10} />
                               </button>
                             )}
@@ -3026,10 +3774,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveBehavior(b.id);
+                              handleRemoveEvent(evt.id);
                             }}
                             className="text-[#555] hover:text-red-400 transition-colors p-1 rounded hover:bg-black/25"
-                            title="Remove Rule"
+                            title="Remove Event"
                           >
                             <Trash2 size={11} />
                           </button>
@@ -3040,257 +3788,426 @@ export function InspectorPanel({ width }: { width?: number }) {
                             <div className="flex flex-col gap-1">
                               <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Trigger</label>
                               <select
-                                value={b.trigger}
-                                onChange={(e) => handleUpdateBehavior(b.id, { trigger: e.target.value })}
+                                value={evt.trigger}
+                                onChange={(e) => handleUpdateEvent(evt.id, { trigger: e.target.value })}
                                 className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
                               >
                                 <option value="onTap">👆 On Tap (Mouse Click)</option>
-                                <option value="onHoverEnter">🖱️ On Hover Enter</option>
-                                <option value="onHoverExit">🖱️ On Hover Exit</option>
-                                <option value="onProximity">📐 On Proximity (Distance)</option>
-                                <option value="onStart">🚀 On Start / Loaded</option>
-                                <option value="onTargetFound">👁 MindAR Target Found</option>
-                                <option value="onTargetLost">🙈 MindAR Target Lost</option>
+                                <option value="start">🚀 On Start (Scene Load)</option>
+                                <option value="onPointerDown">⬇️ On Pointer Down (Mouse Down / Touch Start)</option>
+                                <option value="onPointerUp">⬆️ On Pointer Up (Mouse Up / Touch End)</option>
+                                <option value="onHoverEnter">🖱️ On Hover Enter (Pointer Over)</option>
+                                <option value="onHoverExit">🚪 On Hover Exit (Pointer Out)</option>
+                                <option value="onPointerMove">🖐️ On Pointer Move / Drag</option>
+                                <option value="onScroll">📜 On Scroll / Mouse Wheel</option>
+                                <option value="onKeyDown">⌨️ Key Down (Press)</option>
+                                <option value="onKeyUp">⌨️ Key Up (Release)</option>
+                                <option value="onProximityEnter">📏 Proximity Enter</option>
+                                <option value="onProximityExit">📏 Proximity Exit</option>
                               </select>
                             </div>
 
-                      {b.trigger === 'onProximity' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Distance (meters)</label>
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0.1"
-                            value={b.proximityDistance ?? 2.0}
-                            onChange={(e) => handleUpdateBehavior(b.id, { proximityDistance: parseFloat(e.target.value) || 2.0 })}
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
-                          />
-                        </div>
-                      )}
+                            {(evt.trigger === 'onKeyDown' || evt.trigger === 'onKeyUp') && (
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Key</label>
+                                <input
+                                  type="text"
+                                  maxLength={10}
+                                  value={evt.triggerKey ?? ''}
+                                  onChange={(e) => handleUpdateEvent(evt.id, { triggerKey: e.target.value })}
+                                  placeholder="e.g. Space, Enter, a..."
+                                  className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                />
+                              </div>
+                            )}
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Action</label>
-                        <select
-                          value={b.action}
-                          onChange={(e) => handleUpdateBehavior(b.id, { action: e.target.value })}
-                          className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                        >
-                          <option value="toast">💬 Show HUD Toast</option>
-                          <option value="openUrl">🌐 Open Web URL</option>
-                          <option value="playSound">🔊 Play Sound Effect</option>
-                          <option value="startBehavior">🏃 Start Behavior (Fade/Scale/etc)</option>
-                          <option value="playVideo">🎬 Play Video Panel</option>
-                          <option value="toggleVisibility">👁 Toggle Visibility</option>
-                          <option value="setVisibility">👁 Set Visibility (Show/Hide)</option>
-                          <option value="scaleUp">➕ Scale Up (Larger)</option>
-                          <option value="scaleDown">➖ Scale Down (Smaller)</option>
-                          <option value="playModelAnimation">🎬 Play Model Animation</option>
-                          <option value="pauseModelAnimation">⏸ Pause Model Animation</option>
-                          <option value="spin">🔄 Make Spin Animation</option>
-                          <option value="transform">📐 Set Transform (Pos/Rot/Scale)</option>
-                          <option value="material">🎨 Set Material (Color/Texture)</option>
-                          <option value="pauseScanning">⏸ Pause AR Scanning</option>
-                          <option value="resumeScanning">▶️ Resume AR Scanning</option>
-                          <option value="loadScene">🗺️ Load Scene</option>
-                        </select>
-                      </div>
+                            {/* Render Actions */}
+                            <div className="flex flex-col gap-2 mt-2">
+                              <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider border-b border-[#222] pb-1">Actions</label>
+                              {(evt.actions || []).map((action: any, idx: number) => {
+                                const isActionExpanded = expandedActions[action.id] ?? false;
+                                return (
+                                  <div key={action.id} className="flex flex-col gap-2 bg-[#222] rounded p-2 border border-[#333]">
+                                    <div className="flex items-center justify-between border-b border-[#333]/60 pb-1.5 cursor-pointer select-none" onClick={() => toggleActionExpansion(action.id)}>
+                                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                        <button onClick={() => toggleActionExpansion(action.id)} className="text-[#888] hover:text-white transition-colors">
+                                          {isActionExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                        </button>
+                                        
+                                        {editingActionId === action.id ? (
+                                          <input
+                                            type="text"
+                                            autoFocus
+                                            defaultValue={action.name || `Action ${idx + 1}`}
+                                            onBlur={(e) => {
+                                              const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, name: e.target.value } : a);
+                                              handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              setEditingActionId(null);
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, name: e.currentTarget.value } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                setEditingActionId(null);
+                                              } else if (e.key === 'Escape') {
+                                                setEditingActionId(null);
+                                              }
+                                            }}
+                                            className="bg-black/50 text-[10px] text-white px-1 border border-blue-500 rounded outline-none w-28 font-semibold"
+                                          />
+                                        ) : (
+                                          <span 
+                                            onDoubleClick={() => setEditingActionId(action.id)}
+                                            className="text-[9px] font-bold text-gray-300 hover:text-white transition-colors cursor-pointer truncate max-w-[120px]"
+                                            title="Double click to rename action"
+                                          >
+                                            {action.name || `${action.type.toUpperCase()} (Action ${idx + 1})`}
+                                          </span>
+                                        )}
+                                        
+                                        {editingActionId !== action.id && (
+                                          <button 
+                                            onClick={() => setEditingActionId(action.id)} 
+                                            className="text-[#666] hover:text-white p-0.5" 
+                                            title="Rename Action"
+                                          >
+                                            <Edit2 size={8} />
+                                          </button>
+                                        )}
+                                      </div>
+                                      
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const updatedActions = evt.actions.filter((a: any) => a.id !== action.id);
+                                          handleUpdateEvent(evt.id, { actions: updatedActions });
+                                        }}
+                                        className="text-gray-500 hover:text-red-400 p-0.5 rounded transition-colors"
+                                        title="Remove Action"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
 
-                      {b.action === 'loadScene' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Scene ID</label>
-                          <input
-                            type="text"
-                            value={b.targetSceneId ?? ''}
-                            onChange={(e) => handleUpdateBehavior(b.id, { targetSceneId: e.target.value })}
-                            placeholder="e.g. scene_123456"
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
-                          />
-                        </div>
-                      )}
+                                    {isActionExpanded && (
+                                      <>
+                                        <select
+                                          value={action.type}
+                                          onChange={(e) => {
+                                            const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, type: e.target.value } : a);
+                                            handleUpdateEvent(evt.id, { actions: updatedActions });
+                                          }}
+                                          className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                        >
+                                          <option value="transition">🔄 Transition</option>
+                                          <option value="playSound">🔊 Play Sound</option>
+                                          <option value="openUrl">🌐 Open URL</option>
+                                          <option value="toast">💬 Show Toast</option>
+                                          <option value="playAnimation">🎬 Play Animation</option>
+                                          <option value="pauseAnimation">⏸ Pause Animation</option>
+                                          <option value="show">👁 Show</option>
+                                          <option value="hide">🙈 Hide</option>
+                                        </select>
+                                        
+                                        <div className="flex flex-col gap-1 mt-1">
+                                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Object</label>
+                                          <select
+                                            value={action.targetId ?? ''}
+                                            onChange={(e) => {
+                                              const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, targetId: e.target.value } : a);
+                                              handleUpdateEvent(evt.id, { actions: updatedActions });
+                                            }}
+                                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                          >
+                                            <option value="">Current Object (Self)</option>
+                                            {Object.values(objects).map((o: any) => (
+                                              <option key={o.id} value={o.id}>{o.name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
 
-                      {b.action === 'toast' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Message</label>
-                          <input
-                            type="text"
-                            value={b.toastMessage ?? ''}
-                            onChange={(e) => handleUpdateBehavior(b.id, { toastMessage: e.target.value })}
-                            placeholder="e.g. Success!"
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                          />
-                        </div>
-                      )}
+                                        {action.type === 'transition' && (
+                                          <>
+                                            <div className="flex flex-col gap-1 mt-1">
+                                              <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target State</label>
+                                              <select
+                                                value={action.transitionTargetStateId ?? ''}
+                                                onChange={(e) => {
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, transitionTargetStateId: e.target.value } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                }}
+                                                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                              >
+                                                <option value="">Base State</option>
+                                                {((action.targetId ? objects[action.targetId] : obj)?.states || []).map((s: any) => (
+                                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                            <div className="flex flex-col gap-1 mt-1">
+                                              <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Duration (s)</label>
+                                              <input
+                                                type="number"
+                                                step="0.1"
+                                                value={action.transitionDuration ?? 1.0}
+                                                onChange={(e) => {
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, transitionDuration: parseFloat(e.target.value) || 0 } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                }}
+                                                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                              />
+                                            </div>
+                                            
+                                            {/* Visual Curve Editor UI */}
+                                            <div className="flex flex-col gap-1.5 mt-2 p-2.5 bg-[#141414]/90 border border-neutral-800 rounded-xl">
+                                              <div className="flex justify-between items-center mb-1">
+                                                <label className="text-[9px] text-cyan-400 font-bold uppercase tracking-wider">Visual Curve Editor</label>
+                                                <span className="text-[7px] text-[#555] font-mono">Live Preview</span>
+                                              </div>
+                                              
+                                              {(() => {
+                                                const currentEasing = action.transitionEasing ?? 'linear';
+                                                const isCubicBezier = currentEasing.startsWith('cubic-bezier(');
+                                                
+                                                let x1 = 0.25, y1 = 0.1, x2 = 0.25, y2 = 1.0;
+                                                if (isCubicBezier) {
+                                                  const match = currentEasing.match(/cubic-bezier\(([^,]+),([^,]+),([^,]+),([^)]+)\)/);
+                                                  if (match) {
+                                                    x1 = parseFloat(match[1]) || 0.25;
+                                                    y1 = parseFloat(match[2]) || 0.1;
+                                                    x2 = parseFloat(match[3]) || 0.25;
+                                                    y2 = parseFloat(match[4]) || 1.0;
+                                                  }
+                                                }
+                                                
+                                                const selectValue = isCubicBezier ? 'custom' : currentEasing;
 
-                      {b.action === 'openUrl' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">URL Link</label>
-                          <input
-                            type="text"
-                            value={b.url ?? ''}
-                            onChange={(e) => handleUpdateBehavior(b.id, { url: e.target.value })}
-                            placeholder="https://..."
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
-                          />
-                        </div>
-                      )}
+                                                const updateBezier = (newX1: number, newY1: number, newX2: number, newY2: number) => {
+                                                  const str = `cubic-bezier(${newX1.toFixed(2)},${newY1.toFixed(2)},${newX2.toFixed(2)},${newY2.toFixed(2)})`;
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, transitionEasing: str } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                };
 
-                      {b.action === 'playVideo' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Video Panel Source URL</label>
-                          <input
-                            type="text"
-                            value={b.url ?? ''}
-                            onChange={(e) => handleUpdateBehavior(b.id, { url: e.target.value })}
-                            placeholder="Select below or paste custom URL..."
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
-                          />
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              if (e.target.value) handleUpdateBehavior(b.id, { url: e.target.value });
-                            }}
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                          >
-                            <option value="">(Choose from Video Assets)</option>
-                            {useEditorStore.getState().assets.filter(a => a.type === 'video').map(a => (
-                              <option key={a.id} value={a.url}>{a.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                                                return (
+                                                  <div className="flex flex-col gap-2">
+                                                    <select
+                                                      value={selectValue}
+                                                      onChange={(e) => {
+                                                        let val = e.target.value;
+                                                        if (val === 'custom') {
+                                                          val = 'cubic-bezier(0.25,0.10,0.25,1.00)';
+                                                        }
+                                                        const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, transitionEasing: val } : a);
+                                                        handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                      }}
+                                                      className="bg-[#0A0A0A] text-[10px] text-white border border-[#222] rounded p-1.5 focus:border-cyan-500 outline-none w-full font-medium"
+                                                    >
+                                                      <option value="linear">Linear</option>
+                                                      <option value="ease-in">Ease In (Quadratic)</option>
+                                                      <option value="ease-out">Ease Out (Quadratic)</option>
+                                                      <option value="ease-in-out">Ease In-Out</option>
+                                                      <option value="elastic">Elastic Wobble</option>
+                                                      <option value="bounce">Physics Bounce</option>
+                                                      <option value="custom">Custom Cubic Bezier ✎</option>
+                                                    </select>
 
-                      {b.action === 'playSound' && (
-                        <div className="flex flex-col gap-2">
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Audio Sound</label>
-                            <select
-                              value={b.soundPreset}
-                              onChange={(e) => handleUpdateBehavior(b.id, { soundPreset: e.target.value })}
-                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                            >
-                              <optgroup label="Presets">
-                                {SOUND_OPTIONS.filter(opt => opt.value !== '').map(opt => (
-                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                              </optgroup>
-                              <optgroup label="Custom Audio Assets">
-                                {useEditorStore.getState().assets.filter(a => a.type === 'audio').map(a => (
-                                  <option key={a.id} value={a.url}>{a.name}</option>
-                                ))}
-                              </optgroup>
-                            </select>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <label className="text-[9px] text-[#888] flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={b.soundLoop ?? false}
-                                onChange={(e) => handleUpdateBehavior(b.id, { soundLoop: e.target.checked })}
-                                className="accent-cyan-500 rounded-sm bg-black/50 border-[#333]"
-                              />
-                              Loop Sound
-                            </label>
-                          </div>
-                        </div>
-                      )}
+                                                    {/* SVG Curve Canvas */}
+                                                    <div className="relative h-24 bg-[#080808] rounded-lg border border-[#222] overflow-hidden flex items-center justify-center">
+                                                      <svg className="w-full h-full" viewBox="0 0 120 90">
+                                                        {/* Grid lines */}
+                                                        <line x1="10" y1="10" x2="110" y2="10" stroke="#1A1A1A" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                        <line x1="10" y1="80" x2="110" y2="80" stroke="#1A1A1A" strokeWidth="0.5" />
+                                                        <line x1="10" y1="10" x2="10" y2="80" stroke="#1A1A1A" strokeWidth="0.5" />
+                                                        <line x1="110" y1="10" x2="110" y2="80" stroke="#1A1A1A" strokeWidth="0.5" strokeDasharray="2,2" />
 
-                      {b.action === 'startBehavior' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Behavior</label>
-                          <select
-                            value={b.behaviorRule ?? 'spin'}
-                            onChange={(e) => handleUpdateBehavior(b.id, { behaviorRule: e.target.value })}
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                          >
-                            {BEHAVIOR_OPTIONS.filter(o => o.value !== '').map(opt => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      
-                      {b.action === 'transform' && (
-                        <>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Transform Property</label>
-                            <select
-                              value={b.propertyName ?? 'position'}
-                              onChange={(e) => handleUpdateBehavior(b.id, { propertyName: e.target.value })}
-                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                            >
-                              <option value="position">Position (x,y,z)</option>
-                              <option value="rotation">Rotation (x,y,z)</option>
-                              <option value="scale">Scale (x,y,z)</option>
-                            </select>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Value</label>
-                            <input
-                              type="text"
-                              value={b.propertyValue ?? '0,0,0'}
-                              onChange={(e) => handleUpdateBehavior(b.id, { propertyValue: e.target.value })}
-                              placeholder="0,0,0"
-                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
-                            />
-                          </div>
-                        </>
-                      )}
+                                                        {/* Bezier control handles */}
+                                                        {isCubicBezier && (
+                                                          <>
+                                                            <line x1="10" y1="80" x2={10 + x1 * 100} y2={80 - y1 * 60} stroke="#f43f5e" strokeWidth="1" strokeDasharray="1,1" />
+                                                            <circle cx={10 + x1 * 100} cy={80 - y1 * 60} r="3" fill="#f43f5e" />
+                                                            
+                                                            <line x1="110" y1="10" x2={10 + x2 * 100} y2={80 - y2 * 60} stroke="#3b82f6" strokeWidth="1" strokeDasharray="1,1" />
+                                                            <circle cx={10 + x2 * 100} cy={80 - y2 * 60} r="3" fill="#3b82f6" />
+                                                          </>
+                                                        )}
 
-                      {b.action === 'material' && (
-                        <>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Material Property</label>
-                            <select
-                              value={b.propertyName ?? 'color'}
-                              onChange={(e) => handleUpdateBehavior(b.id, { propertyName: e.target.value })}
-                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                            >
-                              <option value="color">Color (Hex/Name)</option>
-                              <option value="texture">Texture URL</option>
-                            </select>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Value</label>
-                            <input
-                              type="text"
-                              value={b.propertyValue ?? ''}
-                              onChange={(e) => handleUpdateBehavior(b.id, { propertyValue: e.target.value })}
-                              placeholder={b.propertyName === 'texture' ? 'https://...' : '#ffffff'}
-                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
-                            />
-                          </div>
-                        </>
-                      )}
+                                                        {/* Graph Curve */}
+                                                        <path 
+                                                          d={(() => {
+                                                            const pts = [];
+                                                            for (let i = 0; i <= 40; i++) {
+                                                              const ratio = i / 40;
+                                                              const eased = getEasingValue(action.transitionEasing || 'linear', ratio);
+                                                              const px = 10 + ratio * 100;
+                                                              const py = 80 - eased * 60;
+                                                              pts.push(`${px},${py}`);
+                                                            }
+                                                            return `M ${pts.join(' L ')}`;
+                                                          })()}
+                                                          fill="none"
+                                                          stroke="#22d3ee"
+                                                          strokeWidth="1.5"
+                                                          className="opacity-80"
+                                                        />
 
-                      {b.action === 'setVisibility' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Visibility State</label>
-                          <select
-                            value={b.visibleState ?? 'true'}
-                            onChange={(e) => handleUpdateBehavior(b.id, { visibleState: e.target.value })}
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                          >
-                            <option value="true">👁 Show (Visible)</option>
-                            <option value="false">🙈 Hide (Invisible)</option>
-                          </select>
-                        </div>
-                      )}
+                                                        {/* Live animated preview dot */}
+                                                        <circle 
+                                                          cx={10 + curveProgress * 100} 
+                                                          cy={80 - getEasingValue(action.transitionEasing || 'linear', curveProgress) * 60} 
+                                                          r="3.5" 
+                                                          fill="#f97316"
+                                                        />
+                                                      </svg>
 
-                      {(b.action === 'toggleVisibility' || b.action === 'setVisibility' || b.action === 'scaleUp' || b.action === 'scaleDown' || b.action === 'playModelAnimation' || b.action === 'pauseModelAnimation' || b.action === 'spin' || b.action === 'transform' || b.action === 'material') && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Object</label>
-                          <select
-                            value={b.targetObjectId ?? ''}
-                            onChange={(e) => handleUpdateBehavior(b.id, { targetObjectId: e.target.value })}
-                            className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
-                          >
-                            <option value="">Current Object (Self)</option>
-                            {Object.values(objects).filter((o: any) => o.id !== selectedObjectId).map((o: any) => (
-                              <option key={o.id} value={o.id}>{o.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                                                      <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[7px] text-gray-500 font-mono uppercase">
+                                                        t: {curveProgress.toFixed(2)}
+                                                      </div>
+                                                    </div>
+
+                                                    {/* Interactive Bezier Sliders */}
+                                                    {isCubicBezier && (
+                                                      <div className="flex flex-col gap-1.5 bg-black/40 p-2 rounded border border-neutral-800 animate-in fade-in duration-150">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                          <span className="text-[8px] text-pink-500 font-bold uppercase tracking-wider">C1 (X, Y):</span>
+                                                          <div className="flex gap-1.5 flex-1 justify-end items-center">
+                                                            <input 
+                                                              type="range" 
+                                                              min="0" 
+                                                              max="1" 
+                                                              step="0.05" 
+                                                              value={x1} 
+                                                              onChange={(e) => updateBezier(parseFloat(e.target.value), y1, x2, y2)} 
+                                                              className="accent-pink-500 h-1 w-14 cursor-pointer"
+                                                              title="Control Point 1 X"
+                                                            />
+                                                            <span className="text-[8px] font-mono text-gray-400 w-6 text-right">{x1.toFixed(2)}</span>
+                                                            <input 
+                                                              type="range" 
+                                                              min="-1" 
+                                                              max="2" 
+                                                              step="0.05" 
+                                                              value={y1} 
+                                                              onChange={(e) => updateBezier(x1, parseFloat(e.target.value), x2, y2)} 
+                                                              className="accent-pink-500 h-1 w-14 cursor-pointer"
+                                                              title="Control Point 1 Y"
+                                                            />
+                                                            <span className="text-[8px] font-mono text-gray-400 w-6 text-right">{y1.toFixed(2)}</span>
+                                                          </div>
+                                                        </div>
+                                                        
+                                                        <div className="flex items-center justify-between gap-2">
+                                                          <span className="text-[8px] text-blue-500 font-bold uppercase tracking-wider">C2 (X, Y):</span>
+                                                          <div className="flex gap-1.5 flex-1 justify-end items-center">
+                                                            <input 
+                                                              type="range" 
+                                                              min="0" 
+                                                              max="1" 
+                                                              step="0.05" 
+                                                              value={x2} 
+                                                              onChange={(e) => updateBezier(x1, y1, parseFloat(e.target.value), y2)} 
+                                                              className="accent-blue-500 h-1 w-14 cursor-pointer"
+                                                              title="Control Point 2 X"
+                                                            />
+                                                            <span className="text-[8px] font-mono text-gray-400 w-6 text-right">{x2.toFixed(2)}</span>
+                                                            <input 
+                                                              type="range" 
+                                                              min="-1" 
+                                                              max="2" 
+                                                              step="0.05" 
+                                                              value={y2} 
+                                                              onChange={(e) => updateBezier(x1, y1, x2, parseFloat(e.target.value))} 
+                                                              className="accent-blue-500 h-1 w-14 cursor-pointer"
+                                                              title="Control Point 2 Y"
+                                                            />
+                                                            <span className="text-[8px] font-mono text-gray-400 w-6 text-right">{y2.toFixed(2)}</span>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })()}
+                                            </div>
+                                          </>
+                                        )}
+
+                                        {action.type === 'playSound' && (
+                                          <div className="flex flex-col gap-1 mt-1">
+                                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Audio Sound</label>
+                                            <select
+                                              value={action.soundUrl ?? ''}
+                                              onChange={(e) => {
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, soundUrl: e.target.value } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                            >
+                                              <option value="">(Select Sound)</option>
+                                              {SOUND_OPTIONS.filter(opt => opt.value !== '').map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                              ))}
+                                              {useEditorStore.getState().assets.filter(a => a.type === 'audio').map(a => (
+                                                <option key={a.id} value={a.url}>{a.name}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        )}
+
+                                        {action.type === 'openUrl' && (
+                                          <div className="flex flex-col gap-1 mt-1">
+                                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">URL Link</label>
+                                            <input
+                                              type="text"
+                                              value={action.url ?? ''}
+                                              onChange={(e) => {
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, url: e.target.value } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              placeholder="https://..."
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                            />
+                                          </div>
+                                        )}
+
+                                        {action.type === 'toast' && (
+                                          <div className="flex flex-col gap-1 mt-1">
+                                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Message</label>
+                                            <input
+                                              type="text"
+                                              value={action.toastMessage ?? ''}
+                                              onChange={(e) => {
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, toastMessage: e.target.value } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              placeholder="e.g. Hello!"
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                            />
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              
+                              <button
+                                onClick={() => {
+                                  const actionId = Math.random().toString(36).substring(2, 9);
+                                  setExpandedActions(prev => ({ ...prev, [actionId]: true }));
+                                  const updatedActions = [...(evt.actions || []), {
+                                    id: actionId,
+                                    type: 'transition',
+                                    transitionTargetStateId: '',
+                                    transitionDuration: 1.0,
+                                  }];
+                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                }}
+                                className="w-full text-[9px] font-bold text-gray-400 hover:text-white flex items-center justify-center gap-1 bg-black/30 p-1.5 rounded transition-all mt-1 border border-[#333] hover:border-blue-500/50"
+                              >
+                                <Plus size={9} /> Add Action
+                              </button>
+                            </div>
+
                           </div>
                         )}
                       </div>
@@ -3302,49 +4219,7 @@ export function InspectorPanel({ width }: { width?: number }) {
           </InspectorSection>
         )}
 
-        {/* Custom Code Script Editor Section */}
-        {obj.type !== 'imageTarget' && (
-          <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider flex items-center gap-1.5">
-                <Code size={11} className="text-pink-400" />
-                Custom Scripting
-              </span>
-              <input 
-                type="checkbox" 
-                checked={obj.properties.scriptEnabled ?? true}
-                onChange={(e) => handlePropertyChange('scriptEnabled', e.target.checked)}
-                className="accent-pink-500 w-3.5 h-3.5 rounded cursor-pointer"
-                title="Toggle script logic running"
-              />
-            </div>
-            
-            <div className="flex flex-col gap-2">
-              <p className="text-[9px] text-[#666] leading-relaxed">
-                Attach Custom JS/TS logic to run dynamic interactive behaviors and event updates in Live Preview.
-              </p>
 
-              <button
-                onClick={() => setEditingScriptObjectId(editingScriptObjectId === selectedObjectId ? null : selectedObjectId)}
-                className={cn(
-                  "w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-[10px] font-bold transition-all border",
-                  editingScriptObjectId === selectedObjectId 
-                    ? "bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border-pink-500/30"
-                    : "bg-pink-600 hover:bg-pink-500 text-white border-transparent active:scale-95 shadow-md"
-                )}
-              >
-                <Code size={12} />
-                {editingScriptObjectId === selectedObjectId ? "Close Script Editor" : "✏️ Write Custom Script"}
-              </button>
-
-              {obj.properties.scriptCode && (
-                <div className="bg-black/50 border border-[#222] rounded p-2 text-[9px] font-mono text-[#555] max-h-20 overflow-hidden line-clamp-3 select-none leading-relaxed">
-                  {obj.properties.scriptCode}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Core Geometry & Media Specific Custom UI */}
         <InspectorSection title="Entity Parameters">
@@ -3565,29 +4440,23 @@ export function InspectorPanel({ width }: { width?: number }) {
                     <div className="flex flex-col gap-2 mt-1 border-t border-[#222] pt-2">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-[#666]">Wireframe Mode</span>
-                        <input 
-                          type="checkbox" 
+                        <VisualCheckbox 
                           checked={obj.properties.wireframe ?? false}
-                          onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
-                          className="accent-blue-500 cursor-pointer"
+                          onChange={(v) => handlePropertyChange('wireframe', v)}
                         />
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-[#666]">Double-Sided Render</span>
-                        <input 
-                          type="checkbox" 
+                        <VisualCheckbox 
                           checked={obj.properties.doubleSided ?? false}
-                          onChange={(e) => handlePropertyChange('doubleSided', e.target.checked)}
-                          className="accent-blue-500 cursor-pointer"
+                          onChange={(v) => handlePropertyChange('doubleSided', v)}
                         />
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-[#666]">Low-Poly Flat Shading</span>
-                        <input 
-                          type="checkbox" 
+                        <VisualCheckbox 
                           checked={obj.properties.flatShading ?? false}
-                          onChange={(e) => handlePropertyChange('flatShading', e.target.checked)}
-                          className="accent-blue-500 cursor-pointer"
+                          onChange={(v) => handlePropertyChange('flatShading', v)}
                         />
                       </div>
                     </div>
@@ -3603,9 +4472,6 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Roughness</span>
                         <span className="text-gray-400 font-mono">{(obj.properties.roughness ?? 0.5).toFixed(2)}</span>
                       </div>
-                      <p className="text-[8px] text-gray-500 leading-normal mb-1">
-                        How rough the surface is. 0.0 is mirror shiny, 1.0 is completely matte.
-                      </p>
                       <input 
                         type="range" 
                         min="0" 
@@ -3623,9 +4489,6 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Metalness</span>
                         <span className="text-gray-400 font-mono">{(obj.properties.metalness ?? 0.1).toFixed(2)}</span>
                       </div>
-                      <p className="text-[8px] text-gray-500 leading-normal mb-1">
-                        How metal-like the material is. Gold, brass, copper are 1.0. Ceramics, plastic are 0.0.
-                      </p>
                       <input 
                         type="range" 
                         min="0" 
@@ -3643,9 +4506,6 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Clearcoat Overlay</span>
                         <span className="text-gray-400 font-mono">{(obj.properties.clearcoat ?? 0.0).toFixed(2)}</span>
                       </div>
-                      <p className="text-[8px] text-gray-500 leading-normal mb-1">
-                        Adds a secondary glossy coating over the material, like car paint glaze or polished wood finish.
-                      </p>
                       <input 
                         type="range" 
                         min="0" 
@@ -3683,11 +4543,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                   <div className="flex flex-col gap-3.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Self-Emissive Glow</span>
-                      <input 
-                        type="checkbox" 
+                      <VisualCheckbox 
                         checked={!!obj.properties.emissiveIntensity && obj.properties.emissiveColor !== '#000000'}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                        onChange={(checked) => {
+                          if (checked) {
                             handlePropertyChange('emissiveColor', obj.properties.color || '#3b82f6');
                             handlePropertyChange('emissiveIntensity', 1.5);
                           } else {
@@ -3695,13 +4554,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                             handlePropertyChange('emissiveIntensity', 0);
                           }
                         }}
-                        className="accent-blue-500 cursor-pointer"
                       />
                     </div>
-
-                    <p className="text-[8px] text-gray-500 leading-normal">
-                      Makes the object glow with light energy. Perfect for neon signs, sci-fi computer cores, or lasers.
-                    </p>
 
                     <div className="flex flex-col gap-3 border-t border-[#222] pt-3">
                       {/* Emissive Color */}
@@ -3746,13 +4600,6 @@ export function InspectorPanel({ width }: { width?: number }) {
                 {/* 5. GLASS / TRANSMISSION TAB */}
                 {materialTab === 'transmission' && (
                   <div className="flex flex-col gap-3.5">
-                    <div className="flex flex-col bg-blue-500/5 border border-blue-500/10 rounded-lg p-2.5">
-                      <span className="text-[10px] text-blue-400 font-bold uppercase mb-1">Physical Glass Engine</span>
-                      <p className="text-[8px] text-gray-400 leading-relaxed">
-                        Transmission lets light pass through objects for hyper-realistic glass refraction. Best when metalness is 0.0 and roughness is close to 0.0!
-                      </p>
-                    </div>
-
                     {/* Transmission slider */}
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between text-[10px]">
@@ -3793,9 +4640,6 @@ export function InspectorPanel({ width }: { width?: number }) {
                         <span className="text-[#888] font-bold uppercase tracking-wider text-[9px]">Index of Refraction (IOR)</span>
                         <span className="text-gray-400 font-mono">{(obj.properties.ior ?? 1.5).toFixed(2)}</span>
                       </div>
-                      <p className="text-[7.5px] text-gray-500 leading-normal mb-1">
-                        Water: 1.33 • Glass: 1.52 • Ruby: 1.76 • Diamond: 2.42
-                      </p>
                       <input 
                         type="range" 
                         min="1" 
@@ -3958,6 +4802,152 @@ export function InspectorPanel({ width }: { width?: number }) {
                     onChange={(e) => handlePropertyChange('text', e.target.value)}
                     className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-blue-500 outline-none h-16 resize-none"
                   />
+                </div>
+
+                {/* Preset Text Styles Grid with Live Preview */}
+                <div className="bg-[#141414] border border-[#262626] rounded-lg p-2.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-purple-300 flex items-center gap-1.5">
+                      <Sparkles size={11} className="text-purple-400" /> Preset 3D Text Styles
+                    </span>
+                    <span className="text-[9px] text-[#666] font-mono">Live Preview</span>
+                  </div>
+
+                  {/* Active Preview Banner */}
+                  {previewingPresetId && (
+                    <div className="bg-cyan-950/80 border border-cyan-500/40 rounded-md p-2 flex flex-col gap-1.5 animate-fadeIn">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-cyan-300 font-bold flex items-center gap-1">
+                          <Eye size={12} className="text-cyan-400 animate-pulse" />
+                          Previewing: <span className="text-white font-semibold">{PRESET_TEXT_STYLES.find(p => p.id === previewingPresetId)?.name}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <button
+                          onClick={() => {
+                            const preset = PRESET_TEXT_STYLES.find(p => p.id === previewingPresetId);
+                            setPreviewingPresetId(null);
+                            setOriginalTextProps(null);
+                            if (preset) {
+                              useEditorStore.getState().addToast(`Applied '${preset.name}' text preset!`);
+                            }
+                          }}
+                          className="flex-1 py-1 px-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[9px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow"
+                          title="Apply this preset permanently"
+                        >
+                          <Check size={10} /> Apply Preset
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (originalTextProps) {
+                              useEditorStore.getState().updateObject(obj.id, {
+                                properties: {
+                                  ...obj.properties,
+                                  ...originalTextProps
+                                }
+                              });
+                            }
+                            setPreviewingPresetId(null);
+                            setOriginalTextProps(null);
+                          }}
+                          className="px-2 py-1 bg-[#222] hover:bg-[#333] text-gray-300 hover:text-white rounded text-[9px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                          title="Cancel preview and revert properties"
+                        >
+                          <X size={10} /> Revert
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preset Grid Cards */}
+                  <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+                    {PRESET_TEXT_STYLES.map((preset) => {
+                      const isPreviewing = previewingPresetId === preset.id;
+                      return (
+                        <div
+                          key={preset.id}
+                          className={cn(
+                            "p-2 rounded border transition-all flex flex-col gap-1 text-left relative group",
+                            isPreviewing
+                              ? "bg-cyan-950/40 border-cyan-500 text-white shadow-sm shadow-cyan-500/20"
+                              : "bg-[#0A0A0A] border-[#222] text-gray-300 hover:border-purple-500/50 hover:bg-[#111]"
+                          )}
+                        >
+                          <div className="flex items-center justify-between text-[9px] font-bold">
+                            <span className="truncate text-white">{preset.name}</span>
+                            <span className="text-[8px] opacity-75">{preset.badge.split(' ')[0]}</span>
+                          </div>
+
+                          {/* Color Swatch Preview Pill */}
+                          <div className="flex items-center gap-1 bg-black/50 p-1 rounded border border-[#222]">
+                            <div 
+                              className="w-3 h-3 rounded-full border border-black shrink-0" 
+                              style={{ 
+                                backgroundColor: preset.properties.color,
+                                boxShadow: `0 0 6px ${preset.properties.outlineColor}`
+                              }} 
+                            />
+                            <span className="text-[8px] font-mono text-gray-400 truncate">
+                              {preset.category}
+                            </span>
+                          </div>
+
+                          {/* Action Buttons: Preview & Apply */}
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <button
+                              onClick={() => {
+                                if (!originalTextProps) {
+                                  setOriginalTextProps({
+                                    color: obj.properties.color,
+                                    outlineColor: obj.properties.outlineColor,
+                                    outlineWidth: obj.properties.outlineWidth,
+                                    letterSpacing: obj.properties.letterSpacing,
+                                    lineHeight: obj.properties.lineHeight,
+                                    fontUrl: obj.properties.fontUrl,
+                                    billboard: obj.properties.billboard
+                                  });
+                                }
+                                setPreviewingPresetId(preset.id);
+                                useEditorStore.getState().updateObject(obj.id, {
+                                  properties: {
+                                    ...obj.properties,
+                                    ...preset.properties
+                                  }
+                                });
+                              }}
+                              className={cn(
+                                "flex-1 py-0.5 px-1 rounded text-[8px] font-bold flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                isPreviewing
+                                  ? "bg-cyan-600 text-white"
+                                  : "bg-[#1A1A1A] hover:bg-[#2A2A2A] text-gray-300 hover:text-cyan-400"
+                              )}
+                              title="Live preview style in 3D scene before applying"
+                            >
+                              <Eye size={9} />
+                              <span>Preview</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPreviewingPresetId(null);
+                                setOriginalTextProps(null);
+                                useEditorStore.getState().updateObject(obj.id, {
+                                  properties: {
+                                    ...obj.properties,
+                                    ...preset.properties
+                                  }
+                                });
+                                useEditorStore.getState().addToast(`Applied '${preset.name}' text preset!`);
+                              }}
+                              className="py-0.5 px-1.5 bg-purple-600/30 hover:bg-purple-600 text-purple-300 hover:text-white rounded text-[8px] font-bold flex items-center justify-center transition-colors cursor-pointer"
+                              title="Apply style immediately"
+                            >
+                              <Check size={9} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1">
@@ -4145,6 +5135,51 @@ export function InspectorPanel({ width }: { width?: number }) {
                       onChange={(e) => handlePropertyChange('outlineWidth', parseFloat(e.target.value))}
                       className="accent-blue-500 w-full h-1 cursor-pointer"
                     />
+                  </div>
+                </div>
+
+                {/* 3D Text Surface Texture & Material */}
+                <div className="bg-[#1A1A1A]/30 border border-[#222] rounded-lg p-2.5 flex flex-col gap-2">
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">3D Text Surface Texture & Material</span>
+                  <MediaAssetPicker 
+                    value={obj.properties.textureUrl || ''}
+                    onChange={(url) => handlePropertyChange('textureUrl', url)}
+                    type="image"
+                    accept="image/*"
+                    placeholder="Paste/Upload Text Texture Pattern..."
+                    label="Surface Texture Map"
+                  />
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[8px]">
+                        <span className="text-[#666]">Roughness</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.roughness ?? 0.4).toFixed(2)}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.05" 
+                        value={obj.properties.roughness ?? 0.4} 
+                        onChange={(e) => handlePropertyChange('roughness', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[8px]">
+                        <span className="text-[#666]">Metalness</span>
+                        <span className="text-gray-400 font-mono">{(obj.properties.metalness ?? 0.1).toFixed(2)}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.05" 
+                        value={obj.properties.metalness ?? 0.1} 
+                        onChange={(e) => handlePropertyChange('metalness', parseFloat(e.target.value))}
+                        className="accent-blue-500 w-full h-1 cursor-pointer"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -4555,7 +5590,18 @@ export function InspectorPanel({ width }: { width?: number }) {
 
             {/* --- 8.5. GLTF / GLB MODEL ANIMATION ENGINE --- */}
             {obj.type === 'model' && (
-              <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-3.5 bg-[#0F0F0F] border border-[#222] p-3 rounded-xl shadow-inner">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2">
+                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest font-mono flex items-center gap-1.5">
+                    🎬 3D Model Embedded Animations
+                  </span>
+                  {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 && (
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800/40">
+                      {obj.properties.discoveredAnimations.length} Clips
+                    </span>
+                  )}
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <MediaAssetPicker 
                     value={obj.properties.url || ''}
@@ -4568,79 +5614,142 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
 
                 {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 ? (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-[#666] font-medium">Select Keyframe Clip</label>
-                    <select
-                      value={obj.properties.activeAnimation || ''}
-                      onChange={(e) => handlePropertyChange('activeAnimation', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
-                    >
-                      {obj.properties.discoveredAnimations.map((name: string) => (
-                        <option key={name} value={name}>
-                          🎬 {name}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-gray-400 font-medium flex items-center justify-between">
+                        <span>Active Animation Track</span>
+                        <span className="text-[9px] text-blue-400 font-mono">
+                          {obj.properties.activeAnimation || obj.properties.discoveredAnimations[0]}
+                        </span>
+                      </label>
+                      <select
+                        value={obj.properties.activeAnimation || obj.properties.discoveredAnimations[0]}
+                        onChange={(e) => handlePropertyChange('activeAnimation', e.target.value)}
+                        className="bg-[#0A0A0A] text-[10px] p-2 rounded-lg border border-[#262626] text-white focus:border-blue-500 outline-none cursor-pointer font-mono"
+                      >
+                        {obj.properties.discoveredAnimations.map((name: string, index: number) => (
+                          <option key={name} value={name}>
+                            Track #{index + 1}: {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Play / Pause / Stop Transport Control Bar */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handlePropertyChange('animationPlaying', true);
+                          useEditorStore.getState().addToast('Playing 3D Animation');
+                        }}
+                        className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          obj.properties.animationPlaying !== false
+                            ? 'bg-emerald-600 text-white shadow-md'
+                            : 'bg-[#1D1D1D] text-gray-400 hover:text-white border border-[#2A2A2A]'
+                        }`}
+                      >
+                        ▶ Play
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handlePropertyChange('animationPlaying', false);
+                          useEditorStore.getState().addToast('Paused 3D Animation');
+                        }}
+                        className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          obj.properties.animationPlaying === false
+                            ? 'bg-amber-600 text-white shadow-md'
+                            : 'bg-[#1D1D1D] text-gray-400 hover:text-white border border-[#2A2A2A]'
+                        }`}
+                      >
+                        ⏸ Pause
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handlePropertyChange('animationPlaying', false);
+                          handlePropertyChange('animationSpeed', 1.0);
+                          useEditorStore.getState().addToast('Stopped 3D Animation');
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase bg-[#1D1D1D] text-gray-400 hover:text-white border border-[#2A2A2A] transition-all cursor-pointer"
+                        title="Reset / Stop Animation"
+                      >
+                        ⏹ Reset
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="bg-[#0A0A0A] p-2 rounded border border-[#222] text-center text-[9px] text-[#666] font-mono leading-relaxed">
-                    ⚠️ No embedded animations found in this asset
+                  <div className="bg-[#0A0A0A] p-2.5 rounded-lg border border-[#222] text-center text-[9px] text-gray-500 font-mono leading-relaxed">
+                    ℹ️ Load a 3D model (.glb / .gltf) with keyframe animation clips to enable playback
                   </div>
                 )}
 
-                <div className="flex items-center justify-between text-[11px] mt-1 border-t border-black/10 pt-2.5">
-                  <span className="text-[#888] font-semibold">Animation State</span>
-                  <button
-                    onClick={() => handlePropertyChange('animationPlaying', obj.properties.animationPlaying === false ? true : false)}
-                    className={`px-3 py-1 rounded text-[9px] font-bold uppercase transition-all ${
-                      obj.properties.animationPlaying !== false
-                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                        : 'bg-[#222] text-[#888] border border-[#333]'
-                    }`}
-                  >
-                    {obj.properties.animationPlaying !== false ? 'Playing' : 'Paused'}
-                  </button>
-                </div>
-
+                {/* Looping Mode Toggle */}
                 {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 && (
-                  <div className="flex items-center justify-between text-[11px] mt-1 border-t border-black/10 pt-2.5">
-                    <span className="text-[#888] font-semibold">Loop Animation</span>
+                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-[#1C1C1C]">
+                    <span className="text-gray-400 font-semibold text-[10px]">Looping Behavior</span>
                     <button
+                      type="button"
                       onClick={() => handlePropertyChange('loopAnimation', obj.properties.loopAnimation === false ? true : false)}
-                      className={`px-3 py-1 rounded text-[9px] font-bold uppercase transition-all ${
+                      className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase transition-all cursor-pointer ${
                         obj.properties.loopAnimation !== false
-                          ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                          : 'bg-[#222] text-[#888] border border-[#333]'
+                          ? 'bg-green-950 text-green-400 border border-green-800/50'
+                          : 'bg-[#1D1D1D] text-gray-400 border border-[#2A2A2A]'
                       }`}
                     >
-                      {obj.properties.loopAnimation !== false ? 'Looping' : 'Once'}
+                      {obj.properties.loopAnimation !== false ? '🔁 Loop Repeat' : '1️⃣ Play Once'}
                     </button>
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1.5 border-t border-black/10 pt-2.5">
-                  <div className="flex justify-between text-[10px]">
-                    <span className="text-[#666]">Playback Speed</span>
-                    <span className="text-gray-400 font-mono">{(obj.properties.animationSpeed ?? 1.0).toFixed(2)}x</span>
+                {/* Playback Speed Slider & Quick Presets */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-[#1C1C1C]">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-gray-400">Playback Speed</span>
+                    <span className="text-blue-400 font-mono font-bold">{(obj.properties.animationSpeed ?? 1.0).toFixed(2)}x</span>
                   </div>
                   <input 
                     type="range" 
                     min="0.1" 
-                    max="3.0" 
+                    max="4.0" 
                     step="0.1" 
                     value={obj.properties.animationSpeed ?? 1.0} 
                     onChange={(e) => handlePropertyChange('animationSpeed', parseFloat(e.target.value))}
-                    className="accent-blue-500 w-full h-1 cursor-pointer"
+                    className="accent-blue-500 w-full h-1 cursor-pointer bg-[#222] rounded-lg"
+                  />
+                  <div className="flex gap-1">
+                    {[0.5, 1.0, 1.5, 2.0, 3.0].map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => handlePropertyChange('animationSpeed', spd)}
+                        className={`flex-1 py-0.5 rounded text-[8px] font-mono font-bold transition-all cursor-pointer ${
+                          (obj.properties.animationSpeed ?? 1.0) === spd
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-[#181818] text-gray-400 hover:text-white border border-[#252525]'
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview Animation in Design View Toggle */}
+                <div className="flex items-center justify-between text-[10px] pt-2 border-t border-[#1C1C1C]">
+                  <span className="text-gray-400 font-semibold">Play in 3D Editor Canvas</span>
+                  <VisualCheckbox 
+                    checked={obj.properties.playInEditor ?? false}
+                    onChange={(v) => handlePropertyChange('playInEditor', v)}
                   />
                 </div>
 
-                <div className="flex items-center justify-between text-xs mt-1 border-t border-[#222] pt-2.5">
-                  <span className="text-[#666]">Wireframe Mode</span>
-                  <input 
-                    type="checkbox" 
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-[#1C1C1C]">
+                  <span className="text-gray-400 text-[10px]">Wireframe Mesh</span>
+                  <VisualCheckbox 
                     checked={obj.properties.wireframe ?? false}
-                    onChange={(e) => handlePropertyChange('wireframe', e.target.checked)}
-                    className="accent-blue-500 cursor-pointer"
+                    onChange={(v) => handlePropertyChange('wireframe', v)}
                   />
                 </div>
 
@@ -4681,6 +5790,28 @@ export function InspectorPanel({ width }: { width?: number }) {
                       const pos = nodeOverride.position || [0, 0, 0];
                       const rot = nodeOverride.rotation || [0, 0, 0];
                       const scl = nodeOverride.scale || [1, 1, 1];
+                      
+                      const subMaterial = nodeOverride.material || {};
+                      const subColor = subMaterial.color || '#ffffff';
+                      const subRoughness = subMaterial.roughness ?? 0.5;
+                      const subMetalness = subMaterial.metalness ?? 0.1;
+                      const subOpacity = subMaterial.opacity ?? 1.0;
+                      const subEmissiveColor = subMaterial.emissiveColor || '#000000';
+                      const subEmissiveIntensity = subMaterial.emissiveIntensity ?? 0.0;
+                      const subWireframe = subMaterial.wireframe ?? false;
+
+                      const handleSubMaterialChange = (field: string, value: any) => {
+                        handlePropertyChange('subObjectOverrides', {
+                          ...overrides,
+                          [path]: {
+                            ...nodeOverride,
+                            material: {
+                              ...subMaterial,
+                              [field]: value
+                            }
+                          }
+                        });
+                      };
                       
                       const handleOverrideChange = (field: string, idx: number, val: number) => {
                         let arr = nodeOverride[field] ? [...nodeOverride[field]] : (field === 'scale' ? [1, 1, 1] : [0, 0, 0]);
@@ -4723,11 +5854,9 @@ export function InspectorPanel({ width }: { width?: number }) {
                           
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-[#666] text-[10px]">Node Visibility</span>
-                            <input 
-                              type="checkbox" 
+                            <VisualCheckbox 
                               checked={visible !== false}
-                              onChange={(e) => handleVisibilityChange(e.target.checked)}
-                              className="accent-blue-500 cursor-pointer w-3.5 h-3.5"
+                              onChange={(v) => handleVisibilityChange(v)}
                             />
                           </div>
                           
@@ -4787,6 +5916,169 @@ export function InspectorPanel({ width }: { width?: number }) {
                               ))}
                             </div>
                           </div>
+
+                          {/* Submesh Material Overrides */}
+                          {subNode.type === 'Mesh' && (
+                            <div className="flex flex-col gap-2 border-t border-[#222]/40 pt-2.5 mt-2">
+                              <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                <Palette size={9} className="text-blue-400" />
+                                Sub-Mesh Material Overrides
+                              </span>
+                              
+                              {/* Submesh color picker */}
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#666] text-[10px]">Override Color</span>
+                                <div className="flex items-center gap-1.5">
+                                  <input 
+                                    type="color" 
+                                    value={subColor}
+                                    onChange={(e) => handleSubMaterialChange('color', e.target.value)}
+                                    className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                                  />
+                                  <span className="text-[9px] text-gray-400 font-mono uppercase">{subColor}</span>
+                                </div>
+                              </div>
+
+                              {/* Roughness Slider */}
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-[#666]">Roughness</span>
+                                  <span className="text-gray-400 font-mono">{subRoughness.toFixed(2)}</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="1" 
+                                  step="0.01"
+                                  value={subRoughness}
+                                  onChange={(e) => handleSubMaterialChange('roughness', parseFloat(e.target.value))}
+                                  className="accent-blue-500 w-full h-1 cursor-pointer"
+                                />
+                              </div>
+
+                              {/* Metalness Slider */}
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-[#666]">Metalness</span>
+                                  <span className="text-gray-400 font-mono">{subMetalness.toFixed(2)}</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="1" 
+                                  step="0.01"
+                                  value={subMetalness}
+                                  onChange={(e) => handleSubMaterialChange('metalness', parseFloat(e.target.value))}
+                                  className="accent-blue-500 w-full h-1 cursor-pointer"
+                                />
+                              </div>
+
+                              {/* Opacity Slider */}
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-[#666]">Opacity</span>
+                                  <span className="text-gray-400 font-mono">{subOpacity.toFixed(2)}</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="1" 
+                                  step="0.01"
+                                  value={subOpacity}
+                                  onChange={(e) => handleSubMaterialChange('opacity', parseFloat(e.target.value))}
+                                  className="accent-blue-500 w-full h-1 cursor-pointer"
+                                />
+                              </div>
+
+                              {/* Emissive section */}
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-[#666] text-[10px]">Emissive Glow</span>
+                                <div className="flex items-center gap-1.5">
+                                  <input 
+                                    type="color" 
+                                    value={subEmissiveColor}
+                                    onChange={(e) => handleSubMaterialChange('emissiveColor', e.target.value)}
+                                    className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                                  />
+                                  <span className="text-[9px] text-gray-400 font-mono uppercase">{subEmissiveColor}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex justify-between text-[10px]">
+                                  <span className="text-[#666]">Emissive Intensity</span>
+                                  <span className="text-gray-400 font-mono">{subEmissiveIntensity.toFixed(1)}</span>
+                                </div>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="10" 
+                                  step="0.1"
+                                  value={subEmissiveIntensity}
+                                  onChange={(e) => handleSubMaterialChange('emissiveIntensity', parseFloat(e.target.value))}
+                                  className="accent-blue-500 w-full h-1 cursor-pointer"
+                                />
+                              </div>
+
+                              {/* Wireframe checkbox */}
+                              <div className="flex items-center justify-between text-[10px] mt-1">
+                                <span className="text-[#666]">Wireframe Mode</span>
+                                <VisualCheckbox 
+                                  checked={subWireframe}
+                                  onChange={(v) => handleSubMaterialChange('wireframe', v)}
+                                />
+                              </div>
+
+                              {/* Presets library for submesh */}
+                              <div className="flex flex-col gap-1.5 mt-1.5">
+                                <span className="text-[7.5px] font-bold text-gray-500 uppercase tracking-wider">Quick Presets</span>
+                                <div className="grid grid-cols-4 gap-1">
+                                  {[
+                                    { name: 'Gold', props: { color: '#ffd700', roughness: 0.1, metalness: 1.0, emissiveColor: '#000000', emissiveIntensity: 0.0 } },
+                                    { name: 'Chrome', props: { color: '#e5e9f0', roughness: 0.05, metalness: 1.0, emissiveColor: '#000000', emissiveIntensity: 0.0 } },
+                                    { name: 'Clay', props: { color: '#3ecf8e', roughness: 0.9, metalness: 0.0, emissiveColor: '#000000', emissiveIntensity: 0.0 } },
+                                    { name: 'Neon', props: { color: '#0d020d', roughness: 0.2, metalness: 0.1, emissiveColor: '#3b82f6', emissiveIntensity: 3.5 } }
+                                  ].map(pr => (
+                                    <button
+                                      key={pr.name}
+                                      onClick={() => {
+                                        handlePropertyChange('subObjectOverrides', {
+                                          ...overrides,
+                                          [path]: {
+                                            ...nodeOverride,
+                                            material: {
+                                              ...(nodeOverride.material || {}),
+                                              ...pr.props
+                                            }
+                                          }
+                                        });
+                                      }}
+                                      className="text-[8px] font-bold bg-[#1E1E1E] border border-[#2D2D2D] text-gray-300 hover:text-white px-1 py-1 rounded hover:bg-[#2D2D2D] active:scale-95 transition-all text-center cursor-pointer"
+                                    >
+                                      {pr.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Clear / Reset button */}
+                              {nodeOverride.material && (
+                                <button
+                                  onClick={() => {
+                                    const updatedOverrides = { ...overrides };
+                                    if (updatedOverrides[path]) {
+                                      const { material, ...rest } = updatedOverrides[path];
+                                      updatedOverrides[path] = rest;
+                                    }
+                                    handlePropertyChange('subObjectOverrides', updatedOverrides);
+                                  }}
+                                  className="mt-1.5 text-center text-[8px] font-bold text-red-400 bg-red-950/20 border border-red-900/30 hover:bg-red-950/40 hover:text-red-300 py-1 rounded transition-colors cursor-pointer"
+                                >
+                                  Clear Material Overrides
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </>
                       );
                     })()}
@@ -5412,6 +6704,77 @@ export function InspectorPanel({ width }: { width?: number }) {
                           <option value="italic">Italic</option>
                         </select>
                       </div>
+
+                      {/* Text Gradient & Texture Fill Controls */}
+                      <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-[#222]">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Text Gradient & Texture Fill</span>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] text-[#888]">Enable Gradient Text</label>
+                          <input
+                            type="checkbox"
+                            checked={obj.properties.useGradient ?? false}
+                            onChange={(e) => handlePropertyChange('useGradient', e.target.checked)}
+                            className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5"
+                          />
+                        </div>
+                        {obj.properties.useGradient && (
+                          <div className="flex flex-col gap-2 bg-[#121212] p-2 rounded border border-[#222]">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] text-[#666]">Gradient Start</label>
+                              <input 
+                                type="color" 
+                                value={obj.properties.gradientColorStart || '#06b6d4'}
+                                onChange={(e) => handlePropertyChange('gradientColorStart', e.target.value)}
+                                className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] text-[#666]">Gradient End</label>
+                              <input 
+                                type="color" 
+                                value={obj.properties.gradientColorEnd || '#3b82f6'}
+                                onChange={(e) => handlePropertyChange('gradientColorEnd', e.target.value)}
+                                className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <MediaAssetPicker 
+                          value={obj.properties.textTextureUrl || ''}
+                          onChange={(url) => handlePropertyChange('textTextureUrl', url)}
+                          type="image"
+                          accept="image/*"
+                          placeholder="Paste pattern/texture image URL for text fill..."
+                          label="Text Texture Background/Fill Pattern"
+                        />
+                      </div>
+
+                      {/* Text Stroke / Outline & Glow */}
+                      <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-[#222]">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Text Stroke & Outline</span>
+                        <div className="flex gap-2">
+                          <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-[9px] text-[#666]">Stroke Width (px)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={obj.properties.textStrokeWidth ?? 0}
+                              onChange={(e) => handlePropertyChange('textStrokeWidth', parseInt(e.target.value) || 0)}
+                              className="bg-[#0A0A0A] text-[10px] p-1.5 rounded w-full border border-[#222] text-white"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <label className="text-[9px] text-[#666]">Stroke Color</label>
+                            <input
+                              type="color"
+                              value={obj.properties.textStrokeColor || '#000000'}
+                              onChange={(e) => handlePropertyChange('textStrokeColor', e.target.value)}
+                              className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </>
                   )}
 
@@ -5990,6 +7353,132 @@ export function InspectorPanel({ width }: { width?: number }) {
                       </div>
                     )}
                   </div>
+
+                  {/* 2D HUD Animation Manager */}
+                  {['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) && (
+                    <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-cyan-500/20">
+                      <label className="text-[10px] text-cyan-400 font-bold tracking-wider flex items-center justify-between">
+                        <span>2D HUD ANIMATION MANAGER</span>
+                        <span className="text-[8px] bg-cyan-950/60 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-mono">Keyframes</span>
+                      </label>
+
+                      <div className="flex flex-col gap-1.5 bg-[#0F0F0F] p-2.5 rounded-lg border border-[#222]">
+                        {/* Entrance Transition */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[9px] text-gray-400 font-medium">Entrance Transition (CSS Keyframes)</label>
+                          <select
+                            value={obj.properties.animationEntrance || 'none'}
+                            onChange={(e) => handlePropertyChange('animationEntrance', e.target.value)}
+                            className="bg-[#181818] text-[10px] p-1.5 rounded border border-[#333] text-white focus:border-cyan-500 outline-none"
+                          >
+                            <option value="none">None (Static Display)</option>
+                            <option value="fade-in">Fade In</option>
+                            <option value="slide-up">Slide In (Up)</option>
+                            <option value="slide-down">Slide In (Down)</option>
+                            <option value="slide-left">Slide In (Left)</option>
+                            <option value="slide-right">Slide In (Right)</option>
+                            <option value="zoom-in">Zoom / Scale In</option>
+                            <option value="bounce">Bounce In</option>
+                            <option value="rotate-in">Rotate In</option>
+                            <option value="flip-in">3D Flip In</option>
+                            <option value="pop-in">Pop & Snap</option>
+                          </select>
+                        </div>
+
+                        {/* Exit Transition */}
+                        <div className="flex flex-col gap-1 mt-1">
+                          <label className="text-[9px] text-gray-400 font-medium">Exit Transition (When Target Lost / Hidden)</label>
+                          <select
+                            value={obj.properties.animationExit || 'none'}
+                            onChange={(e) => handlePropertyChange('animationExit', e.target.value)}
+                            className="bg-[#181818] text-[10px] p-1.5 rounded border border-[#333] text-white focus:border-cyan-500 outline-none"
+                          >
+                            <option value="none">None (Instant Hide)</option>
+                            <option value="fade-out">Fade Out</option>
+                            <option value="slide-down-out">Slide Out (Down)</option>
+                            <option value="slide-up-out">Slide Out (Up)</option>
+                            <option value="slide-left-out">Slide Out (Left)</option>
+                            <option value="slide-right-out">Slide Out (Right)</option>
+                            <option value="zoom-out">Zoom / Scale Out</option>
+                          </select>
+                        </div>
+
+                        {/* Looping Idle Behavior */}
+                        <div className="flex flex-col gap-1 mt-1">
+                          <label className="text-[9px] text-gray-400 font-medium">Continuous Idle Animation</label>
+                          <select
+                            value={obj.properties.animationIdle || 'none'}
+                            onChange={(e) => handlePropertyChange('animationIdle', e.target.value)}
+                            className="bg-[#181818] text-[10px] p-1.5 rounded border border-[#333] text-white focus:border-cyan-500 outline-none"
+                          >
+                            <option value="none">None (Static)</option>
+                            <option value="pulse">Pulse Glow / Scale</option>
+                            <option value="float">Gentle Float / Bob</option>
+                            <option value="bounce">Looping Bounce</option>
+                            <option value="spin">Continuous 2D Spin</option>
+                            <option value="shake">Attention Shake</option>
+                            <option value="shimmer">Shimmer Highlight</option>
+                          </select>
+                        </div>
+
+                        {/* Timing Controls */}
+                        <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-[#222]">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#888]">Duration (s)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.1"
+                              max="10"
+                              value={obj.properties.animationDuration ?? 0.8}
+                              onChange={(e) => handlePropertyChange('animationDuration', parseFloat(e.target.value) || 0.8)}
+                              className="bg-[#141414] text-[10px] p-1 rounded border border-[#2A2A2A] text-white font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[8px] text-[#888]">Delay (s)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="10"
+                              value={obj.properties.animationDelay ?? 0}
+                              onChange={(e) => handlePropertyChange('animationDelay', parseFloat(e.target.value) || 0)}
+                              className="bg-[#141414] text-[10px] p-1 rounded border border-[#2A2A2A] text-white font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Multi-Target Association */}
+                  {(obj.type as string) !== 'imageTarget' && (
+                    <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-indigo-500/20">
+                      <label className="text-[10px] text-indigo-400 font-bold tracking-wider flex items-center justify-between">
+                        <span>MULTI-TARGET TRACKING BINDING</span>
+                        <span className="text-[8px] bg-indigo-950/60 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded font-mono">WebAR</span>
+                      </label>
+                      <div className="flex flex-col gap-1 bg-[#0F0F0F] p-2 rounded border border-[#222]">
+                        <label className="text-[9px] text-gray-400 font-medium">Triggering Image Target</label>
+                        <select
+                          value={obj.properties.targetId || 'all'}
+                          onChange={(e) => handlePropertyChange('targetId', e.target.value)}
+                          className="bg-[#181818] text-[10px] p-1.5 rounded border border-[#333] text-white focus:border-indigo-500 outline-none"
+                        >
+                          <option value="all">All Image Targets (Triggers on any detected marker)</option>
+                          {Object.values(objects).filter((o: any) => o.type === 'imageTarget').map((tgt: any, i: number) => (
+                            <option key={tgt.id} value={tgt.id}>
+                              Target #{i + 1}: {tgt.name || `Image Target ${i + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-[8px] text-gray-500 mt-0.5">
+                          In WebAR multi-target tracking, this element will switch on automatically when this specific target is detected.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -6019,6 +7508,50 @@ export function InspectorPanel({ width }: { width?: number }) {
                   <PlusCircle size={12} className="text-pink-400" />
                   Add Click Audio Feedback
                 </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Custom Code Script Editor Section (Moved to Bottom) */}
+        {obj.type !== 'imageTarget' && (
+          <div className="flex flex-col gap-3 border-t border-[#222] pt-4 p-4 bg-black/10">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider flex items-center gap-1.5">
+                <Code size={11} className="text-pink-400" />
+                Custom Scripting
+              </span>
+              <input 
+                type="checkbox" 
+                checked={obj.properties.scriptEnabled ?? true}
+                onChange={(e) => handlePropertyChange('scriptEnabled', e.target.checked)}
+                className="accent-pink-500 w-3.5 h-3.5 rounded cursor-pointer"
+                title="Toggle script logic running"
+              />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <p className="text-[9px] text-[#666] leading-relaxed">
+                Attach Custom JS/TS logic to run dynamic interactive behaviors and event updates in Live Preview.
+              </p>
+
+              <button
+                onClick={() => setEditingScriptObjectId(editingScriptObjectId === selectedObjectId ? null : selectedObjectId)}
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-[10px] font-bold transition-all border",
+                  editingScriptObjectId === selectedObjectId 
+                    ? "bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border-pink-500/30"
+                    : "bg-pink-600 hover:bg-pink-500 text-white border-transparent active:scale-95 shadow-md"
+                )}
+              >
+                <Code size={12} />
+                {editingScriptObjectId === selectedObjectId ? "Close Script Editor" : "✏️ Write Custom Script"}
+              </button>
+
+              {obj.properties.scriptCode && (
+                <div className="bg-black/50 border border-[#222] rounded p-2 text-[9px] font-mono text-[#555] max-h-20 overflow-hidden line-clamp-3 select-none leading-relaxed">
+                  {obj.properties.scriptCode}
+                </div>
               )}
             </div>
           </div>

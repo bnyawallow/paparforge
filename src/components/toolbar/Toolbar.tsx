@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Settings, Edit3, Camera, Undo2, Redo2, Globe, 
-  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert, History
+  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert, History, QrCode, Printer, LayoutTemplate
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -9,6 +9,8 @@ import { PublishModal } from './PublishModal';
 import { SettingsModal } from './SettingsModal';
 import { ProjectDashboardModal } from './ProjectDashboardModal';
 import { VersionHistoryModal } from './VersionHistoryModal';
+import { MarkerManagerModal } from './MarkerManagerModal';
+import { TemplatesLibraryModal } from '../templates/TemplatesLibraryModal';
 import { useTheme } from '../../lib/theme';
 import { useNavigate } from 'react-router-dom';
 
@@ -42,6 +44,8 @@ export function Toolbar() {
   const [showSettings, setShowSettings] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  const [showMarkerStudio, setShowMarkerStudio] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempProjectName, setTempProjectName] = useState(settings.projectName);
@@ -84,9 +88,9 @@ export function Toolbar() {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setShowProjects(true)}
+              onClick={() => useEditorStore.getState().closeProject()}
               className={`p-1.5 rounded-lg transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold shadow-sm ${t.isLight ? 'bg-gray-50 hover:bg-gray-100 text-[#4B5563] hover:text-gray-900 border-gray-200 hover:border-gray-300' : 'p-1.5 hover:bg-[#1A1A1A] rounded-lg text-[#AAA] hover:text-white border border-[#252525] hover:border-[#383838]'}`}
-              title="Open Projects Manager"
+              title="Return to Projects Manager"
             >
               <FolderOpen size={14} className="text-blue-400" />
               <span className={`hidden sm:inline text-[11px] uppercase tracking-wider font-extrabold ${t.isLight ? 'text-gray-500 hover:text-gray-800' : 'text-[#999] hover:text-white'}`}>Projects</span>
@@ -151,12 +155,27 @@ export function Toolbar() {
               <span className="hidden sm:inline">Asset Browser</span>
             </button>
             <button 
+              onClick={() => setShowTemplates(true)}
+              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-purple-50 hover:bg-purple-100/80 text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' : 'bg-transparent text-purple-400 hover:text-purple-300 border-purple-500/20 hover:border-purple-500/40'}`}
+              title="Pre-built AR Layout Scaffolds for Print Ads"
+            >
+              <LayoutTemplate size={14} />
+              <span className="hidden md:inline">Templates Library</span>
+            </button>
+            <button 
+              onClick={() => setShowMarkerStudio(true)}
+              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-blue-50 hover:bg-blue-100/80 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300' : 'bg-transparent text-blue-400 hover:text-blue-300 border-blue-500/20 hover:border-blue-500/40'}`}
+              title="Printable AR Marker & Campaign Studio"
+            >
+              <Printer size={14} />
+              <span className="hidden md:inline">AR Marker Studio</span>
+            </button>
+            <button 
               onClick={() => setShowVersions(true)}
-              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-amber-50 hover:bg-amber-100/80 text-amber-600 hover:text-amber-700 border-amber-200 hover:border-amber-300' : 'bg-transparent text-amber-400 hover:text-amber-300 border-amber-500/20 hover:border-amber-500/40'}`}
+              className={`p-2 rounded-lg border transition-all duration-100 flex items-center justify-center cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-amber-50 hover:bg-amber-100/80 text-amber-600 hover:text-amber-700 border-amber-200 hover:border-amber-300' : 'bg-transparent text-amber-400 hover:text-amber-300 border-amber-500/20 hover:border-amber-500/40'}`}
               title="Project Version History & Snapshots"
             >
-              <History size={14} />
-              <span className="hidden sm:inline">Versions</span>
+              <History size={16} />
             </button>
             <button 
               onClick={() => undo()} 
@@ -275,6 +294,8 @@ export function Toolbar() {
       {showPublish && <PublishModal onClose={() => setShowPublish(false)} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showProjects && <ProjectDashboardModal onClose={() => setShowProjects(false)} />}
+      {showMarkerStudio && <MarkerManagerModal onClose={() => setShowMarkerStudio(false)} />}
+      {showTemplates && <TemplatesLibraryModal onClose={() => setShowTemplates(false)} />}
       <VersionHistoryModal isOpen={showVersions} onClose={() => setShowVersions(false)} />
     </>
   );

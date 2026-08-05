@@ -286,11 +286,21 @@ function buildSubObjectTree(node: any, indexPath: string = '0'): any {
     });
   }
 
+  let materialName: string | undefined = undefined;
+  if (node.isMesh && node.material) {
+    if (Array.isArray(node.material)) {
+      materialName = node.material.map((m: any) => m.name || '').filter(Boolean)[0] || undefined;
+    } else {
+      materialName = node.material.name || undefined;
+    }
+  }
+
   return {
     id: indexPath,
     name: nodeName,
     type: node.isMesh ? 'Mesh' : 'Group',
     visible: node.visible,
+    materialName,
     children: children.length > 0 ? children : undefined
   };
 }
@@ -403,6 +413,34 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   const clonedScene = React.useMemo(() => {
     return scene.clone();
   }, [scene]);
+
+  // Intelligent scaling & centering calculation to fit model inside Image Target frame and normalize scale
+  const { scaleFactor, offsetVector } = React.useMemo(() => {
+    if (!clonedScene) return { scaleFactor: 1, offsetVector: new THREE.Vector3(0, 0, 0) };
+
+    const bbox = new THREE.Box3().setFromObject(clonedScene);
+    if (bbox.isEmpty()) {
+      return { scaleFactor: 1, offsetVector: new THREE.Vector3(0, 0, 0) };
+    }
+
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    // Standard normalized target size inside image target frame (~20 units)
+    const TARGET_FRAME_SIZE = 20.0;
+    let factor = 1.0;
+    if (maxDim > 0 && Number.isFinite(maxDim)) {
+      factor = TARGET_FRAME_SIZE / maxDim;
+    }
+
+    // Offset center so the model's geometric center sits exactly at the pivot origin (0, 0, 0)
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
+    const offset = center.clone().multiplyScalar(-1);
+
+    return { scaleFactor: factor, offsetVector: offset };
+  }, [clonedScene]);
 
   const { actions, names } = useAnimations(animations, group);
 
@@ -656,6 +694,49 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
         if (ovr.scale) {
           node.scale.set(ovr.scale[0], ovr.scale[1], ovr.scale[2]);
         }
+
+        // Apply sub-mesh specific material overrides
+        if (node.isMesh && node.material && ovr.material) {
+          const materials = Array.isArray(node.material) ? node.material : [node.material];
+          const mOvr = ovr.material;
+          
+          materials.forEach((mat: any, index: number) => {
+            let targetMat = mat;
+            if (!targetMat.__isSubCloned) {
+              targetMat = targetMat.clone();
+              targetMat.__isSubCloned = true;
+              if (Array.isArray(node.material)) {
+                node.material[index] = targetMat;
+              } else {
+                node.material = targetMat;
+              }
+            }
+            
+            if (mOvr.color !== undefined) {
+              targetMat.color.set(mOvr.color);
+            }
+            if (mOvr.roughness !== undefined) {
+              targetMat.roughness = mOvr.roughness;
+            }
+            if (mOvr.metalness !== undefined) {
+              targetMat.metalness = mOvr.metalness;
+            }
+            if (mOvr.opacity !== undefined) {
+              targetMat.opacity = mOvr.opacity;
+              targetMat.transparent = mOvr.opacity < 1;
+            }
+            if (mOvr.emissiveColor !== undefined && targetMat.emissive) {
+              targetMat.emissive.set(mOvr.emissiveColor);
+            }
+            if (mOvr.emissiveIntensity !== undefined && targetMat.emissiveIntensity !== undefined) {
+              targetMat.emissiveIntensity = mOvr.emissiveIntensity;
+            }
+            if (mOvr.wireframe !== undefined) {
+              targetMat.wireframe = mOvr.wireframe;
+            }
+            targetMat.needsUpdate = true;
+          });
+        }
       }
     });
   }, [clonedScene, properties.subObjectOverrides]);
@@ -717,7 +798,11 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     }
   }, [actions, activeAnimation, actualAnimationPlaying, animationSpeed, loopAnimation]);
 
-  return <primitive ref={group} object={clonedScene} />;
+  return (
+    <group scale={[scaleFactor, scaleFactor, scaleFactor]}>
+      <primitive ref={group} object={clonedScene} position={[offsetVector.x, offsetVector.y, offsetVector.z]} />
+    </group>
+  );
 }
 
 function ModelLoadingFallback() {
@@ -998,6 +1083,11 @@ function PhysicalMaterialLoader({
               tex.wrapS = THREE.RepeatWrapping;
               tex.wrapT = THREE.RepeatWrapping;
               tex.repeat.set(repeatX || 1, repeatY || 1);
+              if (key === 'map' || key === 'emissiveMap') {
+                tex.colorSpace = THREE.SRGBColorSpace;
+              } else {
+                tex.colorSpace = THREE.LinearSRGBColorSpace || THREE.NoColorSpace;
+              }
               tex.needsUpdate = true;
               loadedMaps[key] = tex;
             }
@@ -1517,6 +1607,69 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
   );
 }
 
+function cubicBezier(t: number, x1: number, y1: number, x2: number, y2: number): number {
+  let low = 0;
+  let high = 1;
+  let x = t;
+  for (let i = 0; i < 14; i++) {
+    const mid = (low + high) / 2;
+    const sampleX = 3 * Math.pow(1 - mid, 2) * mid * x1 + 3 * (1 - mid) * Math.pow(mid, 2) * x2 + Math.pow(mid, 3);
+    if (sampleX < x) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  const mid = (low + high) / 2;
+  const y = 3 * Math.pow(1 - mid, 2) * mid * y1 + 3 * (1 - mid) * Math.pow(mid, 2) * y2 + Math.pow(mid, 3);
+  return y;
+}
+
+function getEasingValue(type: string, t: number): number {
+  if (type.startsWith('cubic-bezier(')) {
+    const match = type.match(/cubic-bezier\(([^,]+),([^,]+),([^,]+),([^)]+)\)/);
+    if (match) {
+      const x1 = parseFloat(match[1]);
+      const y1 = parseFloat(match[2]);
+      const x2 = parseFloat(match[3]);
+      const y2 = parseFloat(match[4]);
+      if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2)) {
+        return cubicBezier(t, x1, y1, x2, y2);
+      }
+    }
+  }
+
+  switch (type) {
+    case 'ease-in':
+      return t * t;
+    case 'ease-out':
+      return t * (2 - t);
+    case 'ease-in-out':
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    case 'elastic': {
+      if (t === 0 || t === 1) return t;
+      return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1;
+    }
+    case 'bounce': {
+      const n1 = 7.5625;
+      const d1 = 2.75;
+      let tempT = t;
+      if (tempT < 1 / d1) {
+        return n1 * tempT * tempT;
+      } else if (tempT < 2 / d1) {
+        return n1 * (tempT -= 1.5 / d1) * tempT + 0.75;
+      } else if (tempT < 2.5 / d1) {
+        return n1 * (tempT -= 2.25 / d1) * tempT + 0.9375;
+      } else {
+        return n1 * (tempT -= 2.625 / d1) * tempT + 0.984375;
+      }
+    }
+    case 'linear':
+    default:
+      return t;
+  }
+}
+
 function ObjectRenderer({ id }: { id: string }) {
   const obj = useEditorStore(state => state.objects[id]);
   const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
@@ -1549,7 +1702,31 @@ function ObjectRenderer({ id }: { id: string }) {
   }, [isSelected, id]);
 
   const executeBehaviorAction = (b: any) => {
-    switch (b.action) {
+    const actType = b.type || b.action;
+    const targetId = b.targetId || b.targetObjectId || id;
+    switch (actType) {
+      case 'hide':
+        useEditorStore.getState().updateObject(targetId, { visible: false });
+        break;
+      case 'show':
+        useEditorStore.getState().updateObject(targetId, { visible: true });
+        break;
+      case 'toggleVisibility': {
+        const target = useEditorStore.getState().objects[targetId];
+        if (target) {
+          useEditorStore.getState().updateObject(targetId, { visible: !target.visible });
+        } else if (obj) {
+          useEditorStore.getState().updateObject(id, { visible: !obj.visible });
+        }
+        break;
+      }
+      case 'setVisibility': {
+        const svTarget = useEditorStore.getState().objects[targetId];
+        if (svTarget) {
+          useEditorStore.getState().updateObject(targetId, { visible: b.visibleState !== 'false' });
+        }
+        break;
+      }
       case 'toast':
         if (b.toastMessage) {
           useEditorStore.getState().addToast(b.toastMessage);
@@ -1560,10 +1737,11 @@ function ObjectRenderer({ id }: { id: string }) {
           window.open(b.url, '_blank', 'noopener,noreferrer');
         }
         break;
-      case 'playSound':
-        const playUrl = b.soundPreset || '/sounds/success_chime.wav';
+      case 'playSound': {
+        const playUrl = b.soundUrl || b.soundPreset || '/sounds/success_chime.wav';
         playCachedAudio(playUrl, b.soundLoop, 0.5);
         break;
+      }
       case 'playVideo':
         useEditorStore.getState().setARVideoPlaying({
           title: `${obj ? obj.name : 'Object'} Response Video`,
@@ -1571,103 +1749,94 @@ function ObjectRenderer({ id }: { id: string }) {
         });
         break;
       case 'startBehavior':
-        if (b.targetObjectId) {
-          const targetObj = useEditorStore.getState().objects[b.targetObjectId];
-          if (targetObj) {
-            useEditorStore.getState().updateObject(b.targetObjectId, {
-              properties: { ...targetObj.properties, behavior: b.behaviorRule || 'spin' }
-            });
-          }
-        } else if (obj) {
-          useEditorStore.getState().updateObject(obj.id, {
-            properties: { ...obj.properties, behavior: b.behaviorRule || 'spin' }
-          });
-        }
-        break;
-      case 'toggleVisibility':
-        if (b.targetObjectId) {
-          const target = useEditorStore.getState().objects[b.targetObjectId];
-          if (target) {
-            useEditorStore.getState().updateObject(b.targetObjectId, { visible: !target.visible });
-          }
-        } else {
-          useEditorStore.getState().updateObject(id, { visible: !obj?.visible });
-        }
-        break;
-      case 'setVisibility':
-        const svTargetId = b.targetObjectId || id;
-        const svTarget = useEditorStore.getState().objects[svTargetId];
-        if (svTarget) {
-          useEditorStore.getState().updateObject(svTargetId, { visible: b.visibleState !== 'false' });
-        }
-        break;
-      case 'scaleUp':
-        const suTargetId = b.targetObjectId || id;
-        const suTarget = useEditorStore.getState().objects[suTargetId];
-        if (suTarget) {
-          useEditorStore.getState().updateObject(suTargetId, { scale: [suTarget.scale[0] * 1.25, suTarget.scale[1] * 1.25, suTarget.scale[2] * 1.25] });
-        }
-        break;
-      case 'scaleDown':
-        const sdTargetId = b.targetObjectId || id;
-        const sdTarget = useEditorStore.getState().objects[sdTargetId];
-        if (sdTarget) {
-          useEditorStore.getState().updateObject(sdTargetId, { scale: [sdTarget.scale[0] * 0.8, sdTarget.scale[1] * 0.8, sdTarget.scale[2] * 0.8] });
-        }
-        break;
-      case 'playModelAnimation':
-        const pmaTargetId = b.targetObjectId || id;
-        const pmaTarget = useEditorStore.getState().objects[pmaTargetId];
-        if (pmaTarget && pmaTarget.type === 'model') {
-          useEditorStore.getState().updateObject(pmaTargetId, { properties: { ...pmaTarget.properties, animationPlaying: true, animationSpeed: 1.0 } });
-        }
-        break;
-      case 'pauseModelAnimation':
-        const pmaPauseTargetId = b.targetObjectId || id;
-        const pmaPauseTarget = useEditorStore.getState().objects[pmaPauseTargetId];
-        if (pmaPauseTarget && pmaPauseTarget.type === 'model') {
-          useEditorStore.getState().updateObject(pmaPauseTargetId, { properties: { ...pmaPauseTarget.properties, animationPlaying: false, animationSpeed: 0.0 } });
-        }
-        break;
-      case 'spin':
-        const targetId = b.targetObjectId || id;
+      case 'spin': {
         const targetObj = useEditorStore.getState().objects[targetId];
         if (targetObj) {
           useEditorStore.getState().updateObject(targetId, {
-            properties: { ...targetObj.properties, behavior: 'spin' }
+            properties: { ...targetObj.properties, behavior: b.behaviorRule || 'spin' }
           });
         }
         break;
+      }
+      case 'scaleUp': {
+        const suTarget = useEditorStore.getState().objects[targetId];
+        if (suTarget) {
+          useEditorStore.getState().updateObject(targetId, { scale: [suTarget.scale[0] * 1.25, suTarget.scale[1] * 1.25, suTarget.scale[2] * 1.25] });
+        }
+        break;
+      }
+      case 'scaleDown': {
+        const sdTarget = useEditorStore.getState().objects[targetId];
+        if (sdTarget) {
+          useEditorStore.getState().updateObject(targetId, { scale: [sdTarget.scale[0] * 0.8, sdTarget.scale[1] * 0.8, sdTarget.scale[2] * 0.8] });
+        }
+        break;
+      }
+      case 'playAnimation':
+      case 'playModelAnimation': {
+        const pmaTarget = useEditorStore.getState().objects[targetId];
+        if (pmaTarget && pmaTarget.type === 'model') {
+          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaTarget.properties, animationPlaying: true, animationSpeed: 1.0 } });
+        }
+        break;
+      }
+      case 'pauseAnimation':
+      case 'pauseModelAnimation': {
+        const pmaPauseTarget = useEditorStore.getState().objects[targetId];
+        if (pmaPauseTarget && pmaPauseTarget.type === 'model') {
+          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaPauseTarget.properties, animationPlaying: false, animationSpeed: 0.0 } });
+        }
+        break;
+      }
       case 'loadScene':
         if (b.targetSceneId) {
           useEditorStore.getState().loadScene(b.targetSceneId);
         }
         break;
+      case 'transition': {
+        const targetStateId = b.transitionTargetStateId || 'base';
+        const duration = b.transitionDuration ?? 1.0;
+        const easing = b.transitionEasing || 'linear';
+        useEditorStore.getState().triggerStateTransition(targetId, targetStateId, duration, easing);
+        break;
+      }
       case 'transform': {
-        const targetIdT = b.targetObjectId || id;
-        const targetObjT = useEditorStore.getState().objects[targetIdT];
+        const targetObjT = useEditorStore.getState().objects[targetId];
         if (targetObjT) {
            const vals = (b.propertyValue || '0,0,0').split(',').map((v: string) => parseFloat(v) || 0) as [number, number, number];
-           if (b.propertyName === 'position') useEditorStore.getState().updateObject(targetIdT, { position: vals });
-           else if (b.propertyName === 'rotation') useEditorStore.getState().updateObject(targetIdT, { rotation: vals });
-           else if (b.propertyName === 'scale') useEditorStore.getState().updateObject(targetIdT, { scale: vals });
+           if (b.propertyName === 'position') useEditorStore.getState().updateObject(targetId, { position: vals });
+           else if (b.propertyName === 'rotation') useEditorStore.getState().updateObject(targetId, { rotation: vals });
+           else if (b.propertyName === 'scale') useEditorStore.getState().updateObject(targetId, { scale: vals });
         }
         break;
       }
       case 'material': {
-        const targetIdM = b.targetObjectId || id;
-        const targetObjM = useEditorStore.getState().objects[targetIdM];
+        const targetObjM = useEditorStore.getState().objects[targetId];
         if (targetObjM) {
            if (b.propertyName === 'color') {
-             useEditorStore.getState().updateObject(targetIdM, { properties: { ...targetObjM.properties, color: b.propertyValue } });
+             useEditorStore.getState().updateObject(targetId, { properties: { ...targetObjM.properties, color: b.propertyValue } });
            } else if (b.propertyName === 'texture') {
-             useEditorStore.getState().updateObject(targetIdM, { properties: { ...targetObjM.properties, textureUrl: b.propertyValue } });
+             useEditorStore.getState().updateObject(targetId, { properties: { ...targetObjM.properties, textureUrl: b.propertyValue } });
            }
         }
         break;
       }
       default:
         break;
+    }
+  };
+
+  const executeEvent = (evt: any) => {
+    if (!evt) return;
+    if (Array.isArray(evt.actions)) {
+      evt.actions.forEach((act: any) => {
+        executeBehaviorAction({
+          ...act,
+          action: act.type,
+        });
+      });
+    } else {
+      executeBehaviorAction(evt);
     }
   };
 
@@ -1768,15 +1937,47 @@ function ObjectRenderer({ id }: { id: string }) {
     }
 
     if (isPreviewMode && !hasTriggeredOnStartRef.current) {
-      const behaviors = obj.properties.visualBehaviors || [];
+      const behaviors = (obj.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onStart') {
-          executeBehaviorAction(b);
+          executeEvent(b);
         }
       });
       hasTriggeredOnStartRef.current = true;
     }
-  }, [isPreviewMode, obj?.properties.visualBehaviors]);
+  }, [isPreviewMode, (obj?.events || [])]);
+
+  // Handle tap & hover triggers from 2D HUD or external events
+  useEffect(() => {
+    if (!isPreviewMode) return;
+    const handleCustomTap = () => {
+      handleInteract();
+    };
+    const handleCustomHoverEnter = () => {
+      const behaviors = (obj?.events || []) || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onHoverEnter') {
+          executeEvent(b);
+        }
+      });
+    };
+    const handleCustomHoverExit = () => {
+      const behaviors = (obj?.events || []) || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onHoverExit') {
+          executeEvent(b);
+        }
+      });
+    };
+    window.addEventListener(`trigger-tap-${id}`, handleCustomTap);
+    window.addEventListener(`trigger-hover-enter-${id}`, handleCustomHoverEnter);
+    window.addEventListener(`trigger-hover-exit-${id}`, handleCustomHoverExit);
+    return () => {
+      window.removeEventListener(`trigger-tap-${id}`, handleCustomTap);
+      window.removeEventListener(`trigger-hover-enter-${id}`, handleCustomHoverEnter);
+      window.removeEventListener(`trigger-hover-exit-${id}`, handleCustomHoverExit);
+    };
+  }, [isPreviewMode, id, handleInteract, (obj?.events || [])]);
 
   // Handle behavior animations dynamically with full R3F clock support
   useFrame((state) => {
@@ -1785,17 +1986,78 @@ function ObjectRenderer({ id }: { id: string }) {
     // Skip updating position/rotation/scale when actively transforming this selected object
     if (isSelected && isTransformDragging) return;
 
+    const curActiveStateId = useEditorStore.getState().activeStateId;
+    const activeStateObj = (!isPreviewMode && isSelected && curActiveStateId && curActiveStateId !== 'base' && obj.states)
+      ? obj.states.find((s: any) => s.id === curActiveStateId)
+      : null;
+
+    let targetPos = activeStateObj?.position || obj.position;
+    let targetRot = activeStateObj?.rotation || obj.rotation;
+    let targetScl = activeStateObj?.scale || obj.scale;
+
+    const activeTransitions = useEditorStore.getState().activeTransitions || {};
+    const activeTransition = activeTransitions[id];
+
+    if (activeTransition) {
+      const now = performance.now() / 1000;
+      const elapsed = now - activeTransition.triggerTime;
+      const progress = Math.min(1, Math.max(0, elapsed / activeTransition.duration));
+      const easedProgress = getEasingValue(activeTransition.easing, progress);
+
+      // Look up transition target state properties
+      const targetStateId = activeTransition.targetStateId;
+      let finalTargetPos = [...obj.position];
+      let finalTargetRot = [...obj.rotation];
+      let finalTargetScl = [...obj.scale];
+
+      if (targetStateId && targetStateId !== 'base' && obj.states) {
+        const stateObj = obj.states.find((s: any) => s.id === targetStateId);
+        if (stateObj) {
+          finalTargetPos = [...stateObj.position];
+          finalTargetRot = [...stateObj.rotation];
+          finalTargetScl = [...stateObj.scale];
+        }
+      }
+
+      const fromPos = activeTransition.fromPos;
+      const fromRot = activeTransition.fromRot;
+      const fromScl = activeTransition.fromScl;
+
+      targetPos = [
+        fromPos[0] + (finalTargetPos[0] - fromPos[0]) * easedProgress,
+        fromPos[1] + (finalTargetPos[1] - fromPos[1]) * easedProgress,
+        fromPos[2] + (finalTargetPos[2] - fromPos[2]) * easedProgress,
+      ];
+
+      targetRot = [
+        fromRot[0] + (finalTargetRot[0] - fromRot[0]) * easedProgress,
+        fromRot[1] + (finalTargetRot[1] - fromRot[1]) * easedProgress,
+        fromRot[2] + (finalTargetRot[2] - fromRot[2]) * easedProgress,
+      ];
+
+      targetScl = [
+        fromScl[0] + (finalTargetScl[0] - fromScl[0]) * easedProgress,
+        fromScl[1] + (finalTargetScl[1] - fromScl[1]) * easedProgress,
+        fromScl[2] + (finalTargetScl[2] - fromScl[2]) * easedProgress,
+      ];
+    }
+
     // Reset rotation before applying behaviors
     meshRef.current.rotation.set(
-      THREE.MathUtils.degToRad(obj.rotation[0]),
-      THREE.MathUtils.degToRad(obj.rotation[1]),
-      THREE.MathUtils.degToRad(obj.rotation[2])
+      THREE.MathUtils.degToRad(targetRot[0]),
+      THREE.MathUtils.degToRad(targetRot[1]),
+      THREE.MathUtils.degToRad(targetRot[2])
     );
     // Reset scale before applying behaviors
-    meshRef.current.scale.set(obj.scale[0], obj.scale[1], obj.scale[2]);
+    meshRef.current.scale.set(targetScl[0], targetScl[1], targetScl[2]);
 
     // Position updates
-    meshRef.current.position.set(obj.position[0], obj.position[1], obj.position[2]);
+    meshRef.current.position.set(targetPos[0], targetPos[1], targetPos[2]);
+
+    // Always Face Camera (Billboard) mode support in both editor and preview
+    if (obj.properties?.billboard || obj.properties?.lookAtCamera) {
+      meshRef.current.lookAt(state.camera.position);
+    }
 
     // Don't display interactive behavior animations in the editor view, only in preview/publish mode
     if (!isPreviewMode) return;
@@ -1871,7 +2133,7 @@ function ObjectRenderer({ id }: { id: string }) {
 
     // 5. Evaluate Proximity Visual Event triggers
     if (isPreviewMode) {
-      const behaviors = obj.properties.visualBehaviors || [];
+      const behaviors = (obj.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onProximity') {
           const currentPos = new THREE.Vector3();
@@ -1883,7 +2145,7 @@ function ObjectRenderer({ id }: { id: string }) {
           const wasInside = wasProximityActiveRef.current[b.id] || false;
 
           if (isInside && !wasInside) {
-            executeBehaviorAction(b);
+            executeEvent(b);
           }
           wasProximityActiveRef.current[b.id] = isInside;
         }
@@ -1892,8 +2154,8 @@ function ObjectRenderer({ id }: { id: string }) {
   });
 
   useEffect(() => {
-    if (obj?.properties.visualBehaviors) {
-      obj.properties.visualBehaviors.forEach((b: any) => {
+    if ((obj?.events || [])) {
+      (obj.events || []).forEach((b: any) => {
         if (b.action === 'playSound' && b.soundPreset) {
           const audio = new Audio();
           audio.preload = 'auto';
@@ -1901,7 +2163,37 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       });
     }
-  }, [obj?.properties.visualBehaviors]);
+  }, [(obj?.events || [])]);
+
+  useEffect(() => {
+    if (!isPreviewMode) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const behaviors = (obj?.events || []) || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onKeyDown') {
+          if (!b.triggerKey || b.triggerKey.toLowerCase() === e.key.toLowerCase()) {
+            executeEvent(b);
+          }
+        }
+      });
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const behaviors = (obj?.events || []) || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onKeyUp') {
+          if (!b.triggerKey || b.triggerKey.toLowerCase() === e.key.toLowerCase()) {
+            executeEvent(b);
+          }
+        }
+      });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isPreviewMode, (obj?.events || [])]);
 
   if (!obj || !obj.visible) return null;
 
@@ -1911,7 +2203,7 @@ function ObjectRenderer({ id }: { id: string }) {
     THREE.MathUtils.degToRad(obj.rotation[2]),
   ];
 
-  const handleInteract = (e?: any) => {
+  function handleInteract(e?: any) {
     if (!isPreviewMode && obj.locked) return; // Prevent selection or clicks on locked items in 3D viewport
     if (e && e.stopPropagation) e.stopPropagation();
     
@@ -1935,10 +2227,10 @@ function ObjectRenderer({ id }: { id: string }) {
 
     // Run On Tap visual event rules
     if (isPreviewMode) {
-      const behaviors = obj.properties.visualBehaviors || [];
+      const behaviors = (obj.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onTap') {
-          executeBehaviorAction(b);
+          executeEvent(b);
         }
       });
     }
@@ -1951,7 +2243,7 @@ function ObjectRenderer({ id }: { id: string }) {
         console.error("onTap script callback error:", err);
       }
     }
-  };
+  }
 
   const renderGeometry = () => {
     switch (obj.type) {
@@ -2117,9 +2409,9 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'hotspot':
         return <Hotspot3DRenderer obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'icon':
-        return <Spline3DIconRenderer obj={obj} isPreviewMode={isPreviewMode} />;
+        return <Spline3DIconRenderer obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'icon2d':
-        return <Spline2DIconRenderer obj={obj} isPreviewMode={isPreviewMode} />;
+        return <Spline2DIconRenderer obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       default:
         return null;
     }
@@ -2140,10 +2432,10 @@ function ObjectRenderer({ id }: { id: string }) {
           if (obj.properties.cursor && !obj.properties.ignoreClicks) {
             document.body.style.cursor = obj.properties.cursor;
           }
-          const behaviors = obj.properties.visualBehaviors || [];
+          const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
             if (b.trigger === 'onHoverEnter') {
-              executeBehaviorAction(b);
+              executeEvent(b);
             }
           });
         }
@@ -2153,10 +2445,52 @@ function ObjectRenderer({ id }: { id: string }) {
           if (obj.properties.cursor && !obj.properties.ignoreClicks) {
             document.body.style.cursor = 'auto';
           }
-          const behaviors = obj.properties.visualBehaviors || [];
+          const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
             if (b.trigger === 'onHoverExit') {
-              executeBehaviorAction(b);
+              executeEvent(b);
+            }
+          });
+        }
+      }}
+      onPointerDown={(e) => {
+        if (isPreviewMode) {
+          e.stopPropagation();
+          const behaviors = (obj.events || []) || [];
+          behaviors.forEach((b: any) => {
+            if (b.trigger === 'onPointerDown') {
+              executeEvent(b);
+            }
+          });
+        }
+      }}
+      onPointerUp={(e) => {
+        if (isPreviewMode) {
+          e.stopPropagation();
+          const behaviors = (obj.events || []) || [];
+          behaviors.forEach((b: any) => {
+            if (b.trigger === 'onPointerUp') {
+              executeEvent(b);
+            }
+          });
+        }
+      }}
+      onPointerMove={(e) => {
+        if (isPreviewMode) {
+          const behaviors = (obj.events || []) || [];
+          behaviors.forEach((b: any) => {
+            if (b.trigger === 'onPointerMove') {
+              executeEvent(b);
+            }
+          });
+        }
+      }}
+      onWheel={(e) => {
+        if (isPreviewMode) {
+          const behaviors = (obj.events || []) || [];
+          behaviors.forEach((b: any) => {
+            if (b.trigger === 'onScroll') {
+              executeEvent(b);
             }
           });
         }
@@ -2238,19 +2572,23 @@ function ThumbnailCapturer() {
 function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.RefObject<any> }) {
   const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
-  const target = selectedObjectId ? scene.getObjectByName(selectedObjectId) : null;
+  const selectedObjectRef = useEditorStore(state => state.selectedObjectRef);
+  const target = (selectedObjectRef as THREE.Object3D) || (selectedObjectId ? scene.getObjectByName(selectedObjectId) : null);
   const objects = useEditorStore(state => state.objects);
   const transformMode = useEditorStore(state => state.transformMode);
   const transformSpace = useEditorStore(state => state.transformSpace);
   const transformGizmoEnabled = useEditorStore(state => state.transformGizmoEnabled);
   const updateObject = useEditorStore(state => state.updateObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const activeStateId = useEditorStore(state => state.activeStateId);
   const controlsRef = useRef<any>(null);
 
   const gridSnapEnabled = useEditorStore(state => state.gridSnapEnabled);
   const gridSnapIncrement = useEditorStore(state => state.gridSnapIncrement);
   const rotationSnapEnabled = useEditorStore(state => state.rotationSnapEnabled);
   const rotationSnapIncrement = useEditorStore(state => state.rotationSnapIncrement);
+  const transformApplyMode = useEditorStore(state => state.transformApplyMode);
+  const setTransformApplyMode = useEditorStore(state => state.setTransformApplyMode);
 
   const obj = selectedObjectId ? objects[selectedObjectId] : null;
 
@@ -2275,6 +2613,24 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     });
   };
 
+  // Ensure gizmo controls are always rendered on top of 3D models without depth clipping
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (controls && controls.getHelper) {
+      const helper = controls.getHelper();
+      if (helper) {
+        helper.traverse((child: any) => {
+          if (child.material) {
+            child.material.depthTest = false;
+            child.material.depthWrite = false;
+            child.material.transparent = true;
+            child.renderOrder = 999;
+          }
+        });
+      }
+    }
+  }, [target, transformMode, transformSpace, selectedObjectId]);
+
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
@@ -2292,9 +2648,33 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
       }
     };
 
+    const changeCallback = () => {
+      if (isTransformDragging && target && selectedObjectId) {
+        useEditorStore.getState().updateObject(selectedObjectId, {
+          position: [
+            Number(target.position.x.toFixed(3)),
+            Number(target.position.y.toFixed(3)),
+            Number(target.position.z.toFixed(3))
+          ],
+          rotation: [
+            Number(THREE.MathUtils.radToDeg(target.rotation.x).toFixed(2)),
+            Number(THREE.MathUtils.radToDeg(target.rotation.y).toFixed(2)),
+            Number(THREE.MathUtils.radToDeg(target.rotation.z).toFixed(2))
+          ],
+          scale: [
+            Number(target.scale.x.toFixed(3)),
+            Number(target.scale.y.toFixed(3)),
+            Number(target.scale.z.toFixed(3))
+          ]
+        });
+      }
+    };
+
     controls.addEventListener('dragging-changed', draggingCallback);
+    controls.addEventListener('change', changeCallback);
     return () => {
       controls.removeEventListener('dragging-changed', draggingCallback);
+      controls.removeEventListener('change', changeCallback);
       isTransformDragging = false;
       if (orbitControlsRef && orbitControlsRef.current) {
         orbitControlsRef.current.enabled = true;
@@ -2319,7 +2699,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
 
   return (
     <TransformControls
-      key={selectedObjectId}
+      key={`${selectedObjectId}-${activeStateId || 'base'}`}
       ref={controlsRef}
       object={target as THREE.Object3D}
       mode={transformMode}
@@ -2614,7 +2994,10 @@ export function Viewport() {
     transformGizmoEnabled,
     setTransformGizmoEnabled,
     collisionDebuggerEnabled,
-    setCollisionDebuggerEnabled
+    setCollisionDebuggerEnabled,
+    activeStateId,
+    transformApplyMode,
+    setTransformApplyMode
   } = useEditorStore();
 
   const objectsRef = useRef(objects);
@@ -2630,8 +3013,8 @@ export function Viewport() {
         if (obj.properties?.soundUrl) {
           soundUrls.add(obj.properties.soundUrl);
         }
-        if (obj.properties?.visualBehaviors) {
-          obj.properties.visualBehaviors.forEach((b: any) => {
+        if ((obj?.events || [])) {
+          (obj.events || []).forEach((b: any) => {
             if (b.action === 'playSound' && b.soundPreset) {
               soundUrls.add(b.soundPreset);
             }
@@ -2709,8 +3092,8 @@ export function Viewport() {
           if (obj.properties?.soundUrl) {
             soundUrls.add(obj.properties.soundUrl);
           }
-          if (obj.properties?.visualBehaviors) {
-            obj.properties.visualBehaviors.forEach((b: any) => {
+          if ((obj?.events || [])) {
+            (obj.events || []).forEach((b: any) => {
               if (b.action === 'playSound' && b.soundPreset) {
                 soundUrls.add(b.soundPreset);
               }
@@ -2791,12 +3174,15 @@ export function Viewport() {
   }, []);
   const rootObjects = useEditorStore(state => state.rootObjects);
   const selectObject = useEditorStore(state => state.selectObject);
+  const updateObject = useEditorStore(state => state.updateObject);
   const transformMode = useEditorStore(state => state.transformMode);
   const setTransformMode = useEditorStore(state => state.setTransformMode);
   const transformSpace = useEditorStore(state => state.transformSpace);
   const setTransformSpace = useEditorStore(state => state.setTransformSpace);
   const toasts = useEditorStore(state => state.toasts);
   const arVideoPlaying = useEditorStore(state => state.arVideoPlaying);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const addToast = useEditorStore(state => state.addToast);
 
   const [showBezel, setShowBezel] = useState(true);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(true);
@@ -2980,7 +3366,7 @@ export function Viewport() {
           name: asset.name.split('.')[0],
           type: 'model',
           position: [0, 0, 0],
-          rotation: [0, 0, 0],
+          rotation: [90, 0, 0], // Oriented in Z direction when instantiated
           scale: [1, 1, 1],
           visible: true,
           children: [],
@@ -2991,6 +3377,7 @@ export function Viewport() {
         };
         
         addObject(newObj, parentId || undefined);
+        selectObject(newObj.id);
       } else if (asset.type === 'image') {
         const selectedId = useEditorStore.getState().selectedObjectId; const selectedObj = selectedId ? useEditorStore.getState().objects[selectedId] : null;
         if (selectedObj && (selectedObj.type === 'image' || selectedObj.type === 'imageTarget')) {
@@ -3130,7 +3517,40 @@ export function Viewport() {
             </div>
 
             {/* 3D R3F Canvas Layer (Transparent bg) */}
-            <div className="absolute inset-0 z-10">
+            <div 
+              className="absolute inset-0 z-10"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                try {
+                  const rawData = e.dataTransfer.getData('application/json');
+                  if (!rawData) return;
+                  const data = JSON.parse(rawData);
+                  if (data.type === 'material_preset' || data.preset) {
+                    const preset = data.preset || data;
+                    const selectedId = selectedObjectIds[0];
+                    if (selectedId && objects[selectedId]) {
+                      updateObject(selectedId, {
+                        properties: {
+                          ...objects[selectedId].properties,
+                          color: preset.color || '#ffffff',
+                          roughness: preset.roughness ?? 0.5,
+                          metalness: preset.metalness ?? 0,
+                          emissive: preset.emissive || '#000000',
+                          textureUrl: preset.textureUrl || '',
+                          materialType: preset.materialType || 'standard',
+                        }
+                      });
+                      addToast(`Applied material '${preset.name || 'Material'}' to ${objects[selectedId].name || 'Selected Object'}`);
+                    } else {
+                      addToast("Select an object first, then drag & drop materials onto the viewport!");
+                    }
+                  }
+                } catch (err) {
+                  console.warn("Drop handling error:", err);
+                }
+              }}
+            >
               <Canvas 
                 camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
                 onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
@@ -3512,6 +3932,29 @@ export function Viewport() {
             <Globe size={11} className={transformSpace === 'world' ? 'animate-pulse' : ''} />
             <span>{transformSpace.toUpperCase()}</span>
           </button>
+          
+          {activeStateId && activeStateId !== 'base' && (
+            <div className="flex items-center gap-1.5 ml-1.5 pl-1.5 border-l border-[#2A2A2A]">
+              <span className="text-[8px] font-bold text-purple-400 font-mono uppercase">Target:</span>
+              <button
+                onClick={() => {
+                  setTransformApplyMode(transformApplyMode === 'activeStateOnly' ? 'all' : 'activeStateOnly');
+                }}
+                className={`h-8 px-2 rounded flex items-center gap-1 transition-all border text-[9px] font-bold font-mono whitespace-nowrap ${
+                  transformApplyMode === 'activeStateOnly'
+                    ? 'bg-purple-600/20 border-purple-500/40 text-purple-300'
+                    : 'bg-[#1C1C1C] border-[#2A2A2A] text-gray-400 hover:text-white'
+                }`}
+                title="Toggle transformation target: 'Active State Only' vs 'Apply to All'"
+              >
+                <span>
+                  {transformApplyMode === 'activeStateOnly'
+                    ? 'Active State Only'
+                    : 'Apply to All'}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Grid Snapping Shortcuts */}

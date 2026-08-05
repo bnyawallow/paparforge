@@ -3,7 +3,7 @@ import { Html } from '@react-three/drei';
 import * as LucideIcons from 'lucide-react';
 import { SceneObject } from '../../types';
 
-export function Spline2DIconRenderer({ obj, isPreviewMode }: { obj: SceneObject; isPreviewMode: boolean }) {
+export function Spline2DIconRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: (e: any) => void }) {
   const iconName = (obj.properties?.iconName || 'Sparkles') as keyof typeof LucideIcons;
   const color = obj.properties?.color || '#3b82f6';
   const badgeStyle = obj.properties?.badgeStyle || 'glass';
@@ -54,7 +54,7 @@ export function Spline2DIconRenderer({ obj, isPreviewMode }: { obj: SceneObject;
   return (
     <group>
       {/* 3D Plane Mesh Anchor for raycasting & selection */}
-      <mesh visible={false}>
+      <mesh visible={true}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
@@ -68,6 +68,11 @@ export function Spline2DIconRenderer({ obj, isPreviewMode }: { obj: SceneObject;
         pointerEvents={isPreviewMode ? 'auto' : 'none'}
       >
         <div
+          onClick={(e) => {
+            if (isPreviewMode && onInteract) {
+              onInteract(e);
+            }
+          }}
           className="w-24 h-24 rounded-2xl flex flex-col items-center justify-center p-3 transition-all duration-300 select-none group cursor-pointer hover:scale-110 active:scale-95"
           style={getBadgeStyle()}
         >

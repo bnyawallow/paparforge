@@ -155,13 +155,17 @@ export const generateAFrameScene = (state: any) => {
         isClickable = true;
       }
 
-      if (obj.properties.behavior) {
+      if (obj.properties.behavior || obj.properties.billboard || obj.properties.lookAtCamera) {
         if (obj.properties.behavior === 'draggable') {
             customComponents += ' draggable-object ';
+            if (obj.properties.billboard || obj.properties.lookAtCamera) {
+                customComponents += ` live-behavior="billboard: true"`;
+            }
             isClickable = true;
         } else {
             const spinAxis = obj.properties.spinAxis || 'z';
-            customComponents += ` live-behavior="rule: ${obj.properties.behavior}; spinAxis: ${spinAxis}"`;
+            const isBb = !!(obj.properties.billboard || obj.properties.lookAtCamera);
+            customComponents += ` live-behavior="rule: ${obj.properties.behavior || ''}; spinAxis: ${spinAxis}; billboard: ${isBb}"`;
         }
       }
 
@@ -194,7 +198,29 @@ export const generateAFrameScene = (state: any) => {
         scaleStr = transformed.scale.map(v => Number(v.toFixed(6))).join(' ');
       }
 
-      let entity = `${indent}<a-entity id="${obj.id}" position="${positionStr}" rotation="${rotationStr}" scale="${scaleStr}"${classAttr}${customComponents}>\n`;
+      let finalClassAttr = classAttr;
+      if ((obj.states && obj.states.length > 0) || (obj.events && obj.events.length > 0)) {
+        const statesJson = JSON.stringify(obj.states || []).replace(/"/g, '&quot;');
+        const eventsJson = JSON.stringify(obj.events || []).replace(/"/g, '&quot;');
+        customComponents += ` state-machine data-states="${statesJson}" data-events="${eventsJson}" data-base-position="${positionStr}" data-base-rotation="${rotationStr}" data-base-scale="${scaleStr}"`;
+        
+        const hasTap = (obj.events || []).some((b: any) => b.trigger === 'onTap');
+        if (hasTap && !isClickable) {
+          finalClassAttr = ' class="clickable"';
+        }
+
+        (obj.events || []).forEach((evt: any) => {
+          if (Array.isArray(evt.actions)) {
+            evt.actions.forEach((act: any) => {
+              if (act.type === 'playSound' && act.soundUrl) {
+                audioAssetUrls.add(act.soundUrl);
+              }
+            });
+          }
+        });
+      }
+
+      let entity = `${indent}<a-entity id="${obj.id}" position="${positionStr}" rotation="${rotationStr}" scale="${scaleStr}"${finalClassAttr}${customComponents}>\n`;
 
       if (obj.type === 'box') {
         entity += `${indent}  <a-box material="${buildMaterialAttr(obj.properties)}"></a-box>\n`;
@@ -258,10 +284,15 @@ export const generateAFrameScene = (state: any) => {
         entity += `${indent}  <a-entity position="0 0 0.11" scale="0.8 0.8 0.8" troika-text="value: ${btnText}; align: center; color: ${textColor}; fontSize: 0.25; maxWidth: 4"></a-entity>\n`;
       } else if (obj.type === 'youtube') {
         entity += `${indent}  <a-plane color="#ff0000" material="src: url(https://img.youtube.com/vi/${obj.properties.videoId || 'dQw4w9WgXcQ'}/0.jpg)" aspect-ratio="1.777"></a-plane>\n`;
+      } else if (obj.type === 'icon2d') {
+        const badgeColor = obj.properties.color || '#3b82f6';
+        const labelText = obj.properties.text || obj.properties.iconName || 'Icon';
+        entity += `${indent}  <a-entity geometry="primitive: plane; width: 1.5; height: 1.5" material="color: ${badgeColor}; transparent: true; opacity: 0.9; shader: flat" text="value: ${labelText}; align: center; width: 4; color: white"></a-entity>\n`;
       } else if (obj.type === 'icon') {
         const iconColor = obj.properties.color || '#ef4444';
         const matAttr = buildMaterialAttr(obj.properties);
-        entity += `${indent}  <a-box material="${matAttr}"></a-box>\n`;
+        const iconType = obj.properties.iconType || 'rocket';
+        entity += `${indent}  <a-entity gltf-model="/models/icons/${iconType}.glb" material="${matAttr}"></a-entity>\n`;
       } else if (obj.type === 'model') {
         if (obj.properties.url && obj.properties.url.startsWith('primitive:')) {
           const prim = obj.properties.url.replace('primitive:', '').toLowerCase();
@@ -462,6 +493,11 @@ export const generateAFrameScene = (state: any) => {
       if (props.visualBehaviors && props.visualBehaviors.length > 0) {
         const behaviorsJson = JSON.stringify(props.visualBehaviors).replace(/"/g, '&quot;');
         hudBehaviorsAttr = ` data-behaviors="${behaviorsJson}"`;
+      }
+      if ((obj.states && obj.states.length > 0) || (obj.events && obj.events.length > 0)) {
+        const statesJson = JSON.stringify(obj.states || []).replace(/"/g, '&quot;');
+        const eventsJson = JSON.stringify(obj.events || []).replace(/"/g, '&quot;');
+        hudBehaviorsAttr += ` data-states="${statesJson}" data-events="${eventsJson}" data-base-position="${obj.position.join(' ')}" data-base-rotation="${obj.rotation.join(' ')}" data-base-scale="${obj.scale.join(' ')}"`;
       }
 
       // Helper to build Lucide icon HTML
@@ -796,9 +832,9 @@ ${audioPreloadScript}
         const id = el.id || 'anonymous';
         const now = Date.now();
         const lastTime = window.__lastClickTimes[id] || 0;
-        // If clicks happen in the same call frame (within 30ms), let both fire (e.g., sound + custom script components)
-        // If clicks are more than 30ms but less than 400ms apart, deduplicate them as duplicate taps.
-        if (now - lastTime > 30 && now - lastTime < 400) {
+        // If clicks happen in the same call frame (within 10ms), let both fire (e.g., multiple behaviors on same element)
+        // If clicks are more than 10ms but less than 350ms apart, deduplicate them as duplicate taps.
+        if (now - lastTime > 10 && now - lastTime < 350) {
           return true;
         }
         window.__lastClickTimes[id] = now;
@@ -833,7 +869,8 @@ ${audioPreloadScript}
       AFRAME.registerComponent('live-behavior', {
         schema: {
           rule: {type: 'string', default: ''},
-          spinAxis: {type: 'string', default: 'z'}
+          spinAxis: {type: 'string', default: 'z'},
+          billboard: {type: 'boolean', default: false}
         },
         init: function() {
           this.initialX = this.el.object3D.position.x;
@@ -884,7 +921,7 @@ ${audioPreloadScript}
             if (spinAxis === 'x') this.el.object3D.rotation.x += Math.sin(t * 2) * 0.5;
             else if (spinAxis === 'y') this.el.object3D.rotation.y += Math.sin(t * 2) * 0.5;
             else this.el.object3D.rotation.z += Math.sin(t * 2) * 0.5;
-          } else if (rule === 'look-at-camera') {
+          } else if (rule === 'look-at-camera' || this.data.billboard) {
             const camera = this.el.sceneEl.camera;
             if (camera) {
               this.el.object3D.lookAt(camera.position);
@@ -916,6 +953,119 @@ ${audioPreloadScript}
       });
 
       // 1. Core Visual Behaviors Engine
+      
+      // --- New State & Event Machine Component ---
+      AFRAME.registerComponent('state-machine', {
+        init: function() {
+          const el = this.el;
+          this.states = [];
+          this.events = [];
+          try {
+            this.states = JSON.parse(el.getAttribute('data-states') || '[]');
+            this.events = JSON.parse(el.getAttribute('data-events') || '[]');
+          } catch(e) { console.error("Error parsing state machine config:", e); }
+
+          // Preload sounds
+          this.events.forEach(evt => {
+            (evt.actions || []).forEach(act => {
+              if (act.type === 'playSound' && act.soundUrl) {
+                const a = new Audio();
+                a.preload = 'auto';
+                a.src = act.soundUrl;
+              }
+            });
+          });
+
+          // Bind events
+          this.events.forEach(evt => {
+            if (evt.trigger === 'start') {
+              this.executeActions(evt.actions);
+            } else if (evt.trigger === 'onTap') {
+              el.addEventListener('click', (e) => {
+                if (window.isDuplicateClick && window.isDuplicateClick(el)) return;
+                if (e.type === 'touchstart') return;
+                this.executeActions(evt.actions);
+              });
+            } else if (evt.trigger === 'onHoverEnter') {
+              el.addEventListener('mouseenter', () => this.executeActions(evt.actions));
+            } else if (evt.trigger === 'onHoverExit') {
+              el.addEventListener('mouseleave', () => this.executeActions(evt.actions));
+            } else if (evt.trigger === 'onKeyDown' && evt.triggerKey) {
+              window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === evt.triggerKey.toLowerCase()) {
+                  this.executeActions(evt.actions);
+                }
+              });
+            }
+          });
+        },
+        executeActions: function(actions) {
+          if (!actions) return;
+          actions.forEach(act => {
+            if (act.type === 'playSound' && act.soundUrl) {
+              const audio = new Audio(act.soundUrl);
+              audio.volume = 0.5;
+              audio.play().catch(e => console.error(e));
+            } else if (act.type === 'openUrl' && act.url) {
+              window.open(act.url, '_blank');
+            } else if (act.type === 'toast' && act.toastMessage) {
+              alert(act.toastMessage);
+            } else if (act.type === 'hide') {
+              const targetEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (targetEl) targetEl.setAttribute('visible', 'false');
+            } else if (act.type === 'show') {
+              const targetEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (targetEl) targetEl.setAttribute('visible', 'true');
+            } else if (act.type === 'transition') {
+              const targetEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (targetEl && act.transitionTargetStateId) {
+                // Find target state definition from target element's state-machine states
+                let statesList = this.states || [];
+                if (act.targetId && act.targetId !== this.el.id) {
+                  const targetElReal = document.getElementById(act.targetId);
+                  if (targetElReal) {
+                    try {
+                      statesList = JSON.parse(targetElReal.getAttribute('data-states') || '[]');
+                    } catch(e) {}
+                  }
+                }
+                const state = statesList.find(s => s.id === act.transitionTargetStateId);
+                const duration = (act.transitionDuration || 1.0) * 1000;
+                const easingMap = {
+                  'linear': 'linear',
+                  'ease-in': 'easeInQuad',
+                  'ease-out': 'easeOutQuad',
+                  'ease-in-out': 'easeInOutQuad',
+                  'elastic': 'easeOutElastic',
+                  'bounce': 'easeOutBounce'
+                };
+                const easing = easingMap[act.transitionEasing] || 'easeInOutQuad';
+
+                if (state) {
+                  if (state.position) {
+                    targetEl.setAttribute('animation__pos', 'property: position; to: ' + state.position[0] + ' ' + state.position[1] + ' ' + state.position[2] + '; dur: ' + duration + '; easing: ' + easing);
+                  }
+                  if (state.rotation) {
+                    targetEl.setAttribute('animation__rot', 'property: rotation; to: ' + state.rotation[0] + ' ' + state.rotation[1] + ' ' + state.rotation[2] + '; dur: ' + duration + '; easing: ' + easing);
+                  }
+                  if (state.scale) {
+                    targetEl.setAttribute('animation__scale', 'property: scale; to: ' + state.scale[0] + ' ' + state.scale[1] + ' ' + state.scale[2] + '; dur: ' + duration + '; easing: ' + easing);
+                  }
+                } else if (act.transitionTargetStateId === 'base') {
+                  // base state
+                  const basePos = targetEl.getAttribute('data-base-position');
+                  const baseRot = targetEl.getAttribute('data-base-rotation');
+                  const baseScale = targetEl.getAttribute('data-base-scale');
+                  if (basePos) targetEl.setAttribute('animation__pos', 'property: position; to: ' + basePos + '; dur: ' + duration + '; easing: ' + easing);
+                  if (baseRot) targetEl.setAttribute('animation__rot', 'property: rotation; to: ' + baseRot + '; dur: ' + duration + '; easing: ' + easing);
+                  if (baseScale) targetEl.setAttribute('animation__scale', 'property: scale; to: ' + baseScale + '; dur: ' + duration + '; easing: ' + easing);
+                }
+              }
+            }
+          });
+        }
+      });
+
       AFRAME.registerComponent('visual-behavior', {
         triggerEvent: function(triggerName) {
           if (!this.behaviors) return;
@@ -1132,6 +1282,19 @@ ${audioPreloadScript}
               const spinEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : this.el;
               if (spinEl) {
                 spinEl.setAttribute('live-behavior', 'rule: spin');
+              }
+              break;
+            case 'loadScene':
+              if (b.targetSceneId) {
+                window.parent.postMessage({ type: 'loadScene', sceneId: b.targetSceneId }, '*');
+              }
+              break;
+            case 'playVideo':
+              if (b.url) {
+                const videoHtml = '\n<div id="ar-video-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <button onclick="document.getElementById('ar-video-overlay').remove()" style="position:absolute; top:20px; right:20px; padding:10px 20px; font-size:16px; border:none; background:#ff4444; color:white; border-radius:8px; cursor:pointer;">Close</button>
+                    <iframe src="' + b.url + '" width="80%" height="60%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>\n</div>';
+                document.body.insertAdjacentHTML('beforeend', videoHtml);
               }
               break;
             case 'startBehavior':
@@ -2157,16 +2320,22 @@ ${entitiesHtml}
               case 'toggleVisibility': {
                 const targetEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : el;
                 if (targetEl) {
-                  const isHidden = targetEl.style.display === 'none' || targetEl.style.visibility === 'hidden' || targetEl.style.opacity === '0';
-                  if (isHidden) {
-                    targetEl.style.display = targetEl.dataset.originalDisplay || 'flex';
-                    targetEl.style.opacity = '1';
-                    targetEl.style.pointerEvents = 'auto';
+                  if (targetEl.tagName && (targetEl.tagName.toLowerCase() === 'a-entity' || targetEl.tagName.toLowerCase().startsWith('a-'))) {
+                    const currentVis = targetEl.getAttribute('visible');
+                    const targetState = !(currentVis === true || currentVis === 'true');
+                    targetEl.setAttribute('visible', targetState);
                   } else {
-                    targetEl.dataset.originalDisplay = targetEl.style.display;
-                    targetEl.style.display = 'none';
-                    targetEl.style.opacity = '0';
-                    targetEl.style.pointerEvents = 'none';
+                    const isHidden = targetEl.style.display === 'none' || targetEl.style.visibility === 'hidden' || targetEl.style.opacity === '0';
+                    if (isHidden) {
+                      targetEl.style.display = targetEl.dataset.originalDisplay || 'flex';
+                      targetEl.style.opacity = '1';
+                      targetEl.style.pointerEvents = 'auto';
+                    } else {
+                      targetEl.dataset.originalDisplay = targetEl.style.display;
+                      targetEl.style.display = 'none';
+                      targetEl.style.opacity = '0';
+                      targetEl.style.pointerEvents = 'none';
+                    }
                   }
                 }
                 break;
@@ -2175,15 +2344,19 @@ ${entitiesHtml}
                 const setVisEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : el;
                 if (setVisEl) {
                   const targetState = b.visibleState !== 'false';
-                  if (targetState) {
-                    setVisEl.style.display = setVisEl.dataset.originalDisplay || 'flex';
-                    setVisEl.style.opacity = '1';
-                    setVisEl.style.pointerEvents = 'auto';
+                  if (setVisEl.tagName && (setVisEl.tagName.toLowerCase() === 'a-entity' || setVisEl.tagName.toLowerCase().startsWith('a-'))) {
+                    setVisEl.setAttribute('visible', targetState);
                   } else {
-                    setVisEl.dataset.originalDisplay = setVisEl.style.display;
-                    setVisEl.style.display = 'none';
-                    setVisEl.style.opacity = '0';
-                    setVisEl.style.pointerEvents = 'none';
+                    if (targetState) {
+                      setVisEl.style.display = setVisEl.dataset.originalDisplay || 'flex';
+                      setVisEl.style.opacity = '1';
+                      setVisEl.style.pointerEvents = 'auto';
+                    } else {
+                      setVisEl.dataset.originalDisplay = setVisEl.style.display;
+                      setVisEl.style.display = 'none';
+                      setVisEl.style.opacity = '0';
+                      setVisEl.style.pointerEvents = 'none';
+                    }
                   }
                 }
                 break;
@@ -2209,6 +2382,102 @@ ${entitiesHtml}
                 if (spinEl) spinEl.setAttribute('live-behavior', 'rule: spin');
                 break;
               }
+              case 'loadScene':
+                if (b.targetSceneId) {
+                  window.parent.postMessage({ type: 'loadScene', sceneId: b.targetSceneId }, '*');
+                }
+                break;
+              case 'playVideo':
+                if (b.url) {
+                  const videoHtml = '\n<div id="ar-video-overlay-2d" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                      <button onclick="document.getElementById('ar-video-overlay-2d').remove()" style="position:absolute; top:20px; right:20px; padding:10px 20px; font-size:16px; border:none; background:#ff4444; color:white; border-radius:8px; cursor:pointer;">Close</button>
+                      <iframe src="' + b.url + '" width="80%" height="60%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>\n</div>';
+                  document.body.insertAdjacentHTML('beforeend', videoHtml);
+                }
+                break;
+              case 'scaleUp': {
+                const scaleEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (scaleEl && scaleEl.tagName && (scaleEl.tagName.toLowerCase() === 'a-entity' || scaleEl.tagName.toLowerCase().startsWith('a-'))) {
+                  const currentScale = scaleEl.getAttribute('scale') || {x: 1, y: 1, z: 1};
+                  const s = typeof currentScale === 'string'
+                    ? currentScale.split(' ').map(parseFloat)
+                    : [currentScale.x, currentScale.y, currentScale.z];
+                  scaleEl.setAttribute('scale', {
+                    x: (s[0] || 1) * 1.25,
+                    y: (s[1] || 1) * 1.25,
+                    z: (s[2] || 1) * 1.25
+                  });
+                }
+                break;
+              }
+              case 'scaleDown': {
+                const scaleEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (scaleEl && scaleEl.tagName && (scaleEl.tagName.toLowerCase() === 'a-entity' || scaleEl.tagName.toLowerCase().startsWith('a-'))) {
+                  const currentScale = scaleEl.getAttribute('scale') || {x: 1, y: 1, z: 1};
+                  const s = typeof currentScale === 'string'
+                    ? currentScale.split(' ').map(parseFloat)
+                    : [currentScale.x, currentScale.y, currentScale.z];
+                  scaleEl.setAttribute('scale', {
+                    x: (s[0] || 1) * 0.8,
+                    y: (s[1] || 1) * 0.8,
+                    z: (s[2] || 1) * 0.8
+                  });
+                }
+                break;
+              }
+              case 'startBehavior': {
+                const behEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (behEl) {
+                  if (behEl.tagName && (behEl.tagName.toLowerCase() === 'a-entity' || behEl.tagName.toLowerCase().startsWith('a-'))) {
+                    if (b.behaviorRule === 'draggable') {
+                      behEl.setAttribute('draggable-object', '');
+                    } else {
+                      behEl.setAttribute('live-behavior', 'rule: ' + (b.behaviorRule || 'spin'));
+                    }
+                  }
+                }
+                break;
+              }
+              case 'transform': {
+                const tfEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (tfEl && tfEl.tagName && (tfEl.tagName.toLowerCase() === 'a-entity' || tfEl.tagName.toLowerCase().startsWith('a-')) && b.propertyName && b.propertyValue) {
+                  let valStr = b.propertyValue.trim().replace(/,/g, ' ');
+                  tfEl.setAttribute(b.propertyName, valStr);
+                }
+                break;
+              }
+              case 'material': {
+                const matEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
+                if (matEl && matEl.tagName && (matEl.tagName.toLowerCase() === 'a-entity' || matEl.tagName.toLowerCase().startsWith('a-')) && b.propertyName && b.propertyValue) {
+                  if (b.propertyName === 'color') {
+                    matEl.setAttribute('animation__color_' + Date.now(), {
+                      property: 'material.color',
+                      to: b.propertyValue,
+                      dur: 500,
+                      easing: 'easeInOutQuad'
+                    });
+                  } else if (b.propertyName === 'texture') {
+                    matEl.setAttribute('material', 'src', b.propertyValue);
+                  }
+                }
+                break;
+              }
+              case 'pauseScanning': {
+                const sceneEl = document.querySelector('a-scene');
+                if (sceneEl && sceneEl.systems['mindar-image-system']) {
+                  sceneEl.systems['mindar-image-system'].pause();
+                  showToast('Tracking Paused');
+                }
+                break;
+              }
+              case 'resumeScanning': {
+                const sceneEl2 = document.querySelector('a-scene');
+                if (sceneEl2 && sceneEl2.systems['mindar-image-system']) {
+                  sceneEl2.systems['mindar-image-system'].unpause();
+                  showToast('Tracking Resumed');
+                }
+                break;
+              }
             }
           };
           
@@ -2224,6 +2493,133 @@ ${entitiesHtml}
               el.addEventListener('mouseenter', () => execute2DBehavior(b));
             } else if (b.trigger === 'onHoverExit') {
               el.addEventListener('mouseleave', () => execute2DBehavior(b));
+            }
+          });
+        });
+
+        // Initialize state machine events for 2D HUD elements
+        document.querySelectorAll('[data-events]').forEach(el => {
+          if (el.tagName.toLowerCase().startsWith('a-') || el.closest('a-scene')) return;
+          
+          let events = [];
+          let states = [];
+          try {
+            events = JSON.parse(el.getAttribute('data-events') || '[]');
+            states = JSON.parse(el.getAttribute('data-states') || '[]');
+          } catch(e) {
+            console.error("Error parsing 2D state machine:", e);
+          }
+
+          const executeActions = (actions) => {
+            if (!actions) return;
+            actions.forEach(act => {
+              if (act.type === 'playSound' && act.soundUrl) {
+                const audio = new Audio(act.soundUrl);
+                audio.volume = 0.5;
+                audio.play().catch(e => console.error(e));
+              } else if (act.type === 'openUrl' && act.url) {
+                window.open(act.url, '_blank');
+              } else if (act.type === 'toast' && act.toastMessage) {
+                if (typeof showToast !== 'undefined') {
+                  showToast(act.toastMessage);
+                } else {
+                  alert(act.toastMessage);
+                }
+              } else if (act.type === 'hide') {
+                const targetEl = act.targetId ? document.getElementById(act.targetId) : el;
+                if (targetEl) {
+                  if (targetEl.tagName && (targetEl.tagName.toLowerCase().startsWith('a-') || targetEl.closest('a-scene'))) {
+                    targetEl.setAttribute('visible', 'false');
+                  } else {
+                    targetEl.style.display = 'none';
+                  }
+                }
+              } else if (act.type === 'show') {
+                const targetEl = act.targetId ? document.getElementById(act.targetId) : el;
+                if (targetEl) {
+                  if (targetEl.tagName && (targetEl.tagName.toLowerCase().startsWith('a-') || targetEl.closest('a-scene'))) {
+                    targetEl.setAttribute('visible', 'true');
+                  } else {
+                    targetEl.style.display = 'flex';
+                  }
+                }
+              } else if (act.type === 'transition') {
+                const targetEl = act.targetId ? document.getElementById(act.targetId) : el;
+                if (targetEl && act.transitionTargetStateId) {
+                  if (targetEl.tagName && (targetEl.tagName.toLowerCase().startsWith('a-') || targetEl.closest('a-scene'))) {
+                    if (targetEl.components && targetEl.components['state-machine']) {
+                      const statesList = targetEl.components['state-machine'].states || [];
+                      const state = statesList.find(s => s.id === act.transitionTargetStateId);
+                      const duration = (act.transitionDuration || 1.0) * 1000;
+                      const easingMap = {
+                        'linear': 'linear',
+                        'ease-in': 'easeInQuad',
+                        'ease-out': 'easeOutQuad',
+                        'ease-in-out': 'easeInOutQuad',
+                        'elastic': 'easeOutElastic',
+                        'bounce': 'easeOutBounce'
+                      };
+                      const easing = easingMap[act.transitionEasing] || 'easeInOutQuad';
+
+                      if (state) {
+                        if (state.position) {
+                          targetEl.setAttribute('animation__pos', 'property: position; to: ' + state.position[0] + ' ' + state.position[1] + ' ' + state.position[2] + '; dur: ' + duration + '; easing: ' + easing);
+                        }
+                        if (state.rotation) {
+                          targetEl.setAttribute('animation__rot', 'property: rotation; to: ' + state.rotation[0] + ' ' + state.rotation[1] + ' ' + state.rotation[2] + '; dur: ' + duration + '; easing: ' + easing);
+                        }
+                        if (state.scale) {
+                          targetEl.setAttribute('animation__scale', 'property: scale; to: ' + state.scale[0] + ' ' + state.scale[1] + ' ' + state.scale[2] + '; dur: ' + duration + '; easing: ' + easing);
+                        }
+                      } else if (act.transitionTargetStateId === 'base') {
+                        const basePos = targetEl.getAttribute('data-base-position');
+                        const baseRot = targetEl.getAttribute('data-base-rotation');
+                        const baseScale = targetEl.getAttribute('data-base-scale');
+                        if (basePos) targetEl.setAttribute('animation__pos', 'property: position; to: ' + basePos + '; dur: ' + duration + '; easing: ' + easing);
+                        if (baseRot) targetEl.setAttribute('animation__rot', 'property: rotation; to: ' + baseRot + '; dur: ' + duration + '; easing: ' + easing);
+                        if (baseScale) targetEl.setAttribute('animation__scale', 'property: scale; to: ' + baseScale + '; dur: ' + duration + '; easing: ' + easing);
+                      }
+                    }
+                  } else {
+                    let statesList = states || [];
+                    if (act.targetId && act.targetId !== el.id) {
+                      const targetElReal = document.getElementById(act.targetId);
+                      if (targetElReal) {
+                        try {
+                          statesList = JSON.parse(targetElReal.getAttribute('data-states') || '[]');
+                        } catch(e) {}
+                      }
+                    }
+                    const state = statesList.find(s => s.id === act.transitionTargetStateId);
+                    const duration = (act.transitionDuration || 1.0) * 1000;
+                    if (state) {
+                      if (state.position) {
+                        targetEl.style.transition = "all " + duration + "ms ease-in-out";
+                        targetEl.style.left = state.position[0] + "px";
+                        targetEl.style.top = state.position[1] + "px";
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          };
+
+          events.forEach(evt => {
+            if (evt.trigger === 'start') {
+              executeActions(evt.actions);
+            } else if (evt.trigger === 'onTap') {
+              el.addEventListener('click', () => executeActions(evt.actions));
+            } else if (evt.trigger === 'onHoverEnter') {
+              el.addEventListener('mouseenter', () => executeActions(evt.actions));
+            } else if (evt.trigger === 'onHoverExit') {
+              el.addEventListener('mouseleave', () => executeActions(evt.actions));
+            } else if (evt.trigger === 'onKeyDown' && evt.triggerKey) {
+              window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === evt.triggerKey.toLowerCase()) {
+                  executeActions(evt.actions);
+                }
+              });
             }
           });
         });

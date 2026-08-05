@@ -1,5 +1,47 @@
 export type Vector3Data = [number, number, number];
 
+export interface StateData {
+  id: string;
+  name: string;
+  position: Vector3Data;
+  rotation: Vector3Data;
+  scale: Vector3Data;
+}
+
+export interface ActionData {
+  id: string;
+  type: 'transition' | 'playSound' | 'openUrl' | 'toast' | 'playAnimation' | 'pauseAnimation' | 'show' | 'hide';
+  targetId?: string; // which object it targets (if empty, assumes self)
+  transitionTargetStateId?: string; // for 'transition' action
+  transitionDuration?: number; // in seconds
+  transitionEasing?: string; // e.g. 'linear', 'ease-in', etc.
+  name?: string; // Custom name for the action
+  soundUrl?: string;
+  url?: string;
+  toastMessage?: string;
+}
+
+export interface EventData {
+  id: string;
+  name: string;
+  trigger: 
+    | 'start' 
+    | 'onTap' 
+    | 'onPointerDown' 
+    | 'onPointerUp' 
+    | 'onHoverEnter' 
+    | 'onHoverExit' 
+    | 'onPointerMove' 
+    | 'onScroll' 
+    | 'onKeyDown' 
+    | 'onKeyUp' 
+    | 'onProximityEnter' 
+    | 'onProximityExit';
+  triggerKey?: string;
+  proximityDistance?: number;
+  actions: ActionData[];
+}
+
 export interface SceneObject {
   id: string;
   name: string;
@@ -12,9 +54,11 @@ export interface SceneObject {
   children: string[]; // IDs of child objects
   parentId: string | null;
   properties: Record<string, any>;
+  states?: StateData[];
+  events?: EventData[];
 }
 
-export type AssetType = 'model' | 'image' | 'video' | 'script' | 'audio' | 'behavior';
+export type AssetType = 'model' | 'image' | 'video' | 'script' | 'audio' ;
 
 export interface Asset {
   id: string;
@@ -80,6 +124,17 @@ export interface ProjectVersion {
   };
 }
 
+export type TemplateType = 
+  | 'empty' 
+  | 'product_showcase' 
+  | 'billboard_poster' 
+  | 'automobile_showroom' 
+  | 'fast_food_beverage' 
+  | 'luxury_fashion' 
+  | 'real_estate' 
+  | 'business_card' 
+  | 'educational';
+
 export interface EditorState {
   objects: Record<string, SceneObject>;
   rootObjects: string[];
@@ -90,6 +145,8 @@ export interface EditorState {
   transformMode: 'translate' | 'rotate' | 'scale';
   transformSpace: 'local' | 'world';
   transformGizmoEnabled: boolean;
+  transformApplyMode: 'all' | 'activeStateOnly';
+  setTransformApplyMode: (mode: 'all' | 'activeStateOnly') => void;
 
   assets: Asset[];
   isPreviewMode: boolean;
@@ -124,6 +181,19 @@ export interface EditorState {
   
   isAssetBrowserOpen: boolean;
   setIsAssetBrowserOpen: (open: boolean) => void;
+  replaceTargetObjectId: string | null;
+  setReplaceTargetObjectId: (id: string | null) => void;
+  replaceObjectAsset: (targetObjectId: string, newAsset: {
+    type: string;
+    name?: string;
+    url?: string;
+    properties?: Record<string, any>;
+    iconType?: string;
+    iconName?: string;
+    textureUrl?: string;
+    videoUrl?: string;
+    soundUrl?: string;
+  }) => void;
   overlayGridEnabled: boolean;
   overlayGridSize: number;
   setOverlayGridEnabled: (enabled: boolean) => void;
@@ -150,6 +220,7 @@ export interface EditorState {
 
   // Multi-project state
   currentProjectId: string;
+  isProjectOpen: boolean;
   projectsList: { id: string; name: string; createdAt: number; updatedAt: number; thumbnail?: string }[];
   
   // History tracking state
@@ -158,7 +229,9 @@ export interface EditorState {
   
   // Actions
   loadProject: (projectId: string) => void;
-  createProject: (name: string, templateType: 'empty' | 'business_card' | 'product_showcase' | 'educational') => string;
+  openProject: (projectId: string) => void;
+  closeProject: () => void;
+  createProject: (name: string, templateType: TemplateType) => string;
   deleteProject: (projectId: string) => void;
   duplicateProject: (projectId: string) => void;
   saveCurrentProject: () => void;
@@ -190,10 +263,20 @@ export interface EditorState {
   setPreviewMode: (preview: boolean) => void;
   
   // Script & behavior actions
+  activeStateId: string | null;
+  setActiveStateId: (id: string | null) => void;
+  copiedStates: StateData[] | null;
+  copyObjectStates: (objectId: string) => void;
+  copySingleState: (state: StateData) => void;
+  pasteObjectStates: (targetObjectId: string) => void;
   setEditingScriptObjectId: (id: string | null) => void;
   addToast: (message: string) => void;
   removeToast: (id: string) => void;
   setARVideoPlaying: (video: { title: string; url: string } | null) => void;
+  
+  // Transitions state
+  activeTransitions: Record<string, { targetStateId: string; duration: number; easing: string; triggerTime: number; fromPos: Vector3Data; fromRot: Vector3Data; fromScl: Vector3Data }>;
+  triggerStateTransition: (objectId: string, targetStateId: string, duration: number, easing: string) => void;
   
   // History actions
   undo: () => void;

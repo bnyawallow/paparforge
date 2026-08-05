@@ -6,6 +6,7 @@ import { HUDCanvas } from './HUDCanvas';
 import { FONT_LIBRARY } from '../inspector/InspectorPanel';
 import { motion, AnimatePresence } from 'motion/react';
 import { GlassButton } from '../ui/HudComponents';
+import { playCachedAudio } from '../../lib/audioManager';
 
 const LucideIcon = ({ name, size = 16, className }: { name: string; size?: number; className?: string }) => {
   if (!name) return null;
@@ -14,6 +15,207 @@ const LucideIcon = ({ name, size = 16, className }: { name: string; size?: numbe
   if (!IconComponent) return null;
   return <IconComponent size={size} className={className} />;
 };
+
+function HUDElementBehaviorListener({ obj, isPreviewMode }: { obj: any; isPreviewMode: boolean }) {
+  const hasInitializedOnStart = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!isPreviewMode) {
+      hasInitializedOnStart.current = false;
+      return;
+    }
+
+    const executeBehaviorAction = (b: any) => {
+      console.log('[Debug Log] 2D behavior triggered:', b.action, 'for', obj.name);
+      switch (b.action) {
+        case 'toast':
+          if (b.toastMessage) {
+            useEditorStore.getState().addToast(b.toastMessage);
+          }
+          break;
+        case 'openUrl':
+          if (b.url) {
+            window.open(b.url, '_blank', 'noopener,noreferrer');
+          }
+          break;
+        case 'playSound': {
+          const playUrl = b.soundPreset || '/sounds/success_chime.wav';
+          playCachedAudio(playUrl, b.soundLoop, 0.5);
+          break;
+        }
+        case 'playVideo':
+          useEditorStore.getState().setARVideoPlaying({
+            title: `${obj ? obj.name : 'Object'} Response Video`,
+            url: b.url || 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761'
+          });
+          break;
+        case 'startBehavior':
+          if (b.targetObjectId) {
+            const targetObj = useEditorStore.getState().objects[b.targetObjectId];
+            if (targetObj) {
+              useEditorStore.getState().updateObject(b.targetObjectId, {
+                properties: { ...targetObj.properties, behavior: b.behaviorRule || 'spin' }
+              });
+            }
+          } else {
+            useEditorStore.getState().updateObject(obj.id, {
+              properties: { ...obj.properties, behavior: b.behaviorRule || 'spin' }
+            });
+          }
+          break;
+        case 'toggleVisibility':
+          if (b.targetObjectId) {
+            const target = useEditorStore.getState().objects[b.targetObjectId];
+            if (target) {
+              useEditorStore.getState().updateObject(b.targetObjectId, { visible: !target.visible });
+            }
+          } else {
+            useEditorStore.getState().updateObject(obj.id, { visible: !obj.visible });
+          }
+          break;
+        case 'setVisibility': {
+          const svTargetId = b.targetObjectId || obj.id;
+          const svTarget = useEditorStore.getState().objects[svTargetId];
+          if (svTarget) {
+            useEditorStore.getState().updateObject(svTargetId, { visible: b.visibleState !== 'false' });
+          }
+          break;
+        }
+        case 'scaleUp': {
+          const suTargetId = b.targetObjectId || obj.id;
+          const suTarget = useEditorStore.getState().objects[suTargetId];
+          if (suTarget) {
+            useEditorStore.getState().updateObject(suTargetId, { 
+              scale: [suTarget.scale[0] * 1.25, suTarget.scale[1] * 1.25, suTarget.scale[2] * 1.25] 
+            });
+          }
+          break;
+        }
+        case 'scaleDown': {
+          const sdTargetId = b.targetObjectId || obj.id;
+          const sdTarget = useEditorStore.getState().objects[sdTargetId];
+          if (sdTarget) {
+            useEditorStore.getState().updateObject(sdTargetId, { 
+              scale: [sdTarget.scale[0] * 0.8, sdTarget.scale[1] * 0.8, sdTarget.scale[2] * 0.8] 
+            });
+          }
+          break;
+        }
+        case 'playModelAnimation': {
+          const pmaTargetId = b.targetObjectId || obj.id;
+          const pmaTarget = useEditorStore.getState().objects[pmaTargetId];
+          if (pmaTarget && pmaTarget.type === 'model') {
+            useEditorStore.getState().updateObject(pmaTargetId, { 
+              properties: { ...pmaTarget.properties, animationPlaying: true, animationSpeed: 1.0 } 
+            });
+          }
+          break;
+        }
+        case 'pauseModelAnimation': {
+          const pmaPauseTargetId = b.targetObjectId || obj.id;
+          const pmaPauseTarget = useEditorStore.getState().objects[pmaPauseTargetId];
+          if (pmaPauseTarget && pmaPauseTarget.type === 'model') {
+            useEditorStore.getState().updateObject(pmaPauseTargetId, { 
+              properties: { ...pmaPauseTarget.properties, animationPlaying: false, animationSpeed: 0.0 } 
+            });
+          }
+          break;
+        }
+        case 'spin': {
+          const targetId = b.targetObjectId || obj.id;
+          const targetObj = useEditorStore.getState().objects[targetId];
+          if (targetObj) {
+            useEditorStore.getState().updateObject(targetId, {
+              properties: { ...targetObj.properties, behavior: 'spin' }
+            });
+          }
+          break;
+        }
+        case 'loadScene':
+          if (b.targetSceneId) {
+            useEditorStore.getState().loadScene(b.targetSceneId);
+          }
+          break;
+        case 'transform': {
+          const targetIdT = b.targetObjectId || obj.id;
+          const targetObjT = useEditorStore.getState().objects[targetIdT];
+          if (targetObjT) {
+             const vals = (b.propertyValue || '0,0,0').split(',').map((v: string) => parseFloat(v) || 0) as [number, number, number];
+             if (b.propertyName === 'position') useEditorStore.getState().updateObject(targetIdT, { position: vals });
+             else if (b.propertyName === 'rotation') useEditorStore.getState().updateObject(targetIdT, { rotation: vals });
+             else if (b.propertyName === 'scale') useEditorStore.getState().updateObject(targetIdT, { scale: vals });
+          }
+          break;
+        }
+        case 'material': {
+          const targetIdM = b.targetObjectId || obj.id;
+          const targetObjM = useEditorStore.getState().objects[targetIdM];
+          if (targetObjM) {
+             if (b.propertyName === 'color') {
+               useEditorStore.getState().updateObject(targetIdM, { properties: { ...targetObjM.properties, color: b.propertyValue } });
+             } else if (b.propertyName === 'texture') {
+               useEditorStore.getState().updateObject(targetIdM, { properties: { ...targetObjM.properties, textureUrl: b.propertyValue } });
+             }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    };
+
+    // 1. Run onStart visual behaviors
+    if (!hasInitializedOnStart.current) {
+      const behaviors = obj.properties.visualBehaviors || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onStart') {
+          executeBehaviorAction(b);
+        }
+      });
+      hasInitializedOnStart.current = true;
+    }
+
+    // 2. Listen for custom window triggers
+    const handleCustomTap = () => {
+      const behaviors = obj.properties.visualBehaviors || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onTap') {
+          executeBehaviorAction(b);
+        }
+      });
+    };
+
+    const handleCustomHoverEnter = () => {
+      const behaviors = obj.properties.visualBehaviors || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onHoverEnter') {
+          executeBehaviorAction(b);
+        }
+      });
+    };
+
+    const handleCustomHoverExit = () => {
+      const behaviors = obj.properties.visualBehaviors || [];
+      behaviors.forEach((b: any) => {
+        if (b.trigger === 'onHoverExit') {
+          executeBehaviorAction(b);
+        }
+      });
+    };
+
+    window.addEventListener(`trigger-tap-${obj.id}`, handleCustomTap);
+    window.addEventListener(`trigger-hover-enter-${obj.id}`, handleCustomHoverEnter);
+    window.addEventListener(`trigger-hover-exit-${obj.id}`, handleCustomHoverExit);
+
+    return () => {
+      window.removeEventListener(`trigger-tap-${obj.id}`, handleCustomTap);
+      window.removeEventListener(`trigger-hover-enter-${obj.id}`, handleCustomHoverEnter);
+      window.removeEventListener(`trigger-hover-exit-${obj.id}`, handleCustomHoverExit);
+    };
+  }, [isPreviewMode, obj.id, obj.properties.visualBehaviors]);
+
+  return null;
+}
 
 export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: boolean }) {
   const { objects, selectedObjectId, selectedObjectIds, selectObject, updateObject, overlayGridEnabled, setOverlayGridEnabled, overlayGridSize, setOverlayGridSize, settings } = useEditorStore();
@@ -587,6 +789,40 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
+      <style>{`
+        @keyframes hudFloat {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes hudShake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-4px); }
+          40%, 80% { transform: translateX(4px); }
+        }
+        @keyframes hudGlowPulse {
+          0%, 100% { filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.4)); }
+          50% { filter: drop-shadow(0 0 16px rgba(6, 182, 212, 0.9)); }
+        }
+        @keyframes hudRotateIn {
+          from { transform: rotate(-180deg) scale(0.2); opacity: 0; }
+          to { transform: rotate(0deg) scale(1); opacity: 1; }
+        }
+        @keyframes hudFlipIn {
+          from { transform: perspective(400deg) rotateY(90deg); opacity: 0; }
+          to { transform: perspective(400deg) rotateY(0deg); opacity: 1; }
+        }
+        @keyframes hudPopIn {
+          0% { transform: scale(0.3); opacity: 0; }
+          70% { transform: scale(1.1); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .hud-anim-float { animation: hudFloat 3s ease-in-out infinite; }
+        .hud-anim-shake { animation: hudShake 0.8s ease-in-out infinite; }
+        .hud-anim-glow-pulse { animation: hudGlowPulse 2s ease-in-out infinite; }
+        .hud-anim-rotate-in { animation: hudRotateIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .hud-anim-flip-in { animation: hudFlipIn 0.6s ease-out forwards; }
+        .hud-anim-pop-in { animation: hudPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+      `}</style>
       {!isPreviewMode && is2DSelected && overlayGridEnabled && (
         <div 
           className="absolute inset-0 pointer-events-none opacity-20"
@@ -698,18 +934,41 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
           const getAnimClass = () => {
             if (!isPreviewMode) return '';
-            const anim = props.hudAnimation;
-            if (!anim || anim === 'none') return '';
-            switch (anim) {
-              case 'fade-in': return 'animate-in fade-in duration-500';
-              case 'slide-up': return 'animate-in fade-in slide-in-from-bottom-8 duration-500';
-              case 'slide-down': return 'animate-in fade-in slide-in-from-top-8 duration-500';
-              case 'slide-left': return 'animate-in fade-in slide-in-from-right-8 duration-500';
-              case 'slide-right': return 'animate-in fade-in slide-in-from-left-8 duration-500';
-              case 'zoom-in': return 'animate-in fade-in zoom-in-50 duration-500';
-              case 'bounce': return 'animate-bounce';
-              default: return '';
+            const entrance = props.animationEntrance || props.hudAnimation;
+            const idle = props.animationIdle;
+            const exit = props.animationExit;
+            let classes = [];
+
+            if (entrance && entrance !== 'none') {
+              switch (entrance) {
+                case 'fade-in': classes.push('animate-in fade-in duration-500'); break;
+                case 'slide-up': classes.push('animate-in fade-in slide-in-from-bottom-8 duration-500'); break;
+                case 'slide-down': classes.push('animate-in fade-in slide-in-from-top-8 duration-500'); break;
+                case 'slide-left': classes.push('animate-in fade-in slide-in-from-right-8 duration-500'); break;
+                case 'slide-right': classes.push('animate-in fade-in slide-in-from-left-8 duration-500'); break;
+                case 'zoom-in': classes.push('animate-in fade-in zoom-in-50 duration-500'); break;
+                case 'bounce': classes.push('animate-bounce'); break;
+                case 'rotate-in': classes.push('hud-anim-rotate-in'); break;
+                case 'flip-in': classes.push('hud-anim-flip-in'); break;
+                case 'pop-in': classes.push('hud-anim-pop-in'); break;
+                default: break;
+              }
             }
+
+            if (idle && idle !== 'none') {
+              switch (idle) {
+                case 'pulse': classes.push('animate-pulse'); break;
+                case 'float': classes.push('hud-anim-float'); break;
+                case 'bounce': classes.push('animate-bounce'); break;
+                case 'spin': classes.push('animate-spin'); break;
+                case 'shake': classes.push('hud-anim-shake'); break;
+                case 'shimmer': classes.push('hud-anim-shimmer'); break;
+                case 'glow-pulse': classes.push('hud-anim-glow-pulse'); break;
+                default: break;
+              }
+            }
+
+            return classes.join(' ');
           };
           const animClass = getAnimClass();
 
@@ -792,7 +1051,43 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             });
           };
 
-          const isInteractive = ['hudButton', 'hudEmbed'].includes(obj.type);
+          const hasTapInteraction = isPreviewMode && (
+            obj.type === 'hudButton' ||
+            props.soundUrl ||
+            (props.visualBehaviors && props.visualBehaviors.some((b: any) => b.trigger === 'onTap')) ||
+            (props.scriptCode && (props.scriptEnabled ?? true))
+          );
+          
+          const hasHoverInteraction = isPreviewMode && props.visualBehaviors && props.visualBehaviors.some((b: any) => b.trigger === 'onHoverEnter' || b.trigger === 'onHoverExit');
+
+          const isInteractive = ['hudButton', 'hudEmbed'].includes(obj.type) || hasTapInteraction || hasHoverInteraction;
+
+          const handleOverlayClick = (e: React.MouseEvent) => {
+            if (!isPreviewMode) return;
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent(`trigger-tap-${obj.id}`));
+          };
+
+          const handleOverlayMouseEnter = () => {
+            if (!isPreviewMode) return;
+            if (props.cursor && !props.ignoreClicks) {
+              document.body.style.cursor = props.cursor;
+            } else if (obj.type === 'hudButton' || hasTapInteraction) {
+              document.body.style.cursor = 'pointer';
+            }
+            window.dispatchEvent(new CustomEvent(`trigger-hover-enter-${obj.id}`));
+          };
+
+          const handleOverlayMouseLeave = () => {
+            if (!isPreviewMode) return;
+            if (props.cursor && !props.ignoreClicks) {
+              document.body.style.cursor = 'auto';
+            } else if (obj.type === 'hudButton' || hasTapInteraction) {
+              document.body.style.cursor = 'auto';
+            }
+            window.dispatchEvent(new CustomEvent(`trigger-hover-exit-${obj.id}`));
+          };
+
           const computedStyle = getOverlayStyle(obj, parentProjected);
           const activeStyle: React.CSSProperties = {
             ...computedStyle,
@@ -810,6 +1105,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           if (obj.type === 'hudCanvas') {
             return (
               <HUDCanvas key={obj.id} obj={obj} isPreviewMode={isPreviewMode}>
+                <HUDElementBehaviorListener obj={obj} isPreviewMode={isPreviewMode} />
                 {renderResizeHandles()}
                 {children.map((child: any) => renderOverlayObject(child))}
               </HUDCanvas>
@@ -817,6 +1113,21 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           }
 
           if (obj.type === 'hudText') {
+            const textGradientStyle: React.CSSProperties = props.useGradient ? {
+              backgroundImage: `linear-gradient(${props.gradientDirection || 'to right'}, ${props.gradientColorStart || '#06b6d4'}, ${props.gradientColorEnd || '#3b82f6'})`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            } : (props.textTextureUrl ? {
+              backgroundImage: `url(${props.textTextureUrl})`,
+              backgroundSize: 'cover',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            } : {});
+
+            const textStrokeStyle: React.CSSProperties = props.textStrokeWidth ? {
+              WebkitTextStroke: `${props.textStrokeWidth}px ${props.textStrokeColor || '#000000'}`,
+            } : {};
+
             return (
               <div 
                 key={obj.id} 
@@ -824,7 +1135,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 className={animClass}
                 style={{ 
                   ...activeStyle, 
-                  color: props.color || settings.themeTextColor || '#fff', 
+                  color: (props.useGradient || props.textTextureUrl) ? undefined : (props.color || settings.themeTextColor || '#fff'), 
                   fontSize: `${props.fontSize || 24}px`,
                   fontFamily: props.fontFamily || settings.themeFontFamily || 'sans-serif',
                   fontWeight: props.fontWeight || 'normal',
@@ -835,12 +1146,20 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   textTransform: props.textTransform || 'none',
                   textDecoration: props.textDecoration || 'none',
                   fontStyle: props.fontStyle || 'normal',
-                  cursor: !isPreviewMode ? 'move' : 'default',
+                  cursor: !isPreviewMode ? 'move' : (hasTapInteraction ? 'pointer' : 'default'),
                   alignItems: props.textAlign === 'center' ? 'center' : (props.textAlign === 'right' ? 'flex-end' : (props.textAlign === 'justify' ? 'stretch' : 'flex-start')),
                   justifyContent: 'center',
+                  animationDuration: props.animationDuration ? `${props.animationDuration}s` : undefined,
+                  animationDelay: props.animationDelay ? `${props.animationDelay}s` : undefined,
+                  ...textGradientStyle,
+                  ...textStrokeStyle,
                 }}
                 onMouseDown={handleMouseDown}
+                onClick={handleOverlayClick}
+                onMouseEnter={handleOverlayMouseEnter}
+                onMouseLeave={handleOverlayMouseLeave}
               >
+                <HUDElementBehaviorListener obj={obj} isPreviewMode={isPreviewMode} />
                 {renderResizeHandles()}
                 {renderIconAndText(props.text || 'Text', props)}
                 {children.map((child: any) => renderOverlayObject(child))}
@@ -877,12 +1196,16 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                   fontWeight: 'bold',
                 }}
                 onMouseDown={handleMouseDown}
-                onClick={() => {
+                onClick={(e) => {
+                  handleOverlayClick(e);
                   if (isPreviewMode && props.url) {
                     window.open(props.url, '_blank');
                   }
                 }}
+                onMouseEnter={handleOverlayMouseEnter}
+                onMouseLeave={handleOverlayMouseLeave}
               >
+                <HUDElementBehaviorListener obj={obj} isPreviewMode={isPreviewMode} />
                 {renderResizeHandles()}
                 {renderIconAndText(props.text || 'Button', props)}
                 {children.map((child: any) => renderOverlayObject(child))}
@@ -910,10 +1233,14 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                     ? `${currentBorderWidth}px solid ${props.borderColor || '#ffffff'}` 
                     : 'none'),
                   aspectRatio: currentShape === 'circle' ? '1 / 1' : undefined,
-                  cursor: !isPreviewMode ? 'move' : 'default',
+                  cursor: !isPreviewMode ? 'move' : (hasTapInteraction ? 'pointer' : 'default'),
                 }}
                 onMouseDown={handleMouseDown}
+                onClick={handleOverlayClick}
+                onMouseEnter={handleOverlayMouseEnter}
+                onMouseLeave={handleOverlayMouseLeave}
               >
+                <HUDElementBehaviorListener obj={obj} isPreviewMode={isPreviewMode} />
                 {renderResizeHandles()}
                 <img 
                   src={props.textureUrl || 'https://via.placeholder.com/200'}
@@ -944,6 +1271,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
                 }}
                 onMouseDown={handleMouseDown}
               >
+                <HUDElementBehaviorListener obj={obj} isPreviewMode={isPreviewMode} />
                 {renderResizeHandles()}
                 <div 
                   className="w-full h-full flex flex-col"

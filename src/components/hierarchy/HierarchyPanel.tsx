@@ -85,6 +85,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
     value?: string;
     sceneId?: string;
   }>({ type: null });
+  const [isSceneDropdownOpen, setIsSceneDropdownOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -402,6 +403,12 @@ export function HierarchyPanel({ width }: { width?: number }) {
             {node.name}
           </span>
 
+          {node.materialName && (
+            <span className="text-[8px] bg-neutral-800/80 text-neutral-400 px-1 py-0.5 rounded mr-1 font-sans shrink-0 max-w-[80px] truncate border border-neutral-700/30" title={`Material: ${node.materialName}`}>
+              {node.materialName}
+            </span>
+          )}
+
           {/* Visibility Toggle */}
           <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
             <button
@@ -633,8 +640,8 @@ export function HierarchyPanel({ width }: { width?: number }) {
               <span className={cn("truncate", obj.locked && "opacity-60 italic")}>
                 {highlightText(obj.name, searchQuery)}
               </span>
-              {obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0 && (() => {
-                const behaviors = obj.properties.visualBehaviors || [];
+              {obj.events && obj.events.length > 0 && (() => {
+                const behaviors = obj.events || [];
                 let hasAudio = false;
                 let hasVisibility = false;
                 let hasAnimation = false;
@@ -838,27 +845,68 @@ export function HierarchyPanel({ width }: { width?: number }) {
 
         {/* Scene Selector */}
         <div className={cn("px-2 py-1.5 border-b flex items-center justify-between gap-1.5 shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
-          <div className="flex-1 flex items-center gap-1.5 min-w-0">
-            <Layers size={11} className={t.isLight ? "text-gray-500" : "text-gray-400"} />
-            <select
-              value={activeSceneId}
-              onChange={(e) => loadScene(e.target.value)}
-              className={cn(
-                "flex-1 bg-transparent text-[11px] font-medium outline-none cursor-pointer truncate",
-                t.isLight ? "text-gray-800" : "text-gray-200"
+          <div className="flex-1 flex items-center gap-1.5 min-w-0 relative">
+            <Layers size={11} className={cn("shrink-0", t.textMuted)} />
+            
+            <div className="relative flex-1 min-w-0">
+              <button
+                onClick={() => setIsSceneDropdownOpen(!isSceneDropdownOpen)}
+                className={cn(
+                  "w-full flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium outline-none cursor-pointer transition-all border",
+                  t.bgInput,
+                  "hover:opacity-90"
+                )}
+                title="Select Active Scene"
+              >
+                <span className="truncate">{scenes[activeSceneId]?.name || 'Select Scene'}</span>
+                <ChevronDown size={10} className={cn("shrink-0 transition-transform text-gray-400", isSceneDropdownOpen ? "rotate-180" : "")} />
+              </button>
+              
+              {isSceneDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40 cursor-default" 
+                    onClick={() => setIsSceneDropdownOpen(false)} 
+                  />
+                  <div 
+                    className={cn(
+                      "absolute left-0 right-0 mt-1 rounded border shadow-lg z-50 py-1 max-h-48 overflow-y-auto backdrop-blur-md",
+                      t.bgDropdown
+                    )}
+                  >
+                    {scenes && Object.values(scenes).map(scene => {
+                      const isSelected = scene.id === activeSceneId;
+                      return (
+                        <button
+                          key={scene.id}
+                          onClick={() => {
+                            loadScene(scene.id);
+                            setIsSceneDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "w-full text-left px-2 py-1 text-[10px] flex items-center justify-between transition-colors cursor-pointer",
+                            isSelected 
+                              ? (t.isLight ? "bg-blue-50 text-blue-600 font-semibold" : "bg-blue-600/20 text-blue-400 font-semibold")
+                              : t.bgItemHover
+                          )}
+                        >
+                          <span className="truncate">{scene.name}</span>
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 ml-1" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
               )}
-            >
-              {scenes && Object.values(scenes).map(scene => (
-                <option key={scene.id} value={scene.id} className={t.isLight ? "bg-white text-gray-800" : "bg-[#18181A] text-gray-200"}>{scene.name}</option>
-              ))}
-            </select>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
+          
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => {
                 setSceneModal({ type: 'create', value: 'New Scene' });
               }}
-              className={cn("p-1 rounded transition-colors cursor-pointer", t.isLight ? "text-gray-500 hover:bg-gray-200" : "text-gray-400 hover:bg-[#222]")}
+              className={cn("p-1 rounded transition-colors cursor-pointer border outline-none", t.bgInput, "hover:opacity-90")}
               title="Create New Scene"
             >
               <Plus size={11} />
@@ -870,7 +918,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                     const currentName = scenes[activeSceneId]?.name || 'Scene';
                     setSceneModal({ type: 'rename', value: currentName, sceneId: activeSceneId });
                   }}
-                  className={cn("p-1 rounded transition-colors cursor-pointer", t.isLight ? "text-gray-500 hover:bg-gray-200" : "text-gray-400 hover:bg-[#222]")}
+                  className={cn("p-1 rounded transition-colors cursor-pointer border outline-none", t.bgInput, "hover:opacity-90")}
                   title="Rename Scene"
                 >
                   <Type size={11} />
@@ -880,7 +928,12 @@ export function HierarchyPanel({ width }: { width?: number }) {
                     onClick={() => {
                       setSceneModal({ type: 'delete', sceneId: activeSceneId });
                     }}
-                    className={cn("p-1 rounded text-red-400 hover:text-red-300 transition-colors cursor-pointer", t.isLight ? "hover:bg-red-50" : "hover:bg-red-900/30")}
+                    className={cn(
+                      "p-1 rounded transition-colors cursor-pointer border outline-none",
+                      t.isLight 
+                        ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100" 
+                        : "bg-red-950/20 text-red-400 border-red-900/30 hover:bg-red-950/40"
+                    )}
                     title="Delete Scene"
                   >
                     <Trash2 size={11} />

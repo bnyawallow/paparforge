@@ -1,19 +1,22 @@
 import { generateAFrameScene } from '../../lib/aframeGenerator';
 import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
-import { X, Copy, Check, Download, Globe, Code, Cpu, Sparkles, AlertCircle, Play, ExternalLink, QrCode } from 'lucide-react';
+import { X, Copy, Check, Download, Globe, Code, Cpu, Sparkles, AlertCircle, Play, ExternalLink, QrCode, Box, PackageCheck, FileCode } from 'lucide-react';
 import { SceneObject } from '../../types';
+import { exportSceneToGLB, exportSceneAsZapparPackage } from '../../lib/arExporter';
 
 import { GlassModal } from '../ui/HudComponents';
 
 export function PublishModal({ onClose }: { onClose: () => void }) {
-  const { objects, rootObjects, settings, updateSettings, isPreviewMode } = useEditorStore();
-  const [activeTab, setActiveTab] = useState<'cloud' | 'developer'>('cloud');
+  const { objects, rootObjects, settings, updateSettings, isPreviewMode, assets, scenes, activeSceneId } = useEditorStore();
+  const [activeTab, setActiveTab] = useState<'cloud' | 'exports' | 'developer'>('cloud');
   const [copied, setCopied] = useState(false);
   const [publishStep, setPublishStep] = useState<'idle' | 'validating' | 'packaging' | 'optimizing' | 'deploying' | 'success'>('idle');
   const [publishProgress, setPublishProgress] = useState(0);
   const [publishedUrl, setPublishedUrl] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [isExportingGLB, setIsExportingGLB] = useState(false);
+  const [isExportingZappar, setIsExportingZappar] = useState(false);
   
   // Clean URL-friendly slug
   const projectName = settings.projectName || 'AR Experience';
@@ -112,7 +115,9 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
           ...storeState.settings,
           publishedProjectId: projectId
         },
-        assets: storeState.assets
+        assets: storeState.assets,
+        scenes: storeState.scenes,
+        activeSceneId: storeState.activeSceneId
       };
 
       // Generate the full HTML for standalone
@@ -157,6 +162,54 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleExportGLB = async () => {
+    try {
+      setIsExportingGLB(true);
+      const blob = await exportSceneToGLB(objects, rootObjects, projectSlug);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectSlug}-scene.glb`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      useEditorStore.getState().addToast('GLB binary 3D model exported successfully');
+    } catch (err) {
+      console.error('GLB export failed:', err);
+      useEditorStore.getState().addToast('Failed to export GLB model');
+    } finally {
+      setIsExportingGLB(false);
+    }
+  };
+
+  const handleExportZappar = async () => {
+    try {
+      setIsExportingZappar(true);
+      const state = useEditorStore.getState();
+      const blob = await exportSceneAsZapparPackage({
+        objects,
+        rootObjects,
+        settings,
+        assets: state.assets
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectSlug}-zappar-webar.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      useEditorStore.getState().addToast('Zappar WebAR package (.zip) exported successfully');
+    } catch (err) {
+      console.error('Zappar export failed:', err);
+      useEditorStore.getState().addToast('Failed to export Zappar WebAR package');
+    } finally {
+      setIsExportingZappar(false);
+    }
+  };
+
   return (
     <GlassModal isOpen={true} onClose={onClose} hideHeader={true} maxWidth="max-w-4xl" className="flex flex-col max-h-[90vh]">
         {/* Modal Header */}
@@ -185,6 +238,17 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
           >
             <Globe size={14} className={activeTab === 'cloud' ? 'text-blue-400' : ''} />
             Cloud Deployment
+          </button>
+          <button
+            onClick={() => setActiveTab('exports')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold tracking-wide border-b-2 transition-all ${
+              activeTab === 'exports'
+                ? 'border-blue-500 text-white font-bold'
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <Box size={14} className={activeTab === 'exports' ? 'text-purple-400' : ''} />
+            3D & Zappar Exports (.glb / .zip)
           </button>
           <button
             onClick={() => setActiveTab('developer')}
@@ -442,6 +506,111 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
 
               </div>
 
+            </div>
+          ) : activeTab === 'exports' ? (
+            /* 3D GLB & Zappar Package Export Tab */
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                {/* 1. GLB 3D Scene Export Card */}
+                <div className="bg-[#181818] border border-[#222] rounded-2xl p-5 space-y-4 flex flex-col justify-between hover:border-purple-500/40 transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-800/60 flex items-center justify-center text-purple-400">
+                        <Box size={20} />
+                      </div>
+                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-900/40 text-purple-300 border border-purple-800/40">
+                        3D Binary .glb
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Export 3D Scene (.glb)</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Compiles all 3D geometries, PBR materials, textures, animations, and transforms into a standalone binary GLB file compatible with Blender, Unity, Unreal, and WebGL viewers.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-[#0D0D0D] border border-[#1A1A1A] rounded-xl text-[10px] font-mono space-y-1 text-gray-400">
+                      <div className="flex justify-between">
+                        <span>3D Mesh Entities:</span>
+                        <span className="text-white font-bold">{Object.keys(objects).filter(id => objects[id].type !== 'imageTarget').length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Format Standard:</span>
+                        <span className="text-purple-400 font-bold">glTF 2.0 Binary (.glb)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleExportGLB}
+                    disabled={isExportingGLB}
+                    className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-xl text-xs font-bold font-mono uppercase tracking-wider text-white transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-2"
+                  >
+                    {isExportingGLB ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Generating GLB...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={14} /> Download 3D Scene (.glb)
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* 2. Zappar WebAR Package Export Card */}
+                <div className="bg-[#181818] border border-[#222] rounded-2xl p-5 space-y-4 flex flex-col justify-between hover:border-blue-500/40 transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-blue-950/60 border border-blue-800/60 flex items-center justify-center text-blue-400">
+                        <PackageCheck size={20} />
+                      </div>
+                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-800/40">
+                        Zappar WebAR .zip
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Zappar-Ready WebAR Package</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Exports a complete Zappar WebAR project bundle containing Zappar Three.js camera pipeline script, target tracker configurations, scene manifest, and ZapWorks CLI build scripts.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-[#0D0D0D] border border-[#1A1A1A] rounded-xl text-[10px] font-mono space-y-1 text-gray-400">
+                      <div className="flex justify-between">
+                        <span>SDK Engine:</span>
+                        <span className="text-blue-400 font-bold">Zappar ThreeJS / ZapWorks CLI</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Target Anchors:</span>
+                        <span className="text-white font-bold">{Object.values(objects).filter(o => o.type === 'imageTarget').length} Target(s)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleExportZappar}
+                    disabled={isExportingZappar}
+                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl text-xs font-bold font-mono uppercase tracking-wider text-white transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-2"
+                  >
+                    {isExportingZappar ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Packing Zappar Bundle...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={14} /> Download Zappar Package (.zip)
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </div>
             </div>
           ) : (
             // Developer bundle pane

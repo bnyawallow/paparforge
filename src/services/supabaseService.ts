@@ -5,6 +5,8 @@ export interface ProjectData {
   rootObjects: string[];
   settings: any;
   assets: any[];
+  scenes?: Record<string, any>;
+  activeSceneId?: string;
 }
 
 export class SupabaseService {
