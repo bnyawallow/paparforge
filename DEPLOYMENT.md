@@ -1,122 +1,75 @@
 # Hostinger VPS & GitHub Actions Deployment Guide
 
-This repository includes a multi-stage **Dockerfile**, **Docker Compose** setup, and an automated **GitHub Actions** CI/CD pipeline to deploy the application to your **Hostinger VPS**.
+This repository includes a highly optimized multi-stage **Dockerfile**, **Docker Compose** configuration, and an automated **GitHub Actions** CI/CD pipeline to build your app and push it directly to GitHub Container Registry (`ghcr.io`). You can then run and pull the updated image directly on your **Hostinger VPS**.
 
 ---
 
 ## 📁 Included Files Overview
 
-1. **`Dockerfile`**: Multi-stage Docker build optimized for Node 20 with C++ compilation support for native modules (such as `better-sqlite3`).
-2. **`docker-compose.yml`**: Defines the application container service with persistent volume mappings for published WebAR HTML scenes (`ar_papar_data`) and SQLite data (`ar_sqlite_data`).
+1. **`Dockerfile`**: Multi-stage Docker build optimized for Node 20. It builds the client assets, keeps production dependencies lean, and serves via Express.
+2. **`docker-compose.yml`**: Defines the application container service using the image `ghcr.io/bnyawallow/paparforge:main`, mapping persistent volumes and configured with labels for Traefik routing.
 3. **`.dockerignore`**: Excludes `node_modules`, build outputs, and sensitive files from Docker contexts.
-4. **`.github/workflows/deploy.yml`**: GitHub Actions workflow that automatically builds the Docker image, pushes it to GitHub Container Registry (`ghcr.io`), connects via SSH to your Hostinger VPS, and deploys/restarts the application seamlessly.
+4. **`.github/workflows/deploy.yml`**: GitHub Actions workflow that automatically builds and pushes the updated Docker image to `ghcr.io/bnyawallow/paparforge:main` upon code pushes to `main`/`master` branches.
 
 ---
 
-## 🔑 Step 1: Configure GitHub Repository Secrets
+## 🚀 Setup & Automated Image Building
 
-In your GitHub Repository, navigate to **Settings** > **Secrets and variables** > **Actions**, and add the following repository secrets:
-
-| Secret Name | Description / Example Value |
-| :--- | :--- |
-| `HOSTINGER_HOST` | Your Hostinger VPS IP address (e.g., `185.185.185.185` or domain name) |
-| `HOSTINGER_USER` | SSH Username (e.g., `root` or custom sudo user) |
-| `HOSTINGER_SSH_KEY` | Private SSH Key contents (PEM format) with access to your VPS |
-| `HOSTINGER_SSH_PORT` | *(Optional)* Custom SSH Port (default: `22`) |
-| `GEMINI_API_KEY` | *(Optional)* Your Google Gemini API Key |
-| `APP_URL` | Your live production domain URL (e.g., `https://ar.yourdomain.com`) |
-| `VITE_SUPABASE_URL` | *(Optional)* Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | *(Optional)* Your Supabase anonymous public key |
-| `JWT_SECRET` | Secret key used for signing authentication JWT tokens |
+1. Push your repository to GitHub.
+2. The GitHub Actions workflow (`.github/workflows/deploy.yml`) will automatically trigger on any push to `main` or `master` branches, building your Docker image and pushing it to **GHCR** as `ghcr.io/bnyawallow/paparforge:main`.
 
 ---
 
-## 🖥️ Step 2: One-Time Hostinger VPS Setup
+## 🖥️ Deploying on your Hostinger VPS
 
-1. **SSH into your Hostinger VPS**:
-   ```bash
-   ssh root@<YOUR_HOSTINGER_VPS_IP>
-   ```
+Since you have **Traefik** configured, you can deploy the app easily by setting up `docker-compose.yml` on your VPS.
 
-2. **Install Docker and Docker Compose** (if not already installed):
-   ```bash
-   # Update package index and install curl
-   apt-get update && apt-get install -y curl
+### 1. Set Up Files on VPS
+Create a directory for your project (e.g., `~/papar-studio`) on your Hostinger VPS, and copy the `docker-compose.yml` there:
 
-   # Install Docker
-   curl -fsSL https://get.docker.com -o get-docker.sh
-   sh get-docker.sh
+```yaml
+name: papar-studio
 
-   # Enable and start Docker service
-   systemctl enable --now docker
-   ```
-
-3. **(Recommended) Setup Nginx Reverse Proxy with SSL (Let's Encrypt)**:
-   
-   Install Nginx and Certbot:
-   ```bash
-   apt-get install -y nginx certbot python3-certbot-nginx
-   ```
-
-   Create an Nginx configuration file for your site at `/etc/nginx/sites-available/ar-forge`:
-   ```nginx
-   server {
-       server_name ar.yourdomain.com; # Replace with your actual domain
-
-       location / {
-           proxy_pass http://127.0.0.1:3000;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection 'upgrade';
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
-           proxy_cache_bypass $http_upgrade;
-           client_max_body_size 50M;
-       }
-   }
-   ```
-
-   Enable the site and obtain a free SSL certificate:
-   ```bash
-   ln -s /etc/nginx/sites-available/ar-forge /etc/nginx/sites-enabled/
-   nginx -t
-   systemctl reload nginx
-
-   # Obtain SSL certificate
-   certbot --nginx -d ar.yourdomain.com
-   ```
-
----
-
-## 🚀 Step 3: Trigger Deployment
-
-Simply push your code to the `main` or `master` branch:
-
-```bash
-git add .
-git commit -m "Configure Docker & Hostinger VPS deployment"
-git push origin main
+services:
+  papar-studio:
+    image: ghcr.io/bnyawallow/paparforge:main
+    container_name: papar-studio
+    restart: unless-stopped
+    volumes:
+      - ./papar_data:/app/papar_data
+    env_file:
+      - .env
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.paparstudio.rule=Host(`paparstudio.creativefringe.digital`)
+      - traefik.http.routers.paparstudio.entrypoints=websecure
+      - traefik.http.routers.paparstudio.tls.certresolver=letsencrypt
+      - traefik.http.services.paparstudio.loadbalancer.server.port=3000
 ```
 
-The **GitHub Actions pipeline** will automatically trigger, build the Docker image, push it to GHCR, and execute the SSH deployment commands on your Hostinger VPS.
+### 2. Configure Environment Variables
+Create a `.env` file next to your `docker-compose.yml` file on your VPS containing your production keys:
 
----
+```env
+PORT=3000
+NODE_ENV=production
+GEMINI_API_KEY=your_gemini_api_key_here
+VITE_SUPABASE_URL=your_supabase_url_here
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+```
 
-## 🛠️ Manual Deployment (Without GitHub Actions)
+### 3. Deploy/Update the Container
 
-If you prefer to deploy manually directly on your VPS:
+Run the following commands on your Hostinger VPS to authenticate with GHCR, pull the fresh image built by GitHub Actions, and launch the service:
 
 ```bash
-# Clone the repository on your VPS
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git ~/ar-forge
-cd ~/ar-forge
+# Login to GHCR (uses your GitHub username and Personal Access Token with write/read packages permission)
+docker login ghcr.io
 
-# Create a .env file
-cp .env.example .env
-# Edit .env with your production values
+# Pull the latest main image
+docker compose pull
 
-# Build and start containers
-docker compose up -d --build
+# Start/Recreate the container in background mode
+docker compose up -d --remove-orphans
 ```
+

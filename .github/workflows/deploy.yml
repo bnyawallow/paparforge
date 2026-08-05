@@ -1,4 +1,4 @@
-name: Deploy to Hostinger VPS
+name: Build and Push Docker Image
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: bnyawallow/paparforge
 
 jobs:
   build-and-push:
@@ -52,73 +52,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy-vps:
-    name: Deploy Container to Hostinger VPS
-    needs: build-and-push
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: SSH Deploy to Hostinger VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USER }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_SSH_PORT || 22 }}
-          script: |
-            set -e
-
-            # Target directory on Hostinger VPS
-            DEPLOY_DIR="~/ar-forge"
-            mkdir -p $DEPLOY_DIR
-            cd $DEPLOY_DIR
-
-            # Authenticate to GitHub Container Registry
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-            # Pull latest image built by GitHub Actions
-            IMAGE_TAG="ghcr.io/bnyawallow/paparforge:main"
-            docker pull $IMAGE_TAG
-
-            # Create or update environment configuration file
-            cat << 'EOF' > .env
-            NODE_ENV=production
-            PORT=3000
-            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-            VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-            VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
-            EOF
-
-            # Write docker-compose.yml file on VPS
-            cat << 'EOF' > docker-compose.yml
-            name: papar-studio
-
-            services:
-              papar-studio:
-                image: ghcr.io/bnyawallow/paparforge:main
-                container_name: papar-studio
-                restart: unless-stopped
-                volumes:
-                  - ./papar_data:/app/papar_data
-                env_file:
-                  - .env
-                labels:
-                  - "traefik.enable=true"
-                  - "traefik.http.routers.paparstudio.rule=Host(`paparstudio.creativefringe.digital`)"
-                  - "traefik.http.routers.paparstudio.entrypoints=websecure"
-                  - "traefik.http.routers.paparstudio.tls.certresolver=letsencrypt"
-                  - "traefik.http.services.paparstudio.loadbalancer.server.port=3000"
-            EOF
-
-            # Deploy using Docker Compose
-            if command -v docker-compose &> /dev/null; then
-              docker-compose pull
-              docker-compose up -d --remove-orphans
-            else
-              docker compose pull
-              docker compose up -d --remove-orphans
-            fi
-
-            # Clean up old unused images to save disk space
-            docker image prune -f
