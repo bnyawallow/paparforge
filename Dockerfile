@@ -15,6 +15,9 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Prune devDependencies to keep production image light
+RUN npm prune --omit=dev
+
 # Stage 2: Production runtime
 FROM node:20-slim AS runner
 
@@ -26,14 +29,8 @@ WORKDIR /app
 # Copy package manifests
 COPY package*.json ./
 
-# Install production dependencies only (building native C++ bindings if needed)
-RUN apt-get update && apt-get install -y python3 make g++ --no-install-recommends \
-    && npm ci --only=production \
-    && apt-get purge -y python3 make g++ \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy compiled assets from builder
+# Copy prebuilt and pruned node_modules, as well as assets from builder stage
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/index.html ./index.html
