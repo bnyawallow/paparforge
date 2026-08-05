@@ -1,31 +1,21 @@
-name: ar-forge
+name: papar-studio
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ar-forge:latest
-    container_name: ar_forge_app
-    restart: always
-    ports:
-      - "${PORT:-3000}:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - APP_URL=${APP_URL:-http://localhost:3000}
-      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-}
-      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-}
-      - JWT_SECRET=${JWT_SECRET:-change_this_to_a_secure_secret_in_production}
+  papar-studio:
+    image: ghcr.io/bnyawallow/paparforge:main
+    container_name: papar-studio
+    restart: unless-stopped
     volumes:
-      # Persist published WebAR HTML scenes across container restarts & redeployments
-      - ar_papar_data:/app/dist/papar
-      # Persist SQLite database files across container restarts
-      - ar_sqlite_data:/app/data
-
-volumes:
-  ar_papar_data:
-    driver: local
-  ar_sqlite_data:
-    driver: local
+      - ./papar_data:/app/papar_data
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.paparstudio.rule=Host(`paparstudio.creativefringe.digital`)
+      - traefik.http.routers.paparstudio.entrypoints=websecure
+      - traefik.http.routers.paparstudio.tls.certresolver=letsencrypt
+      - traefik.http.services.paparstudio.loadbalancer.server.port=3000
