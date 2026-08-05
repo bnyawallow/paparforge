@@ -744,7 +744,9 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
   const animationPlaying = properties.animationPlaying !== false;
-  const actualAnimationPlaying = isPreviewMode && animationPlaying;
+  const actualAnimationPlaying = isPreviewMode
+    ? (properties.autoplayAnimation !== false && animationPlaying)
+    : animationPlaying;
   const animationSpeed = properties.animationSpeed ?? 1.0;
   const loopAnimation = properties.loopAnimation !== false;
 
@@ -1776,7 +1778,11 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'playModelAnimation': {
         const pmaTarget = useEditorStore.getState().objects[targetId];
         if (pmaTarget && pmaTarget.type === 'model') {
-          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaTarget.properties, animationPlaying: true, animationSpeed: 1.0 } });
+          const updates: any = { animationPlaying: true, animationSpeed: 1.0 };
+          if (b.animationClipName) {
+            updates.activeAnimation = b.animationClipName;
+          }
+          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaTarget.properties, ...updates } });
         }
         break;
       }

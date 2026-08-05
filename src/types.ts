@@ -10,7 +10,7 @@ export interface StateData {
 
 export interface ActionData {
   id: string;
-  type: 'transition' | 'playSound' | 'openUrl' | 'toast' | 'playAnimation' | 'pauseAnimation' | 'show' | 'hide';
+  type: 'transition' | 'playSound' | 'openUrl' | 'toast' | 'playAnimation' | 'pauseAnimation' | 'show' | 'hide' | 'loadScene' | 'playModelAnimation' | 'pauseModelAnimation';
   targetId?: string; // which object it targets (if empty, assumes self)
   transitionTargetStateId?: string; // for 'transition' action
   transitionDuration?: number; // in seconds
@@ -19,6 +19,8 @@ export interface ActionData {
   soundUrl?: string;
   url?: string;
   toastMessage?: string;
+  targetSceneId?: string; // for 'loadScene' action
+  animationClipName?: string; // for playing specific animation clip/track
 }
 
 export interface EventData {

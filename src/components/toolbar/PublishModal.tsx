@@ -11,10 +11,16 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
   const { objects, rootObjects, settings, updateSettings, isPreviewMode, assets, scenes, activeSceneId } = useEditorStore();
   const [activeTab, setActiveTab] = useState<'cloud' | 'exports' | 'developer'>('cloud');
   const [copied, setCopied] = useState(false);
-  const [publishStep, setPublishStep] = useState<'idle' | 'validating' | 'packaging' | 'optimizing' | 'deploying' | 'success'>('idle');
-  const [publishProgress, setPublishProgress] = useState(0);
-  const [publishedUrl, setPublishedUrl] = useState('');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [publishStep, setPublishStep] = useState<'idle' | 'validating' | 'packaging' | 'optimizing' | 'deploying' | 'success'>(
+    settings.publishedProjectUrl ? 'success' : 'idle'
+  );
+  const [publishProgress, setPublishProgress] = useState(settings.publishedProjectUrl ? 100 : 0);
+  const [publishedUrl, setPublishedUrl] = useState(settings.publishedProjectUrl || '');
+  const [qrCodeUrl, setQrCodeUrl] = useState(
+    settings.publishedProjectUrl
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(settings.publishedProjectUrl)}`
+      : ''
+  );
   const [isExportingGLB, setIsExportingGLB] = useState(false);
   const [isExportingZappar, setIsExportingZappar] = useState(false);
   
@@ -106,7 +112,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
       const { SupabaseService } = await import('../../services/supabaseService');
       const storeState = useEditorStore.getState();
       const projName = storeState.settings.projectName || 'AR Experience';
-      const projectId = storeState.settings.publishedProjectId || (projName.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '-' + Math.random().toString(36).substring(2, 7));
+      const projectId = storeState.settings.publishedProjectId || Math.random().toString(36).substring(2, 8);
       
       const projectData = {
         objects: storeState.objects,
@@ -496,10 +502,11 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                     </div>
 
                     <button
-                      onClick={() => setPublishStep('idle')}
-                      className="w-full py-1.5 px-3 bg-[#1A1A1A] hover:bg-[#222] border border-[#333] rounded-lg text-[9px] font-bold font-mono text-gray-300 uppercase tracking-widest transition-colors cursor-pointer"
+                      onClick={handlePublish}
+                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold font-mono text-white uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      Re-Publish Updates
+                      <Sparkles size={12} />
+                      Republish Project Updates
                     </button>
                   </div>
                 )}

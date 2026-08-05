@@ -1219,6 +1219,7 @@ export function InspectorPanel({ width }: { width?: number }) {
   const t = useTheme();
   const { 
     objects, 
+    scenes,
     selectedObjectId, selectedObjectIds, 
     selectObject,
     updateObject, 
@@ -3905,6 +3906,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                                           <option value="toast">💬 Show Toast</option>
                                           <option value="playAnimation">🎬 Play Animation</option>
                                           <option value="pauseAnimation">⏸ Pause Animation</option>
+                                          <option value="loadScene">🗺️ Load Scene</option>
                                           <option value="show">👁 Show</option>
                                           <option value="hide">🙈 Hide</option>
                                         </select>
@@ -4182,6 +4184,65 @@ export function InspectorPanel({ width }: { width?: number }) {
                                               placeholder="e.g. Hello!"
                                               className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
                                             />
+                                          </div>
+                                        )}
+
+                                        {action.type === 'loadScene' && (
+                                          <div className="flex flex-col gap-1 mt-1">
+                                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Target Scene</label>
+                                            <select
+                                              value={action.targetSceneId ?? ''}
+                                              onChange={(e) => {
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, targetSceneId: e.target.value } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                            >
+                                              <option value="">(Select Scene)</option>
+                                              {scenes && Object.values(scenes).map((s: any) => (
+                                                <option key={s.id} value={s.id}>{s.name || `Scene: ${s.id}`}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        )}
+
+                                        {(action.type === 'playAnimation' || action.type === 'playModelAnimation') && (
+                                          <div className="flex flex-col gap-1 mt-1">
+                                            <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Animation Track to Play</label>
+                                            {(() => {
+                                              const targetObj = action.targetId ? objects[action.targetId] : obj;
+                                              const anims = targetObj?.properties?.discoveredAnimations || [];
+                                              if (anims.length > 0) {
+                                                return (
+                                                  <select
+                                                    value={action.animationClipName ?? ''}
+                                                    onChange={(e) => {
+                                                      const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, animationClipName: e.target.value } : a);
+                                                      handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                    }}
+                                                    className="bg-[#0A0A0A] text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                                  >
+                                                    <option value="">Default / First Clip</option>
+                                                    {anims.map((name: string) => (
+                                                      <option key={name} value={name}>{name}</option>
+                                                    ))}
+                                                  </select>
+                                                );
+                                              } else {
+                                                return (
+                                                  <input
+                                                    type="text"
+                                                    value={action.animationClipName ?? ''}
+                                                    onChange={(e) => {
+                                                      const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, animationClipName: e.target.value } : a);
+                                                      handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                    }}
+                                                    placeholder="Track name, e.g., Walk..."
+                                                    className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                                  />
+                                                );
+                                              }
+                                            })()}
                                           </div>
                                         )}
                                       </>
@@ -5699,6 +5760,24 @@ export function InspectorPanel({ width }: { width?: number }) {
                       }`}
                     >
                       {obj.properties.loopAnimation !== false ? '🔁 Loop Repeat' : '1️⃣ Play Once'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Autoplay Animation Toggle */}
+                {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 && (
+                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-[#1C1C1C]">
+                    <span className="text-gray-400 font-semibold text-[10px]">Autoplay on Load</span>
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('autoplayAnimation', obj.properties.autoplayAnimation === false ? true : false)}
+                      className={`px-3 py-1 rounded-lg text-[9px] font-bold uppercase transition-all cursor-pointer ${
+                        obj.properties.autoplayAnimation !== false
+                          ? 'bg-blue-950 text-blue-400 border border-blue-800/50'
+                          : 'bg-[#1D1D1D] text-gray-400 border border-[#2A2A2A]'
+                      }`}
+                    >
+                      {obj.properties.autoplayAnimation !== false ? '▶ Autoplay On' : '⏸ Autoplay Off'}
                     </button>
                   </div>
                 )}

@@ -42,7 +42,7 @@ async function startServer() {
       const filePath = path.join(paparDir, `${id}.html`);
       await fs.writeFile(filePath, html, "utf-8");
 
-      res.json({ success: true, url: `/papar/${id}.html` });
+      res.json({ success: true, url: `/s/${id}` });
     } catch (err) {
       console.error("Publish error:", err);
       res.status(500).json({ error: "Failed to publish file" });
@@ -51,6 +51,23 @@ async function startServer() {
 
   // Serve papar directory statically BEFORE vite middleware or prod fallback
   app.use("/papar", express.static(paparDir));
+
+  // Support shortlink route /s/:id
+  app.get("/s/:id", async (req, res, next) => {
+    const id = req.params.id;
+    // Skip if it contains a file extension or is a folder
+    if (id.includes('.')) {
+      return next();
+    }
+    const filePath = path.join(paparDir, `${id}.html`);
+    try {
+      await fs.access(filePath);
+      res.setHeader("Content-Type", "text/html");
+      return res.sendFile(filePath);
+    } catch {
+      next();
+    }
+  });
 
   // Serve raw published html files at /papar/:id (without extension) if they exist
   app.get("/papar/:id", async (req, res, next) => {

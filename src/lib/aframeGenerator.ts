@@ -300,7 +300,7 @@ export const generateAFrameScene = (state: any) => {
           entity += `${indent}  <a-entity geometry="primitive: ${geomType}; radius: 0.5" material="color: ${obj.properties.color || '#3b82f6'}"></a-entity>\n`;
         } else {
           const activeAnim = obj.properties.activeAnimation || '*';
-          const speed = obj.properties.animationPlaying !== false ? (obj.properties.animationSpeed ?? 1.0) : 0;
+          const speed = (obj.properties.autoplayAnimation !== false && obj.properties.animationPlaying !== false) ? (obj.properties.animationSpeed ?? 1.0) : 0;
           const loopAnim = obj.properties.loopAnimation !== false;
           const animMixerAttr = ` animation-mixer="clip: ${activeAnim}; timeScale: ${speed}; loop: ${loopAnim ? 'repeat' : 'once'}"`;
           const wireframeAttr = ` model-wireframe="enabled: ${obj.properties.wireframe ?? false}"`;
@@ -760,7 +760,17 @@ ${audioPreloadScript}
           addLog('error', ['Unhandled Promise Rejection: ' + (e.reason ? e.reason.message || e.reason : e)]);
         });
       })();
+    </script>
     
+    <!-- Core WebAR SDKs & A-Frame Runtime -->
+    <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/RGBELoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
+    <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
+
+    <script>
       // Draggable Component for AR/VR
       AFRAME.registerComponent('draggable-object', {
         init: function () {
@@ -815,17 +825,6 @@ ${audioPreloadScript}
         }
       });
 
-    </script>
-    
-    <!-- Core WebAR SDKs & A-Frame Runtime -->
-    <script crossorigin="anonymous" src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/RGBELoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
-    <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
-
-    <script>
       // Deduplication lock to prevent double taps/clicks on mobile devices
       window.__lastClickTimes = window.__lastClickTimes || {};
       window.isDuplicateClick = function(el) {
@@ -1016,6 +1015,29 @@ ${audioPreloadScript}
             } else if (act.type === 'show') {
               const targetEl = act.targetId ? document.getElementById(act.targetId) : this.el;
               if (targetEl) targetEl.setAttribute('visible', 'true');
+            } else if (act.type === 'playAnimation' || act.type === 'playModelAnimation') {
+              const animEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  if (act.animationClipName) {
+                    modelEl.setAttribute('animation-mixer', 'clip', act.animationClipName);
+                  }
+                  modelEl.setAttribute('animation-mixer', 'timeScale', 1);
+                }
+              }
+            } else if (act.type === 'pauseAnimation' || act.type === 'pauseModelAnimation') {
+              const animEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  modelEl.setAttribute('animation-mixer', 'timeScale', 0);
+                }
+              }
+            } else if (act.type === 'loadScene') {
+              if (act.targetSceneId) {
+                window.parent.postMessage({ type: 'loadScene', sceneId: act.targetSceneId }, '*');
+              }
             } else if (act.type === 'transition') {
               const targetEl = act.targetId ? document.getElementById(act.targetId) : this.el;
               if (targetEl && act.transitionTargetStateId) {
@@ -1249,6 +1271,9 @@ ${audioPreloadScript}
               if (animEl) {
                 const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
                 if (modelEl) {
+                  if (b.animationClipName) {
+                    modelEl.setAttribute('animation-mixer', 'clip', b.animationClipName);
+                  }
                   modelEl.setAttribute('animation-mixer', 'timeScale', 1);
                 }
               }
@@ -1291,9 +1316,9 @@ ${audioPreloadScript}
               break;
             case 'playVideo':
               if (b.url) {
-                const videoHtml = '\n<div id="ar-video-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                const videoHtml = \`\n<div id="ar-video-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
                     <button onclick="document.getElementById('ar-video-overlay').remove()" style="position:absolute; top:20px; right:20px; padding:10px 20px; font-size:16px; border:none; background:#ff4444; color:white; border-radius:8px; cursor:pointer;">Close</button>
-                    <iframe src="' + b.url + '" width="80%" height="60%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>\n</div>';
+                    <iframe src="\${b.url}" width="80%" height="60%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>\n</div>\`;
                 document.body.insertAdjacentHTML('beforeend', videoHtml);
               }
               break;
@@ -1861,33 +1886,48 @@ ${audioPreloadScript}
       </div>
 
       <!-- Image Target Scanner Overlay -->
-      <div id="scanner-overlay" style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; transition: opacity 0.4s ease-in-out; opacity: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div id="scanner-overlay" style="position: absolute; inset: 0; background: radial-gradient(circle, rgba(0,0,0,0.2) 30%, rgba(0,0,0,0.7) 100%); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; transition: opacity 0.4s ease-in-out; opacity: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        
+        <!-- Live HUD Status Header -->
+        <div style="position: absolute; top: 24px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 50px; padding: 8px 18px; display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+          <span style="font-size: 9px; font-weight: bold; letter-spacing: 0.15em; color: #fbbf24; text-transform: uppercase;">WebAR Target Finder</span>
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: pulseReticle 1s ease-in-out infinite;"></span>
+        </div>
+
         <!-- Reticle Scanner Box -->
-        <div style="position: relative; width: 250px; height: 250px; border: 2px solid rgba(251, 191, 36, 0.35); border-radius: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(0,0,0,0.5); background: rgba(0,0,0,0.15);">
-          <!-- Corners -->
-          <div style="position: absolute; top: -2px; left: -2px; width: 24px; height: 24px; border-top: 4px solid #fbbf24; border-left: 4px solid #fbbf24; border-top-left-radius: 24px;"></div>
-          <div style="position: absolute; top: -2px; right: -2px; width: 24px; height: 24px; border-top: 4px solid #fbbf24; border-right: 4px solid #fbbf24; border-top-right-radius: 24px;"></div>
-          <div style="position: absolute; bottom: -2px; left: -2px; width: 24px; height: 24px; border-bottom: 4px solid #fbbf24; border-left: 4px solid #fbbf24; border-bottom-left-radius: 24px;"></div>
-          <div style="position: absolute; bottom: -2px; right: -2px; width: 24px; height: 24px; border-bottom: 4px solid #fbbf24; border-right: 4px solid #fbbf24; border-bottom-right-radius: 24px;"></div>
+        <div style="position: relative; width: 80vw; height: 50vh; max-width: 500px; max-height: 500px; min-width: 280px; min-height: 280px; border: 1px solid rgba(251, 191, 36, 0.15); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 40px rgba(0,0,0,0.6); background: rgba(0,0,0,0.12);">
           
-          <!-- Laser Line -->
-          <div style="position: absolute; left: 8px; right: 8px; height: 3px; background: linear-gradient(90deg, transparent, #fbbf24, transparent); box-shadow: 0 0 10px #fbbf24, 0 0 16px #fbbf24; animation: scanLine 2.5s ease-in-out infinite;"></div>
+          <!-- Large High-Tech Corners -->
+          <div style="position: absolute; top: -4px; left: -4px; width: 36px; height: 36px; border-top: 5px solid #fbbf24; border-left: 5px solid #fbbf24; border-top-left-radius: 20px;"></div>
+          <div style="position: absolute; top: -4px; right: -4px; width: 36px; height: 36px; border-top: 5px solid #fbbf24; border-right: 5px solid #fbbf24; border-top-right-radius: 20px;"></div>
+          <div style="position: absolute; bottom: -4px; left: -4px; width: 36px; height: 36px; border-bottom: 5px solid #fbbf24; border-left: 5px solid #fbbf24; border-bottom-left-radius: 20px;"></div>
+          <div style="position: absolute; bottom: -4px; right: -4px; width: 36px; height: 36px; border-bottom: 5px solid #fbbf24; border-right: 5px solid #fbbf24; border-bottom-right-radius: 20px;"></div>
           
-          <!-- Pulsing Eye/Finder icon -->
-          <div style="color: rgba(251, 191, 36, 0.6); font-size: 32px; animation: pulseReticle 1.5s ease-in-out infinite;">🔍</div>
+          <!-- Concentric Spinning Radar Rings -->
+          <div style="position: absolute; width: 150px; height: 150px; border: 1px dashed rgba(251, 191, 36, 0.25); border-radius: 50%; animation: spinLoader 15s linear infinite; pointer-events: none;"></div>
+          <div style="position: absolute; width: 200px; height: 200px; border: 1px dashed rgba(251, 191, 36, 0.12); border-radius: 50%; animation: spinLoader 30s linear reverse infinite; pointer-events: none;"></div>
+          
+          <!-- Bright Laser Sweeper Line -->
+          <div style="position: absolute; left: 12px; right: 12px; height: 4px; background: linear-gradient(90deg, transparent, #fbbf24 20%, #fff 50%, #fbbf24 80%, transparent); box-shadow: 0 0 15px #fbbf24, 0 0 25px rgba(251, 191, 36, 0.7); animation: scanLine 2.8s ease-in-out infinite;"></div>
+          
+          <!-- Pulsing Target Eye/Finder Icon -->
+          <div style="color: rgba(251, 191, 36, 0.7); font-size: 36px; animation: pulseReticle 1.5s ease-in-out infinite; z-index: 2;">🔍</div>
         </div>
 
         <!-- Guidance Text -->
-        <div style="margin-top: 24px; text-align: center; color: white; padding: 0 24px; max-width: 280px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+        <div style="margin-top: 24px; text-align: center; color: white; padding: 12px 18px; max-width: 310px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4);">
           <h3 style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #fbbf24;">Point at Marker Image</h3>
-          <p style="margin: 6px 0 0 0; font-size: 10px; opacity: 0.75; line-height: 1.4;">Position the printed marker in the viewfinder above to trigger the interactive experience.</p>
+          <p style="margin: 6px 0 0 0; font-size: 10px; opacity: 0.75; line-height: 1.45;">Align the printed target image within the viewport above to activate the AR scene.</p>
         </div>
 
-        <!-- Mini Preview Thumbnail -->
+        <!-- Mini Preview Inset Thumbnail -->
         ${targetImageUrl ? `
-        <div style="margin-top: 20px; background: rgba(15, 15, 15, 0.9); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 8px 20px rgba(0,0,0,0.4); pointer-events: none;">
-          <span style="font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #fbbf24; opacity: 0.8;">Target Image to Scan:</span>
-          <img src="${targetImageUrl}" style="width: 70px; height: 70px; object-fit: contain; border-radius: 6px; background: #000;" />
+        <div style="margin-top: 14px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 8px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); pointer-events: none;">
+          <img src="${targetImageUrl}" style="width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: #000; border: 1px solid rgba(255, 255, 255, 0.15);" />
+          <div style="text-align: left;">
+            <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #fbbf24;">Tracking Marker</div>
+            <div style="font-size: 9px; color: rgba(255, 255, 255, 0.55); margin-top: 2px;">Keep target in view during scan.</div>
+          </div>
         </div>
         ` : ''}
       </div>
@@ -2365,7 +2405,12 @@ ${entitiesHtml}
                 const animEl = b.targetObjectId ? document.getElementById(b.targetObjectId) : null;
                 if (animEl) {
                   const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
-                  if (modelEl) modelEl.setAttribute('animation-mixer', 'timeScale', 1);
+                  if (modelEl) {
+                    if (b.animationClipName) {
+                      modelEl.setAttribute('animation-mixer', 'clip', b.animationClipName);
+                    }
+                    modelEl.setAttribute('animation-mixer', 'timeScale', 1);
+                  }
                 }
                 break;
               }
@@ -2389,9 +2434,9 @@ ${entitiesHtml}
                 break;
               case 'playVideo':
                 if (b.url) {
-                  const videoHtml = '\n<div id="ar-video-overlay-2d" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                  const videoHtml = \`\n<div id="ar-video-overlay-2d" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
                       <button onclick="document.getElementById('ar-video-overlay-2d').remove()" style="position:absolute; top:20px; right:20px; padding:10px 20px; font-size:16px; border:none; background:#ff4444; color:white; border-radius:8px; cursor:pointer;">Close</button>
-                      <iframe src="' + b.url + '" width="80%" height="60%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>\n</div>';
+                      <iframe src="\${b.url}" width="80%" height="60%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>\n</div>\`;
                   document.body.insertAdjacentHTML('beforeend', videoHtml);
                 }
                 break;

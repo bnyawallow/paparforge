@@ -101,16 +101,22 @@ function HUDElementBehaviorListener({ obj, isPreviewMode }: { obj: any; isPrevie
           }
           break;
         }
+        case 'playAnimation':
         case 'playModelAnimation': {
           const pmaTargetId = b.targetObjectId || obj.id;
           const pmaTarget = useEditorStore.getState().objects[pmaTargetId];
           if (pmaTarget && pmaTarget.type === 'model') {
+            const updates: any = { animationPlaying: true, animationSpeed: 1.0 };
+            if (b.animationClipName) {
+              updates.activeAnimation = b.animationClipName;
+            }
             useEditorStore.getState().updateObject(pmaTargetId, { 
-              properties: { ...pmaTarget.properties, animationPlaying: true, animationSpeed: 1.0 } 
+              properties: { ...pmaTarget.properties, ...updates } 
             });
           }
           break;
         }
+        case 'pauseAnimation':
         case 'pauseModelAnimation': {
           const pmaPauseTargetId = b.targetObjectId || obj.id;
           const pmaPauseTarget = useEditorStore.getState().objects[pmaPauseTargetId];
