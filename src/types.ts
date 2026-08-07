@@ -243,7 +243,7 @@ export interface EditorState {
   loadProject: (projectId: string) => void;
   openProject: (projectId: string) => void;
   closeProject: () => void;
-  createProject: (name: string, templateType: TemplateType) => string;
+  createProject: (name: string, templateType: string, customTemplateData?: any) => string;
   deleteProject: (projectId: string) => void;
   duplicateProject: (projectId: string) => void;
   saveCurrentProject: () => void;

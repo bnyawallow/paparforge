@@ -1,7 +1,7 @@
 import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType } from '../types';
+import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType, Asset } from '../types';
 
 const getStorageKey = (key: string) => {
   const user = useAuthStore.getState().user;
@@ -3446,10 +3446,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   }),
 
-  createProject: (name, templateType) => {
+  createProject: (name, templateType, customTemplateData?) => {
     const newId = 'project-' + uuidv4();
-    const { objects, rootObjects } = generateTemplate(name, templateType);
-    
+    let objects: Record<string, SceneObject> = {};
+    let rootObjects: string[] = [];
+    let customSettings: any = null;
+    let customAssets: any[] = [];
+
+    if (customTemplateData && customTemplateData.objects) {
+      objects = JSON.parse(JSON.stringify(customTemplateData.objects));
+      rootObjects = JSON.parse(JSON.stringify(customTemplateData.rootObjects || []));
+      if (customTemplateData.settings) customSettings = JSON.parse(JSON.stringify(customTemplateData.settings));
+      if (customTemplateData.assets) customAssets = JSON.parse(JSON.stringify(customTemplateData.assets));
+    } else {
+      // Check if templateType matches a custom template in localStorage
+      try {
+        const storedCustomTemplates = localStorage.getItem('ar_forge_custom_templates');
+        if (storedCustomTemplates) {
+          const list = JSON.parse(storedCustomTemplates);
+          const matched = list.find((t: any) => t.id === templateType);
+          if (matched && matched.objects) {
+            objects = JSON.parse(JSON.stringify(matched.objects));
+            rootObjects = JSON.parse(JSON.stringify(matched.rootObjects || []));
+            if (matched.settings) customSettings = JSON.parse(JSON.stringify(matched.settings));
+            if (matched.assets) customAssets = JSON.parse(JSON.stringify(matched.assets));
+          }
+        }
+      } catch (e) {
+        console.error('Failed to read custom template from localStorage:', e);
+      }
+
+      // If still empty, generate built-in template
+      if (Object.keys(objects).length === 0) {
+        const generated = generateTemplate(name, templateType as TemplateType);
+        objects = generated.objects;
+        rootObjects = generated.rootObjects;
+      }
+    }
+
     const metadata = {
       id: newId,
       name,
@@ -3462,49 +3496,63 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       updatedList = [metadata, ...state.projectsList];
       localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
+      const mergedSettings = {
+        projectName: name,
+        imageTargetName: null,
+        ...(customSettings || {})
+      };
+
+      const defaultAudioAssets: Asset[] = [
+        // Built-in Audio Library
+        { id: 'a_click_soft', name: 'Soft Click 🖱️', type: 'audio', url: '/sounds/ui/click_soft.wav' },
+        { id: 'a_click_hard', name: 'Hard Click 🖱️', type: 'audio', url: '/sounds/ui/click_hard.wav' },
+        { id: 'a_error_buzz', name: 'Error Buzz ❌', type: 'audio', url: '/sounds/ui/error_buzz.wav' },
+        { id: 'a_success_bell', name: 'Success Bell ✅', type: 'audio', url: '/sounds/ui/success_bell.wav' },
+        { id: 'a_notification', name: 'Notification 💬', type: 'audio', url: '/sounds/ui/notification.wav' },
+        { id: 'a_pop', name: 'Pop 💥', type: 'audio', url: '/sounds/ui/pop.wav' },
+        { id: 'a_swoosh', name: 'Swoosh 💨', type: 'audio', url: '/sounds/ui/swoosh.wav' },
+        { id: 'a_whoosh', name: 'Whoosh 💨', type: 'audio', url: '/sounds/ui/whoosh.wav' },
+        { id: 'a_magic_wand', name: 'Magic Wand 🪄', type: 'audio', url: '/sounds/ui/magic_wand.wav' },
+        { id: 'a_arcade_coin', name: 'Arcade Coin 🪙', type: 'audio', url: '/sounds/ui/arcade_coin.wav' },
+        { id: 'a_level_up', name: 'Level Up 🆙', type: 'audio', url: '/sounds/ui/level_up.wav' },
+        { id: 'a_game_over', name: 'Game Over 💀', type: 'audio', url: '/sounds/ui/game_over.wav' },
+        { id: 'a_ocean_waves', name: 'Ocean Waves 🌊', type: 'audio', url: '/sounds/ambient/ocean_waves.wav' },
+        { id: 'a_rain_light', name: 'Light Rain 🌧️', type: 'audio', url: '/sounds/ambient/rain_light.wav' },
+        { id: 'a_thunder', name: 'Thunder ⚡', type: 'audio', url: '/sounds/ambient/thunder.wav' },
+        { id: 'a_wind_howl', name: 'Howling Wind 🌬️', type: 'audio', url: '/sounds/ambient/wind_howl.wav' },
+        { id: 'a_fire_crackle', name: 'Campfire 🔥', type: 'audio', url: '/sounds/ambient/fire_crackle.wav' },
+        { id: 'a_space_drone', name: 'Space Drone 🚀', type: 'audio', url: '/sounds/ambient/space_drone.wav' },
+        { id: 'a_city_traffic', name: 'City Traffic 🏙️', type: 'audio', url: '/sounds/ambient/city_traffic.wav' },
+        { id: 'a_door_open', name: 'Door Open 🚪', type: 'audio', url: '/sounds/objects/door_open.wav' },
+        { id: 'a_door_close', name: 'Door Close 🚪', type: 'audio', url: '/sounds/objects/door_close.wav' },
+        { id: 'a_glass_break', name: 'Glass Break 🥛', type: 'audio', url: '/sounds/objects/glass_break.wav' },
+        { id: 'a_metal_clank', name: 'Metal Clank 🔨', type: 'audio', url: '/sounds/objects/metal_clank.wav' },
+        { id: 'a_wood_thud', name: 'Wood Thud 🪵', type: 'audio', url: '/sounds/objects/wood_thud.wav' },
+        { id: 'a_laser_pew', name: 'Laser Pew 🔫', type: 'audio', url: '/sounds/fx/laser_pew.wav' },
+        { id: 'a_teleport', name: 'Teleport ✨', type: 'audio', url: '/sounds/fx/teleport.wav' },
+        { id: 'a_energy_hum', name: 'Energy Hum ⚡', type: 'audio', url: '/sounds/fx/energy_hum.wav' },
+        { id: 'a_shield_up', name: 'Shield Up 🛡️', type: 'audio', url: '/sounds/fx/shield_up.wav' },
+        { id: 'a_piano_chord', name: 'Piano Chord 🎹', type: 'audio', url: '/sounds/music/piano_chord.wav' },
+        { id: 'a_guitar_strum', name: 'Guitar Strum 🎸', type: 'audio', url: '/sounds/music/guitar_strum.wav' },
+        { id: 'a_drum_beat', name: 'Drum Beat 🥁', type: 'audio', url: '/sounds/music/drum_beat.wav' }
+      ];
+
+      const mergedAssets = [...defaultAudioAssets];
+      if (customAssets && Array.isArray(customAssets)) {
+        customAssets.forEach((ca) => {
+          if (!mergedAssets.some((a) => a.id === ca.id)) {
+            mergedAssets.push(ca);
+          }
+        });
+      }
+
       const projectData = {
         id: newId,
         name,
         objects,
         rootObjects,
-        settings: {
-          projectName: name,
-          imageTargetName: null
-        },
-        assets: [
-    // Built-in Audio Library
-    { id: 'a_click_soft', name: 'Soft Click 🖱️', type: 'audio', url: '/sounds/ui/click_soft.wav' },
-    { id: 'a_click_hard', name: 'Hard Click 🖱️', type: 'audio', url: '/sounds/ui/click_hard.wav' },
-    { id: 'a_error_buzz', name: 'Error Buzz ❌', type: 'audio', url: '/sounds/ui/error_buzz.wav' },
-    { id: 'a_success_bell', name: 'Success Bell ✅', type: 'audio', url: '/sounds/ui/success_bell.wav' },
-    { id: 'a_notification', name: 'Notification 💬', type: 'audio', url: '/sounds/ui/notification.wav' },
-    { id: 'a_pop', name: 'Pop 💥', type: 'audio', url: '/sounds/ui/pop.wav' },
-    { id: 'a_swoosh', name: 'Swoosh 💨', type: 'audio', url: '/sounds/ui/swoosh.wav' },
-    { id: 'a_whoosh', name: 'Whoosh 💨', type: 'audio', url: '/sounds/ui/whoosh.wav' },
-    { id: 'a_magic_wand', name: 'Magic Wand 🪄', type: 'audio', url: '/sounds/ui/magic_wand.wav' },
-    { id: 'a_arcade_coin', name: 'Arcade Coin 🪙', type: 'audio', url: '/sounds/ui/arcade_coin.wav' },
-    { id: 'a_level_up', name: 'Level Up 🆙', type: 'audio', url: '/sounds/ui/level_up.wav' },
-    { id: 'a_game_over', name: 'Game Over 💀', type: 'audio', url: '/sounds/ui/game_over.wav' },
-    { id: 'a_ocean_waves', name: 'Ocean Waves 🌊', type: 'audio', url: '/sounds/ambient/ocean_waves.wav' },
-    { id: 'a_rain_light', name: 'Light Rain 🌧️', type: 'audio', url: '/sounds/ambient/rain_light.wav' },
-    { id: 'a_thunder', name: 'Thunder ⚡', type: 'audio', url: '/sounds/ambient/thunder.wav' },
-    { id: 'a_wind_howl', name: 'Howling Wind 🌬️', type: 'audio', url: '/sounds/ambient/wind_howl.wav' },
-    { id: 'a_fire_crackle', name: 'Campfire 🔥', type: 'audio', url: '/sounds/ambient/fire_crackle.wav' },
-    { id: 'a_space_drone', name: 'Space Drone 🚀', type: 'audio', url: '/sounds/ambient/space_drone.wav' },
-    { id: 'a_city_traffic', name: 'City Traffic 🏙️', type: 'audio', url: '/sounds/ambient/city_traffic.wav' },
-    { id: 'a_door_open', name: 'Door Open 🚪', type: 'audio', url: '/sounds/objects/door_open.wav' },
-    { id: 'a_door_close', name: 'Door Close 🚪', type: 'audio', url: '/sounds/objects/door_close.wav' },
-    { id: 'a_glass_break', name: 'Glass Break 🥛', type: 'audio', url: '/sounds/objects/glass_break.wav' },
-    { id: 'a_metal_clank', name: 'Metal Clank 🔨', type: 'audio', url: '/sounds/objects/metal_clank.wav' },
-    { id: 'a_wood_thud', name: 'Wood Thud 🪵', type: 'audio', url: '/sounds/objects/wood_thud.wav' },
-    { id: 'a_laser_pew', name: 'Laser Pew 🔫', type: 'audio', url: '/sounds/fx/laser_pew.wav' },
-    { id: 'a_teleport', name: 'Teleport ✨', type: 'audio', url: '/sounds/fx/teleport.wav' },
-    { id: 'a_energy_hum', name: 'Energy Hum ⚡', type: 'audio', url: '/sounds/fx/energy_hum.wav' },
-    { id: 'a_shield_up', name: 'Shield Up 🛡️', type: 'audio', url: '/sounds/fx/shield_up.wav' },
-    { id: 'a_piano_chord', name: 'Piano Chord 🎹', type: 'audio', url: '/sounds/music/piano_chord.wav' },
-    { id: 'a_guitar_strum', name: 'Guitar Strum 🎸', type: 'audio', url: '/sounds/music/guitar_strum.wav' },
-    { id: 'a_drum_beat', name: 'Drum Beat 🥁', type: 'audio', url: '/sounds/music/drum_beat.wav' }
-  ],
+        settings: mergedSettings,
+        assets: mergedAssets,
         scenes: {
           'default': { id: 'default', name: 'Main Scene', objects, rootObjects }
         },
@@ -3522,44 +3570,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         rootObjects,
         scenes: projectData.scenes,
         activeSceneId: projectData.activeSceneId,
-        settings: {
-          projectName: name,
-          imageTargetName: null
-        },
-        assets: [
-    // Built-in Audio Library
-    { id: 'a_click_soft', name: 'Soft Click 🖱️', type: 'audio', url: '/sounds/ui/click_soft.wav' },
-    { id: 'a_click_hard', name: 'Hard Click 🖱️', type: 'audio', url: '/sounds/ui/click_hard.wav' },
-    { id: 'a_error_buzz', name: 'Error Buzz ❌', type: 'audio', url: '/sounds/ui/error_buzz.wav' },
-    { id: 'a_success_bell', name: 'Success Bell ✅', type: 'audio', url: '/sounds/ui/success_bell.wav' },
-    { id: 'a_notification', name: 'Notification 💬', type: 'audio', url: '/sounds/ui/notification.wav' },
-    { id: 'a_pop', name: 'Pop 💥', type: 'audio', url: '/sounds/ui/pop.wav' },
-    { id: 'a_swoosh', name: 'Swoosh 💨', type: 'audio', url: '/sounds/ui/swoosh.wav' },
-    { id: 'a_whoosh', name: 'Whoosh 💨', type: 'audio', url: '/sounds/ui/whoosh.wav' },
-    { id: 'a_magic_wand', name: 'Magic Wand 🪄', type: 'audio', url: '/sounds/ui/magic_wand.wav' },
-    { id: 'a_arcade_coin', name: 'Arcade Coin 🪙', type: 'audio', url: '/sounds/ui/arcade_coin.wav' },
-    { id: 'a_level_up', name: 'Level Up 🆙', type: 'audio', url: '/sounds/ui/level_up.wav' },
-    { id: 'a_game_over', name: 'Game Over 💀', type: 'audio', url: '/sounds/ui/game_over.wav' },
-    { id: 'a_ocean_waves', name: 'Ocean Waves 🌊', type: 'audio', url: '/sounds/ambient/ocean_waves.wav' },
-    { id: 'a_rain_light', name: 'Light Rain 🌧️', type: 'audio', url: '/sounds/ambient/rain_light.wav' },
-    { id: 'a_thunder', name: 'Thunder ⚡', type: 'audio', url: '/sounds/ambient/thunder.wav' },
-    { id: 'a_wind_howl', name: 'Howling Wind 🌬️', type: 'audio', url: '/sounds/ambient/wind_howl.wav' },
-    { id: 'a_fire_crackle', name: 'Campfire 🔥', type: 'audio', url: '/sounds/ambient/fire_crackle.wav' },
-    { id: 'a_space_drone', name: 'Space Drone 🚀', type: 'audio', url: '/sounds/ambient/space_drone.wav' },
-    { id: 'a_city_traffic', name: 'City Traffic 🏙️', type: 'audio', url: '/sounds/ambient/city_traffic.wav' },
-    { id: 'a_door_open', name: 'Door Open 🚪', type: 'audio', url: '/sounds/objects/door_open.wav' },
-    { id: 'a_door_close', name: 'Door Close 🚪', type: 'audio', url: '/sounds/objects/door_close.wav' },
-    { id: 'a_glass_break', name: 'Glass Break 🥛', type: 'audio', url: '/sounds/objects/glass_break.wav' },
-    { id: 'a_metal_clank', name: 'Metal Clank 🔨', type: 'audio', url: '/sounds/objects/metal_clank.wav' },
-    { id: 'a_wood_thud', name: 'Wood Thud 🪵', type: 'audio', url: '/sounds/objects/wood_thud.wav' },
-    { id: 'a_laser_pew', name: 'Laser Pew 🔫', type: 'audio', url: '/sounds/fx/laser_pew.wav' },
-    { id: 'a_teleport', name: 'Teleport ✨', type: 'audio', url: '/sounds/fx/teleport.wav' },
-    { id: 'a_energy_hum', name: 'Energy Hum ⚡', type: 'audio', url: '/sounds/fx/energy_hum.wav' },
-    { id: 'a_shield_up', name: 'Shield Up 🛡️', type: 'audio', url: '/sounds/fx/shield_up.wav' },
-    { id: 'a_piano_chord', name: 'Piano Chord 🎹', type: 'audio', url: '/sounds/music/piano_chord.wav' },
-    { id: 'a_guitar_strum', name: 'Guitar Strum 🎸', type: 'audio', url: '/sounds/music/guitar_strum.wav' },
-    { id: 'a_drum_beat', name: 'Drum Beat 🥁', type: 'audio', url: '/sounds/music/drum_beat.wav' }
-  ],
+        settings: mergedSettings,
+        assets: mergedAssets,
         selectedObjectId: null, selectedObjectIds: [],
         selectedObjectRef: null,
         past: [],
