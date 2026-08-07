@@ -1239,25 +1239,15 @@ export function HierarchyPanel({ width }: { width?: number }) {
         )}
 
         {/* Add Component Action Sub-header */}
-        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex items-center gap-1.5">
+        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex items-center">
           <button
             onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
             disabled={isPreviewMode}
-            className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
+            className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
             title={isPreviewMode ? "Creator disabled in Live Preview" : "Insert 3D Mesh, Media or Interaction element"}
           >
             <Plus size={14} className="text-blue-500 stroke-[3]" />
             <span>Add Asset</span>
-          </button>
-
-          <button
-            onClick={() => handleAddObject('hotspot')}
-            disabled={isPreviewMode}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/30 hover:border-cyan-400 disabled:opacity-20 rounded-lg text-xs font-bold text-cyan-300 transition-all cursor-pointer shadow-sm select-none"
-            title="Quick add interactive 3D Hotspot touch trigger"
-          >
-            <Sparkles size={13} className="text-cyan-400" />
-            <span>+ Hotspot</span>
           </button>
         </div>
       </div>

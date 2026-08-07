@@ -3760,7 +3760,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         name: newName,
         settings: {
           ...(parsed.settings || {}),
-          projectName: newName
+          projectName: newName,
+          publishedProjectId: undefined,
+          publishedProjectUrl: undefined,
+          isPublishDisabled: undefined
         },
         lastSavedTime: Date.now()
       };
@@ -3840,7 +3843,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       const updatedList = state.projectsList.map((p) => 
         p.id === state.currentProjectId 
-          ? { ...p, name: state.settings.projectName, updatedAt: Date.now() }
+          ? { 
+              ...p, 
+              name: state.settings.projectName, 
+              publishedProjectId: state.settings.publishedProjectId,
+              publishedProjectUrl: state.settings.publishedProjectUrl,
+              isPublishDisabled: state.settings.isPublishDisabled,
+              updatedAt: Date.now() 
+            }
           : p
       );
       localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
@@ -3913,6 +3923,54 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return state;
     }
   }),
+
+  togglePublishStatus: async (projectId, enabled) => {
+    try {
+      const response = await fetch('/api/publish/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, enabled })
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to toggle publish status on server, adjusting locally');
+      }
+
+      set((state) => {
+        const updatedList = state.projectsList.map((p) => 
+          p.id === projectId ? { ...p, isPublishDisabled: !enabled, updatedAt: Date.now() } : p
+        );
+        localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
+
+        const savedDataStr = localStorage.getItem(getStorageKey(`ar_forge_project_${projectId}`));
+        if (savedDataStr) {
+          const parsed = sanitizeBlobUrls(JSON.parse(savedDataStr));
+          if (!parsed.settings) parsed.settings = { projectName: parsed.name || 'Project', imageTargetName: null };
+          parsed.settings.isPublishDisabled = !enabled;
+          parsed.lastSavedTime = Date.now();
+          localStorage.setItem(getStorageKey(`ar_forge_project_${projectId}`), JSON.stringify(parsed));
+        }
+
+        if (state.currentProjectId === projectId) {
+          return {
+            projectsList: updatedList,
+            settings: { ...state.settings, isPublishDisabled: !enabled },
+            lastSavedTime: Date.now(),
+            hasUnsavedChanges: false
+          };
+        }
+
+        return {
+          projectsList: updatedList
+        };
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error toggling publish status:', err);
+      return false;
+    }
+  },
 
   importProject: (projectJson) => {
     try {

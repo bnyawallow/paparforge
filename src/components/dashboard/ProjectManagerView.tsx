@@ -120,6 +120,35 @@ export function ProjectManagerView() {
     }
   ];
 
+  const getProjectPublishInfo = (proj: any) => {
+    let url = proj.publishedProjectUrl;
+    let id = proj.publishedProjectId;
+    let disabled = proj.isPublishDisabled;
+
+    if (url === undefined || id === undefined || disabled === undefined) {
+      try {
+        const fullSavedKey = `ar_forge_project_${proj.id}`;
+        const user = useAuthStore.getState().user;
+        const storageKey = user ? `${user.id}_${fullSavedKey}` : fullSavedKey;
+        const savedDataStr = localStorage.getItem(storageKey);
+        if (savedDataStr) {
+          const parsed = JSON.parse(savedDataStr);
+          if (url === undefined) url = parsed.settings?.publishedProjectUrl;
+          if (id === undefined) id = parsed.settings?.publishedProjectId;
+          if (disabled === undefined) disabled = parsed.settings?.isPublishDisabled;
+        }
+      } catch (e) {
+        console.error('Failed to parse publish info from detailed project data:', e);
+      }
+    }
+
+    return { 
+      publishedProjectUrl: url || '', 
+      publishedProjectId: id || '', 
+      isPublishDisabled: !!disabled 
+    };
+  };
+
   const filteredProjects = projectsList.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -476,6 +505,7 @@ export function ProjectManagerView() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProjects.map((proj) => {
                 const isRenaming = renamingProjectId === proj.id;
+                const { publishedProjectUrl, isPublishDisabled } = getProjectPublishInfo(proj);
                 return (
                   <motion.div
                     key={proj.id}
@@ -503,13 +533,6 @@ export function ProjectManagerView() {
                             title="Rename"
                           >
                             <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDuplicate(proj.id, proj.name)}
-                            className="p-1.5 rounded-lg hover:bg-gray-500/10 text-gray-400 hover:text-emerald-400 transition-colors cursor-pointer"
-                            title="Duplicate"
-                          >
-                            <Copy size={14} />
                           </button>
                           <button
                             onClick={() => handleExport(proj.id, proj.name)}
@@ -567,16 +590,134 @@ export function ProjectManagerView() {
                           {proj.id.substring(0, 12)}...
                         </span>
                       </div>
+
+                      {/* Published Status Sub-panel */}
+                      {publishedProjectUrl && (
+                        <div className={`mt-4 pt-4 border-t ${t.isLight ? 'border-gray-100' : 'border-[#1C1C20]'} flex flex-col gap-3 mb-4`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-2 h-2 rounded-full ${isPublishDisabled ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`} />
+                              <span className="text-xs font-bold tracking-tight">
+                                {isPublishDisabled ? 'Experience Paused' : 'Experience Live'}
+                              </span>
+                            </div>
+                            
+                            {/* Toggle Switch */}
+                            <button
+                              onClick={async () => {
+                                const success = await useEditorStore.getState().togglePublishStatus(proj.id, isPublishDisabled);
+                                if (success) {
+                                  addToast(isPublishDisabled ? 'Published experience is now live!' : 'Published experience has been paused.');
+                                } else {
+                                  addToast('Failed to change publish status.');
+                                }
+                              }}
+                              className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer focus:outline-none flex items-center ${
+                                isPublishDisabled 
+                                  ? 'bg-gray-700 justify-start' 
+                                  : 'bg-emerald-500 justify-end'
+                              }`}
+                              title={isPublishDisabled ? "Activate public link" : "Temporarily pause public access"}
+                            >
+                              <motion.div 
+                                layout
+                                className="w-4 h-4 rounded-full bg-white shadow-sm" 
+                              />
+                            </button>
+                          </div>
+
+                          {/* URL & QR Code Grid */}
+                          <div className={`p-2 rounded-xl border flex items-center gap-2.5 ${
+                            t.isLight ? 'bg-gray-50 border-gray-100' : 'bg-[#0E0E11] border-[#1C1C22]'
+                          }`}>
+                            {/* QR Code with Hover Zoom Tooltip */}
+                            <div className="relative group/qr shrink-0 cursor-pointer">
+                              <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&color=000000&bgcolor=ffffff&data=${encodeURIComponent(publishedProjectUrl)}`}
+                                alt="QR Code"
+                                className="w-10 h-10 rounded-lg border border-white/5 shadow-sm bg-white"
+                                referrerPolicy="no-referrer"
+                              />
+                              {/* Hover zoom tooltip */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-[#09090B] border border-[#222] rounded-xl opacity-0 scale-90 group-hover/qr:opacity-100 group-hover/qr:scale-100 pointer-events-none transition-all duration-300 shadow-2xl z-30 w-32 flex flex-col items-center">
+                                <img 
+                                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=000000&bgcolor=ffffff&data=${encodeURIComponent(publishedProjectUrl)}`}
+                                  alt="QR Code Zoom"
+                                  className="w-24 h-24 rounded-lg bg-white p-1 mb-1"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <span className="text-[9px] font-bold text-gray-400 text-center">Scan on Phone</span>
+                              </div>
+                            </div>
+
+                            {/* Shortlink Info */}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[9px] font-bold tracking-wider uppercase text-gray-500 block mb-0.5">Published URL</span>
+                              <div className="flex items-center gap-1.5">
+                                <a 
+                                  href={publishedProjectUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className={`text-xs font-semibold truncate hover:underline flex-1 block ${
+                                    isPublishDisabled 
+                                      ? 'text-gray-500 cursor-not-allowed pointer-events-none' 
+                                      : 'text-blue-400 hover:text-blue-300'
+                                  }`}
+                                  onClick={(e) => {
+                                    if (isPublishDisabled) {
+                                      e.preventDefault();
+                                      addToast('Experience is paused. Enable to launch.');
+                                    }
+                                  }}
+                                >
+                                  {publishedProjectUrl.replace(/^https?:\/\//, '')}
+                                </a>
+                              </div>
+                            </div>
+                            
+                            {/* Copy button */}
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(publishedProjectUrl);
+                                addToast('Copied shortlink to clipboard!');
+                              }}
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                t.isLight 
+                                  ? 'bg-white hover:bg-gray-100 border-gray-200 text-gray-600' 
+                                  : 'bg-[#1C1C20] hover:bg-[#25252A] border-[#2E2E35] text-gray-300'
+                              }`}
+                              title="Copy published shortlink"
+                            >
+                              <Copy size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Bottom Action */}
-                    <button
-                      onClick={() => handleOpenProject(proj.id)}
-                      className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white border border-blue-500/20 hover:border-blue-600 transition-all flex items-center justify-center gap-2 group/btn cursor-pointer"
-                    >
-                      <span>Open in Editor</span>
-                      <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
-                    </button>
+                    {/* Bottom Actions */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDuplicate(proj.id, proj.name)}
+                        className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          t.isLight 
+                            ? 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700' 
+                            : 'bg-[#1C1C20] hover:bg-[#25252A] border-[#2E2E35] text-gray-300'
+                        }`}
+                        title="Duplicate project structure and assets"
+                      >
+                        <Copy size={12} />
+                        <span>Duplicate</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => handleOpenProject(proj.id)}
+                        className="flex-[1.5] py-2 px-4 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/10 transition-all flex items-center justify-center gap-1.5 group/btn cursor-pointer"
+                      >
+                        <span>Open Editor</span>
+                        <ArrowRight size={13} className="group-hover/btn:translate-x-1 transition-transform" />
+                      </button>
+                    </div>
                   </motion.div>
                 );
               })}

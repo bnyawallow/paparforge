@@ -83,6 +83,7 @@ export interface ProjectSettings {
   shadowResolution?: number;
   publishedProjectId?: string;
   publishedProjectUrl?: string;
+  isPublishDisabled?: boolean;
   ambientSoundUrl?: string;
   themeFontFamily?: string;
   themePrimaryColor?: string;
@@ -223,7 +224,16 @@ export interface EditorState {
   // Multi-project state
   currentProjectId: string;
   isProjectOpen: boolean;
-  projectsList: { id: string; name: string; createdAt: number; updatedAt: number; thumbnail?: string }[];
+  projectsList: { 
+    id: string; 
+    name: string; 
+    createdAt: number; 
+    updatedAt: number; 
+    thumbnail?: string;
+    publishedProjectId?: string;
+    publishedProjectUrl?: string;
+    isPublishDisabled?: boolean;
+  }[];
   
   // History tracking state
   past: HistorySnapshot[];
@@ -239,6 +249,7 @@ export interface EditorState {
   saveCurrentProject: () => void;
   updateProjectThumbnail: (projectId: string, thumbnailDataUrl: string) => void;
   renameProject: (projectId: string, newName: string) => void;
+  togglePublishStatus: (projectId: string, enabled: boolean) => Promise<boolean>;
   importProject: (projectJson: string) => string | null;
 
   addObject: (obj: SceneObject, parentId?: string) => void;
