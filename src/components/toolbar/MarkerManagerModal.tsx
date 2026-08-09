@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, CheckCircle, AlertTriangle, Image as ImageIcon, Download, QrCode, Printer, Sparkles, Sliders, ShieldCheck } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { fileToDataUrl } from '../../lib/fileUtils';
+import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 
 export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
   const { objects, updateObject, settings, updateSettings } = useEditorStore();
@@ -9,7 +10,7 @@ export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
   
   const [activeTab, setActiveTab] = useState<'generator' | 'analyzer'>('generator');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(imageTarget?.properties.textureUrl || 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=800&q=80');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(imageTarget?.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE);
   const [analyzing, setAnalyzing] = useState(false);
   const [score, setScore] = useState<number | null>(null);
 

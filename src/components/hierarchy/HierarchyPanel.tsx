@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 import { v4 as uuidv4 } from 'uuid';
 import { 
   ChevronRight, 
   ChevronDown, 
   Box, 
   Image as ImageIcon, 
+  Smile,
   Link2, 
   Type, 
   Youtube,
@@ -80,6 +82,32 @@ export function HierarchyPanel({ width }: { width?: number }) {
   const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+  const handleAddTarget = (type: 'image' | 'face') => {
+    if (isPreviewMode) return;
+    const targetId = uuidv4();
+    const isFace = type === 'face';
+    const newTarget: SceneObject = {
+      id: targetId,
+      name: 'AR Target',
+      type: 'imageTarget',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      locked: true,
+      children: [],
+      parentId: null,
+      properties: {
+        targetType: type,
+        physicalWidth: isFace ? undefined : 0.1,
+        textureUrl: isFace ? undefined : DEFAULT_ART_POSTER_TEXTURE
+      }
+    };
+    addObject(newTarget);
+    updateSettings({ trackingMode: type });
+    selectObject(targetId);
+    useEditorStore.getState().addToast(`Added AR Target (${isFace ? 'Face' : 'Image'}) to scene`);
+  };
   const [sceneModal, setSceneModal] = useState<{
     type: 'create' | 'rename' | 'delete' | null;
     value?: string;
@@ -549,11 +577,13 @@ export function HierarchyPanel({ width }: { width?: number }) {
     const isDragOver = dragOverId === id;
     const hasChildren = obj.children.length > 0;
     const isCollapsed = searchQuery ? false : (settings.collapsedHierarchyIds 
-      ? (settings.collapsedHierarchyIds[id] ?? true)
-      : true);
+      ? (settings.collapsedHierarchyIds[id] ?? (obj.type === 'imageTarget' ? false : true))
+      : (obj.type === 'imageTarget' ? false : true));
+
+    const isFaceTarget = obj.type === 'imageTarget' && (obj.properties?.targetType === 'face' || (settings.trackingMode === 'face' && !obj.properties?.targetType));
 
     let Icon = Box;
-    if (obj.type === 'imageTarget') Icon = ImageIcon;
+    if (obj.type === 'imageTarget') Icon = isFaceTarget ? Smile : ImageIcon;
     else if (obj.type === 'group') Icon = Folder;
     else if (obj.type === 'youtube') Icon = Youtube;
     else if (obj.type === 'button') Icon = Link2;
@@ -621,7 +651,19 @@ export function HierarchyPanel({ width }: { width?: number }) {
             {hasChildren && (isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />)}
           </div>
           
-          <Icon size={13} className={cn("shrink-0", isSelected ? "text-[#FFD93D]" : "text-[#777] group-hover:text-white")} />
+          <Icon 
+            size={13} 
+            className={cn(
+              "shrink-0", 
+              isSelected 
+                ? "text-[#FFD93D]" 
+                : isFaceTarget 
+                  ? "text-purple-400 font-bold" 
+                  : obj.type === 'imageTarget' 
+                    ? "text-blue-400 font-bold" 
+                    : "text-[#777] group-hover:text-white"
+            )} 
+          />
           
           {editingId === id ? (
             <input
@@ -736,7 +778,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
             )}
 
             {/* Delete Action Button */}
-            {obj.type !== 'imageTarget' && (
+            {(obj.type !== 'imageTarget' || Object.values(objects).filter((o: any) => o.type === 'imageTarget').length > 1) ? (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -744,6 +786,17 @@ export function HierarchyPanel({ width }: { width?: number }) {
                 }}
                 className="p-1 rounded hover:bg-[#2A2A2A] transition-colors text-[#555] hover:text-red-400"
                 title="Delete object"
+              >
+                <Trash2 size={11} />
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useEditorStore.getState().addToast('Scene must contain at least one AR Target');
+                }}
+                className="p-1 rounded transition-colors text-[#333] hover:text-amber-400 cursor-not-allowed"
+                title="Scene must contain at least one AR Target"
               >
                 <Trash2 size={11} />
               </button>
@@ -757,9 +810,39 @@ export function HierarchyPanel({ width }: { width?: number }) {
           </div>
         </div>
 
-        {hasChildren && !isCollapsed && (
+        {hasChildren && !isCollapsed && obj.type !== 'imageTarget' && (
           <div className="flex flex-col">
             {obj.children.map(childId => renderItem(childId, depth + 1))}
+          </div>
+        )}
+
+        {obj.type === 'imageTarget' && !isCollapsed && (
+          <div className="flex flex-col">
+            {obj.children.map(childId => renderItem(childId, depth + 1))}
+            
+            {/* Always visible Add Asset button as child of AR Target */}
+            <div 
+              style={{ paddingLeft: `${(depth + 1) * 12 + 16}px` }}
+              className="pr-2 my-1"
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  selectObject(id);
+                  useEditorStore.getState().openAssetBrowser();
+                }}
+                className={cn(
+                  "w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded-md border border-dashed transition-all cursor-pointer font-bold text-[10px]",
+                  t.isLight 
+                    ? "bg-blue-50/80 hover:bg-blue-100/90 border-blue-300 text-blue-600" 
+                    : "bg-blue-950/30 hover:bg-blue-900/40 border-blue-500/40 hover:border-blue-400 text-blue-400 hover:text-blue-300 shadow-sm"
+                )}
+                title="Add 3D model, image, video, text or UI asset to this AR Target"
+              >
+                <Plus size={11} className="shrink-0 stroke-[2.5]" />
+                <span>Add Asset</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -1238,17 +1321,60 @@ export function HierarchyPanel({ width }: { width?: number }) {
           </div>
         )}
 
-        {/* Add Component Action Sub-header */}
-        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex items-center">
+        {/* Add Target Action Footer */}
+        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex flex-col gap-1.5">
           <button
-            onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
+            onClick={() => setIsAddDropdownOpen(!isAddDropdownOpen)}
             disabled={isPreviewMode}
-            className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#222] hover:bg-[#2A2A2A] border border-[#2B2B2B] hover:border-[#3C3C3C] disabled:opacity-20 rounded-lg text-xs font-bold text-[#E5E5E5] transition-all cursor-pointer shadow-sm select-none"
-            title={isPreviewMode ? "Creator disabled in Live Preview" : "Insert 3D Mesh, Media or Interaction element"}
+            className="w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 border border-blue-500/40 hover:border-blue-400 disabled:opacity-20 rounded-lg text-xs font-bold text-white transition-all cursor-pointer shadow-sm select-none"
+            title={isPreviewMode ? "Creator disabled in Live Preview" : "Add a new AR Target to scene"}
           >
-            <Plus size={14} className="text-blue-500 stroke-[3]" />
-            <span>Add Asset</span>
+            <div className="flex items-center gap-1.5">
+              <Plus size={14} className="text-blue-400 stroke-[3]" />
+              <span>Add Target</span>
+            </div>
+            <ChevronDown size={12} className={cn("text-gray-400 transition-transform", isAddDropdownOpen ? "rotate-180" : "")} />
           </button>
+
+          {isAddDropdownOpen && (
+            <div className="flex flex-col gap-1 p-1 bg-[#1A1A1A] border border-[#333] rounded-lg shadow-xl animate-in fade-in slide-in-from-bottom-2">
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1 border-b border-white/5 flex items-center gap-1">
+                <Sparkles size={10} className="text-amber-400" />
+                Select Target Type
+              </span>
+              <button
+                onClick={() => {
+                  handleAddTarget('image');
+                  setIsAddDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 p-2 hover:bg-blue-600/20 text-left rounded text-xs font-medium text-gray-200 hover:text-white transition-colors cursor-pointer group"
+              >
+                <div className="p-1 rounded bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
+                  <ImageIcon size={14} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-xs text-blue-300">Image Target</span>
+                  <span className="text-[9px] text-gray-400">Track 2D posters, cards & prints</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  handleAddTarget('face');
+                  setIsAddDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 p-2 hover:bg-purple-600/20 text-left rounded text-xs font-medium text-gray-200 hover:text-white transition-colors cursor-pointer group"
+              >
+                <div className="p-1 rounded bg-purple-500/20 text-purple-400 group-hover:scale-110 transition-transform">
+                  <Smile size={14} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-xs text-purple-300">Face Target</span>
+                  <span className="text-[9px] text-gray-400">3D Face Mesh landmark tracking</span>
+                </div>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Settings, Edit3, Camera, Undo2, Redo2, Globe, 
-  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert, History, QrCode, Printer, LayoutTemplate
+  FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert, History, QrCode, Printer, LayoutTemplate,
+  Image as ImageIcon, Smile, Sliders
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -11,6 +12,7 @@ import { ProjectDashboardModal } from './ProjectDashboardModal';
 import { VersionHistoryModal } from './VersionHistoryModal';
 import { MarkerManagerModal } from './MarkerManagerModal';
 import { TemplatesLibraryModal } from '../templates/TemplatesLibraryModal';
+import { TrackingModeModal } from './TrackingModeModal';
 import { useTheme } from '../../lib/theme';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,6 +28,7 @@ export function Toolbar() {
     hasUnsavedChanges,
     currentProjectId,
     settings,
+    updateSettings,
     renameProject,
     saveCurrentProject,
     addToast,
@@ -46,6 +49,7 @@ export function Toolbar() {
   const [showVersions, setShowVersions] = useState(false);
   const [showMarkerStudio, setShowMarkerStudio] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showTrackingMode, setShowTrackingMode] = useState(false);
   
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempProjectName, setTempProjectName] = useState(settings.projectName);
@@ -147,28 +151,12 @@ export function Toolbar() {
 
           <div className={`flex items-center gap-1 border-l pl-6 ${t.isLight ? 'border-gray-200' : 'border-[#2A2A2A]'}`}>
             <button 
-              onClick={() => useEditorStore.getState().setIsAssetBrowserOpen(true)}
+              onClick={() => useEditorStore.getState().openAssetBrowser('models')}
               className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300' : 'bg-transparent text-emerald-400 hover:text-emerald-300 border-emerald-500/20 hover:border-emerald-500/40'}`}
               title="Open Asset Browser"
             >
               <FolderOpen size={14} />
               <span className="hidden sm:inline">Asset Browser</span>
-            </button>
-            <button 
-              onClick={() => setShowTemplates(true)}
-              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-purple-50 hover:bg-purple-100/80 text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' : 'bg-transparent text-purple-400 hover:text-purple-300 border-purple-500/20 hover:border-purple-500/40'}`}
-              title="Pre-built AR Layout Scaffolds for Print Ads"
-            >
-              <LayoutTemplate size={14} />
-              <span className="hidden md:inline">Templates Library</span>
-            </button>
-            <button 
-              onClick={() => setShowMarkerStudio(true)}
-              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold mr-1.5 ${t.isLight ? 'bg-blue-50 hover:bg-blue-100/80 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300' : 'bg-transparent text-blue-400 hover:text-blue-300 border-blue-500/20 hover:border-blue-500/40'}`}
-              title="Printable AR Marker & Campaign Studio"
-            >
-              <Printer size={14} />
-              <span className="hidden md:inline">AR Marker Studio</span>
             </button>
             <button 
               onClick={() => setShowVersions(true)}
@@ -296,6 +284,7 @@ export function Toolbar() {
       {showProjects && <ProjectDashboardModal onClose={() => setShowProjects(false)} />}
       {showMarkerStudio && <MarkerManagerModal onClose={() => setShowMarkerStudio(false)} />}
       {showTemplates && <TemplatesLibraryModal onClose={() => setShowTemplates(false)} />}
+      {showTrackingMode && <TrackingModeModal onClose={() => setShowTrackingMode(false)} />}
       <VersionHistoryModal isOpen={showVersions} onClose={() => setShowVersions(false)} />
     </>
   );

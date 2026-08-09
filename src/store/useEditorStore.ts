@@ -2,6 +2,7 @@ import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType, Asset } from '../types';
+import { DEFAULT_ART_POSTER_TEXTURE } from '../lib/arTargetTexture';
 
 const getStorageKey = (key: string) => {
   const user = useAuthStore.getState().user;
@@ -26,21 +27,40 @@ const saveVersionsForProject = (projectId: string, versions: ProjectVersion[]) =
 };
 
 const initialImageTargetId = uuidv4();
+const initialBoxId = uuidv4();
 
 const defaultScene: Record<string, SceneObject> = {
   [initialImageTargetId]: {
     id: initialImageTargetId,
-    name: 'Image Target',
+    name: 'AR Target',
     type: 'imageTarget',
     position: [0, 0, 0],
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
     visible: true,
     locked: true,
-    children: [],
+    children: [initialBoxId],
     parentId: null,
     properties: {
       physicalWidth: 0.1, // 10cm default
+      textureUrl: DEFAULT_ART_POSTER_TEXTURE,
+    }
+  },
+  [initialBoxId]: {
+    id: initialBoxId,
+    name: 'Default 3D Box',
+    type: 'box',
+    position: [0, 0, 0.833],
+    rotation: [0, 0, 0],
+    scale: [1.666, 1.666, 1.666],
+    visible: true,
+    locked: false,
+    children: [],
+    parentId: initialImageTargetId,
+    properties: {
+      color: '#6366f1',
+      roughness: 0.3,
+      metalness: 0.2
     }
   }
 };
@@ -51,7 +71,7 @@ export const generateTemplate = (projectName: string, templateType: TemplateType
   const objects: Record<string, SceneObject> = {
     [imageTargetId]: {
       id: imageTargetId,
-      name: 'Image Target',
+      name: 'AR Target',
       type: 'imageTarget',
       position: [0, 0, 0],
       rotation: [0, 0, 0],
@@ -62,6 +82,7 @@ export const generateTemplate = (projectName: string, templateType: TemplateType
       parentId: null,
       properties: {
         physicalWidth: 0.1, // 10cm default
+        textureUrl: DEFAULT_ART_POSTER_TEXTURE,
       }
     }
   };
@@ -986,27 +1007,67 @@ export const generateTemplate = (projectName: string, templateType: TemplateType
     };
   }
 
+  if (imageTargetId && objects[imageTargetId] && (!objects[imageTargetId].children || objects[imageTargetId].children.length === 0)) {
+    const boxId = uuidv4();
+    objects[imageTargetId].children = [boxId];
+    objects[boxId] = {
+      id: boxId,
+      name: 'Default 3D Box',
+      type: 'box',
+      position: [0, 0, 0.833],
+      rotation: [0, 0, 0],
+      scale: [1.666, 1.666, 1.666],
+      visible: true,
+      locked: false,
+      children: [],
+      parentId: imageTargetId,
+      properties: {
+        color: '#6366f1',
+        roughness: 0.3,
+        metalness: 0.2
+      }
+    };
+  }
+
   return { objects, rootObjects };
 };
 
 const normalizeSceneHierarchyAndLockImageTarget = (objects: Record<string, SceneObject>, rootObjects?: string[]) => {
   if (!objects || Object.keys(objects).length === 0) {
     const imageTargetId = uuidv4();
+    const boxId = uuidv4();
     const defaultImageTarget: SceneObject = {
       id: imageTargetId,
-      name: 'Image Target',
+      name: 'AR Target',
       type: 'imageTarget',
       position: [0, 0, 0],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
       visible: true,
       locked: true,
-      children: [],
+      children: [boxId],
       parentId: null,
-      properties: { physicalWidth: 0.1 }
+      properties: { physicalWidth: 0.1, textureUrl: DEFAULT_ART_POSTER_TEXTURE }
+    };
+    const defaultBox: SceneObject = {
+      id: boxId,
+      name: 'Default 3D Box',
+      type: 'box',
+      position: [0, 0, 0.833],
+      rotation: [0, 0, 0],
+      scale: [1.666, 1.666, 1.666],
+      visible: true,
+      locked: false,
+      children: [],
+      parentId: imageTargetId,
+      properties: {
+        color: '#6366f1',
+        roughness: 0.3,
+        metalness: 0.2
+      }
     };
     return {
-      objects: { [imageTargetId]: defaultImageTarget },
+      objects: { [imageTargetId]: defaultImageTarget, [boxId]: defaultBox },
       rootObjects: [imageTargetId]
     };
   }
@@ -1020,6 +1081,10 @@ const normalizeSceneHierarchyAndLockImageTarget = (objects: Record<string, Scene
     
     if (obj.type === 'imageTarget') {
       obj.locked = true;
+      if (!obj.properties) { obj.properties = {}; }
+      if (!obj.properties.textureUrl && obj.properties.targetType !== 'face') {
+        obj.properties.textureUrl = DEFAULT_ART_POSTER_TEXTURE;
+      }
     }
 
     const typeStr = obj.type as string;
@@ -1043,7 +1108,7 @@ const normalizeSceneHierarchyAndLockImageTarget = (objects: Record<string, Scene
     const imageTargetId = uuidv4();
     imageTarget = {
       id: imageTargetId,
-      name: 'Image Target',
+      name: 'AR Target',
       type: 'imageTarget',
       position: [0, 0, 0],
       rotation: [0, 0, 0],
@@ -1506,6 +1571,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   objects: initialObjects,
   rootObjects: initialRootObjects,
   selectedObjectId: null, selectedObjectIds: [],
+  lastSelectedTargetId: null,
+  setLastSelectedTargetId: (id) => set({ lastSelectedTargetId: id }),
   selectedObjectRef: null,
   settings: initialSettings,
   transformMode: 'translate',
@@ -1716,7 +1783,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   rotationSnapIncrement: 15,
   
   isAssetBrowserOpen: false,
+  assetBrowserTab: 'templates',
   setIsAssetBrowserOpen: (open) => set({ isAssetBrowserOpen: open }),
+  openAssetBrowser: (tab) => set((state) => ({ 
+    isAssetBrowserOpen: true, 
+    assetBrowserTab: tab || state.assetBrowserTab || 'templates' 
+  })),
   replaceTargetObjectId: null,
   setReplaceTargetObjectId: (id) => set({ replaceTargetObjectId: id }),
   replaceObjectAsset: (targetObjectId, newAsset) => set((state) => {
@@ -1900,9 +1972,75 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           resolvedParentId = canvasId;
         }
       }
+    } else if (targetObj.type !== 'imageTarget') {
+      // For general 3D assets, auto-resolve parent target if not explicitly passed
+      if (!resolvedParentId) {
+        if (state.selectedObjectId && newObjects[state.selectedObjectId]) {
+          const selObj = newObjects[state.selectedObjectId];
+          if (selObj.type === 'imageTarget') {
+            resolvedParentId = selObj.id;
+          } else if (selObj.parentId && newObjects[selObj.parentId]?.type === 'imageTarget') {
+            resolvedParentId = selObj.parentId;
+          }
+        }
+      }
+      if (!resolvedParentId) {
+        const firstTarget = Object.values(newObjects).find(o => o.type === 'imageTarget');
+        if (firstTarget) {
+          resolvedParentId = firstTarget.id;
+        }
+      }
+
+      // Check if parent target is a Face Target
+      if (resolvedParentId && newObjects[resolvedParentId]) {
+        const parentTarget = newObjects[resolvedParentId];
+        const isFaceTarget = parentTarget.type === 'imageTarget' && 
+          (parentTarget.properties?.targetType === 'face' || (state.settings.trackingMode === 'face' && parentTarget.properties?.targetType !== 'image'));
+
+        if (isFaceTarget) {
+          const faceAnchorMap: Record<string, [number, number, number]> = {
+            head: [0, 0.2, 0.8],
+            forehead: [0, 0.65, 0.75],
+            nose: [0, -0.15, 0.9],
+            chin: [0, -0.85, 0.6],
+            leftEye: [-0.32, 0.25, 0.8],
+            rightEye: [0.32, 0.25, 0.8],
+            mouth: [0, -0.48, 0.8]
+          };
+          const activeAnchor = state.settings.faceAnchor || 'head';
+          const offset = faceAnchorMap[activeAnchor] || faceAnchorMap.head;
+          
+          if (!targetObj.position || (targetObj.position[0] === 0 && targetObj.position[1] === 0 && targetObj.position[2] === 0)) {
+            targetObj.position = [...offset];
+          }
+        }
+      }
     }
 
     // Insert target object
+    if (targetObj.type === 'imageTarget' && (!targetObj.children || targetObj.children.length === 0) && targetObj.properties?.targetType !== 'face') {
+      const boxId = uuidv4();
+      const defaultBox: SceneObject = {
+        id: boxId,
+        name: 'Default 3D Box',
+        type: 'box',
+        position: [0, 0, 0.833],
+        rotation: [0, 0, 0],
+        scale: [1.666, 1.666, 1.666],
+        visible: true,
+        locked: false,
+        children: [],
+        parentId: targetObj.id,
+        properties: {
+          color: '#6366f1',
+          roughness: 0.3,
+          metalness: 0.2
+        }
+      };
+      targetObj.children = [boxId];
+      newObjects[boxId] = defaultBox;
+    }
+
     newObjects[targetObj.id] = targetObj;
 
     if (resolvedParentId && newObjects[resolvedParentId]) {
@@ -1942,6 +2080,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const objToRemove = newObjects[id];
     if (!objToRemove) return state;
 
+    if (objToRemove.type === 'imageTarget') {
+      const remainingTargets = Object.values(newObjects).filter(o => o.type === 'imageTarget');
+      if (remainingTargets.length <= 1) {
+        state.addToast('Scene must contain at least one AR Target');
+        return state;
+      }
+    }
+
     // Remove from parent
     if (objToRemove.parentId && newObjects[objToRemove.parentId]) {
       newObjects[objToRemove.parentId] = {
@@ -1961,6 +2107,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     removeRecursive(id);
     
     const isSelectedDeleted = state.selectedObjectId && !newObjects[state.selectedObjectId];
+    const remainingTargets = Object.values(newObjects).filter(o => o.type === 'imageTarget');
+    const newLastSelectedTargetId = (state.lastSelectedTargetId && newObjects[state.lastSelectedTargetId])
+      ? state.lastSelectedTargetId
+      : (remainingTargets[0]?.id || null);
 
     return {
       objects: newObjects,
@@ -1968,6 +2118,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedObjectId: isSelectedDeleted ? null : state.selectedObjectId,
       selectedObjectIds: state.selectedObjectIds.filter(x => newObjects[x]),
       selectedObjectRef: isSelectedDeleted ? null : state.selectedObjectRef,
+      lastSelectedTargetId: newLastSelectedTargetId,
       past: newPast,
       future: [], // Clear redo stack on new action
       hasUnsavedChanges: true
@@ -2060,6 +2211,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     lastEditedObjectId = null;
     lastSnapshotTime = 0;
 
+    let newLastSelectedTargetId = state.lastSelectedTargetId;
+    if (id && state.objects[id]) {
+      let currObj: any = state.objects[id];
+      while (currObj) {
+        if (currObj.type === 'imageTarget') {
+          newLastSelectedTargetId = currObj.id;
+          break;
+        }
+        currObj = currObj.parentId ? state.objects[currObj.parentId] : null;
+      }
+    }
+
     if (multi && id) {
       const isAlreadySelected = state.selectedObjectIds.includes(id);
       let newSelectedIds = [...state.selectedObjectIds];
@@ -2073,7 +2236,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         selectedObjectId: newSelectedIds.length > 0 ? newSelectedIds[newSelectedIds.length - 1] : null,
         selectedObjectIds: newSelectedIds,
-        selectedObjectRef: null
+        selectedObjectRef: null,
+        lastSelectedTargetId: newLastSelectedTargetId
       };
     }
 
@@ -2081,7 +2245,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedObjectId: id,
       selectedObjectIds: id ? [id] : [],
       selectedObjectRef: state.selectedObjectId === id ? state.selectedObjectRef : null,
-      activeStateId: state.selectedObjectId === id ? state.activeStateId : null
+      activeStateId: state.selectedObjectId === id ? state.activeStateId : null,
+      lastSelectedTargetId: newLastSelectedTargetId
     };
   }),
 
@@ -3631,7 +3796,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const defaultObjects = {
           [defaultImageTargetId]: {
             id: defaultImageTargetId,
-            name: 'Image Target',
+            name: 'AR Target',
             type: 'imageTarget' as const,
             position: [0, 0, 0] as [number, number, number],
             rotation: [0, 0, 0] as [number, number, number],

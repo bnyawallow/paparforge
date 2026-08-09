@@ -1,11 +1,13 @@
 import { playCachedAudio } from '../../lib/audioManager';
 import React, { useState, useEffect, useRef } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { DEFAULT_ART_POSTER_TEXTURE, SAMPLE_TARGET_TEXTURES } from '../../lib/arTargetTexture';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
-import { Upload, Layers } from 'lucide-react';
+import { Upload, Layers, Printer } from 'lucide-react';
 import { TextureOptimizerPanel } from './TextureOptimizerPanel';
 import { ModelMaterialEditor } from './ModelMaterialEditor';
+import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
 
 function cubicBezier(t: number, x1: number, y1: number, x2: number, y2: number): number {
   let low = 0;
@@ -462,6 +464,152 @@ export function MediaAssetPicker({ value, onChange, type, accept, placeholder = 
     </div>
   );
 }
+
+// REUSABLE TEXTURE THUMBNAIL GRID COMPONENT WITH CUSTOM UPLOADS SUPPORT
+interface TextureThumbnailGridProps {
+  value: string;
+  onChange: (url: string) => void;
+  presets: Array<{ name: string; url: string }>;
+  label?: string;
+}
+
+export function TextureThumbnailGrid({ value, onChange, presets, label }: TextureThumbnailGridProps) {
+  const { assets, addAsset, settings } = useEditorStore();
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const projectName = settings?.projectName || 'AR Experience';
+
+  // Get custom uploaded images
+  const customImages = assets.filter(a => a.type === 'image');
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      let fileUrl = '';
+      if (SupabaseService.isConfigured()) {
+        fileUrl = await SupabaseService.uploadAsset(file, projectName);
+      } else {
+        fileUrl = await fileToDataUrl(file);
+      }
+      
+      onChange(fileUrl);
+      useEditorStore.getState().addToast(`Uploaded custom image texture`);
+
+      const newAsset = {
+        id: Math.random().toString(36).substring(2, 9),
+        name: file.name,
+        type: 'image' as const,
+        url: fileUrl
+      };
+      addAsset(newAsset);
+    } catch (err) {
+      console.error("Asset upload failed:", err);
+      try {
+        const fallbackUrl = await fileToDataUrl(file);
+        onChange(fallbackUrl);
+        useEditorStore.getState().addToast(`Loaded image texture (offline mode)`);
+        const newAsset = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          type: 'image' as const,
+          url: fallbackUrl
+        };
+        addAsset(newAsset);
+      } catch (fallbackErr) {
+        console.error("DataURL fallback failed:", fallbackErr);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      {label && <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>}
+      
+      <div className="flex gap-2 items-center overflow-x-auto pb-1.5 max-w-full scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+        {/* Upload + Button Card */}
+        <button
+          type="button"
+          onClick={handleUploadClick}
+          disabled={uploading}
+          className="w-12 h-12 shrink-0 rounded-lg bg-[#0F0F0F] hover:bg-[#151515] border border-dashed border-[#2A2A2A] hover:border-blue-500/50 flex flex-col items-center justify-center text-gray-400 hover:text-white transition-all cursor-pointer relative"
+          title="Upload Custom Image File"
+        >
+          {uploading ? (
+            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          ) : (
+            <>
+              <Plus size={14} className="mb-0.5 text-gray-500" />
+              <span className="text-[7px] font-bold text-gray-400">Add</span>
+            </>
+          )}
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/*"
+          className="hidden"
+        />
+
+        {/* Custom Uploaded Images */}
+        {customImages.map(asset => {
+          const isSelected = value === asset.url;
+          return (
+            <button
+              key={asset.id}
+              type="button"
+              onClick={() => onChange(asset.url)}
+              className={`w-12 h-12 shrink-0 rounded-lg overflow-hidden border transition-all cursor-pointer relative group ${
+                isSelected 
+                  ? 'border-blue-500 ring-1 ring-blue-500/50 bg-blue-950/20' 
+                  : 'border-[#222] hover:border-[#444] bg-black/40'
+              }`}
+              title={`Custom: ${asset.name}`}
+            >
+              <img src={asset.url} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <span className="absolute bottom-0 inset-x-0 bg-blue-600/80 text-[6px] text-white py-0.5 font-bold text-center truncate">
+                My Asset
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Presets List */}
+        {presets.map(preset => {
+          const isSelected = value === preset.url;
+          return (
+            <button
+              key={preset.url}
+              type="button"
+              onClick={() => onChange(preset.url)}
+              className={`w-12 h-12 shrink-0 rounded-lg overflow-hidden border transition-all cursor-pointer relative group ${
+                isSelected 
+                  ? 'border-blue-500 ring-1 ring-blue-500/50 bg-blue-950/20' 
+                  : 'border-[#222] hover:border-[#444] bg-black/40'
+              }`}
+              title={preset.name}
+            >
+              <img src={preset.url} alt={preset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[6px] text-gray-300 py-0.5 text-center truncate group-hover:text-white">
+                {preset.name.replace(/[^\w\s]/g, '').trim()}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 import { 
   Trash2, 
   Play, 
@@ -511,7 +659,10 @@ import {
   RefreshCw,
   ClipboardCheck,
   Camera,
-  X
+  X,
+  Smile,
+  Image as ImageIcon,
+  User
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../lib/theme';
@@ -1255,6 +1406,7 @@ export function InspectorPanel({ width }: { width?: number }) {
 
   const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography' | 'theme'>('inspector');
   const [linkAxes, setLinkAxes] = useState(false);
+  const [showMarkerStudio, setShowMarkerStudio] = useState(false);
   const [previewingPresetId, setPreviewingPresetId] = useState<string | null>(null);
   const [originalTextProps, setOriginalTextProps] = useState<any | null>(null);
 
@@ -4722,7 +4874,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </p>
 
                     {/* Texture Map */}
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-2">
                       <MediaAssetPicker 
                         value={obj.properties.textureUrl || ''}
                         onChange={(url) => handlePropertyChange('textureUrl', url)}
@@ -4730,6 +4882,11 @@ export function InspectorPanel({ width }: { width?: number }) {
                         accept="image/*"
                         placeholder="Select Image Asset..."
                         label="Texture Base Map"
+                      />
+                      <TextureThumbnailGrid
+                        value={obj.properties.textureUrl || ''}
+                        onChange={(url) => handlePropertyChange('textureUrl', url)}
+                        presets={MEDIA_PRESETS['image']}
                       />
                     </div>
 
@@ -5200,7 +5357,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
 
                 {/* 3D Text Surface Texture & Material */}
-                <div className="bg-[#1A1A1A]/30 border border-[#222] rounded-lg p-2.5 flex flex-col gap-2">
+                <div className="bg-[#1A1A1A]/30 border border-[#222] rounded-lg p-2.5 flex flex-col gap-2.5">
                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">3D Text Surface Texture & Material</span>
                   <MediaAssetPicker 
                     value={obj.properties.textureUrl || ''}
@@ -5209,6 +5366,11 @@ export function InspectorPanel({ width }: { width?: number }) {
                     accept="image/*"
                     placeholder="Paste/Upload Text Texture Pattern..."
                     label="Surface Texture Map"
+                  />
+                  <TextureThumbnailGrid
+                    value={obj.properties.textureUrl || ''}
+                    onChange={(url) => handlePropertyChange('textureUrl', url)}
+                    presets={MEDIA_PRESETS['image']}
                   />
                   <div className="grid grid-cols-2 gap-2 mt-1">
                     <div className="flex flex-col gap-1">
@@ -5259,6 +5421,39 @@ export function InspectorPanel({ width }: { width?: number }) {
                     label="Image URL Source"
                   />
                 </div>
+
+                {/* Visual Texture Preview Box */}
+                <div className="flex flex-col gap-1">
+                  <div className="relative w-full h-24 rounded-lg bg-[#080808] border border-[#222] overflow-hidden flex items-center justify-center group shadow-inner">
+                    <div className="absolute inset-0 bg-[radial-gradient(#222_1px,transparent_1px)] [background-size:12px_12px] opacity-40" />
+                    
+                    {obj.properties.textureUrl ? (
+                      <div className="relative w-full h-full flex items-center justify-center z-10 p-2">
+                        <img 
+                          src={obj.properties.textureUrl} 
+                          alt="Billboard Texture Preview" 
+                          className="max-h-full max-w-full object-contain rounded shadow-lg border border-white/10 group-hover:scale-105 transition-transform duration-200"
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative flex flex-col items-center justify-center text-center p-2 z-10">
+                        <div className="w-10 h-10 rounded-lg bg-[#111] border border-[#222] flex items-center justify-center text-gray-500 mb-1">
+                          <ImageIcon size={20} />
+                        </div>
+                        <span className="text-[9px] font-semibold text-gray-400">No Image Loaded</span>
+                        <span className="text-[8px] text-gray-600">Enter a URL or upload a file</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <TextureThumbnailGrid
+                  value={obj.properties.textureUrl || ''}
+                  onChange={(url) => handlePropertyChange('textureUrl', url)}
+                  presets={MEDIA_PRESETS['image']}
+                  label="Quick Preset & Custom Textures"
+                />
+
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10px]">
                     <span className="text-[#666]">Opacity</span>
@@ -6166,34 +6361,261 @@ export function InspectorPanel({ width }: { width?: number }) {
               </div>
             )}
 
-            {/* --- 9. AR IMAGE TARGET MARKER CONFIG --- */}
+            {/* --- 9. AR TARGET (IMAGE / FACE) CONFIG --- */}
             {obj.type === 'imageTarget' && (
               <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <MediaAssetPicker 
-                    value={obj.properties.textureUrl || ''}
-                    onChange={(url) => handlePropertyChange('textureUrl', url)}
-                    type="image"
-                    accept="image/*"
-                    placeholder="Paste Marker Image URL..."
-                    label="AR target Marker Image"
-                  />
-                  <span className="text-[8px] text-[#555]">This acts as the physical 2D visual blueprint the mobile camera scans to overlay content.</span>
+                
+                {/* Texture Asset Preview & Editing Panel at the top of Target Properties */}
+                <div className="p-3 rounded-xl bg-gradient-to-b from-[#181818] to-[#111111] border border-[#2B2B2B] flex flex-col gap-2.5 shadow-md">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                      <ImageIcon size={12} />
+                      Target Texture Preview
+                    </span>
+                    <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                      {(obj.properties.targetType || settings.trackingMode || 'image') === 'face' ? 'Face Mesh Landmark' : '2D Print Marker'}
+                    </span>
+                  </div>
+
+                  {/* Visual Texture Preview Box */}
+                  <div className="relative w-full h-32 rounded-lg bg-[#080808] border border-[#222] overflow-hidden flex items-center justify-center group shadow-inner">
+                    <div className="absolute inset-0 bg-[radial-gradient(#222_1px,transparent_1px)] [background-size:12px_12px] opacity-40" />
+                    
+                    {(obj.properties.targetType || settings.trackingMode || 'image') === 'face' ? (
+                      /* Face Landmark Target Visual */
+                      <div className="relative flex flex-col items-center justify-center text-center p-2 z-10">
+                        <div className="w-16 h-16 rounded-full bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 animate-pulse mb-1">
+                          <Smile size={32} />
+                        </div>
+                        <span className="text-[9px] font-bold text-purple-300">Face Landmark Anchor</span>
+                        <span className="text-[8px] text-gray-500 font-mono">Anchor: {settings.faceAnchor || 'head'}</span>
+                      </div>
+                    ) : (
+                      /* Image Target Texture Image Preview */
+                      <div className="relative w-full h-full flex items-center justify-center z-10 p-2">
+                        <img 
+                          src={obj.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE} 
+                          alt="AR Target Texture" 
+                          className="max-h-full max-w-full object-contain rounded shadow-lg border border-white/10 group-hover:scale-105 transition-transform duration-200"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = DEFAULT_ART_POSTER_TEXTURE;
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Editing Texture Options */}
+                  <div className="flex flex-col gap-2 pt-1">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                      Texture Options & Studio
+                    </label>
+
+                    <div className="flex flex-col gap-2.5">
+                      {/* Open AR Marker Studio */}
+                      <button
+                        type="button"
+                        onClick={() => setShowMarkerStudio(true)}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 border border-blue-500/40 hover:border-blue-400 text-blue-300 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm"
+                        title="Open Printable AR Marker Studio & Quality Analyzer"
+                      >
+                        <Printer size={12} className="text-blue-400" />
+                        <span>Open Printable AR Marker Studio & Analyzer</span>
+                      </button>
+
+                      {/* Texture Thumbnail Grid */}
+                      {(obj.properties.targetType || settings.trackingMode || 'image') === 'image' && (
+                        <TextureThumbnailGrid
+                          value={obj.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE}
+                          onChange={(url) => handlePropertyChange('textureUrl', url)}
+                          presets={SAMPLE_TARGET_TEXTURES}
+                          label="Select Target Texture (Custom & Presets)"
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Target Physical Width (meters)</label>
-                  <input 
-                    type="number" 
-                    step="0.05"
-                    value={obj.properties.physicalWidth || 1}
-                    onChange={(e) => handlePropertyChange('physicalWidth', parseFloat(e.target.value) || 1)}
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
-                  />
+
+                {/* Target Type Switcher */}
+                <div className="p-2.5 rounded-xl bg-[#0F0F0F] border border-[#222] flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                      <Sparkles size={12} className="text-blue-400" />
+                      Target Type
+                    </label>
+                    <span className="text-[9px] font-mono text-[#777]">
+                      {(obj.properties.targetType || settings.trackingMode || 'image') === 'face' ? 'MindAR Face v1.2' : 'MindAR Image v1.2'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#161616] rounded-lg border border-[#252525]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handlePropertyChange('targetType', 'image');
+                        updateSettings({ trackingMode: 'image' });
+                        if (obj.name === 'Face Target') {
+                          handlePropertyChange('name', 'Image Target');
+                        }
+                        useEditorStore.getState().addToast('Target switched to Image Target');
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                        (obj.properties.targetType || settings.trackingMode || 'image') === 'image'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'text-[#888] hover:text-white hover:bg-[#222]'
+                      }`}
+                    >
+                      <ImageIcon size={13} />
+                      <span>Image Target</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handlePropertyChange('targetType', 'face');
+                        updateSettings({ trackingMode: 'face' });
+                        if (obj.name === 'Image Target') {
+                          handlePropertyChange('name', 'Face Target');
+                        }
+                        useEditorStore.getState().addToast('Target switched to Face Target');
+                      }}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                        (obj.properties.targetType || settings.trackingMode) === 'face'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'text-[#888] hover:text-white hover:bg-[#222]'
+                      }`}
+                    >
+                      <Smile size={13} />
+                      <span>Face Target</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* IMAGE TARGET SPECIFIC CONTROLS */}
+                {(obj.properties.targetType || settings.trackingMode || 'image') === 'image' ? (
+                  <div className="flex flex-col gap-3 pt-1">
+                    <div className="flex flex-col gap-1">
+                      <MediaAssetPicker 
+                        value={obj.properties.textureUrl || ''}
+                        onChange={(url) => handlePropertyChange('textureUrl', url)}
+                        type="image"
+                        accept="image/*"
+                        placeholder="Paste Marker Image URL..."
+                        label="AR Target Marker Image"
+                      />
+                      <span className="text-[8px] text-[#555]">Physical 2D image blueprint scanned by camera.</span>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] text-[#888] font-medium flex items-center justify-between">
+                        <span>Target Physical Width (meters)</span>
+                        <span className="font-mono text-blue-400 font-bold">{obj.properties.physicalWidth || 0.1}m</span>
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        min="0.001"
+                        value={obj.properties.physicalWidth || 0.1}
+                        onChange={(e) => handlePropertyChange('physicalWidth', parseFloat(e.target.value) || 0.1)}
+                        className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded-lg w-full border border-[#222] focus:border-blue-500 text-white outline-none"
+                      />
+                      
+                      <div className="grid grid-cols-4 gap-1 pt-1">
+                        {[
+                          { label: 'Card', val: 0.09 },
+                          { label: 'QR', val: 0.05 },
+                          { label: 'A4', val: 0.21 },
+                          { label: 'Mag', val: 0.22 },
+                        ].map(preset => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => handlePropertyChange('physicalWidth', preset.val)}
+                            className="py-1 bg-[#181818] hover:bg-[#222] rounded border border-[#2A2A2A] text-[9px] font-mono text-[#AAA] hover:text-white text-center cursor-pointer transition-colors"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* FACE TARGET SPECIFIC CONTROLS */
+                  <div className="flex flex-col gap-3 pt-1">
+                    {/* Face Anchor Selector */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] text-[#888] font-bold flex items-center gap-1.5">
+                        <User size={12} className="text-purple-400" />
+                        Face Anchor Point
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'head', name: 'Head / Nose Bridge', icon: '👤' },
+                          { id: 'nose', name: 'Nose Tip', icon: '👃' },
+                          { id: 'forehead', name: 'Forehead / Crown', icon: '🧢' },
+                          { id: 'chin', name: 'Chin / Jawline', icon: '🧔' },
+                          { id: 'leftEye', name: 'Left Eye', icon: '👁️' },
+                          { id: 'rightEye', name: 'Right Eye', icon: '👁️' },
+                          { id: 'mouth', name: 'Mouth / Lips', icon: '👄' },
+                        ].map(item => {
+                          const activeAnchor = settings.faceAnchor || 'head';
+                          const isSelected = activeAnchor === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                updateSettings({ faceAnchor: item.id as any });
+                                useEditorStore.getState().addToast(`Face Anchor set to ${item.name}`);
+                              }}
+                              className={`p-1.5 rounded-lg border text-left flex items-center gap-1.5 transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-purple-950/40 border-purple-500 text-white font-bold'
+                                  : 'bg-[#121212] border-[#222] text-[#888] hover:text-white hover:border-[#333]'
+                              }`}
+                            >
+                              <span className="text-xs">{item.icon}</span>
+                              <span className="text-[10px] truncate">{item.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Mesh & Occluder Toggles */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#222]">
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>Face Mesh</span>
+                          <input
+                            type="checkbox"
+                            checked={!!settings.showFaceMesh}
+                            onChange={(e) => updateSettings({ showFaceMesh: e.target.checked })}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-purple-600 focus:ring-purple-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#666]">3D Wireframe</span>
+                      </label>
+
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>3D Occluder</span>
+                          <input
+                            type="checkbox"
+                            checked={settings.showFaceOccluder ?? true}
+                            onChange={(e) => updateSettings({ showFaceOccluder: e.target.checked })}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-blue-600 focus:ring-blue-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#666]">Mask Head Back</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Advanced MindAR Tracking Settings */}
                 <div className="flex flex-col gap-2 border-t border-[#222] pt-3">
-                  <span className="text-[9px] font-bold text-[#888] uppercase tracking-wider">Advanced Tracking Settings</span>
+                  <span className="text-[9px] font-bold text-[#888] uppercase tracking-wider">Advanced MindAR Filters</span>
                   
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] text-[#666]">Filter Min CF (Jitter Reduction)</label>
@@ -7639,6 +8061,10 @@ export function InspectorPanel({ width }: { width?: number }) {
           )
         )}
       </div>
+
+      {showMarkerStudio && (
+        <MarkerManagerModal onClose={() => setShowMarkerStudio(false)} />
+      )}
     </aside>
   );
 }

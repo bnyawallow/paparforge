@@ -4,6 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html, Environment, ContactShadows } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
+import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
 import { GlassCard, GlassFAB } from '../ui/HudComponents';
@@ -891,31 +892,339 @@ function ImageTargetLoadingFallback({ obj }: { obj: SceneObject }) {
   );
 }
 
-function ImageTargetRenderer({ obj }: { obj: SceneObject }) {
-  if (obj.properties.textureUrl) {
-    return <ImageTargetWithTexture obj={obj} />;
-  }
-  
-  const width = (obj.properties.physicalWidth || 1) * 50;
+function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
+  const settings = useEditorStore(state => state.settings);
+  const updateSettings = useEditorStore(state => state.updateSettings);
+  const addToast = useEditorStore(state => state.addToast);
+  const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const selectObject = useEditorStore(state => state.selectObject);
+  const openAssetBrowser = useEditorStore(state => state.openAssetBrowser);
+
+  const currentAnchor = settings.faceAnchor || 'head';
+  const [hoveredAnchor, setHoveredAnchor] = useState<string | null>(null);
+
+  const anchorPositions: Record<string, { pos: [number, number, number]; label: string; icon: string }> = {
+    head: { pos: [0, 0.1, 0], label: 'Center Head', icon: '👤' },
+    forehead: { pos: [0, 0.65, 0.72], label: 'Forehead / Crown', icon: '👑' },
+    nose: { pos: [0, -0.12, 0.88], label: 'Nose Bridge', icon: '👃' },
+    leftEye: { pos: [-0.32, 0.25, 0.76], label: 'Left Eye Orbit', icon: '👁️' },
+    rightEye: { pos: [0.32, 0.25, 0.76], label: 'Right Eye Orbit', icon: '👁️' },
+    mouth: { pos: [0, -0.48, 0.78], label: 'Lips / Mouth', icon: '👄' },
+    chin: { pos: [0, -0.85, 0.58], label: 'Chin / Jawline', icon: '🗿' }
+  };
+
+  const activePos = anchorPositions[currentAnchor]?.pos || anchorPositions.head.pos;
+
+  const handleSelectAnchor = (anchor: string, e?: any) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    updateSettings({ faceAnchor: anchor as any });
+    addToast(`Selected Face Anchor: ${anchorPositions[anchor]?.label || anchor.toUpperCase()}`);
+  };
+
   return (
-    <mesh>
-      <planeGeometry args={[width, width]} />
-      <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
-    </mesh>
+    <group>
+      {/* 3D Anatomical Realistic Head Model Contour */}
+      <group position={[0, 0, 0]} scale={[0.82, 1.15, 0.92]}>
+        {/* Inner Glass Volume */}
+        <mesh>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshStandardMaterial
+            color="#8b5cf6"
+            roughness={0.15}
+            metalness={0.7}
+            transparent
+            opacity={0.3}
+          />
+        </mesh>
+
+        {/* Detailed Facial Wireframe Topology Grid */}
+        <mesh>
+          <sphereGeometry args={[1.01, 32, 24]} />
+          <meshBasicMaterial
+            color={settings.showFaceMesh ? "#38bdf8" : "#a855f7"}
+            wireframe
+            transparent
+            opacity={settings.showFaceMesh ? 0.5 : 0.25}
+          />
+        </mesh>
+      </group>
+
+      {/* Facial Feature Contours (Mediapipe / ARKit Topology) */}
+      {/* Eye Socket Rings & Pupils */}
+      <group position={[-0.32, 0.25, 0.76]}>
+        <mesh>
+          <ringGeometry args={[0.06, 0.1, 24]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} transparent opacity={0.8} />
+        </mesh>
+        <mesh position={[0, 0, 0.01]}>
+          <sphereGeometry args={[0.04, 16, 16]} />
+          <meshBasicMaterial color="#a855f7" />
+        </mesh>
+      </group>
+
+      <group position={[0.32, 0.25, 0.76]}>
+        <mesh>
+          <ringGeometry args={[0.06, 0.1, 24]} />
+          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} transparent opacity={0.8} />
+        </mesh>
+        <mesh position={[0, 0, 0.01]}>
+          <sphereGeometry args={[0.04, 16, 16]} />
+          <meshBasicMaterial color="#a855f7" />
+        </mesh>
+      </group>
+
+      {/* Eyebrow Contours */}
+      <mesh position={[-0.32, 0.42, 0.74]} rotation={[0, 0, -0.15]}>
+        <boxGeometry args={[0.22, 0.03, 0.02]} />
+        <meshBasicMaterial color="#c084fc" />
+      </mesh>
+      <mesh position={[0.32, 0.42, 0.74]} rotation={[0, 0, 0.15]}>
+        <boxGeometry args={[0.22, 0.03, 0.02]} />
+        <meshBasicMaterial color="#c084fc" />
+      </mesh>
+
+      {/* Nose Bridge Contour */}
+      <mesh position={[0, -0.05, 0.82]} rotation={[0.2, 0, 0]}>
+        <cylinderGeometry args={[0.03, 0.08, 0.3, 16]} />
+        <meshBasicMaterial color="#c084fc" transparent opacity={0.8} />
+      </mesh>
+
+      {/* Lips / Mouth Contour */}
+      <mesh position={[0, -0.48, 0.78]} rotation={[0, 0, Math.PI / 2]}>
+        <capsuleGeometry args={[0.04, 0.28, 8, 16]} />
+        <meshBasicMaterial color="#f43f5e" transparent opacity={0.85} />
+      </mesh>
+
+      {/* Cheekbone Landmark Accents */}
+      <mesh position={[-0.5, -0.1, 0.65]}>
+        <sphereGeometry args={[0.05, 12, 12]} />
+        <meshBasicMaterial color="#a855f7" transparent opacity={0.5} />
+      </mesh>
+      <mesh position={[0.5, -0.1, 0.65]}>
+        <sphereGeometry args={[0.05, 12, 12]} />
+        <meshBasicMaterial color="#a855f7" transparent opacity={0.5} />
+      </mesh>
+
+      {/* Interactive 3D Landmark Nodes (Clickable directly on the 3D Face Model) */}
+      {Object.entries(anchorPositions).map(([key, { pos, label }]) => {
+        const isActive = currentAnchor === key;
+        const isHovered = hoveredAnchor === key;
+
+        return (
+          <group key={key} position={pos}>
+            <mesh
+              onClick={(e) => handleSelectAnchor(key, e)}
+              onPointerOver={(e) => { e.stopPropagation(); setHoveredAnchor(key); }}
+              onPointerOut={() => setHoveredAnchor(null)}
+            >
+              <sphereGeometry args={[isActive ? 0.09 : (isHovered ? 0.08 : 0.06), 16, 16]} />
+              <meshBasicMaterial
+                color={isActive ? "#22d3ee" : (isHovered ? "#f59e0b" : "#c084fc")}
+              />
+            </mesh>
+
+            {/* Active / Hover Ring Halo */}
+            {(isActive || isHovered) && (
+              <mesh>
+                <ringGeometry args={[0.11, 0.16, 32]} />
+                <meshBasicMaterial
+                  color={isActive ? "#06b6d4" : "#f59e0b"}
+                  side={THREE.DoubleSide}
+                  transparent
+                  opacity={0.85}
+                />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
+
+      {/* Active Anchor Reticle Highlight Pointer */}
+      <group position={activePos}>
+        <mesh>
+          <sphereGeometry args={[0.1, 16, 16]} />
+          <meshBasicMaterial color="#22d3ee" />
+        </mesh>
+        <mesh>
+          <ringGeometry args={[0.18, 0.25, 32]} />
+          <meshBasicMaterial color="#06b6d4" side={THREE.DoubleSide} transparent opacity={0.85} />
+        </mesh>
+      </group>
+
+      {/* Floating Pictarize Face Studio HUD Panel */}
+      {!isPreviewMode && (
+        <Html position={[0, 1.45, 0]} center distanceFactor={6} pointerEvents="auto">
+          <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-black/80 backdrop-blur-xl border border-purple-500/40 shadow-2xl text-white select-none transition-all">
+            <div className="flex items-center gap-2 border-b border-white/10 pb-1 w-full justify-between px-1">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                Pictarize Face Anchor
+              </span>
+              <span className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                {currentAnchor.toUpperCase()}
+              </span>
+            </div>
+
+            {/* Quick Landmark Anchor Selector Chips */}
+            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[220px]">
+              {Object.entries(anchorPositions).map(([key, { label, icon }]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={(e) => handleSelectAnchor(key, e)}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    currentAnchor === key
+                      ? 'bg-cyan-500 text-black font-bold shadow-sm shadow-cyan-500/50 scale-105'
+                      : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+                  }`}
+                  title={`Select ${label}`}
+                >
+                  <span>{icon}</span>
+                  <span className="capitalize">{key}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Attach Asset Quick Action */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                selectObject(obj.id);
+                openAssetBrowser();
+              }}
+              className="mt-0.5 w-full py-1 px-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg text-[10px] font-bold text-white shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+            >
+              <Sparkles size={11} className="text-amber-300" />
+              <span>Attach Asset to {currentAnchor.toUpperCase()}</span>
+            </button>
+          </div>
+        </Html>
+      )}
+    </group>
   );
 }
 
-function ImageTargetWithTexture({ obj }: { obj: SceneObject }) {
-  const texture = useTexture(obj.properties.textureUrl) as any;
-  const width = (obj.properties.physicalWidth || 1) * 50;
-  const height = texture && texture.image ? width * (texture.image.height / texture.image.width) : width;
-  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
+function ImageTargetRenderer({ obj }: { obj: SceneObject }) {
+  const trackingMode = useEditorStore(state => state.settings.trackingMode);
+  const isFace = obj.properties?.targetType === 'face' || (trackingMode === 'face' && obj.properties?.targetType !== 'image');
   
+  if (isFace) {
+    return <FaceTarget3DRenderer obj={obj} />;
+  }
+
+  const textureUrl = obj.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE;
+
+  return <ImageTargetWithTexture obj={{ ...obj, properties: { ...obj.properties, textureUrl } }} />;
+}
+
+function createFallbackCanvasTexture(title: string = 'AR Target') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createLinearGradient(0, 0, 512, 512);
+    grad.addColorStop(0, '#1e1b4b');
+    grad.addColorStop(0.5, '#312e81');
+    grad.addColorStop(1, '#4338ca');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 4;
+    for (let i = 0; i <= 512; i += 64) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#818cf8';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(12, 12, 488, 488);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ART POSTER', 256, 220);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#a5b4fc';
+    ctx.fillText(title, 256, 270);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function useSafeTexture(url?: string) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setTexture(null);
+    const targetUrl = url || DEFAULT_ART_POSTER_TEXTURE;
+
+    const loader = new THREE.TextureLoader();
+    if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+      loader.crossOrigin = 'anonymous';
+    }
+
+    loader.load(
+      targetUrl,
+      (tex) => {
+        if (!active) return;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.mapping = THREE.UVMapping;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        setTexture(tex);
+      },
+      undefined,
+      (err) => {
+        console.warn('Failed to load target texture via TextureLoader, using fallback:', targetUrl, err);
+        if (active) {
+          setTexture(createFallbackCanvasTexture());
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
+  return texture;
+}
+
+function ImageTargetWithTexture({ obj }: { obj: SceneObject }) {
+  const texture = useSafeTexture(obj.properties?.textureUrl);
+  const rawWidth = obj.properties?.physicalWidth || 0.1;
+  const width = rawWidth <= 1 ? rawWidth * 50 : rawWidth;
+  const img = texture?.image as HTMLImageElement | HTMLCanvasElement | undefined;
+  const height = img && img.width ? width * (img.height / img.width) : width * 1.25;
+  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
+
   return (
-    <mesh>
-      <planeGeometry args={[width, height]} />
-      {texture && <meshBasicMaterial map={texture} transparent opacity={0.8} side={THREE.DoubleSide} wireframe={wireframe} />}
-    </mesh>
+    <group>
+      <mesh>
+        <planeGeometry args={[width, height]} />
+        {texture ? (
+          <meshBasicMaterial key={texture.uuid} map={texture} transparent opacity={0.95} side={THREE.DoubleSide} wireframe={wireframe} />
+        ) : (
+          <meshBasicMaterial color="#4f46e5" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
+        )}
+      </mesh>
+
+      {/* Target Outline Accent Frame */}
+      <mesh position={[0, 0, 0.005]}>
+        <ringGeometry args={[Math.min(width, height) * 0.48, Math.min(width, height) * 0.5, 32]} />
+        <meshBasicMaterial color="#6366f1" side={THREE.DoubleSide} transparent opacity={0.3} />
+      </mesh>
+    </group>
   );
 }
 
@@ -1063,7 +1372,6 @@ function PhysicalMaterialLoader({
   const [maps, setMaps] = useState<Record<string, THREE.Texture>>({});
 
   useEffect(() => {
-    const loader = new THREE.TextureLoader();
     const loadedMaps: Record<string, THREE.Texture> = {};
     let active = true;
 
@@ -1078,7 +1386,11 @@ function PhysicalMaterialLoader({
     const loadPromises = Object.entries(urls).map(([key, url]) => {
       if (!url) return Promise.resolve();
       return new Promise<void>((resolve) => {
-        loader.load(
+        const individualLoader = new THREE.TextureLoader();
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          individualLoader.crossOrigin = 'anonymous';
+        }
+        individualLoader.load(
           url,
           (tex) => {
             if (active) {
@@ -1096,7 +1408,8 @@ function PhysicalMaterialLoader({
             resolve();
           },
           undefined,
-          () => {
+          (err) => {
+            console.warn('Failed to load map texture:', key, url, err);
             // Error loading texture - resolve silently to prevent crashing
             resolve();
           }
@@ -1119,10 +1432,12 @@ function PhysicalMaterialLoader({
 
   // Determine default shader if not explicitly chosen
   const activeShader = shaderType || (clearcoat > 0 || transmission > 0 ? 'physical' : 'standard');
+  const textureKey = Object.values(maps).map(t => t.uuid).join('-') || 'no-texture';
 
   if (activeShader === 'toon') {
     return (
       <meshToonMaterial
+        key={textureKey}
         color={color}
         map={maps.map || null}
         normalMap={maps.normalMap || null}
@@ -1140,6 +1455,7 @@ function PhysicalMaterialLoader({
   if (activeShader === 'basic') {
     return (
       <meshBasicMaterial
+        key={textureKey}
         color={color}
         map={maps.map || null}
         wireframe={wireframe}
@@ -1153,6 +1469,7 @@ function PhysicalMaterialLoader({
   if (activeShader === 'normal') {
     return (
       <meshNormalMaterial
+        key={textureKey}
         displacementMap={maps.displacementMap || null}
         displacementScale={displacementScale}
         wireframe={wireframe}
@@ -1166,6 +1483,7 @@ function PhysicalMaterialLoader({
   if (activeShader === 'physical') {
     return (
       <meshPhysicalMaterial
+        key={textureKey}
         color={color}
         map={maps.map || null}
         normalMap={maps.normalMap || null}
@@ -1202,6 +1520,7 @@ function PhysicalMaterialLoader({
 
   return (
     <meshStandardMaterial
+      key={textureKey}
       color={color}
       map={maps.map || null}
       normalMap={maps.normalMap || null}
@@ -2200,6 +2519,27 @@ function ObjectRenderer({ id }: { id: string }) {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [isPreviewMode, (obj?.events || [])]);
+
+  // Determine active target (persists across selection changes and preview mode)
+  const activeTargetId = useEditorStore((state) => {
+    if (state.selectedObjectId && state.objects[state.selectedObjectId]) {
+      let currObj: any = state.objects[state.selectedObjectId];
+      while (currObj) {
+        if (currObj.type === 'imageTarget') return currObj.id;
+        currObj = currObj.parentId ? state.objects[currObj.parentId] : null;
+      }
+    }
+    if (state.lastSelectedTargetId && state.objects[state.lastSelectedTargetId]?.type === 'imageTarget') {
+      return state.lastSelectedTargetId;
+    }
+    const firstTarget = Object.values(state.objects).find((o) => o.type === 'imageTarget');
+    return firstTarget ? firstTarget.id : null;
+  });
+
+  // If this object is an imageTarget and is not the active target, hide it in the viewport
+  if (obj && obj.type === 'imageTarget' && activeTargetId && obj.id !== activeTargetId) {
+    return null;
+  }
 
   if (!obj || !obj.visible) return null;
 
@@ -3650,7 +3990,7 @@ export function Viewport() {
                   ) : (
                     <>
                       <RefreshCw size={10} className="text-amber-400 animate-spin shrink-0" />
-                      <span>Searching Marker...</span>
+                      <span>{settings.trackingMode === 'face' ? 'Detecting Face...' : 'Searching Marker...'}</span>
                     </>
                   )}
                 </div>
@@ -3675,8 +4015,12 @@ export function Viewport() {
               {/* Tracking Guide Helper message */}
               <div className="flex justify-center mb-1 bg-black/45 backdrop-blur-sm p-2 rounded-lg border border-white/5 text-center text-white/70 text-[9px] mx-4 pointer-events-auto leading-relaxed">
                 {trackingStable 
-                  ? "🎯 Point your screen at the physical image print target. Drag to rotate model, click to interact!"
-                  : "🔍 Calibrating spatial environment sensors. Keep camera stable."
+                  ? (settings.trackingMode === 'face' 
+                      ? "👤 Face Locked! 3D glasses & facial filters actively attached to your mesh."
+                      : "🎯 Point your screen at the physical image print target. Drag to rotate model, click to interact!")
+                  : (settings.trackingMode === 'face'
+                      ? "👤 Position your face clearly in the camera frame for real-time landmark tracking."
+                      : "🔍 Calibrating spatial environment sensors. Keep camera stable.")
                 }
               </div>
 

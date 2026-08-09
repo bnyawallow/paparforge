@@ -72,6 +72,10 @@ export interface Asset {
 export interface ProjectSettings {
   projectName: string;
   imageTargetName: string | null;
+  trackingMode?: 'image' | 'face';
+  faceAnchor?: 'head' | 'nose' | 'forehead' | 'chin' | 'leftEye' | 'rightEye' | 'mouth';
+  showFaceMesh?: boolean;
+  showFaceOccluder?: boolean;
   ambientColor?: string;
   ambientIntensity?: number;
   directionalColor?: string;
@@ -143,6 +147,8 @@ export interface EditorState {
   rootObjects: string[];
   selectedObjectId: string | null;
   selectedObjectIds: string[];
+  lastSelectedTargetId?: string | null;
+  setLastSelectedTargetId?: (id: string | null) => void;
   selectedObjectRef: any | null;
   settings: ProjectSettings;
   transformMode: 'translate' | 'rotate' | 'scale';
@@ -183,7 +189,9 @@ export interface EditorState {
   setRotationSnapIncrement: (increment: number) => void;
   
   isAssetBrowserOpen: boolean;
+  assetBrowserTab?: string;
   setIsAssetBrowserOpen: (open: boolean) => void;
+  openAssetBrowser: (tab?: string) => void;
   replaceTargetObjectId: string | null;
   setReplaceTargetObjectId: (id: string | null) => void;
   replaceObjectAsset: (targetObjectId: string, newAsset: {

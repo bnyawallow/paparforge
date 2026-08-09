@@ -1,6 +1,7 @@
 
 import * as THREE from 'three';
 import { Vector3Data } from '../types';
+import { DEFAULT_ART_POSTER_TEXTURE } from './arTargetTexture';
 
 export const convertEditorToAR = (
   pos: [number, number, number],
@@ -8,7 +9,7 @@ export const convertEditorToAR = (
   scale: [number, number, number],
   physicalWidth: number
 ): { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } => {
-  const S = 1.0 / ((physicalWidth || 1) * 50);
+  const S = 1.0 / ((physicalWidth || 0.1) * 50);
 
   // 1. Position Transformation - aligned with XY plane (X = width, Y = height, Z = normal)
   const pos_ar: [number, number, number] = [
@@ -97,10 +98,38 @@ const buildMaterialAttr = (properties: any, isPlane = false): string => {
   return parts.join('; ');
 };
 
+export const getFaceAnchorIndex = (anchor?: string): number => {
+  switch (anchor) {
+    case 'nose': return 4;
+    case 'forehead': return 10;
+    case 'chin': return 152;
+    case 'leftEye': return 33;
+    case 'rightEye': return 263;
+    case 'mouth': return 13;
+    case 'head':
+    default: return 1;
+  }
+};
+
 export const generateAFrameScene = (state: any) => {
   const { objects, rootObjects, settings } = state;
-  const imageTargetObj = Object.values(objects).find((o: any) => o.type === 'imageTarget') as any;
-  const targetImageUrl = imageTargetObj?.properties?.textureUrl || '';
+  const imageTargetObjs: any[] = [];
+  rootObjects.forEach((id: string) => {
+    const obj = objects[id];
+    if (obj && obj.type === 'imageTarget') {
+      imageTargetObjs.push(obj);
+    }
+  });
+  Object.values(objects).forEach((obj: any) => {
+    if (obj && obj.type === 'imageTarget' && !imageTargetObjs.includes(obj)) {
+      imageTargetObjs.push(obj);
+    }
+  });
+
+  const targetImageUrls = imageTargetObjs
+    .map((o: any) => o.properties?.textureUrl || DEFAULT_ART_POSTER_TEXTURE);
+  const imageTargetObj = imageTargetObjs[0] || null;
+  const targetImageUrl = targetImageUrls[0] || DEFAULT_ART_POSTER_TEXTURE;
   let entitiesHtml = '';
   const audioAssetUrls = new Set<string>();
   if (settings.ambientSoundUrl) {
@@ -183,9 +212,13 @@ export const generateAFrameScene = (state: any) => {
 
       const classAttr = isClickable ? ' class="clickable"' : '';
 
-      // Check if this object is a direct child of the image target
-      const physicalWidth = imageTargetObj?.properties?.physicalWidth || 1;
-      const isDirectChild = imageTargetObj?.children?.includes(id);
+      // Check if this object is a direct child of any image target
+      const parentTargetObj = (obj.parentId && objects[obj.parentId]?.type === 'imageTarget')
+        ? objects[obj.parentId]
+        : Object.values(objects).find((o: any) => o.type === 'imageTarget' && (o.children || []).includes(id)) || null;
+
+      const isDirectChild = !!parentTargetObj;
+      const physicalWidth = parentTargetObj?.properties?.physicalWidth || 0.1;
 
       let positionStr = obj.position.join(' ');
       let rotationStr = obj.rotation.join(' ');
@@ -196,11 +229,25 @@ export const generateAFrameScene = (state: any) => {
         positionStr = transformed.position.map(v => Number(v.toFixed(6))).join(' ');
         rotationStr = transformed.rotation.map(v => Number(v.toFixed(6))).join(' ');
         scaleStr = transformed.scale.map(v => Number(v.toFixed(6))).join(' ');
+        customComponents += ` data-physical-width="${physicalWidth}"`;
       }
 
       let finalClassAttr = classAttr;
       if ((obj.states && obj.states.length > 0) || (obj.events && obj.events.length > 0)) {
-        const statesJson = JSON.stringify(obj.states || []).replace(/"/g, '&quot;');
+        const transformedStates = (obj.states || []).map((st: any) => {
+          if (isDirectChild && st.position && st.rotation && st.scale) {
+            const tr = convertEditorToAR(st.position, st.rotation, st.scale, physicalWidth);
+            return {
+              ...st,
+              position: tr.position.map(v => Number(v.toFixed(6))),
+              rotation: tr.rotation.map(v => Number(v.toFixed(6))),
+              scale: tr.scale.map(v => Number(v.toFixed(6))),
+            };
+          }
+          return st;
+        });
+
+        const statesJson = JSON.stringify(transformedStates).replace(/"/g, '&quot;');
         const eventsJson = JSON.stringify(obj.events || []).replace(/"/g, '&quot;');
         customComponents += ` state-machine data-states="${statesJson}" data-events="${eventsJson}" data-base-position="${positionStr}" data-base-rotation="${rotationStr}" data-base-scale="${scaleStr}"`;
         
@@ -326,18 +373,44 @@ export const generateAFrameScene = (state: any) => {
       return entity;
     };
 
-    rootObjects.forEach(id => {
-      const obj = objects[id];
-      if (obj && obj.type === 'imageTarget') {
-        entitiesHtml += `      <a-entity mindar-image-target="targetIndex: 0">\n`;
-        obj.children.forEach(childId => {
-          entitiesHtml += buildEntity(childId, 2);
-        });
-        entitiesHtml += `      </a-entity>\n`;
-      } else if (obj && obj.type !== 'imageTarget') {
-        entitiesHtml += buildEntity(id, 1);
+    const isFaceTracking = settings?.trackingMode === 'face';
+
+    if (isFaceTracking) {
+      const faceAnchorIndex = getFaceAnchorIndex(settings?.faceAnchor);
+      entitiesHtml += `      <a-entity mindar-face-target="anchorIndex: ${faceAnchorIndex}">\n`;
+      if (settings?.showFaceMesh) {
+        entitiesHtml += `        <a-entity mindar-face-default-face-mesh></a-entity>\n`;
       }
-    });
+      if (settings?.showFaceOccluder ?? true) {
+        entitiesHtml += `        <a-entity mindar-face-occluder></a-entity>\n`;
+      }
+      rootObjects.forEach(id => {
+        const obj = objects[id];
+        if (obj && obj.type === 'imageTarget') {
+          obj.children.forEach(childId => {
+            entitiesHtml += buildEntity(childId, 2);
+          });
+        } else if (obj) {
+          entitiesHtml += buildEntity(id, 2);
+        }
+      });
+      entitiesHtml += `      </a-entity>\n`;
+    } else {
+      let targetIdx = 0;
+      rootObjects.forEach(id => {
+        const obj = objects[id];
+        if (obj && obj.type === 'imageTarget') {
+          entitiesHtml += `      <a-entity mindar-image-target="targetIndex: ${targetIdx}">\n`;
+          obj.children.forEach(childId => {
+            entitiesHtml += buildEntity(childId, 2);
+          });
+          entitiesHtml += `      </a-entity>\n`;
+          targetIdx++;
+        } else if (obj && obj.type !== 'imageTarget') {
+          entitiesHtml += buildEntity(id, 1);
+        }
+      });
+    }
 
     
     let overlayHtml = '';
@@ -769,6 +842,7 @@ ${audioPreloadScript}
     <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
 
     <script>
       // Draggable Component for AR/VR
@@ -955,6 +1029,14 @@ ${audioPreloadScript}
       
       // --- New State & Event Machine Component ---
       AFRAME.registerComponent('state-machine', {
+        triggerEvent: function(triggerName) {
+          if (!this.events) return;
+          this.events.forEach(evt => {
+            if (evt.trigger === triggerName) {
+              this.executeActions(evt.actions);
+            }
+          });
+        },
         init: function() {
           const el = this.el;
           this.states = [];
@@ -1703,6 +1785,18 @@ ${audioPreloadScript}
               video.pause();
             }
           });
+
+          const targetParent = el.closest('[mindar-image-target], [mindar-face-target]');
+          if (targetParent) {
+            targetParent.addEventListener('targetFound', () => {
+              if (data.autoplay) {
+                video.play().catch(e => console.log(e));
+              }
+            });
+            targetParent.addEventListener('targetLost', () => {
+              video.pause();
+            });
+          }
         }
       });
 
@@ -1921,12 +2015,16 @@ ${audioPreloadScript}
         </div>
 
         <!-- Mini Preview Inset Thumbnail -->
-        ${targetImageUrl ? `
+        ${targetImageUrls.length > 0 ? `
         <div style="margin-top: 14px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 8px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); pointer-events: none;">
-          <img src="${targetImageUrl}" style="width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: #000; border: 1px solid rgba(255, 255, 255, 0.15);" />
+          <div style="display: flex; gap: 6px; max-width: 200px; overflow-x: auto; padding-bottom: 2px;">
+            ${targetImageUrls.map((url, idx) => `
+              <img src="${url}" title="Target #${idx + 1}" style="width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: #000; border: 1px solid rgba(251, 191, 36, 0.4); flex-shrink: 0;" />
+            `).join('')}
+          </div>
           <div style="text-align: left;">
-            <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #fbbf24;">Tracking Marker</div>
-            <div style="font-size: 9px; color: rgba(255, 255, 255, 0.55); margin-top: 2px;">Keep target in view during scan.</div>
+            <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #fbbf24;">${targetImageUrls.length > 1 ? `${targetImageUrls.length} Tracking Markers` : 'Tracking Marker'}</div>
+            <div style="font-size: 9px; color: rgba(255, 255, 255, 0.55); margin-top: 2px;">Point camera at any target image.</div>
           </div>
         </div>
         ` : ''}
@@ -2054,9 +2152,15 @@ ${audioPreloadScript}
 
     <!-- WebAR Scene Rendering Engine -->
     <template id="scene-template">
-      <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: 1; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5}; uiScanning: no;" 
+      ${isFaceTracking ? `
+      <a-scene mindar-face="autoStart: true; uiScanning: no; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5};" 
                embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false"
                ${settings.hdrEnvironmentEnabled ? `hdr-environment="enabled: true; type: ${settings.hdrEnvironmentType || 'preset'}; preset: ${settings.hdrPreset || 'studio'}; url: ${settings.hdrEnvironmentUrl || ''}; showBackground: ${settings.hdrBackgroundEnabled ?? false}"` : ''}>
+      ` : `
+      <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: ${Object.values(objects).filter((o: any) => o.type === 'imageTarget').length || 1}; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5}; uiScanning: no;" 
+               embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false"
+               ${settings.hdrEnvironmentEnabled ? `hdr-environment="enabled: true; type: ${settings.hdrEnvironmentType || 'preset'}; preset: ${settings.hdrPreset || 'studio'}; url: ${settings.hdrEnvironmentUrl || ''}; showBackground: ${settings.hdrBackgroundEnabled ?? false}"` : ''}>
+      `}
         
         <a-assets>
           ${Array.from(audioAssetUrls).map((url, i) => `<audio id="audio-asset-${i}" src="${url}" preload="auto"></audio>`).join('\n          ')}
@@ -2191,68 +2295,111 @@ ${entitiesHtml}
           console.error('[MINDAR-ERROR] AR Engine initialization failed:', event);
         });
 
-        // Listen for targetFound and targetLost on MindAR target entity
-        const targetEl = scene.querySelector('[mindar-image-target]');
-        if (targetEl) {
-          targetEl.addEventListener('targetFound', (event) => {
-            console.log('[MINDAR-TRACKING] Image target found! Fading scanning UI.');
-            hideScanningOverlay();
-            document.querySelectorAll('[visual-behavior]').forEach(el => {
-              if (el.components['visual-behavior']) {
-                el.components['visual-behavior'].triggerEvent('onTargetFound');
-              }
-            });
-          });
+        // Listen for targetFound and targetLost on MindAR target entities
+        const targetEls = scene.querySelectorAll('[mindar-face-target], [mindar-image-target]');
+        if (targetEls.length > 0) {
+          let visibleTargetsCount = 0;
+          targetEls.forEach(targetEl => {
+            targetEl.addEventListener('targetFound', (event) => {
+              visibleTargetsCount++;
+              console.log('[MINDAR-TRACKING] Target found (' + visibleTargetsCount + ' active). Fading scanning UI.');
+              hideScanningOverlay();
+              const triggerChildren = (evtName) => {
+                const behaviors = targetEl.querySelectorAll('[visual-behavior]');
+                behaviors.forEach(el => {
+                  if (el.components['visual-behavior']) {
+                    el.components['visual-behavior'].triggerEvent(evtName);
+                  }
+                });
+                if (targetEl.hasAttribute('visual-behavior') && targetEl.components['visual-behavior']) {
+                  targetEl.components['visual-behavior'].triggerEvent(evtName);
+                }
 
-          targetEl.addEventListener('targetLost', (event) => {
-            console.log('[MINDAR-TRACKING] Image target lost.');
-            showScanningOverlay();
-            document.querySelectorAll('[visual-behavior]').forEach(el => {
-              if (el.components['visual-behavior']) {
-                el.components['visual-behavior'].triggerEvent('onTargetLost');
+                const stateMachines = targetEl.querySelectorAll('[state-machine]');
+                stateMachines.forEach(el => {
+                  if (el.components['state-machine']) {
+                    el.components['state-machine'].triggerEvent(evtName);
+                  }
+                });
+                if (targetEl.hasAttribute('state-machine') && targetEl.components['state-machine']) {
+                  targetEl.components['state-machine'].triggerEvent(evtName);
+                }
+              };
+
+              triggerChildren('onTargetFound');
+            });
+
+            targetEl.addEventListener('targetLost', (event) => {
+              visibleTargetsCount = Math.max(0, visibleTargetsCount - 1);
+              console.log('[MINDAR-TRACKING] Target lost (' + visibleTargetsCount + ' remaining).');
+              if (visibleTargetsCount === 0) {
+                showScanningOverlay();
               }
+              const triggerChildren = (evtName) => {
+                const behaviors = targetEl.querySelectorAll('[visual-behavior]');
+                behaviors.forEach(el => {
+                  if (el.components['visual-behavior']) {
+                    el.components['visual-behavior'].triggerEvent(evtName);
+                  }
+                });
+                if (targetEl.hasAttribute('visual-behavior') && targetEl.components['visual-behavior']) {
+                  targetEl.components['visual-behavior'].triggerEvent(evtName);
+                }
+
+                const stateMachines = targetEl.querySelectorAll('[state-machine]');
+                stateMachines.forEach(el => {
+                  if (el.components['state-machine']) {
+                    el.components['state-machine'].triggerEvent(evtName);
+                  }
+                });
+                if (targetEl.hasAttribute('state-machine') && targetEl.components['state-machine']) {
+                  targetEl.components['state-machine'].triggerEvent(evtName);
+                }
+              };
+
+              triggerChildren('onTargetLost');
             });
           });
         } else {
-          console.warn('[WARN] mindar-image-target entity not found in scene.');
+          console.warn('[WARN] MindAR target entity not found in scene.');
         }
       }
 
-      async function compileTargetImage(imageUrl) {
-        console.log('[STAGE] Starting target image compilation...');
+      function loadImage(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Failed to load target image: ' + url));
+          img.src = url;
+        });
+      }
+
+      async function compileTargetImages(imageUrls) {
+        console.log('[STAGE] Starting compilation for ' + imageUrls.length + ' target image(s)...');
         const statusEl = document.getElementById('compiler-status');
         const progressEl = document.getElementById('compiler-progress');
         
         try {
-          statusEl.innerText = 'Fetching marker image...';
+          statusEl.innerText = 'Loading ' + imageUrls.length + ' marker image(s)...';
           progressEl.style.width = '10%';
           
-          // Load image element
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          
-          const loadPromise = new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = () => reject(new Error('Failed to load target image: ' + imageUrl));
-          });
-          
-          img.src = imageUrl;
-          await loadPromise;
+          const images = await Promise.all(imageUrls.map(url => loadImage(url)));
           
           statusEl.innerText = 'Analyzing feature points...';
           progressEl.style.width = '30%';
           
-          console.log('[STAGE] Image loaded successfully, dimensions: ' + img.width + 'x' + img.height);
+          console.log('[STAGE] All ' + images.length + ' target images loaded successfully.');
           
           // Create MindAR Compiler
           const compiler = new MINDAR.IMAGE.Compiler();
           
-          progressEl.style.width = '50%';
-          statusEl.innerText = 'Compiling WebAR dataset (this may take a few seconds)...';
+          progressEl.style.width = '40%';
+          statusEl.innerText = 'Compiling WebAR dataset for ' + images.length + ' target(s)...';
           
-          // Compile track with a progress callback
-          await compiler.compileImageTargets([img], (percent) => {
-            const displayPercent = Math.min(Math.round(50 + (percent / 2)), 99);
+          // Compile all target images together into single .mind tracking dataset
+          await compiler.compileImageTargets(images, (percent) => {
+            const displayPercent = Math.min(Math.round(40 + (percent * 0.59)), 99);
             progressEl.style.width = displayPercent + '%';
             statusEl.innerText = 'Extracting keypoints (' + Math.round(percent) + '%)...';
           });
@@ -2261,10 +2408,10 @@ ${entitiesHtml}
           statusEl.innerText = 'Finalizing tracking database...';
           
           const buffer = compiler.exportData();
-          const blob = new Blob([buffer], {type: 'application/octet-stream'});
+          const blob = new Blob([buffer], { type: 'application/octet-stream' });
           const mindUrl = URL.createObjectURL(blob);
           
-          console.log('[STAGE] Dynamic compilation complete. Created MindAR object URL: ' + mindUrl);
+          console.log('[STAGE] Dynamic multi-target compilation complete. Created MindAR object URL: ' + mindUrl);
           return mindUrl;
           
         } catch (err) {
@@ -2277,9 +2424,32 @@ ${entitiesHtml}
       }
 
       async function initAR() {
-        const imageUrl = "${targetImageUrl}";
-        if (!imageUrl) {
-          console.error('[ERROR] No target image URL specified for tracking.');
+        const isFaceMode = ${isFaceTracking ? 'true' : 'false'};
+        if (isFaceMode) {
+          const compilerOverlay = document.getElementById('compiler-overlay');
+          if (compilerOverlay) compilerOverlay.style.display = 'none';
+          
+          const template = document.getElementById('scene-template');
+          if (!template) {
+            console.error('[ERROR] Scene template element not found in DOM.');
+            return;
+          }
+          
+          let sceneHtml = template.innerHTML;
+          const sceneContainer = document.createElement('div');
+          sceneContainer.innerHTML = sceneHtml;
+          const scene = sceneContainer.querySelector('a-scene');
+          if (scene) {
+            attachSceneListeners(scene);
+          }
+          document.body.appendChild(sceneContainer.firstElementChild);
+          console.log('[STAGE] MindAR Face tracking scene injected directly!');
+          return;
+        }
+
+        const imageUrls = ${JSON.stringify(targetImageUrls)};
+        if (!imageUrls || imageUrls.length === 0) {
+          console.error('[ERROR] No target image URLs specified for tracking.');
           const compilerOverlay = document.getElementById('compiler-overlay');
           if (compilerOverlay) compilerOverlay.style.display = 'none';
           showToast('Error: No target image uploaded for AR tracking.');
@@ -2287,7 +2457,7 @@ ${entitiesHtml}
         }
         
         try {
-          const mindUrl = await compileTargetImage(imageUrl);
+          const mindUrl = await compileTargetImages(imageUrls);
           
           const statusText = document.getElementById('compiler-status');
           if (statusText) statusText.innerText = 'Starting AR Engine...';

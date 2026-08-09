@@ -25,7 +25,7 @@ interface TemplateCardData {
   bgGradient: string;
 }
 
-const TEMPLATE_SCAFFOLDS: TemplateCardData[] = [
+export const TEMPLATE_SCAFFOLDS: TemplateCardData[] = [
   {
     id: 'product_showcase',
     title: 'Magazine Product Showcase',

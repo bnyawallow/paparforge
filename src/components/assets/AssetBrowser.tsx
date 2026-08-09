@@ -1,12 +1,15 @@
 import { playCachedAudio } from '../../lib/audioManager';
 import React, { useRef, useState, useEffect } from 'react';
-import { useEditorStore } from '../../store/useEditorStore';
+import { useEditorStore, generateTemplate } from '../../store/useEditorStore';
+import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 import { instantiateTemplate, PREBUILT_TEMPLATES } from '../../utils/prebuiltTemplates';
+import { TEMPLATE_SCAFFOLDS } from '../templates/TemplatesLibraryModal';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { v4 as uuidv4 } from 'uuid';
 import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
 import { 
   Image as ImageIcon, 
+  Smile,
   Video, 
   Box, 
   FileCode, 
@@ -1111,7 +1114,14 @@ export function AssetBrowser() {
       Object.values(hoverTimeoutRef.current).forEach(clearTimeout);
     };
   }, []);
-  const [activeTab, setActiveTab] = useState<CategoryTab>('text-styles');
+  const storeAssetBrowserTab = useEditorStore(state => state.assetBrowserTab);
+  const [activeTab, setActiveTab] = useState<CategoryTab>('templates');
+
+  useEffect(() => {
+    if (storeAssetBrowserTab && isAssetBrowserOpen) {
+      setActiveTab(storeAssetBrowserTab as CategoryTab);
+    }
+  }, [storeAssetBrowserTab, isAssetBrowserOpen]);
   const [uiKitSearchQuery, setUiKitSearchQuery] = useState('');
   const [selectedUiKitCategory, setSelectedUiKitCategory] = useState<string>('All');
   const [selectedUiKitTarget, setSelectedUiKitTarget] = useState<string>('All');
@@ -1195,6 +1205,72 @@ export function AssetBrowser() {
       setRecentAssets(newList);
     } catch (e) {
       console.warn("Error adding to recent assets:", e);
+    }
+  };
+
+  const handleAddImageTargetAsset = () => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    const existingTarget = Object.values(objects).find((o: any) => o.type === 'imageTarget');
+    if (existingTarget) {
+      updateObject(existingTarget.id, {
+        name: 'AR Target',
+        properties: {
+          ...existingTarget.properties,
+          targetType: 'image'
+        }
+      });
+      updateSettings({ trackingMode: 'image' });
+      useEditorStore.getState().addToast('AR Target set to Image mode');
+    } else {
+      const targetId = uuidv4();
+      addObject({
+        id: targetId,
+        name: 'AR Target',
+        type: 'imageTarget',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        locked: true,
+        children: [],
+        parentId: null,
+        properties: { targetType: 'image', physicalWidth: 0.1, textureUrl: DEFAULT_ART_POSTER_TEXTURE }
+      });
+      updateSettings({ trackingMode: 'image' });
+      useEditorStore.getState().addToast('Added AR Target (Image) to scene');
+    }
+  };
+
+  const handleAddFaceTargetAsset = () => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    const existingTarget = Object.values(objects).find((o: any) => o.type === 'imageTarget');
+    if (existingTarget) {
+      updateObject(existingTarget.id, {
+        name: 'AR Target',
+        properties: {
+          ...existingTarget.properties,
+          targetType: 'face'
+        }
+      });
+      updateSettings({ trackingMode: 'face' });
+      useEditorStore.getState().addToast('AR Target set to Face mode');
+    } else {
+      const targetId = uuidv4();
+      addObject({
+        id: targetId,
+        name: 'AR Target',
+        type: 'imageTarget',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        locked: true,
+        children: [],
+        parentId: null,
+        properties: { targetType: 'face' }
+      });
+      updateSettings({ trackingMode: 'face' });
+      useEditorStore.getState().addToast('Added AR Target (Face) to scene');
     }
   };
 
@@ -2604,8 +2680,8 @@ export function AssetBrowser() {
             onClick={() => setActiveTab('markers')}
             className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 transition-all ${activeTab === 'markers' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-[#A0A0A0] hover:text-white hover:bg-white/10'}`}
           >
-            <ImageIcon size={16} className={activeTab === "markers" ? "text-white" : "text-green-400"} />
-            <span className="font-medium">AR Markers</span>
+            <Sparkles size={16} className={activeTab === "markers" ? "text-white" : "text-indigo-400"} />
+            <span className="font-medium">AR Targets & Markers</span>
           </button>
 
           <button 
@@ -3058,6 +3134,49 @@ export function AssetBrowser() {
                     ))}
                   </div>
                 </div>
+
+                {/* AR Print Campaign Scaffold Templates */}
+                {TEMPLATE_SCAFFOLDS.filter(scaffold => {
+                  const matchSearch = scaffold.title.toLowerCase().includes(templateSearchQuery.toLowerCase()) || 
+                                     scaffold.description.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
+                                     scaffold.categoryLabel.toLowerCase().includes(templateSearchQuery.toLowerCase());
+                  const matchTag = templateFilterTag === 'all' || templateFilterTag === 'complex' || templateFilterTag === scaffold.category;
+                  return matchSearch && matchTag;
+                }).map((scaffold) => {
+                  const IconComponent = scaffold.icon;
+                  return (
+                    <button
+                      key={scaffold.id}
+                      onClick={() => {
+                        const { objects: newObjs, rootObjects: newRoots } = generateTemplate('AR Experience', scaffold.id as any);
+                        useEditorStore.setState({ objects: newObjs, rootObjects: newRoots });
+                        useEditorStore.getState().addToast(`Loaded scaffold: ${scaffold.title}`);
+                        setIsAssetBrowserOpen(false);
+                      }}
+                      className="flex flex-col p-4 bg-gradient-to-br from-blue-900/30 via-purple-900/20 to-black/40 hover:from-blue-800/40 hover:to-purple-800/30 border border-blue-500/30 hover:border-blue-400 rounded-2xl transition-all cursor-pointer group hover:scale-[1.02] text-left gap-2 shadow-lg col-span-2 sm:col-span-3 md:col-span-2 lg:col-span-2 relative overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                          {scaffold.badge}
+                        </span>
+                        <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
+                          <IconComponent size={16} />
+                        </div>
+                      </div>
+                      <h3 className="text-sm font-bold text-white group-hover:text-blue-200 transition-colors">
+                        {scaffold.title}
+                      </h3>
+                      <p className="text-[10px] text-gray-300 leading-snug line-clamp-2">
+                        {scaffold.description}
+                      </p>
+                      <div className="mt-auto pt-2 flex flex-wrap gap-1">
+                        <span className="text-[8px] uppercase tracking-wider font-bold bg-white/10 px-2 py-0.5 rounded text-gray-300">
+                          {scaffold.categoryLabel}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
 
                 {/* Prebuilt Advanced Templates */}
                 {PREBUILT_TEMPLATES.filter(t => {
@@ -4153,35 +4272,121 @@ export function AssetBrowser() {
             </div>
           )}
 
-          {/* MARKERS TAB */}
+          {/* MARKERS & AR TARGETS TAB */}
           {activeTab === 'markers' && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 content-start">
-              {PRESET_MARKERS.map(marker => (
-                <div 
-                  key={marker.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, marker)}
-                  onDoubleClick={() => handleUseAsset(marker)}
-                  className="bg-[#141414] border border-[#222] hover:border-green-500 rounded p-2.5 flex flex-col gap-1 cursor-grab hover:bg-[#1A1A1A] transition-all group relative"
-                  title="Drag to the Viewport or Double-click to set tracking marker"
-                >
-                  <div className="w-full aspect-[4/3] overflow-hidden rounded bg-black/40 relative">
-                    <img src={marker.url} alt={marker.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    <div className="absolute top-1.5 right-1.5 bg-black/75 px-1.5 py-0.5 rounded text-[8px] font-bold text-green-400 flex items-center gap-0.5">
-                      ★ {marker.rating}
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-white mt-1">{marker.name}</span>
-                  <p className="text-[9px] text-[#666] leading-snug w-full">{marker.description}</p>
-                  
-                  <button 
-                    onClick={() => handleUseAsset(marker)}
-                    className="mt-1 w-full text-center bg-[#222] hover:bg-green-600 border border-[#333] hover:border-green-500 text-white text-[10px] font-semibold py-1 rounded transition-colors"
-                  >
-                    Set as Active Target
-                  </button>
+            <div className="flex flex-col gap-5 overflow-y-auto pr-1">
+              {/* Primary Target Assets Section */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-blue-400" />
+                    AR Target Objects (Scene Blueprint)
+                  </h3>
+                  <span className="text-[10px] text-[#888] font-mono">Select or add to scene</span>
                 </div>
-              ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Image Target Card Asset */}
+                  <div 
+                    onClick={handleAddImageTargetAsset}
+                    onDoubleClick={handleAddImageTargetAsset}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between group relative ${
+                      (settings.trackingMode || 'image') === 'image'
+                        ? 'bg-blue-950/30 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
+                        : 'bg-[#141414] border-[#222] hover:border-blue-500/50 hover:bg-[#1A1A1A]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <ImageIcon size={18} />
+                        </div>
+                        <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                          MindAR Image
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white mb-1 group-hover:text-blue-300 transition-colors">Image Target</h4>
+                      <p className="text-[10px] text-[#888] leading-relaxed">
+                        Track 2D posters, business cards, billboards, food packages, and printed markers in physical space.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAddImageTargetAsset(); }}
+                      className="mt-3 w-full py-1.5 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/40 text-blue-200 hover:text-white text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={12} />
+                      Set as Active Image Target
+                    </button>
+                  </div>
+
+                  {/* Face Target Card Asset */}
+                  <div 
+                    onClick={handleAddFaceTargetAsset}
+                    onDoubleClick={handleAddFaceTargetAsset}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between group relative ${
+                      settings.trackingMode === 'face'
+                        ? 'bg-purple-950/30 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.2)]'
+                        : 'bg-[#141414] border-[#222] hover:border-purple-500/50 hover:bg-[#1A1A1A]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Smile size={18} />
+                        </div>
+                        <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          MindAR Face
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white mb-1 group-hover:text-purple-300 transition-colors">Face Target</h4>
+                      <p className="text-[10px] text-[#888] leading-relaxed">
+                        Real-time 3D face mesh landmark tracking. Place 3D glasses, hats, masks, cosmetics, and face filters.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAddFaceTargetAsset(); }}
+                      className="mt-3 w-full py-1.5 bg-purple-600/20 hover:bg-purple-600 border border-purple-500/40 text-purple-200 hover:text-white text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={12} />
+                      Set as Active Face Target
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Preset Image Target Prints */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-[#222]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#A0A0A0]">Sample 2D Target Prints</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {PRESET_MARKERS.map(marker => (
+                    <div 
+                      key={marker.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, marker)}
+                      onDoubleClick={() => handleUseAsset(marker)}
+                      className="bg-[#141414] border border-[#222] hover:border-green-500 rounded p-2.5 flex flex-col gap-1 cursor-grab hover:bg-[#1A1A1A] transition-all group relative"
+                      title="Drag to the Viewport or Double-click to set tracking marker"
+                    >
+                      <div className="w-full aspect-[4/3] overflow-hidden rounded bg-black/40 relative">
+                        <img src={marker.url} alt={marker.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute top-1.5 right-1.5 bg-black/75 px-1.5 py-0.5 rounded text-[8px] font-bold text-green-400 flex items-center gap-0.5">
+                          ★ {marker.rating}
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-white mt-1">{marker.name}</span>
+                      <p className="text-[9px] text-[#666] leading-snug w-full">{marker.description}</p>
+                      
+                      <button 
+                        onClick={() => handleUseAsset(marker)}
+                        className="mt-1 w-full text-center bg-[#222] hover:bg-green-600 border border-[#333] hover:border-green-500 text-white text-[10px] font-semibold py-1 rounded transition-colors"
+                      >
+                        Set Image Marker Texture
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
