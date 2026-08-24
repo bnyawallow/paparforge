@@ -137,7 +137,7 @@ export const generateAFrameScene = (state: any) => {
   }
 
     
-    const buildEntity = (id: string, depth = 0): string => {
+    const buildEntity = (id: string, depth = 0, offset: [number, number, number] = [0, 0, 0]): string => {
       const obj = objects[id];
       if (!obj || !obj.visible) return '';
       // Skip 2D overlays in A-Frame 3D scene
@@ -220,7 +220,7 @@ export const generateAFrameScene = (state: any) => {
       const isDirectChild = !!parentTargetObj;
       const physicalWidth = parentTargetObj?.properties?.physicalWidth || 0.1;
 
-      let positionStr = obj.position.join(' ');
+      let positionStr = [(obj.position[0] - offset[0]).toFixed(6), (obj.position[1] - offset[1]).toFixed(6), (obj.position[2] - offset[2]).toFixed(6)].join(' ');
       let rotationStr = obj.rotation.join(' ');
       let scaleStr = obj.scale.join(' ');
 
@@ -242,6 +242,11 @@ export const generateAFrameScene = (state: any) => {
               position: tr.position.map(v => Number(v.toFixed(6))),
               rotation: tr.rotation.map(v => Number(v.toFixed(6))),
               scale: tr.scale.map(v => Number(v.toFixed(6))),
+            };
+          } else if (st.position) {
+            return {
+              ...st,
+              position: [Number((st.position[0] - offset[0]).toFixed(6)), Number((st.position[1] - offset[1]).toFixed(6)), Number((st.position[2] - offset[2]).toFixed(6))]
             };
           }
           return st;
@@ -377,21 +382,76 @@ export const generateAFrameScene = (state: any) => {
 
     if (isFaceTracking) {
       const faceAnchorIndex = getFaceAnchorIndex(settings?.faceAnchor);
+      entitiesHtml += `      <a-entity mindar-face-target="anchorIndex: 1">\n`;
+      
+      if (settings?.showFaceMesh ?? true) {
+        const meshType = settings?.faceMeshType || 'sparkar';
+        let textureUrl = settings?.faceMeshTextureUrl || '';
+        
+        if (!textureUrl) {
+          if (meshType === 'sparkar' || meshType === 'robbieTemplate') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMesh.png';
+          } else if (meshType === 'robbieFeminine') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceFeminine.jpg';
+          } else if (meshType === 'robbieMasculine') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMasculine.jpg';
+          } else if (meshType === 'trackingMap' || meshType === 'robbieTrackingMap') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshTrackers.png';
+          } else if (meshType === 'robbieMask') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshMask.png';
+          } else if (meshType === 'robbieMaskA') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshMaskA.jpg';
+          } else if (meshType === 'robbieMaskB') {
+            textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshMaskB.jpg';
+          }
+        }
+
+        if (meshType === 'robbieStaticMesh' || meshType === 'wireframe') {
+          entitiesHtml += `        <a-entity obj-model="obj: https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Mesh/faceMesh.obj" material="color: #c084fc; wireframe: true; transparent: true; opacity: 0.65" position="0 0 0" scale="10 10 10"></a-entity>\n`;
+        } else if (textureUrl) {
+          entitiesHtml += `        <a-entity obj-model="obj: https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Mesh/faceMesh.obj" material="src: ${textureUrl}; transparent: true; opacity: 0.92; shader: flat" position="0 0 0" scale="10 10 10"></a-entity>\n`;
+        } else {
+          entitiesHtml += `        <a-entity obj-model="obj: https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Mesh/faceMesh.obj" material="color: #8b5cf6; transparent: true; opacity: 0.5" position="0 0 0" scale="10 10 10"></a-entity>\n`;
+        }
+      }
+
+      const occluderType = settings?.faceOccluderType || 'sparkarRealistic';
+      if (settings?.showFaceOccluder !== false && occluderType !== 'none') {
+        if (occluderType === 'sparkarRealistic' || occluderType === 'robbieRealistic') {
+          const occluderUrl = settings?.faceOccluderModelUrl || 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Mesh/headOccluder.obj';
+          if (occluderUrl.endsWith('.obj')) {
+            entitiesHtml += `        <a-entity obj-model="obj: ${occluderUrl}" position="0 0 0" scale="10 10 10" head-occluder></a-entity>\n`;
+          } else {
+            entitiesHtml += `        <a-gltf-model src="${occluderUrl}" position="0 0 0" scale="10 10 10" head-occluder></a-gltf-model>\n`;
+          }
+        } else {
+          entitiesHtml += `        <a-entity mindar-face-occluder></a-entity>\n`;
+        }
+      }
+      entitiesHtml += `      </a-entity>\n`;
+
+      const anchorOffsets: Record<string, [number, number, number]> = {
+        head: [0, 0, -0.5],
+        forehead: [0, 0.7, -0.2],
+        nose: [0, -0.1, 0.0],
+        leftEye: [-0.35, 0.3, -0.15],
+        rightEye: [0.35, 0.3, -0.15],
+        mouth: [0, -0.5, -0.1],
+        chin: [0, -0.85, -0.2]
+      };
+      const currentAnchor = settings?.faceAnchor || 'head';
+      const offset = anchorOffsets[currentAnchor] || anchorOffsets.head;
+
       entitiesHtml += `      <a-entity mindar-face-target="anchorIndex: ${faceAnchorIndex}">\n`;
-      if (settings?.showFaceMesh) {
-        entitiesHtml += `        <a-entity mindar-face-default-face-mesh></a-entity>\n`;
-      }
-      if (settings?.showFaceOccluder ?? true) {
-        entitiesHtml += `        <a-entity mindar-face-occluder></a-entity>\n`;
-      }
+
       rootObjects.forEach(id => {
         const obj = objects[id];
         if (obj && obj.type === 'imageTarget') {
           obj.children.forEach(childId => {
-            entitiesHtml += buildEntity(childId, 2);
+            entitiesHtml += buildEntity(childId, 2, offset);
           });
         } else if (obj) {
-          entitiesHtml += buildEntity(id, 2);
+          entitiesHtml += buildEntity(id, 2, offset);
         }
       });
       entitiesHtml += `      </a-entity>\n`;
@@ -401,6 +461,13 @@ export const generateAFrameScene = (state: any) => {
         const obj = objects[id];
         if (obj && obj.type === 'imageTarget') {
           entitiesHtml += `      <a-entity mindar-image-target="targetIndex: ${targetIdx}">\n`;
+          
+          if (settings?.showTargetTextureOverlay3D && obj.properties?.textureUrl) {
+            const w = obj.properties.physicalWidth || 0.1;
+            const h = w * 1.25;
+            entitiesHtml += `        <a-plane src="${obj.properties.textureUrl}" width="${w.toFixed(4)}" height="${h.toFixed(4)}" position="0 0 0" rotation="-90 0 0" material="transparent: true; opacity: 0.4; shader: flat" class="ar-target-overlay-3d"></a-plane>\n`;
+          }
+
           obj.children.forEach(childId => {
             entitiesHtml += buildEntity(childId, 2);
           });
@@ -1800,6 +1867,31 @@ ${audioPreloadScript}
         }
       });
 
+      AFRAME.registerComponent('head-occluder', {
+        init: function() {
+          const applyColorWrite = () => {
+            const mesh = this.el.getObject3D('mesh') || this.el.object3D;
+            if (mesh) {
+              mesh.traverse((node) => {
+                if (node.isMesh && node.material) {
+                  const mats = Array.isArray(node.material) ? node.material : [node.material];
+                  mats.forEach((m) => {
+                    m.colorWrite = false;
+                    m.depthWrite = true;
+                  });
+                  node.renderOrder = -1;
+                }
+              });
+            }
+          };
+          this.el.addEventListener('model-loaded', applyColorWrite);
+          this.el.addEventListener('object3dset', applyColorWrite);
+          if (this.el.getObject3D('mesh')) {
+            applyColorWrite();
+          }
+        }
+      });
+
       AFRAME.registerComponent('ar-button-handler', {
         schema: {
           url: {type: 'string', default: ''}
@@ -2015,7 +2107,7 @@ ${audioPreloadScript}
         </div>
 
         <!-- Mini Preview Inset Thumbnail -->
-        ${targetImageUrls.length > 0 ? `
+        ${(settings?.showTrackerTextureInApp !== false) && targetImageUrls.length > 0 ? `
         <div style="margin-top: 14px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 8px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); pointer-events: none;">
           <div style="display: flex; gap: 6px; max-width: 200px; overflow-x: auto; padding-bottom: 2px;">
             ${targetImageUrls.map((url, idx) => `

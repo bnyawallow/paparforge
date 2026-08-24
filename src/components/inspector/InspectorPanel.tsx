@@ -6538,6 +6538,40 @@ export function InspectorPanel({ width }: { width?: number }) {
                         ))}
                       </div>
                     </div>
+
+                    {/* Published App Tracker Display Options */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-[#222]">
+                      <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ImageIcon size={12} />
+                        Published AR App Display Options
+                      </span>
+
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>Display AR Tracker Texture in App</span>
+                          <input
+                            type="checkbox"
+                            checked={settings.showTrackerTextureInApp ?? true}
+                            onChange={(e) => updateSettings({ showTrackerTextureInApp: e.target.checked })}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-blue-600 focus:ring-blue-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#777]">Shows marker image preview thumbnail on WebAR camera scanner guide.</span>
+                      </label>
+
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>Render 3D Target Overlay Plane</span>
+                          <input
+                            type="checkbox"
+                            checked={!!settings.showTargetTextureOverlay3D}
+                            onChange={(e) => updateSettings({ showTargetTextureOverlay3D: e.target.checked })}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-indigo-600 focus:ring-indigo-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#777]">Overlays semi-transparent tracker image onto detected surface in 3D AR space.</span>
+                      </label>
+                    </div>
                   </div>
                 ) : (
                   /* FACE TARGET SPECIFIC CONTROLS */
@@ -6582,33 +6616,98 @@ export function InspectorPanel({ width }: { width?: number }) {
                       </div>
                     </div>
 
-                    {/* Mesh & Occluder Toggles */}
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#222]">
-                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
-                          <span>Face Mesh</span>
-                          <input
-                            type="checkbox"
-                            checked={!!settings.showFaceMesh}
-                            onChange={(e) => updateSettings({ showFaceMesh: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded border-[#333] text-purple-600 focus:ring-purple-500 bg-[#222] cursor-pointer"
-                          />
-                        </span>
-                        <span className="text-[8px] text-[#666]">3D Wireframe</span>
+                    {/* SparkAR & MindAR Realistic Face Mesh Options */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-[#222]">
+                      <label className="text-[10px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Smile size={12} />
+                        Face Mesh Visual Assets
                       </label>
 
-                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
-                          <span>3D Occluder</span>
-                          <input
-                            type="checkbox"
-                            checked={settings.showFaceOccluder ?? true}
-                            onChange={(e) => updateSettings({ showFaceOccluder: e.target.checked })}
-                            className="w-3.5 h-3.5 rounded border-[#333] text-blue-600 focus:ring-blue-500 bg-[#222] cursor-pointer"
-                          />
-                        </span>
-                        <span className="text-[8px] text-[#666]">Mask Head Back</span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'sparkar', name: 'SparkAR Canonical UV', desc: 'faceMesh.png skin map' },
+                          { id: 'robbieFeminine', name: 'SparkAR Feminine Guide', desc: 'faceFeminine.jpg makeup map' },
+                          { id: 'robbieMasculine', name: 'SparkAR Masculine Guide', desc: 'faceMasculine.jpg facial features' },
+                          { id: 'robbieTrackingMap', name: 'SparkAR Landmark Grid', desc: 'faceMeshTrackers.png landmarks' },
+                          { id: 'robbieMask', name: 'SparkAR Face Alpha Mask', desc: 'faceMeshMask.png edge mask' },
+                          { id: 'robbieMaskA', name: 'SparkAR Mask Variant A', desc: 'faceMeshMaskA.jpg soft mask' },
+                          { id: 'robbieMaskB', name: 'SparkAR Mask Variant B', desc: 'faceMeshMaskB.jpg full mask' },
+                          { id: 'robbieStaticMesh', name: 'SparkAR 3D Face OBJ', desc: 'faceMesh.obj 3D geometry' },
+                          { id: 'wireframe', name: 'Topology Wireframe', desc: '3D Mesh Wireframe' },
+                        ].map(mOption => {
+                          const activeMesh = settings.faceMeshType || 'sparkar';
+                          const isSelected = activeMesh === mOption.id;
+                          return (
+                            <button
+                              key={mOption.id}
+                              type="button"
+                              onClick={() => {
+                                updateSettings({ faceMeshType: mOption.id as any, showFaceMesh: true });
+                                useEditorStore.getState().addToast(`Face Mesh updated to ${mOption.name}`);
+                              }}
+                              className={`p-2 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-purple-900/30 border-purple-500 text-white font-bold'
+                                  : 'bg-[#121212] border-[#222] text-[#888] hover:text-white hover:border-[#333]'
+                              }`}
+                            >
+                              <span className="text-[10px] text-white font-bold">{mOption.name}</span>
+                              <span className="text-[8px] text-[#666]">{mOption.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex items-center justify-between mt-1">
+                        <span className="text-[10px] font-bold text-white">Enable Face Mesh Overlay</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.showFaceMesh ?? true}
+                          onChange={(e) => updateSettings({ showFaceMesh: e.target.checked })}
+                          className="w-3.5 h-3.5 rounded border-[#333] text-purple-600 focus:ring-purple-500 bg-[#222] cursor-pointer"
+                        />
                       </label>
+                    </div>
+
+                    {/* Realistic 3D Head Occluder Options */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-[#222]">
+                      <label className="text-[10px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles size={12} />
+                        Realistic 3D Head Occluder
+                      </label>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'robbieRealistic', name: 'Robbie OBJ Occluder', desc: 'High-fidelity head depth mask (.obj)' },
+                          { id: 'sparkarRealistic', name: 'SparkAR GLTF', desc: 'Standard GLTF head depth mask' },
+                          { id: 'default', name: 'Standard MindAR', desc: 'Basic MindAR Mesh Occluder' },
+                          { id: 'none', name: 'Disabled', desc: 'No Head Depth Masking' },
+                        ].map(oOption => {
+                          const activeOccluder = settings.faceOccluderType || 'sparkarRealistic';
+                          const isSelected = activeOccluder === oOption.id;
+                          return (
+                            <button
+                              key={oOption.id}
+                              type="button"
+                              onClick={() => {
+                                updateSettings({
+                                  faceOccluderType: oOption.id as any,
+                                  showFaceOccluder: oOption.id !== 'none'
+                                });
+                                useEditorStore.getState().addToast(`Head Occluder updated to ${oOption.name}`);
+                              }}
+                              className={`p-1.5 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-900/30 border-blue-500 text-white font-bold'
+                                  : 'bg-[#121212] border-[#222] text-[#888] hover:text-white hover:border-[#333]'
+                              }`}
+                            >
+                              <span className="text-[9px] text-white font-bold">{oOption.name}</span>
+                              <span className="text-[7px] text-[#666] leading-tight">{oOption.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}

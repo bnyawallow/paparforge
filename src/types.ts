@@ -76,6 +76,12 @@ export interface ProjectSettings {
   faceAnchor?: 'head' | 'nose' | 'forehead' | 'chin' | 'leftEye' | 'rightEye' | 'mouth';
   showFaceMesh?: boolean;
   showFaceOccluder?: boolean;
+  faceMeshType?: 'sparkar' | 'robbieTemplate' | 'robbieFeminine' | 'robbieMasculine' | 'robbieTrackingMap' | 'robbieMask' | 'robbieMaskA' | 'robbieMaskB' | 'robbieStaticMesh' | 'trackingMap' | 'wireframe' | 'default' | 'custom';
+  faceMeshTextureUrl?: string;
+  faceOccluderType?: 'sparkarRealistic' | 'robbieRealistic' | 'default' | 'none';
+  faceOccluderModelUrl?: string;
+  showTrackerTextureInApp?: boolean;
+  showTargetTextureOverlay3D?: boolean;
   ambientColor?: string;
   ambientIntensity?: number;
   directionalColor?: string;

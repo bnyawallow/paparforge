@@ -1,7 +1,8 @@
 import { playCachedAudio, globalAudioCache } from '../../lib/audioManager';
 import React, { useRef, useState, useEffect, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html, Environment, ContactShadows } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
@@ -892,6 +893,87 @@ function ImageTargetLoadingFallback({ obj }: { obj: SceneObject }) {
   );
 }
 
+function RobbieFaceMesh3D({
+  textureUrl,
+  color = '#c084fc',
+  opacity = 0.88,
+  wireframe = false,
+}: {
+  textureUrl?: string;
+  color?: string;
+  opacity?: number;
+  wireframe?: boolean;
+}) {
+  const obj = useLoader(
+    OBJLoader,
+    'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Mesh/faceMesh.obj'
+  );
+  const faceTexture = useSafeTexture(textureUrl || '');
+
+  const clonedObj = React.useMemo(() => {
+    if (!obj) return null;
+    const clone = obj.clone(true);
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (textureUrl && faceTexture) {
+          mesh.material = new THREE.MeshBasicMaterial({
+            map: faceTexture,
+            transparent: true,
+            opacity: opacity,
+            side: THREE.DoubleSide,
+          });
+        } else {
+          mesh.material = new THREE.MeshStandardMaterial({
+            color: color,
+            wireframe: wireframe,
+            transparent: true,
+            opacity: opacity,
+            roughness: 0.3,
+            metalness: 0.3,
+            side: THREE.DoubleSide,
+          });
+        }
+      }
+    });
+    return clone;
+  }, [obj, faceTexture, textureUrl, color, opacity, wireframe]);
+
+  if (!clonedObj) return null;
+  return <primitive object={clonedObj} scale={[10, 10, 10]} position={[0, 0, 0]} />;
+}
+
+function RobbieHeadOccluder3D({ opacity = 0.35 }: { opacity?: number }) {
+  const obj = useLoader(
+    OBJLoader,
+    'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Mesh/headOccluder.obj'
+  );
+
+  const clonedObj = React.useMemo(() => {
+    if (!obj) return null;
+    const clone = obj.clone(true);
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        mesh.material = new THREE.MeshBasicMaterial({
+          color: '#3b82f6',
+          wireframe: true,
+          transparent: true,
+          opacity: opacity,
+        });
+      }
+    });
+    return clone;
+  }, [obj, opacity]);
+
+  if (!clonedObj) return null;
+  return <primitive object={clonedObj} scale={[10, 10, 10]} position={[0, 0, 0]} />;
+}
+
+function FaceMeshFallback() {
+  return null;
+}
+
 function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
   const settings = useEditorStore(state => state.settings);
   const updateSettings = useEditorStore(state => state.updateSettings);
@@ -904,13 +986,13 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
   const [hoveredAnchor, setHoveredAnchor] = useState<string | null>(null);
 
   const anchorPositions: Record<string, { pos: [number, number, number]; label: string; icon: string }> = {
-    head: { pos: [0, 0.1, 0], label: 'Center Head', icon: '👤' },
-    forehead: { pos: [0, 0.65, 0.72], label: 'Forehead / Crown', icon: '👑' },
-    nose: { pos: [0, -0.12, 0.88], label: 'Nose Bridge', icon: '👃' },
-    leftEye: { pos: [-0.32, 0.25, 0.76], label: 'Left Eye Orbit', icon: '👁️' },
-    rightEye: { pos: [0.32, 0.25, 0.76], label: 'Right Eye Orbit', icon: '👁️' },
-    mouth: { pos: [0, -0.48, 0.78], label: 'Lips / Mouth', icon: '👄' },
-    chin: { pos: [0, -0.85, 0.58], label: 'Chin / Jawline', icon: '🗿' }
+    head: { pos: [0, 0, -0.5], label: 'Center Head', icon: '👤' },
+    forehead: { pos: [0, 0.7, -0.2], label: 'Forehead / Crown', icon: '👑' },
+    nose: { pos: [0, -0.1, 0.0], label: 'Nose Bridge', icon: '👃' },
+    leftEye: { pos: [-0.35, 0.3, -0.15], label: 'Left Eye Orbit', icon: '👁️' },
+    rightEye: { pos: [0.35, 0.3, -0.15], label: 'Right Eye Orbit', icon: '👁️' },
+    mouth: { pos: [0, -0.5, -0.1], label: 'Lips / Mouth', icon: '👄' },
+    chin: { pos: [0, -0.85, -0.2], label: 'Chin / Jawline', icon: '🗿' }
   };
 
   const activePos = anchorPositions[currentAnchor]?.pos || anchorPositions.head.pos;
@@ -921,89 +1003,43 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
     addToast(`Selected Face Anchor: ${anchorPositions[anchor]?.label || anchor.toUpperCase()}`);
   };
 
+  const meshType = settings.faceMeshType || 'sparkar';
+  let textureUrl = settings.faceMeshTextureUrl || '';
+  if (!textureUrl) {
+    if (meshType === 'sparkar' || meshType === 'robbieTemplate') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMesh.png';
+    } else if (meshType === 'robbieFeminine') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceFeminine.jpg';
+    } else if (meshType === 'robbieMasculine') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMasculine.jpg';
+    } else if (meshType === 'trackingMap' || meshType === 'robbieTrackingMap') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshTrackers.png';
+    } else if (meshType === 'robbieMask') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshMask.png';
+    } else if (meshType === 'robbieMaskA') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshMaskA.jpg';
+    } else if (meshType === 'robbieMaskB') {
+      textureUrl = 'https://cdn.jsdelivr.net/gh/RobbieConceptuel/Spark-AR-Face-Assets@main/Textures/faceMeshMaskB.jpg';
+    }
+  }
+
+  const occluderType = settings.faceOccluderType || 'sparkarRealistic';
+  const hasOccluder = settings.showFaceOccluder !== false && occluderType !== 'none';
+
   return (
     <group>
-      {/* 3D Anatomical Realistic Head Model Contour */}
-      <group position={[0, 0, 0]} scale={[0.82, 1.15, 0.92]}>
-        {/* Inner Glass Volume */}
-        <mesh>
-          <sphereGeometry args={[1, 32, 32]} />
-          <meshStandardMaterial
-            color="#8b5cf6"
-            roughness={0.15}
-            metalness={0.7}
-            transparent
-            opacity={0.3}
+      {/* 3D Anatomical SparkAR Face Mesh & Head Occluder Models */}
+      <Suspense fallback={<FaceMeshFallback />}>
+        {settings.showFaceMesh !== false && (
+          <RobbieFaceMesh3D
+            textureUrl={textureUrl}
+            wireframe={meshType === 'wireframe' || meshType === 'robbieStaticMesh'}
           />
-        </mesh>
-
-        {/* Detailed Facial Wireframe Topology Grid */}
-        <mesh>
-          <sphereGeometry args={[1.01, 32, 24]} />
-          <meshBasicMaterial
-            color={settings.showFaceMesh ? "#38bdf8" : "#a855f7"}
-            wireframe
-            transparent
-            opacity={settings.showFaceMesh ? 0.5 : 0.25}
-          />
-        </mesh>
-      </group>
-
-      {/* Facial Feature Contours (Mediapipe / ARKit Topology) */}
-      {/* Eye Socket Rings & Pupils */}
-      <group position={[-0.32, 0.25, 0.76]}>
-        <mesh>
-          <ringGeometry args={[0.06, 0.1, 24]} />
-          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} transparent opacity={0.8} />
-        </mesh>
-        <mesh position={[0, 0, 0.01]}>
-          <sphereGeometry args={[0.04, 16, 16]} />
-          <meshBasicMaterial color="#a855f7" />
-        </mesh>
-      </group>
-
-      <group position={[0.32, 0.25, 0.76]}>
-        <mesh>
-          <ringGeometry args={[0.06, 0.1, 24]} />
-          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} transparent opacity={0.8} />
-        </mesh>
-        <mesh position={[0, 0, 0.01]}>
-          <sphereGeometry args={[0.04, 16, 16]} />
-          <meshBasicMaterial color="#a855f7" />
-        </mesh>
-      </group>
-
-      {/* Eyebrow Contours */}
-      <mesh position={[-0.32, 0.42, 0.74]} rotation={[0, 0, -0.15]}>
-        <boxGeometry args={[0.22, 0.03, 0.02]} />
-        <meshBasicMaterial color="#c084fc" />
-      </mesh>
-      <mesh position={[0.32, 0.42, 0.74]} rotation={[0, 0, 0.15]}>
-        <boxGeometry args={[0.22, 0.03, 0.02]} />
-        <meshBasicMaterial color="#c084fc" />
-      </mesh>
-
-      {/* Nose Bridge Contour */}
-      <mesh position={[0, -0.05, 0.82]} rotation={[0.2, 0, 0]}>
-        <cylinderGeometry args={[0.03, 0.08, 0.3, 16]} />
-        <meshBasicMaterial color="#c084fc" transparent opacity={0.8} />
-      </mesh>
-
-      {/* Lips / Mouth Contour */}
-      <mesh position={[0, -0.48, 0.78]} rotation={[0, 0, Math.PI / 2]}>
-        <capsuleGeometry args={[0.04, 0.28, 8, 16]} />
-        <meshBasicMaterial color="#f43f5e" transparent opacity={0.85} />
-      </mesh>
-
-      {/* Cheekbone Landmark Accents */}
-      <mesh position={[-0.5, -0.1, 0.65]}>
-        <sphereGeometry args={[0.05, 12, 12]} />
-        <meshBasicMaterial color="#a855f7" transparent opacity={0.5} />
-      </mesh>
-      <mesh position={[0.5, -0.1, 0.65]}>
-        <sphereGeometry args={[0.05, 12, 12]} />
-        <meshBasicMaterial color="#a855f7" transparent opacity={0.5} />
-      </mesh>
+        )}
+        {hasOccluder && (
+          <RobbieHeadOccluder3D />
+        )}
+      </Suspense>
 
       {/* Interactive 3D Landmark Nodes (Clickable directly on the 3D Face Model) */}
       {Object.entries(anchorPositions).map(([key, { pos, label }]) => {
@@ -1063,6 +1099,29 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
               <span className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
                 {currentAnchor.toUpperCase()}
               </span>
+            </div>
+
+            {/* Active Robbie Asset Config Info */}
+            <div className="text-[8px] text-gray-400 font-mono flex flex-col gap-0.5 bg-purple-950/40 border border-purple-500/20 rounded-lg p-1 w-full select-none text-center">
+              <div>
+                <span className="text-purple-300 font-semibold">Mesh:</span>{' '}
+                <span className="text-white">
+                  {meshType === 'sparkar' ? 'Robbie Canonical UV' : 
+                   meshType === 'robbieFeminine' ? 'Robbie Feminine Guide' :
+                   meshType === 'robbieMasculine' ? 'Robbie Masculine Guide' :
+                   meshType === 'robbieTrackingMap' ? 'Robbie Tracking Map' :
+                   meshType === 'robbieStaticMesh' ? 'Robbie 3D Face OBJ' :
+                   meshType === 'wireframe' ? 'Cyber Topology Grid' : 'Simple Mesh'}
+                </span>
+              </div>
+              <div>
+                <span className="text-purple-300 font-semibold">Occluder:</span>{' '}
+                <span className="text-white">
+                  {occluderType === 'robbieRealistic' ? 'Robbie OBJ Occluder' :
+                   occluderType === 'sparkarRealistic' ? 'SparkAR GLTF' :
+                   occluderType === 'default' ? 'Standard MindAR' : 'Disabled'}
+                </span>
+              </div>
             </div>
 
             {/* Quick Landmark Anchor Selector Chips */}
