@@ -12,6 +12,7 @@ import {
   Smile,
   Video, 
   Box, 
+  Circle,
   FileCode, 
   Upload, 
   Trash2, X, 
@@ -1779,6 +1780,7 @@ export function AssetBrowser() {
     { id: 't-box', type: 'box', name: 'Cube', icon: Box, color: 'text-blue-400', desc: 'Standard 3D Cube', tags: ['3d', 'primitive'] },
     { id: 't-sphere', type: 'sphere', name: 'Sphere', icon: Box, color: 'text-indigo-400', desc: 'Standard 3D Sphere', tags: ['3d', 'primitive'] },
     { id: 't-plane', type: 'plane', name: 'Plane', icon: Box, color: 'text-slate-400', desc: '2D Billboard Plane', tags: ['3d', 'primitive'] },
+    { id: 't-circle', type: 'circle', name: 'Circle', icon: Circle, color: 'text-pink-400', desc: '2D Flat Circle Disc', tags: ['3d', 'primitive'] },
     { id: 't-cylinder', type: 'cylinder', name: 'Cylinder', icon: Box, color: 'text-emerald-400', desc: '3D Cylinder', tags: ['3d', 'primitive'] },
     { id: 't-cone', type: 'cone', name: 'Cone', icon: Box, color: 'text-amber-400', desc: '3D Cone', tags: ['3d', 'primitive'] },
     { id: 't-torus', type: 'torus', name: 'Torus', icon: Box, color: 'text-rose-400', desc: '3D Torus (Donut)', tags: ['3d', 'primitive'] },
@@ -1812,7 +1814,9 @@ export function AssetBrowser() {
     } else if (type === 'sphere') {
       newObj.properties = { color: '#ffffff', roughness: 0.4, metalness: 0.1, opacity: 1.0, wireframe: false };
     } else if (type === 'plane') {
-      newObj.properties = { color: '#666666', roughness: 0.8, doubleSided: true };
+      newObj.properties = { color: '#666666', roughness: 0.8, doubleSided: true, textureUrl: '', hideOverlap: false, alphaCutoff: 0.5, centerTexture: true, textureRepeatX: 1, textureRepeatY: 1, textureOffsetX: 0, textureOffsetY: 0, textureRotation: 0 };
+    } else if (type === 'circle') {
+      newObj.properties = { color: '#ec4899', roughness: 0.5, metalness: 0.1, opacity: 1.0, doubleSided: true, radius: 0.5, segments: 64, textureUrl: '', hideOverlap: false, alphaCutoff: 0.5, centerTexture: true, textureRepeatX: 1, textureRepeatY: 1, textureOffsetX: 0, textureOffsetY: 0, textureRotation: 0 };
     } else if (type === 'cylinder') {
       newObj.properties = { color: '#ffffff', roughness: 0.5, metalness: 0.2 };
     } else if (type === 'cone') {
@@ -1846,7 +1850,16 @@ export function AssetBrowser() {
       };
       newObj.position = [0, 0.5, 0];
     } else if (type === 'youtube') {
-      newObj.properties = { videoId: 'dQw4w9WgXcQ' };
+      newObj.properties = { 
+        videoId: 'dQw4w9WgXcQ',
+        volume: 100,
+        mute: false,
+        aspectRatio: '16:9',
+        resolution: '720p',
+        autoplay: false,
+        loop: false,
+        controls: true
+      };
     } else if (type === 'hudCanvas') {
       newObj.name = 'HUD Canvas';
     }

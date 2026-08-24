@@ -286,6 +286,8 @@ export const generateAFrameScene = (state: any) => {
         entity += `${indent}  <a-torus radius="0.4" radius-tubular="0.12" material="${buildMaterialAttr(obj.properties)}"></a-torus>\n`;
       } else if (obj.type === 'plane') {
         entity += `${indent}  <a-plane material="${buildMaterialAttr(obj.properties, true)}"></a-plane>\n`;
+      } else if (obj.type === 'circle') {
+        entity += `${indent}  <a-circle radius="${obj.properties.radius || 0.5}" segments="${obj.properties.segments || 64}" material="${buildMaterialAttr(obj.properties, true)}"></a-circle>\n`;
       } else if (obj.type === 'text') {
         const fontStr = obj.properties.fontUrl ? ` font: ${obj.properties.fontUrl};` : '';
         const sizeStr = ` fontSize: ${obj.properties.fontSize ?? 0.25};`;
@@ -335,7 +337,19 @@ export const generateAFrameScene = (state: any) => {
         }
         entity += `${indent}  <a-entity position="0 0 0.11" scale="0.8 0.8 0.8" troika-text="value: ${btnText}; align: center; color: ${textColor}; fontSize: 0.25; maxWidth: 4"></a-entity>\n`;
       } else if (obj.type === 'youtube') {
-        entity += `${indent}  <a-plane color="#ff0000" material="src: url(https://img.youtube.com/vi/${obj.properties.videoId || 'dQw4w9WgXcQ'}/0.jpg)" aspect-ratio="1.777"></a-plane>\n`;
+        const videoId = obj.properties.videoId || 'dQw4w9WgXcQ';
+        const aspect = obj.properties.aspectRatio || '16:9';
+        const customW = obj.properties.customAspectRatioWidth;
+        const customH = obj.properties.customAspectRatioHeight;
+        let ratio = 1.7778;
+        if (aspect === '4:3') ratio = 1.3333;
+        else if (aspect === '1:1') ratio = 1.0;
+        else if (aspect === '21:9') ratio = 2.3333;
+        else if (aspect === '9:16') ratio = 0.5625;
+        else if (aspect === 'custom' && customW && customH && customH > 0) ratio = customW / customH;
+
+        const width = Number((1.0 * ratio).toFixed(3));
+        entity += `${indent}  <a-plane color="#111111" material="src: url(https://img.youtube.com/vi/${videoId}/maxresdefault.jpg)" width="${width}" height="1.0" aspect-ratio="${ratio}"></a-plane>\n`;
       } else if (obj.type === 'icon2d') {
         const badgeColor = obj.properties.color || '#3b82f6';
         const labelText = obj.properties.text || obj.properties.iconName || 'Icon';

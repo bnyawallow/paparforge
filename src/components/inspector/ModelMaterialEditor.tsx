@@ -528,6 +528,12 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
   const normalScale = getFieldValue('normalScale', 1.0);
   const textureRepeatX = getFieldValue('textureRepeatX', 1);
   const textureRepeatY = getFieldValue('textureRepeatY', 1);
+  const centerTexture = getFieldValue('centerTexture', true);
+  const hideOverlap = getFieldValue('hideOverlap', false);
+  const alphaCutoff = getFieldValue('alphaCutoff', 0.5);
+  const textureOffsetX = getFieldValue('textureOffsetX', 0);
+  const textureOffsetY = getFieldValue('textureOffsetY', 0);
+  const textureRotation = getFieldValue('textureRotation', 0);
 
   // Compute layers summaries
   const isGlassActive = transmission > 0;
@@ -1350,8 +1356,66 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
                 {/* Texture Wrap & repeat */}
                 {activeMapsCount > 0 && (
                   <div className="bg-black/20 border border-white/5 rounded-lg p-2.5 mt-1 flex flex-col gap-3">
-                    <span className="text-[8.5px] text-gray-400 font-bold uppercase tracking-wider font-mono">Map wrapping coordinates</span>
-                    <div className="grid grid-cols-2 gap-3">
+                    <span className="text-[8.5px] text-gray-400 font-bold uppercase tracking-wider font-mono">Map Alignment & Cutoff</span>
+                    
+                    {/* Toggle row: Center Texture & Hide Overlap */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleUpdateMultipleFields({
+                            centerTexture: !centerTexture,
+                            textureOffsetX: 0,
+                            textureOffsetY: 0
+                          });
+                        }}
+                        className={cn(
+                          "py-1.5 px-2 rounded text-[9px] font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                          centerTexture 
+                            ? "bg-blue-600/20 border-blue-500/40 text-blue-300" 
+                            : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
+                        )}
+                      >
+                        <Compass size={11} />
+                        <span>{centerTexture ? 'Centered UV' : 'Origin UV'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateField('hideOverlap', !hideOverlap)}
+                        className={cn(
+                          "py-1.5 px-2 rounded text-[9px] font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                          hideOverlap 
+                            ? "bg-emerald-600/20 border-emerald-500/40 text-emerald-300" 
+                            : "bg-white/5 border-white/10 text-gray-400 hover:text-white"
+                        )}
+                      >
+                        <Droplet size={11} />
+                        <span>{hideOverlap ? 'Hide Overlap ON' : 'Hide Overlap OFF'}</span>
+                      </button>
+                    </div>
+
+                    {/* Hide Overlap Alpha Cutoff Slider */}
+                    {hideOverlap && (
+                      <div className="flex flex-col gap-1 bg-black/30 p-2 rounded border border-emerald-500/20">
+                        <div className="flex justify-between text-[8px]">
+                          <span className="text-emerald-400 font-bold">Alpha Cutoff Threshold</span>
+                          <span className="text-gray-300 font-mono">{alphaCutoff.toFixed(2)}</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0.05" 
+                          max="0.95" 
+                          step="0.05" 
+                          value={alphaCutoff} 
+                          onChange={(e) => handleUpdateField('alphaCutoff', parseFloat(e.target.value))}
+                          className="accent-emerald-500 w-full h-1 cursor-pointer"
+                        />
+                        <span className="text-[7.5px] text-gray-500">Filters out transparent square background pixels around PNG textures.</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-white/5">
                       <div className="flex flex-col gap-1">
                         <label className="text-[8px] text-gray-500">Repeat X: {textureRepeatX}</label>
                         <input 
@@ -1376,6 +1440,49 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
                           className="accent-blue-500 w-full h-1 cursor-pointer"
                         />
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-white/5">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[8px] text-gray-500">Offset X: {textureOffsetX.toFixed(2)}</label>
+                        <input 
+                          type="range" 
+                          min="-1.0" 
+                          max="1.0" 
+                          step="0.05"
+                          value={textureOffsetX} 
+                          onChange={(e) => handleUpdateField('textureOffsetX', parseFloat(e.target.value))}
+                          className="accent-indigo-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[8px] text-gray-500">Offset Y: {textureOffsetY.toFixed(2)}</label>
+                        <input 
+                          type="range" 
+                          min="-1.0" 
+                          max="1.0" 
+                          step="0.05"
+                          value={textureOffsetY} 
+                          onChange={(e) => handleUpdateField('textureOffsetY', parseFloat(e.target.value))}
+                          className="accent-indigo-500 w-full h-1 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 pt-1 border-t border-white/5">
+                      <div className="flex justify-between text-[8px]">
+                        <span className="text-gray-500">Texture Rotation</span>
+                        <span className="text-indigo-400 font-mono">{textureRotation}°</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="360" 
+                        step="5"
+                        value={textureRotation} 
+                        onChange={(e) => handleUpdateField('textureRotation', parseInt(e.target.value))}
+                        className="accent-indigo-500 w-full h-1 cursor-pointer"
+                      />
                     </div>
                   </div>
                 )}

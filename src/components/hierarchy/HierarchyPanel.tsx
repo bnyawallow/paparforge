@@ -150,7 +150,9 @@ export function HierarchyPanel({ width }: { width?: number }) {
     } else if (type === 'sphere') {
       newObj.properties = { color: '#ffffff', roughness: 0.4, metalness: 0.1, opacity: 1.0, wireframe: false, textureUrl: '', textureRepeatX: 1, textureRepeatY: 1 };
     } else if (type === 'plane') {
-      newObj.properties = { color: '#666666', roughness: 0.8, metalness: 0.0, opacity: 1.0, wireframe: false, textureUrl: '', textureRepeatX: 1, textureRepeatY: 1, doubleSided: true };
+      newObj.properties = { color: '#666666', roughness: 0.8, metalness: 0.0, opacity: 1.0, wireframe: false, textureUrl: '', hideOverlap: false, alphaCutoff: 0.5, centerTexture: true, textureRepeatX: 1, textureRepeatY: 1, doubleSided: true };
+    } else if (type === 'circle') {
+      newObj.properties = { color: '#ec4899', roughness: 0.5, metalness: 0.1, opacity: 1.0, wireframe: false, radius: 0.5, segments: 64, textureUrl: '', hideOverlap: false, alphaCutoff: 0.5, centerTexture: true, textureRepeatX: 1, textureRepeatY: 1, doubleSided: true };
     } else if (type === 'cylinder') {
       newObj.properties = { color: '#ffffff', roughness: 0.5, metalness: 0.2, opacity: 1.0, wireframe: false, textureUrl: '', textureRepeatX: 1, textureRepeatY: 1 };
     } else if (type === 'cone') {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
-import { Settings, Grid3X3, Check, Globe, ExternalLink, X, Sparkles } from 'lucide-react';
+import { Settings, Grid3X3, Check, Globe, ExternalLink, X, Sparkles, Video, Volume2, VolumeX } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { HUDCanvas } from './HUDCanvas';
 import { FONT_LIBRARY } from '../inspector/InspectorPanel';
@@ -586,11 +586,13 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
   }, [draggingObj, resizingObj, overlayGridEnabled, overlayGridSize, updateObject]);
 
   const overlayObjects = Object.values(useEditorStore.getState().objects).filter((obj: any) => 
-    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) && obj.visible !== false
+    (['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) || (obj.type === 'youtube' && (obj.properties?.displayMode === '2d' || obj.properties?.overlayOpen))) && obj.visible !== false
   );
 
   const selectedObj = selectedObjectId ? useEditorStore.getState().objects[selectedObjectId] : null;
-  const is2DSelected = selectedObj && ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(selectedObj.type);
+  const is2DSelected = selectedObj && (
+    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(selectedObj.type) || (selectedObj.type === 'youtube' && (selectedObj.properties?.displayMode === '2d' || selectedObj.properties?.overlayOpen))
+  );
 
 
 
@@ -600,23 +602,39 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
 
   const getOverlayStyle = (obj: any, parentProjected: { x: number, y: number, visible: boolean } | null): React.CSSProperties => {
     const props = obj.properties || {};
-    const alignment = props.alignment || 'center';
+    const alignment = props.alignment || props.overlayPosition || 'center';
     const widthType = props.widthType || 'px';
     const heightType = props.heightType || 'px';
-    const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'hudCanvas' ? 100 : 150)));
-    const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'hudCanvas' ? 100 : 40)));
-    const widthStr = widthType === '%' ? `${widthVal}%` : `${widthVal}px`;
-    const heightStr = heightType === '%' ? `${heightVal}%` : `${heightVal}px`;
+    const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'youtube' ? 640 : (obj.type === 'hudCanvas' ? 100 : 150))));
+    const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'youtube' ? 360 : (obj.type === 'hudCanvas' ? 100 : 40))));
+    
+    let widthStr: string;
+    if (widthType === 'fill') widthStr = '100%';
+    else if (widthType === 'auto') widthStr = 'auto';
+    else if (widthType === '%') widthStr = `${widthVal}%`;
+    else widthStr = `${widthVal}px`;
+
+    let heightStr: string;
+    if (heightType === 'fill') heightStr = '100%';
+    else if (heightType === 'auto') heightStr = 'auto';
+    else if (heightType === '%') heightStr = `${heightVal}%`;
+    else heightStr = `${heightVal}px`;
+
     const opacity = props.opacity ?? 1;
+
+    const isLockAspect = props.lockAspectRatio !== false;
+    const rawAspect = props.aspectRatio || (obj.type === 'youtube' ? '16:9' : undefined);
+    const cssAspectRatio = (isLockAspect && rawAspect && rawAspect !== 'free') ? rawAspect.replace(':', ' / ') : undefined;
 
     const parentObj = obj.parentId ? useEditorStore.getState().objects[obj.parentId] : null;
     const isAutoLayoutActive = parentObj && parentObj.type === 'hudCanvas' && ['row', 'column'].includes(parentObj.properties?.layoutMode || '');
 
-    if (obj.type === 'hudEmbed' && props.fullScreenWithMargins) {
+    if ((obj.type === 'hudEmbed' || obj.type === 'youtube') && props.fullScreenWithMargins) {
       const topM = props.marginTop ?? 20;
       const bottomM = props.marginBottom ?? 20;
       const leftM = props.marginLeft ?? 20;
       const rightM = props.marginRight ?? 20;
+      const pad = props.padding !== undefined ? props.padding : (props.layoutPadding !== undefined ? props.layoutPadding : 0);
       return {
         position: 'absolute',
         opacity,
@@ -628,7 +646,10 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
         height: 'auto',
         boxSizing: 'border-box',
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: props.layoutMode || 'column',
+        alignItems: props.layoutAlignItems || 'stretch',
+        justifyContent: props.layoutJustifyContent || 'center',
+        padding: `${pad}px`,
         zIndex: props.zIndex ?? 1,
       };
     }
@@ -640,9 +661,32 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
       height: heightStr,
       boxSizing: 'border-box',
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: props.layoutMode || 'column',
+      alignItems: props.layoutAlignItems || 'stretch',
+      justifyContent: props.layoutJustifyContent || 'flex-start',
       zIndex: props.zIndex ?? 1,
     };
+
+    if (cssAspectRatio) {
+      baseStyle.aspectRatio = cssAspectRatio;
+    }
+
+    if (props.flex !== undefined) {
+      baseStyle.flex = props.flex;
+    } else if (props.flexGrow !== undefined) {
+      baseStyle.flex = `${props.flexGrow} ${props.flexShrink ?? 1} auto`;
+    } else if (isAutoLayoutActive && (widthType === 'fill' || heightType === 'fill')) {
+      baseStyle.flex = '1 1 auto';
+    }
+
+    if (props.padding !== undefined) baseStyle.padding = typeof props.padding === 'number' ? `${props.padding}px` : props.padding;
+    else if (props.layoutPadding !== undefined) baseStyle.padding = `${props.layoutPadding}px`;
+
+    if (props.marginTop !== undefined) baseStyle.marginTop = `${props.marginTop}px`;
+    if (props.marginBottom !== undefined) baseStyle.marginBottom = `${props.marginBottom}px`;
+    if (props.marginLeft !== undefined) baseStyle.marginLeft = `${props.marginLeft}px`;
+    if (props.marginRight !== undefined) baseStyle.marginRight = `${props.marginRight}px`;
+    if (props.layoutGap !== undefined) baseStyle.gap = `${props.layoutGap}px`;
 
     if (obj.type === 'hudCanvas' && ['row', 'column'].includes(props.layoutMode || '')) {
       baseStyle.display = 'flex';
@@ -1000,8 +1044,8 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             e.stopPropagation();
             selectObject(obj.id);
 
-            const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'hudCanvas' ? 100 : 150)));
-            const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'hudCanvas' ? 100 : 40)));
+            const widthVal = props.width !== undefined ? props.width : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 400 : (obj.type === 'youtube' ? 640 : (obj.type === 'hudCanvas' ? 100 : 150))));
+            const heightVal = props.height !== undefined ? props.height : (obj.type === 'hudImage' ? 200 : (obj.type === 'hudEmbed' ? 300 : (obj.type === 'youtube' ? 360 : (obj.type === 'hudCanvas' ? 100 : 40))));
             
             setResizingObj({
               id: obj.id,
@@ -1353,6 +1397,96 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
             );
           }
 
+          if (obj.type === 'youtube') {
+            const videoId = props.videoId || 'dQw4w9WgXcQ';
+            const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=${props.autoplay ? 1 : 0}&mute=${props.mute ? 1 : 0}&loop=${props.loop ? 1 : 0}&controls=${props.controls !== false ? 1 : 0}&rel=0&modestbranding=1`;
+
+            return (
+              <div 
+                key={obj.id} 
+                id={obj.id}
+                className={animClass}
+                style={{ 
+                  ...activeStyle, 
+                  backgroundColor: props.backgroundColor || '#0F0F12',
+                  borderRadius: `${props.borderRadius ?? 16}px`,
+                  border: (!isPreviewMode && isSelected) ? activeStyle.border : (props.borderEnabled !== false ? `1px solid ${props.borderColor || 'rgba(255,255,255,0.18)'}` : 'none'),
+                  boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
+                  backdropFilter: `blur(${props.blur ?? 12}px)`,
+                  WebkitBackdropFilter: `blur(${props.blur ?? 12}px)`,
+                  overflow: 'visible',
+                  cursor: !isPreviewMode ? 'move' : 'default',
+                  position: activeStyle.position || 'absolute',
+                }}
+                onMouseDown={handleMouseDown}
+              >
+                <HUDElementBehaviorListener obj={obj} isPreviewMode={isPreviewMode} />
+                {renderResizeHandles()}
+                
+                <div 
+                  className="w-full h-full flex flex-col overflow-hidden"
+                  style={{
+                    borderRadius: `${props.borderRadius ?? 16}px`,
+                  }}
+                >
+                  <div className="flex items-center justify-between px-3.5 py-2 bg-black/60 border-b border-white/10 select-none text-xs text-gray-300 font-mono shrink-0 z-10">
+                    <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                      <div className="w-5 h-5 rounded bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                        <Video size={12} />
+                      </div>
+                      <span className="truncate text-[11px] font-bold text-white">
+                        {obj.name || 'YouTube Overlay'}
+                      </span>
+                      <span className="text-[9px] text-gray-400 hidden sm:inline font-mono">
+                        ({props.resolution || '720p'})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[8px] bg-red-500/20 text-red-300 font-mono font-bold px-2 py-0.5 rounded-full border border-red-500/30">
+                        2D HUD
+                      </span>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateObject(obj.id, {
+                            properties: { ...props, displayMode: '3d', overlayOpen: false }
+                          });
+                        }}
+                        className="hover:bg-red-600 hover:text-white p-1 rounded-full text-gray-400 transition-colors cursor-pointer flex items-center justify-center"
+                        title="Return to 3D Space"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div 
+                    className="flex-1 w-full h-full relative bg-black overflow-hidden min-h-0"
+                    style={{
+                      aspectRatio: (props.lockAspectRatio !== false && (props.aspectRatio || '16:9') !== 'free')
+                        ? (props.aspectRatio || '16:9').replace(':', ' / ')
+                        : undefined
+                    }}
+                  >
+                    <iframe 
+                      key={videoId}
+                      src={embedUrl} 
+                      title={obj.name || 'YouTube Video'}
+                      className="w-full h-full border-none"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                    {!isPreviewMode && (
+                      <div className="absolute inset-0 bg-transparent pointer-events-auto cursor-move" />
+                    )}
+                  </div>
+                </div>
+                {children.map((child: any) => renderOverlayObject(child))}
+              </div>
+            );
+          }
+
           return null;
         };
 
@@ -1360,7 +1494,7 @@ export function Overlay2DRenderer({ isPreviewMode = false }: { isPreviewMode?: b
           if (!obj.parentId) return true;
           const parentObj = useEditorStore.getState().objects[obj.parentId];
           if (!parentObj) return true;
-          const parentIs2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(parentObj.type);
+          const parentIs2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'youtube'].includes(parentObj.type);
           return !parentIs2D;
         });
 

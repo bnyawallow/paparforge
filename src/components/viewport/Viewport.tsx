@@ -1,5 +1,5 @@
 import { playCachedAudio, globalAudioCache } from '../../lib/audioManager';
-import React, { useRef, useState, useEffect, Suspense } from 'react';
+import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -37,6 +37,8 @@ import {
   HelpCircle,
   Tag,
   Volume2,
+  VolumeX,
+  Box,
   Play,
   Link2,
   Star,
@@ -133,10 +135,11 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
         
         <Html zIndexRange={[10, 0]}
           transform
-          occlude
+          occlude="blending"
           pointerEvents={isPreviewMode ? "auto" : "none"}
           distanceFactor={1.25}
           position={[0, 0, 0.02]}
+          style={{ pointerEvents: isPreviewMode ? "auto" : "none" }}
         >
           <div className="flex flex-col gap-2.5 p-4 bg-neutral-900/50 border border-white/10 backdrop-blur-md rounded-xl shadow-2xl text-white font-sans w-64 items-center justify-center select-none">
             <div className="flex items-center gap-1.5 text-[9px] text-blue-400 font-mono tracking-wider uppercase">
@@ -213,60 +216,279 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
   );
 }
 
+// Helper to calculate YouTube aspect ratio ratio decimal
+export function getYoutubeAspectRatioRatio(
+  aspectRatio?: string,
+  customW?: number,
+  customH?: number
+): number {
+  switch (aspectRatio) {
+    case '4:3':
+      return 4 / 3;
+    case '1:1':
+      return 1.0;
+    case '21:9':
+      return 21 / 9;
+    case '9:16':
+      return 9 / 16;
+    case 'custom':
+      if (customW && customH && customH > 0) {
+        return customW / customH;
+      }
+      return 16 / 9;
+    case '16:9':
+    default:
+      return 16 / 9;
+  }
+}
+
+// Global helper to dispatch YouTube player commands via postMessage
+export function sendYoutubeCommand(objectId: string, command: string, args: any[] = []) {
+  const iframe = document.querySelector(`iframe[data-youtube-object-id="${objectId}"]`) as HTMLIFrameElement;
+  if (iframe && iframe.contentWindow) {
+    try {
+      iframe.contentWindow.postMessage(
+        JSON.stringify({
+          event: 'command',
+          func: command,
+          args: args
+        }),
+        '*'
+      );
+    } catch (e) {
+      console.warn('YouTube postMessage dispatch error:', e);
+    }
+  }
+}
+
 // Interactive 3D YouTube Screen & Bezel with Live Embedding
 function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; isPreviewMode: boolean }) {
-  const videoId = obj.properties.videoId;
-  const autoplay = obj.properties.autoplay ? 1 : 0;
-  const mute = obj.properties.mute ? 1 : 0;
-  const loop = obj.properties.loop ? 1 : 0;
-  const controls = obj.properties.controls === false ? 0 : 1;
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Active state property overrides if a state is active
+  const curActiveStateId = useEditorStore(state => state.activeStateId);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const isSelected = selectedObjectIds.includes(obj.id);
+  const activeStateObj = (!isPreviewMode && isSelected && curActiveStateId && curActiveStateId !== 'base' && obj.states)
+    ? obj.states.find((s: any) => s.id === curActiveStateId)
+    : null;
+
+  const effectiveProps = (activeStateObj && activeStateObj.properties)
+    ? { ...obj.properties, ...activeStateObj.properties }
+    : obj.properties;
+
+  const videoId = effectiveProps.videoId || 'dQw4w9WgXcQ';
+  const autoplay = effectiveProps.autoplay ? 1 : 0;
+  const mute = effectiveProps.mute ? 1 : 0;
+  const loop = effectiveProps.loop ? 1 : 0;
+  const controls = effectiveProps.controls === false ? 0 : 1;
+  const volume = effectiveProps.volume ?? 100;
+  const aspectRatio = effectiveProps.aspectRatio || '16:9';
+  const customW = effectiveProps.customAspectRatioWidth;
+  const customH = effectiveProps.customAspectRatioHeight;
+  const resolution = effectiveProps.resolution || '720p';
+  const displayMode = effectiveProps.displayMode || '3d'; // '3d' | '2d'
+
+  // Compute aspect ratio multiplier
+  const ratio = getYoutubeAspectRatioRatio(aspectRatio, customW, customH);
+
+  // Plane height in 3D scene (default 1.0 meter base)
+  const planeHeight = 1.0;
+  const planeWidth = Number((planeHeight * ratio).toFixed(3));
+
+  // Crisp HD 720p base canvas resolution (kept resolution-independent so 3D scale transforms remain rock-solid)
+  const baseHtmlHeight = 720;
+  const baseHtmlWidth = Math.round(baseHtmlHeight * ratio);
+
+  // Video quality code for URL / YT JS API
+  const vqMap: Record<string, string> = {
+    '1080p': 'hd1080',
+    '720p': 'hd720',
+    '480p': 'large',
+    '360p': 'medium',
+    '240p': 'small'
+  };
+  const vq = vqMap[resolution] || 'auto';
+
+  // Apply volume, mute, quality on initial load or property changes via postMessage without iframe reload
+  useEffect(() => {
+    if (!iframeRef.current || !videoId) return;
+
+    const timer = setTimeout(() => {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        if (mute) {
+          iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+        } else {
+          iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+          iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [volume] }), '*');
+        }
+        if (vq && vq !== 'auto') {
+          iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setPlaybackQuality', args: [vq] }), '*');
+        }
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [videoId, volume, mute, vq]);
+
+  const isOverlayMode = displayMode === '2d';
+
+  // Return to 3D World callback
+  const returnTo3D = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    useEditorStore.getState().updateObject(obj.id, {
+      properties: { ...obj.properties, displayMode: '3d', overlayOpen: false }
+    });
+  }, [obj.id, obj.properties]);
+
+  // 2D HUD Layout & Position Helpers
+  const overlayPosition = effectiveProps.overlayPosition || 'center';
+  const overlaySize = effectiveProps.overlaySize || 'medium';
+  const hudAnimation = effectiveProps.hudAnimation || 'slide-up';
+
+  const getAnimClass = () => {
+    if (!hudAnimation || hudAnimation === 'none') return '';
+    switch (hudAnimation) {
+      case 'fade-in': return 'animate-in fade-in duration-300';
+      case 'slide-up': return 'animate-in fade-in slide-in-from-bottom-8 duration-300';
+      case 'slide-down': return 'animate-in fade-in slide-in-from-top-8 duration-300';
+      case 'slide-left': return 'animate-in fade-in slide-in-from-right-8 duration-300';
+      case 'slide-right': return 'animate-in fade-in slide-in-from-left-8 duration-300';
+      case 'zoom-in': return 'animate-in fade-in zoom-in-75 duration-300';
+      case 'bounce': return 'animate-bounce';
+      default: return 'animate-in fade-in slide-in-from-bottom-8 duration-300';
+    }
+  };
+
+  const getOverlayPositionStyles = (): React.CSSProperties => {
+    switch (overlayPosition) {
+      case 'top-right':
+        return { justifyContent: 'flex-end', alignItems: 'flex-start', padding: '4.5rem 1.5rem 1.5rem 1.5rem' };
+      case 'bottom-right':
+        return { justifyContent: 'flex-end', alignItems: 'flex-end', padding: '1.5rem 1.5rem 3.5rem 1.5rem' };
+      case 'top-left':
+        return { justifyContent: 'flex-start', alignItems: 'flex-start', padding: '4.5rem 1.5rem 1.5rem 1.5rem' };
+      case 'bottom-left':
+        return { justifyContent: 'flex-start', alignItems: 'flex-end', padding: '1.5rem 1.5rem 3.5rem 1.5rem' };
+      case 'top-center':
+        return { justifyContent: 'center', alignItems: 'flex-start', padding: '4.5rem 1.5rem 1.5rem 1.5rem' };
+      case 'bottom-center':
+        return { justifyContent: 'center', alignItems: 'flex-end', padding: '1.5rem 1.5rem 3.5rem 1.5rem' };
+      case 'full':
+        return { justifyContent: 'center', alignItems: 'center', padding: '0px' };
+      case 'center':
+      default:
+        return { justifyContent: 'center', alignItems: 'center', padding: '1.5rem' };
+    }
+  };
+
+  const getOverlayWidthClass = () => {
+    if (overlayPosition === 'full' || overlaySize === 'full') return 'w-full max-w-none h-full';
+    if (effectiveProps.overlayWidth) return '';
+    if (['top-right', 'bottom-right', 'top-left', 'bottom-left'].includes(overlayPosition)) {
+      if (overlaySize === 'compact') return 'w-[360px] max-w-full';
+      if (overlaySize === 'large') return 'w-[560px] max-w-full';
+      return 'w-[440px] max-w-full';
+    }
+    if (overlaySize === 'compact') return 'w-[480px] max-w-full';
+    if (overlaySize === 'large') return 'w-full max-w-5xl';
+    return 'w-full max-w-4xl';
+  };
+
+  const hudCardStyle: React.CSSProperties = {
+    backgroundColor: effectiveProps.backgroundColor || '#0F0F12',
+    borderRadius: overlayPosition === 'full' ? '0px' : (effectiveProps.borderRadius !== undefined ? `${effectiveProps.borderRadius}px` : '16px'),
+    border: effectiveProps.borderEnabled !== false ? `1px solid ${effectiveProps.borderColor || 'rgba(255,255,255,0.18)'}` : 'none',
+    boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
+    backdropFilter: `blur(${effectiveProps.blur !== undefined ? effectiveProps.blur : 12}px)`,
+    WebkitBackdropFilter: `blur(${effectiveProps.blur !== undefined ? effectiveProps.blur : 12}px)`,
+    width: effectiveProps.overlayWidth && overlayPosition !== 'full' ? (typeof effectiveProps.overlayWidth === 'number' ? `${effectiveProps.overlayWidth}px` : effectiveProps.overlayWidth) : undefined,
+  };
 
   return (
     <group>
-      {/* 3D monitor plane back cover */}
+      {/* 3D monitor plane back cover & mesh base */}
       <mesh castShadow receiveShadow>
-        <planeGeometry args={[1.7, 1.0]} />
-        <meshBasicMaterial color="#000000" />
+        <planeGeometry args={[planeWidth, planeHeight]} />
+        <meshBasicMaterial 
+          color={isOverlayMode ? "#1a1a24" : "#000000"} 
+          wireframe={isOverlayMode}
+          transparent={isOverlayMode}
+          opacity={isOverlayMode ? 0.6 : 1.0}
+        />
       </mesh>
 
-      {/* Actual HTML Screen Display Panel */}
-      <Html zIndexRange={[10, 0]}
-        transform
-        occlude
-        pointerEvents={isPreviewMode ? 'auto' : 'none'}
-        distanceFactor={1.25}
-        position={[0, 0, 0.01]}
-        style={{
-          width: '640px',
-          height: '376px',
-          background: '#09090b',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.8)'
-        }}
-      >
-        {videoId ? (
-          <iframe
-            key={`${videoId}-${autoplay}-${loop}-${mute}-${controls}`}
-            width="100%"
-            height="100%"
-            src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}&autoplay=${autoplay}&controls=${controls}&mute=${autoplay ? 1 : mute}&loop=${loop}${loop ? `&playlist=${videoId}` : ''}&rel=0`}
-            title="Interactive 3D Media Screen"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-neutral-900 to-neutral-950 p-6 flex flex-col justify-center items-center text-white font-sans border border-white/5 select-none">
-            <Tv size={48} className="text-red-500 mb-4" />
-            <h3 className="text-xl font-bold tracking-tight uppercase text-neutral-200">YouTube Video Plane</h3>
-            <p className="text-sm text-neutral-400 mt-2 max-w-[280px] text-center leading-relaxed">
-              Provide a YouTube Video ID in the Inspector properties panel to cast streaming HD video.
-            </p>
-          </div>
-        )}
-      </Html>
+      {/* Spatial Anchor Label on 3D mesh when in 2D Overlay mode */}
+      {isOverlayMode && (
+        <group position={[0, 0, 0.01]}>
+          <mesh>
+            <planeGeometry args={[planeWidth * 0.98, planeHeight * 0.98]} />
+            <meshBasicMaterial color="#0c0d12" transparent opacity={0.8} />
+          </mesh>
+          <Html center distanceFactor={2.0} position={[0, 0, 0.02]}>
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-white backdrop-blur-md select-none text-center min-w-[160px] shadow-2xl">
+              <div className="flex items-center gap-1.5 text-red-400 font-bold text-[10px] uppercase tracking-wider">
+                <Tv size={14} />
+                <span>2D Screen Overlay</span>
+              </div>
+              <span className="text-[9px] text-gray-300 font-medium">Video active in Viewport</span>
+              <button
+                onClick={returnTo3D}
+                className="mt-1 px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold shadow transition-all cursor-pointer flex items-center gap-1"
+              >
+                <Box size={10} />
+                <span>Dock to 3D World</span>
+              </button>
+            </div>
+          </Html>
+        </group>
+      )}
+
+      {/* 3D Mode HTML Screen Container (Renders iframe on 3D monitor plane in 3D mode) */}
+      {!isOverlayMode && (
+        <Html
+          zIndexRange={[10, 0]}
+          transform
+          occlude="blending"
+          pointerEvents={isPreviewMode ? 'auto' : 'none'}
+          distanceFactor={1.8}
+          position={[0, 0, 0.01]}
+          style={{
+            width: `${baseHtmlWidth}px`,
+            height: `${baseHtmlHeight}px`,
+            background: '#09090b',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.8)',
+            pointerEvents: isPreviewMode ? 'auto' : 'none',
+            transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+        >
+          {videoId ? (
+            <iframe
+              ref={iframeRef}
+              data-youtube-object-id={obj.id}
+              key={videoId}
+              width="100%"
+              height="100%"
+              src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}&autoplay=${autoplay}&controls=${controls}&mute=${mute}&loop=${loop}${loop ? `&playlist=${videoId}` : ''}&vq=${vq}&rel=0`}
+              title={obj.name || 'Interactive YouTube Screen'}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              style={{ width: '100%', height: '100%', border: 'none', pointerEvents: isPreviewMode ? 'auto' : 'none' }}
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-neutral-900 to-neutral-950 p-6 flex flex-col justify-center items-center text-white font-sans border border-white/5 select-none">
+              <Tv size={48} className="text-red-500 mb-4" />
+              <h3 className="text-xl font-bold tracking-tight uppercase text-neutral-200">YouTube Video Plane</h3>
+              <p className="text-sm text-neutral-400 mt-2 max-w-[280px] text-center leading-relaxed">
+                Provide a YouTube Video ID in the Inspector properties panel to cast streaming HD video.
+              </p>
+            </div>
+          )}
+        </Html>
+      )}
     </group>
   );
 }
@@ -1328,9 +1550,15 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
   const displacementScale = properties.displacementScale ?? 0.05;
   const normalScale = properties.normalScale ?? 1;
 
-  // Repeat values
+  // Repeat and alignment values
   const repeatX = properties.textureRepeatX ?? 1;
   const repeatY = properties.textureRepeatY ?? 1;
+  const centerTexture = properties.centerTexture ?? true;
+  const hideOverlap = properties.hideOverlap ?? false;
+  const alphaCutoff = properties.alphaCutoff ?? 0.5;
+  const textureOffsetX = properties.textureOffsetX ?? 0;
+  const textureOffsetY = properties.textureOffsetY ?? 0;
+  const textureRotation = properties.textureRotation ?? 0;
 
   return (
     <ErrorBoundary fallback={
@@ -1339,8 +1567,9 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
         roughness={roughness} 
         metalness={metalness} 
         wireframe={wireframe} 
-        transparent={opacity < 1} 
+        transparent={opacity < 1 || hideOverlap} 
         opacity={opacity} 
+        alphaTest={hideOverlap ? alphaCutoff : 0}
         side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
       />
     }>
@@ -1350,8 +1579,9 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
           roughness={roughness} 
           metalness={metalness} 
           wireframe={wireframe} 
-          transparent={opacity < 1} 
+          transparent={opacity < 1 || hideOverlap} 
           opacity={opacity} 
+          alphaTest={hideOverlap ? alphaCutoff : 0}
           side={doubleSided ? THREE.DoubleSide : THREE.FrontSide}
         />
       }>
@@ -1386,6 +1616,12 @@ function TexturedMaterial({ properties, defaultColor }: { properties: any; defau
           normalScale={normalScale}
           repeatX={repeatX}
           repeatY={repeatY}
+          centerTexture={centerTexture}
+          hideOverlap={hideOverlap}
+          alphaCutoff={alphaCutoff}
+          textureOffsetX={textureOffsetX}
+          textureOffsetY={textureOffsetY}
+          textureRotation={textureRotation}
           wireframe={wireframe}
           shaderType={properties.shaderType}
         />
@@ -1425,6 +1661,12 @@ function PhysicalMaterialLoader({
   normalScale,
   repeatX,
   repeatY,
+  centerTexture = true,
+  hideOverlap = false,
+  alphaCutoff = 0.5,
+  textureOffsetX = 0,
+  textureOffsetY = 0,
+  textureRotation = 0,
   wireframe,
   shaderType
 }: any) {
@@ -1456,6 +1698,15 @@ function PhysicalMaterialLoader({
               tex.wrapS = THREE.RepeatWrapping;
               tex.wrapT = THREE.RepeatWrapping;
               tex.repeat.set(repeatX || 1, repeatY || 1);
+              if (centerTexture) {
+                tex.center.set(0.5, 0.5);
+              } else {
+                tex.center.set(0, 0);
+              }
+              tex.offset.set(textureOffsetX || 0, textureOffsetY || 0);
+              if (textureRotation) {
+                tex.rotation = (textureRotation * Math.PI) / 180;
+              }
               if (key === 'map' || key === 'emissiveMap') {
                 tex.colorSpace = THREE.SRGBColorSpace;
               } else {
@@ -1898,10 +2149,11 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
       label = "Sphere Collider";
       break;
     case 'plane':
+    case 'circle':
     case 'image':
     case 'video':
       geometry = <planeGeometry args={[1.02, 1.02]} />;
-      label = "Plane Collider";
+      label = obj.type === 'circle' ? "Circle Collider" : "Plane Collider";
       break;
     case 'cylinder':
       geometry = <cylinderGeometry args={[0.51, 0.51, 1.02, 16]} />;
@@ -2182,6 +2434,163 @@ function ObjectRenderer({ id }: { id: string }) {
         const duration = b.transitionDuration ?? 1.0;
         const easing = b.transitionEasing || 'linear';
         useEditorStore.getState().triggerStateTransition(targetId, targetStateId, duration, easing);
+        break;
+      }
+      case 'youtubePlay': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, autoplay: true }
+          });
+        }
+        sendYoutubeCommand(targetId, 'playVideo');
+        break;
+      }
+      case 'youtubePause': {
+        sendYoutubeCommand(targetId, 'pauseVideo');
+        break;
+      }
+      case 'youtubeMute': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, mute: true }
+          });
+        }
+        sendYoutubeCommand(targetId, 'mute');
+        break;
+      }
+      case 'youtubeUnmute': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, mute: false }
+          });
+        }
+        sendYoutubeCommand(targetId, 'unMute');
+        break;
+      }
+      case 'youtubeSetVolume': {
+        const vol = typeof b.volumeValue === 'number' ? b.volumeValue : (b.propertyValue !== undefined ? parseFloat(b.propertyValue) : 100);
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, volume: vol, mute: vol === 0 }
+          });
+        }
+        if (vol === 0) {
+          sendYoutubeCommand(targetId, 'mute');
+        } else {
+          sendYoutubeCommand(targetId, 'unMute');
+          sendYoutubeCommand(targetId, 'setVolume', [vol]);
+        }
+        break;
+      }
+      case 'youtubeSetQuality': {
+        const quality = b.qualityValue || b.propertyValue || '720p';
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, resolution: quality }
+          });
+        }
+        const vqMap: Record<string, string> = {
+          '1080p': 'hd1080',
+          '720p': 'hd720',
+          '480p': 'large',
+          '360p': 'medium',
+          '240p': 'small'
+        };
+        sendYoutubeCommand(targetId, 'setPlaybackQuality', [vqMap[quality] || quality]);
+        break;
+      }
+      case 'youtubeSetDisplayMode': {
+        const mode = b.youtubeDisplayMode || b.propertyValue || '2d';
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: {
+              ...ytObj.properties,
+              displayMode: mode,
+              overlayOpen: mode === '2d' ? true : false
+            }
+          });
+        }
+        break;
+      }
+      case 'youtubeOpenOverlay': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, displayMode: '2d', overlayOpen: true }
+          });
+        }
+        break;
+      }
+      case 'youtubeCloseOverlay': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, displayMode: '3d', overlayOpen: false }
+          });
+        }
+        sendYoutubeCommand(targetId, 'pauseVideo');
+        break;
+      }
+      case 'youtubeToggleOverlay': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          const isCurrentlyOverlay = ytObj.properties?.displayMode === '2d' && (ytObj.properties?.overlayOpen ?? true) === true;
+          const nextOverlayOpen = !isCurrentlyOverlay;
+          useEditorStore.getState().updateObject(targetId, {
+            properties: {
+              ...ytObj.properties,
+              displayMode: nextOverlayOpen ? '2d' : '3d',
+              overlayOpen: nextOverlayOpen
+            }
+          });
+          if (isCurrentlyOverlay) {
+            sendYoutubeCommand(targetId, 'pauseVideo');
+          }
+        }
+        break;
+      }
+      case 'setTextureUrl': {
+        const texObj = useEditorStore.getState().objects[targetId];
+        if (texObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...texObj.properties, textureUrl: b.textureUrl || b.propertyValue || '' }
+          });
+        }
+        break;
+      }
+      case 'centerTexture': {
+        const texObj = useEditorStore.getState().objects[targetId];
+        if (texObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...texObj.properties, centerTexture: true, textureOffsetX: 0, textureOffsetY: 0 }
+          });
+        }
+        break;
+      }
+      case 'toggleHideOverlap': {
+        const texObj = useEditorStore.getState().objects[targetId];
+        if (texObj) {
+          const curr = texObj.properties?.hideOverlap ?? false;
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...texObj.properties, hideOverlap: !curr }
+          });
+        }
+        break;
+      }
+      case 'setHideOverlap': {
+        const texObj = useEditorStore.getState().objects[targetId];
+        if (texObj) {
+          const hideVal = b.hideOverlapValue !== undefined ? b.hideOverlapValue : true;
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...texObj.properties, hideOverlap: hideVal }
+          });
+        }
         break;
       }
       case 'transform': {
@@ -2673,6 +3082,13 @@ function ObjectRenderer({ id }: { id: string }) {
             <TexturedMaterial properties={{ ...obj.properties, doubleSided: true }} defaultColor="#ffffff" />
           </mesh>
         );
+      case 'circle':
+        return (
+          <mesh castShadow receiveShadow>
+            <circleGeometry args={[obj.properties.radius || 0.5, obj.properties.segments || 64]} />
+            <TexturedMaterial properties={{ ...obj.properties, doubleSided: true }} defaultColor="#ec4899" />
+          </mesh>
+        );
       case 'cylinder':
         return (
           <mesh>
@@ -3018,23 +3434,32 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     });
   };
 
-  // Ensure gizmo controls are always rendered on top of 3D models without depth clipping
+  // Ensure gizmo controls are always rendered on top of 3D models without depth clipping and stay attached on property updates
   useEffect(() => {
     const controls = controlsRef.current;
-    if (controls && controls.getHelper) {
-      const helper = controls.getHelper();
-      if (helper) {
-        helper.traverse((child: any) => {
-          if (child.material) {
-            child.material.depthTest = false;
-            child.material.depthWrite = false;
-            child.material.transparent = true;
-            child.renderOrder = 999;
-          }
-        });
+    if (controls) {
+      if (target) {
+        try {
+          controls.attach(target);
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (controls.getHelper) {
+        const helper = controls.getHelper();
+        if (helper) {
+          helper.traverse((child: any) => {
+            if (child.material) {
+              child.material.depthTest = false;
+              child.material.depthWrite = false;
+              child.material.transparent = true;
+              child.renderOrder = 999;
+            }
+          });
+        }
       }
     }
-  }, [target, transformMode, transformSpace, selectedObjectId]);
+  }, [target, transformMode, transformSpace, selectedObjectId, obj?.properties?.displayMode, obj?.properties?.aspectRatio]);
 
   useEffect(() => {
     const controls = controlsRef.current;
@@ -3104,7 +3529,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
 
   return (
     <TransformControls
-      key={`${selectedObjectId}-${activeStateId || 'base'}`}
+      key={`${selectedObjectId}-${activeStateId || 'base'}-${obj?.properties?.displayMode || '3d'}-${obj?.properties?.aspectRatio || '16:9'}`}
       ref={controlsRef}
       object={target as THREE.Object3D}
       mode={transformMode}

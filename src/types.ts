@@ -6,11 +6,38 @@ export interface StateData {
   position: Vector3Data;
   rotation: Vector3Data;
   scale: Vector3Data;
+  properties?: Record<string, any>;
 }
 
 export interface ActionData {
   id: string;
-  type: 'transition' | 'playSound' | 'openUrl' | 'toast' | 'playAnimation' | 'pauseAnimation' | 'show' | 'hide' | 'loadScene' | 'playModelAnimation' | 'pauseModelAnimation';
+  type: 
+    | 'transition' 
+    | 'playSound' 
+    | 'openUrl' 
+    | 'toast' 
+    | 'playAnimation' 
+    | 'pauseAnimation' 
+    | 'show' 
+    | 'hide' 
+    | 'loadScene' 
+    | 'playModelAnimation' 
+    | 'pauseModelAnimation'
+    | 'youtubePlay'
+    | 'youtubePause'
+    | 'youtubeMute'
+    | 'youtubeUnmute'
+    | 'youtubeSetVolume'
+    | 'youtubeSetQuality'
+    | 'youtubeSetDisplayMode'
+    | 'youtubeOpenOverlay'
+    | 'youtubeCloseOverlay'
+    | 'youtubeToggleOverlay'
+    | 'setTextureUrl'
+    | 'setTextureOptions'
+    | 'centerTexture'
+    | 'toggleHideOverlap'
+    | 'setHideOverlap';
   targetId?: string; // which object it targets (if empty, assumes self)
   transitionTargetStateId?: string; // for 'transition' action
   transitionDuration?: number; // in seconds
@@ -21,6 +48,18 @@ export interface ActionData {
   toastMessage?: string;
   targetSceneId?: string; // for 'loadScene' action
   animationClipName?: string; // for playing specific animation clip/track
+  volumeValue?: number; // 0 - 100 for youtubeSetVolume
+  qualityValue?: string; // e.g. '1080p', '720p', '480p', '360p', '240p', 'auto'
+  youtubeDisplayMode?: '3d' | '2d';
+  textureUrl?: string;
+  centerTextureValue?: boolean;
+  hideOverlapValue?: boolean;
+  alphaCutoffValue?: number;
+  textureRepeatX?: number;
+  textureRepeatY?: number;
+  textureOffsetX?: number;
+  textureOffsetY?: number;
+  textureRotation?: number;
 }
 
 export interface EventData {
@@ -47,7 +86,7 @@ export interface EventData {
 export interface SceneObject {
   id: string;
   name: string;
-  type: 'group' | 'box' | 'plane' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
+  type: 'group' | 'box' | 'plane' | 'circle' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
   position: Vector3Data;
   rotation: Vector3Data; // Euler angles in degrees
   scale: Vector3Data;

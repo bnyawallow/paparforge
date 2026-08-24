@@ -3459,7 +3459,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   triggerStateTransition: (objectId, targetStateId, duration, easing) => set((state) => {
     const obj = state.objects[objectId];
     if (!obj) return state;
+
+    let updatedObj = { ...obj };
+    if (targetStateId && targetStateId !== 'base' && obj.states) {
+      const targetState = obj.states.find(s => s.id === targetStateId);
+      if (targetState && targetState.properties) {
+        updatedObj.properties = { ...obj.properties, ...targetState.properties };
+      }
+    }
+
     return {
+      objects: {
+        ...state.objects,
+        [objectId]: updatedObj
+      },
       activeTransitions: {
         ...state.activeTransitions,
         [objectId]: {
