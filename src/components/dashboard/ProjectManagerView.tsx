@@ -3,7 +3,7 @@ import {
   Folder, Plus, Upload, Trash2, Copy, FileDown, Search, ArrowRight, Sparkles, 
   Layers, User as UserIcon, ShoppingBag, GraduationCap, Check, AlertTriangle, 
   Sun, Moon, LogOut, Box, Clock, Edit2, Tv, Car, Utensils, Crown, Building2,
-  Globe, X, Download, ExternalLink, Lock, LayoutTemplate, BookmarkPlus
+  Globe, X, Download, ExternalLink, Lock, LayoutTemplate, BookmarkPlus, Smile, Image as ImageIcon, Target
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -30,6 +30,8 @@ export function ProjectManagerView() {
 
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('empty');
+  const [selectedTrackingMode, setSelectedTrackingMode] = useState<'image' | 'face'>('image');
+  const [selectedTargetMode, setSelectedTargetMode] = useState<'single' | 'multi'>('single');
   const [searchQuery, setSearchQuery] = useState('');
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
@@ -180,8 +182,16 @@ export function ProjectManagerView() {
     }
 
     const matchedCustom = customTemplates.find(ct => ct.id === selectedTemplate);
-    createProject(newProjectName.trim(), selectedTemplate as TemplateType, matchedCustom);
-    addToast(`Project "${newProjectName.trim()}" created successfully!`);
+    createProject(
+      newProjectName.trim(), 
+      selectedTemplate as TemplateType, 
+      matchedCustom, 
+      {
+        trackingMode: selectedTrackingMode,
+        targetMode: selectedTargetMode
+      }
+    );
+    addToast(`Project "${newProjectName.trim()}" created successfully (${selectedTrackingMode === 'face' ? 'Face Tracking' : 'Image Tracking'})!`);
     setNewProjectName('');
   };
 
@@ -518,6 +528,92 @@ export function ProjectManagerView() {
           </div>
 
           <form onSubmit={handleCreateProject} className="flex flex-col gap-5">
+            {/* MindAR Tracking Mode Selection Card */}
+            <div className={`p-4 rounded-2xl border flex flex-col gap-3 ${t.isLight ? 'bg-white border-gray-200' : 'bg-[#141418] border-[#24242C]'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="text-blue-500" size={18} />
+                  <span className="font-bold text-sm">MindAR Spatial Tracking Mode</span>
+                </div>
+                <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
+                  Publish Pipeline Ready
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Image Tracking Option */}
+                <div 
+                  onClick={() => setSelectedTrackingMode('image')}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                    selectedTrackingMode === 'image'
+                      ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/20 shadow-md shadow-blue-500/10'
+                      : t.isLight ? 'bg-gray-50 border-gray-200 hover:border-gray-300' : 'bg-[#0A0A0C] border-[#222228] hover:border-[#33333D]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <ImageIcon size={16} className="text-blue-400" />
+                      <span>Image Target Tracking</span>
+                    </div>
+                    {selectedTrackingMode === 'image' && <Check size={14} className="text-blue-400 stroke-[3]" />}
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Track planar posters, packaging, business cards, or print media using MindAR Image recognition.
+                  </p>
+
+                  {/* Target Mode Sub-selection */}
+                  {selectedTrackingMode === 'image' && (
+                    <div className="flex items-center gap-2 mt-1 pt-2 border-t border-blue-500/20" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-[10px] font-semibold text-gray-400">Target Mode:</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTargetMode('single')}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                          selectedTargetMode === 'single'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white/5 text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        Single Target
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTargetMode('multi')}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                          selectedTargetMode === 'multi'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white/5 text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        Multi-Target
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Face Tracking Option */}
+                <div 
+                  onClick={() => setSelectedTrackingMode('face')}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                    selectedTrackingMode === 'face'
+                      ? 'border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/20 shadow-md shadow-purple-500/10'
+                      : t.isLight ? 'bg-gray-50 border-gray-200 hover:border-gray-300' : 'bg-[#0A0A0C] border-[#222228] hover:border-[#33333D]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <Smile size={16} className="text-purple-400" />
+                      <span>Face Mesh Tracking</span>
+                    </div>
+                    {selectedTrackingMode === 'face' && <Check size={14} className="text-purple-400 stroke-[3]" />}
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Track 3D face mesh landmarks, hats, glasses, masks, and face filters in real-time.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Templates Selector */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Built-in Templates */}

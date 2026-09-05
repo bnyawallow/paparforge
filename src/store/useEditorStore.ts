@@ -257,7 +257,7 @@ export const generateTemplate = (projectName: string, templateType: TemplateType
       visible: true,
       children: [],
       parentId: bGroupId,
-      properties: { videoId: 'dQw4w9WgXcQ' }
+      properties: { videoId: 'dQw4w9WgXcQ', resolution: '240p' }
     };
 
     objects[titleTextId] = {
@@ -943,7 +943,7 @@ export const generateTemplate = (projectName: string, templateType: TemplateType
       visible: true,
       children: [],
       parentId: cardId,
-      properties: { videoId: 'dQw4w9WgXcQ' }
+      properties: { videoId: 'dQw4w9WgXcQ', resolution: '240p' }
     };
 
   } else if (templateType === 'educational') {
@@ -1928,6 +1928,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     let newRootObjects = [...state.rootObjects];
 
     const targetObj = { ...obj };
+    if (!targetObj.pivot) {
+      targetObj.pivot = [0, 0, 0];
+    }
     const isHUDChild = ['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(targetObj.type);
 
     let resolvedParentId = parentId;
@@ -2058,6 +2061,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return { 
       objects: normalized.objects, 
       rootObjects: normalized.rootObjects,
+      selectedObjectId: targetObj.id,
+      selectedObjectIds: [targetObj.id],
       past: newPast,
       future: [], // Clear redo stack on new action
       hasUnsavedChanges: true
@@ -3624,12 +3629,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   }),
 
-  createProject: (name, templateType, customTemplateData?) => {
+  createProject: (name, templateType, customTemplateData?, trackingOptions?) => {
     const newId = 'project-' + uuidv4();
     let objects: Record<string, SceneObject> = {};
     let rootObjects: string[] = [];
     let customSettings: any = null;
     let customAssets: any[] = [];
+
+    const trackingMode = trackingOptions?.trackingMode || (typeof trackingOptions === 'string' ? undefined : undefined) || 'image';
+    const targetMode = trackingOptions?.targetMode || (typeof trackingOptions === 'string' ? trackingOptions : 'single');
 
     if (customTemplateData && customTemplateData.objects) {
       objects = JSON.parse(JSON.stringify(customTemplateData.objects));
@@ -3662,6 +3670,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
+    // Configure root target type if trackingMode is specified
+    if (trackingMode === 'face') {
+      Object.values(objects).forEach((obj) => {
+        if (obj.type === 'imageTarget') {
+          obj.name = 'Face Target';
+          obj.properties = {
+            ...obj.properties,
+            targetType: 'face'
+          };
+        }
+      });
+    } else if (trackingMode === 'image') {
+      Object.values(objects).forEach((obj) => {
+        if (obj.type === 'imageTarget') {
+          if (!obj.properties?.targetType || obj.properties.targetType === 'face') {
+            obj.name = 'AR Target';
+            obj.properties = {
+              ...obj.properties,
+              targetType: 'image'
+            };
+          }
+        }
+      });
+    }
+
     const metadata = {
       id: newId,
       name,
@@ -3677,6 +3710,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const mergedSettings = {
         projectName: name,
         imageTargetName: null,
+        trackingMode,
+        targetMode,
         ...(customSettings || {})
       };
 

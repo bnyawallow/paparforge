@@ -496,7 +496,7 @@ export const SPLINE_3D_ICONS: SplineIconMetadata[] = [
   },
   {
     id: 'diamond_gem',
-    name: '3D Diamond Gem',
+    name: '3D Sapphire Diamond',
     category: 'Gaming & VFX',
     previewEmoji: '💎',
     defaultColor: '#38bdf8',

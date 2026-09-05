@@ -108,7 +108,7 @@ export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasPro
               gap: `${gap}px`
             }}
           >
-            {React.Children.map(children, (_, index) => (
+            {React.Children.toArray(children).filter(React.isValidElement).map((_, index) => (
               <div 
                 key={index}
                 className="flex-1 border border-dashed border-cyan-500/40 bg-cyan-500/5 relative min-w-[20px] min-h-[20px] flex items-center justify-center transition-all duration-150"
@@ -143,7 +143,9 @@ export function HUDCanvas({ obj, children, isPreviewMode = false }: HUDCanvasPro
           {/* Corner flex layout status badge */}
           <div className="absolute bottom-2 right-2 bg-black/90 border border-pink-500/40 text-pink-400 font-mono text-[9px] px-2 py-1 rounded shadow-lg flex items-center gap-1.5 select-none">
             <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
-            <span>FLEX GRID: {layoutMode.toUpperCase()} | Align: {props.layoutAlignItems || 'center'} | Justify: {props.layoutJustifyContent || 'center'} | Gap: {gap}px | Padding: {padding}px</span>
+            <span>
+              FLEX GRID: {typeof layoutMode === 'string' ? layoutMode.toUpperCase() : 'ROW'} | Align: {typeof props.layoutAlignItems === 'string' ? props.layoutAlignItems : 'center'} | Justify: {typeof props.layoutJustifyContent === 'string' ? props.layoutJustifyContent : 'center'} | Gap: {gap}px | Padding: {padding}px
+            </span>
           </div>
         </div>
       )}

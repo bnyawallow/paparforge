@@ -4,7 +4,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE, SAMPLE_TARGET_TEXTURES } from '../../lib/arTargetTexture';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
-import { Upload, Layers, Printer } from 'lucide-react';
+import { Upload, Layers, Printer, Link, Unlink, RotateCcw } from 'lucide-react';
 import { TextureOptimizerPanel } from './TextureOptimizerPanel';
 import { ModelMaterialEditor } from './ModelMaterialEditor';
 import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
@@ -70,6 +70,79 @@ function getEasingValue(type: string, t: number): number {
     default:
       return t;
   }
+}
+
+function EasingCurveCanvas({ transitionEasing, isCubicBezier, x1, y1, x2, y2 }: {
+  transitionEasing?: string;
+  isCubicBezier?: boolean;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}) {
+  const [curveProgress, setCurveProgress] = useState(0);
+
+  useEffect(() => {
+    let animId: number;
+    const startTime = performance.now();
+    const tick = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      setCurveProgress((elapsed % 2.0) / 2.0);
+      animId = requestAnimationFrame(tick);
+    };
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
+  return (
+    <div className="relative h-24 bg-[#080808] rounded-lg border border-[#222] overflow-hidden flex items-center justify-center">
+      <svg className="w-full h-full" viewBox="0 0 120 90">
+        <line x1="10" y1="10" x2="110" y2="10" stroke="#1A1A1A" strokeWidth="0.5" strokeDasharray="2,2" />
+        <line x1="10" y1="80" x2="110" y2="80" stroke="#1A1A1A" strokeWidth="0.5" />
+        <line x1="10" y1="10" x2="10" y2="80" stroke="#1A1A1A" strokeWidth="0.5" />
+        <line x1="110" y1="10" x2="110" y2="80" stroke="#1A1A1A" strokeWidth="0.5" strokeDasharray="2,2" />
+
+        {isCubicBezier && (
+          <>
+            <line x1="10" y1="80" x2={10 + x1 * 100} y2={80 - y1 * 60} stroke="#f43f5e" strokeWidth="1" strokeDasharray="1,1" />
+            <circle cx={10 + x1 * 100} cy={80 - y1 * 60} r="3" fill="#f43f5e" />
+            
+            <line x1="110" y1="10" x2={10 + x2 * 100} y2={80 - y2 * 60} stroke="#3b82f6" strokeWidth="1" strokeDasharray="1,1" />
+            <circle cx={10 + x2 * 100} cy={80 - y2 * 60} r="3" fill="#3b82f6" />
+          </>
+        )}
+
+        <path 
+          d={(() => {
+            const pts = [];
+            for (let i = 0; i <= 40; i++) {
+              const ratio = i / 40;
+              const eased = getEasingValue(transitionEasing || 'linear', ratio);
+              const px = 10 + ratio * 100;
+              const py = 80 - eased * 60;
+              pts.push(`${px},${py}`);
+            }
+            return `M ${pts.join(' L ')}`;
+          })()}
+          fill="none"
+          stroke="#22d3ee"
+          strokeWidth="1.5"
+          className="opacity-80"
+        />
+
+        <circle 
+          cx={10 + curveProgress * 100} 
+          cy={80 - getEasingValue(transitionEasing || 'linear', curveProgress) * 60} 
+          r="3.5" 
+          fill="#f97316"
+        />
+      </svg>
+
+      <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[7px] text-gray-500 font-mono uppercase">
+        t: {curveProgress.toFixed(2)}
+      </div>
+    </div>
+  );
 }
 
 const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
@@ -613,6 +686,7 @@ export function TextureThumbnailGrid({ value, onChange, presets, label }: Textur
 import { 
   Trash2, 
   Play, 
+  Pause,
   VolumeX, 
   PlusCircle, 
   Sparkles, 
@@ -665,7 +739,8 @@ import {
   Image as ImageIcon,
   User,
   Compass,
-  Box
+  Box,
+  Target
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../lib/theme';
@@ -1457,24 +1532,9 @@ export function InspectorPanel({ width }: { width?: number }) {
   const [expandedActions, setExpandedActions] = useState<Record<string, boolean>>({});
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [isEventsSectionOpen, setIsEventsSectionOpen] = useState(false);
-  const [curveProgress, setCurveProgress] = useState(0);
-
   useEffect(() => {
     setIsEventsSectionOpen(false);
   }, [selectedObjectId]);
-
-  useEffect(() => {
-    let animId: number;
-    const startTime = performance.now();
-    const tick = () => {
-      const elapsed = (performance.now() - startTime) / 1000;
-      // Loop every 2 seconds
-      setCurveProgress((elapsed % 2.0) / 2.0);
-      animId = requestAnimationFrame(tick);
-    };
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
-  }, []);
 
   const toggleRuleExpansion = (ruleId: string) => {
     setExpandedRules(prev => ({
@@ -1625,24 +1685,45 @@ export function InspectorPanel({ width }: { width?: number }) {
   const currentPos = activeStateObj?.position || obj?.position || [0, 0, 0];
   const currentRot = activeStateObj?.rotation || obj?.rotation || [0, 0, 0];
   const currentScl = activeStateObj?.scale || obj?.scale || [1, 1, 1];
+  const currentPvt = obj?.pivot || [0, 0, 0];
 
-  const handleVectorChange = (prop: 'position' | 'rotation' | 'scale', index: number, value: string | number) => {
+  const handleVectorChange = (prop: 'position' | 'rotation' | 'scale' | 'pivot', index: number, value: string | number) => {
     if (!obj) return;
     const numValue = typeof value === 'number' ? (isNaN(value) ? 0 : value) : (parseFloat(value) || 0);
+
+    if (prop === 'pivot') {
+      const v = [...(obj.pivot || [0, 0, 0])] as Vector3Data;
+      v[index] = numValue;
+      updateObject(obj.id, { pivot: v });
+      return;
+    }
+
+    const calcNewVector = (currentVec: Vector3Data): Vector3Data => {
+      const newVec = [...currentVec] as Vector3Data;
+      if (prop === 'scale' && linkAxes) {
+        const oldVal = currentVec[index];
+        if (oldVal !== 0 && Math.abs(oldVal) > 0.0001) {
+          const ratio = numValue / oldVal;
+          newVec[0] = Number((currentVec[0] * ratio).toFixed(4));
+          newVec[1] = Number((currentVec[1] * ratio).toFixed(4));
+          newVec[2] = Number((currentVec[2] * ratio).toFixed(4));
+        } else {
+          newVec[0] = numValue;
+          newVec[1] = numValue;
+          newVec[2] = numValue;
+        }
+      } else {
+        newVec[index] = numValue;
+      }
+      return newVec;
+    };
 
     if (activeStateId && activeStateId !== 'base' && obj.states) {
       const currentStates = obj.states || [];
       const targetState = currentStates.find((s: any) => s.id === activeStateId);
       if (targetState) {
         const baseVec = targetState[prop] ? [...targetState[prop]] : [...obj[prop]];
-        const newVec = baseVec as Vector3Data;
-        if (linkAxes) {
-          newVec[0] = numValue;
-          newVec[1] = numValue;
-          newVec[2] = numValue;
-        } else {
-          newVec[index] = numValue;
-        }
+        const newVec = calcNewVector(baseVec as Vector3Data);
         const updatedStates = currentStates.map((s: any) => s.id === activeStateId ? { ...s, [prop]: newVec } : s);
         updateObject(selectedObjectId!, { states: updatedStates });
         return;
@@ -1653,28 +1734,23 @@ export function InspectorPanel({ width }: { width?: number }) {
       selectedObjectIds.forEach(id => {
         if (objects[id]) {
            const o = objects[id];
-           const v = [...o[prop]] as Vector3Data;
-           if (linkAxes) {
-             v[0] = numValue;
-             v[1] = numValue;
-             v[2] = numValue;
-           } else {
-             v[index] = numValue;
-           }
+           const v = calcNewVector(o[prop] as Vector3Data);
            updateObject(id, { [prop]: v });
         }
       });
     } else {
-      const newVec = [...obj[prop]] as Vector3Data;
-      if (linkAxes) {
-        newVec[0] = numValue;
-        newVec[1] = numValue;
-        newVec[2] = numValue;
-      } else {
-        newVec[index] = numValue;
-      }
+      const newVec = calcNewVector(obj[prop] as Vector3Data);
       updateObject(selectedObjectId!, { [prop]: newVec });
     }
+  };
+
+  const handleResetTransform = () => {
+    if (!obj) return;
+    updateObject(obj.id, {
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    });
   };
 
   const handlePropertyChange = (key: string, value: any) => {
@@ -2991,6 +3067,153 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </div>
               </div>
 
+              {/* MindAR Spatial Tracking Mode Section */}
+              <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Target size={12} className="text-blue-400" />
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Spatial Tracking Mode</span>
+                  </div>
+                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-bold">
+                    {(settings.trackingMode === 'face') ? 'MindAR Face Mesh' : 'MindAR Image'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Image Tracking Mode Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateSettings({ trackingMode: 'image' });
+                      Object.values(objects).forEach(obj => {
+                        if (obj.type === 'imageTarget') {
+                          updateObject(obj.id, {
+                            name: obj.name === 'Face Target' ? 'AR Target' : obj.name,
+                            properties: { ...obj.properties, targetType: 'image' }
+                          });
+                        }
+                      });
+                      useEditorStore.getState().addToast("Switched scene to Image Target Tracking Mode");
+                    }}
+                    className={cn(
+                      "p-2.5 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
+                      (settings.trackingMode || 'image') === 'image'
+                        ? "bg-blue-600/15 border-blue-500/50 text-white ring-1 ring-blue-500/30"
+                        : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:border-gray-600 hover:text-white"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                        <ImageIcon size={13} className="text-blue-400" />
+                        <span>Image Tracking</span>
+                      </div>
+                      {(settings.trackingMode || 'image') === 'image' && (
+                        <Check size={12} className="text-blue-400 stroke-[3]" />
+                      )}
+                    </div>
+                    <span className="text-[9px] text-gray-400 leading-tight">
+                      2D posters, cards & prints
+                    </span>
+                  </button>
+
+                  {/* Face Tracking Mode Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateSettings({ trackingMode: 'face' });
+                      Object.values(objects).forEach(obj => {
+                        if (obj.type === 'imageTarget') {
+                          updateObject(obj.id, {
+                            name: 'Face Target',
+                            properties: { ...obj.properties, targetType: 'face' }
+                          });
+                        }
+                      });
+                      useEditorStore.getState().addToast("Switched scene to Face Mesh Tracking Mode (Single Target)");
+                    }}
+                    className={cn(
+                      "p-2.5 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
+                      settings.trackingMode === 'face'
+                        ? "bg-purple-600/15 border-purple-500/50 text-white ring-1 ring-purple-500/30"
+                        : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:border-gray-600 hover:text-white"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                        <Smile size={13} className="text-purple-400" />
+                        <span>Face Tracking</span>
+                      </div>
+                      {settings.trackingMode === 'face' && (
+                        <Check size={12} className="text-purple-400 stroke-[3]" />
+                      )}
+                    </div>
+                    <span className="text-[9px] text-gray-400 leading-tight">
+                      3D Face mesh landmarks
+                    </span>
+                  </button>
+                </div>
+
+                {/* Target Mode Capacity for Image Tracking */}
+                {(settings.trackingMode || 'image') === 'image' && (
+                  <div className="flex flex-col gap-1.5 bg-[#141418] p-2.5 rounded-lg border border-[#222] mt-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="font-bold text-gray-300 uppercase tracking-wider">Image Target Mode</span>
+                      <span className="font-mono text-blue-400">
+                        {(settings.targetMode || 'single') === 'single' ? 'Single Target (1/1)' : 'Multi-Target'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 mt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSettings({ targetMode: 'single' });
+                          useEditorStore.getState().addToast("Set Image Target Mode to Single Target");
+                        }}
+                        className={cn(
+                          "py-1.5 px-2 rounded text-[10px] font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer",
+                          (settings.targetMode || 'single') === 'single'
+                            ? "bg-blue-600/20 border-blue-500/40 text-blue-300"
+                            : "bg-[#1C1C20] border-[#2A2A30] text-gray-400 hover:text-white"
+                        )}
+                      >
+                        <Lock size={10} />
+                        <span>Single Target</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSettings({ targetMode: 'multi' });
+                          useEditorStore.getState().addToast("Enabled Multi-Target Image Mode. You can now add image targets.");
+                        }}
+                        className={cn(
+                          "py-1.5 px-2 rounded text-[10px] font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer",
+                          settings.targetMode === 'multi'
+                            ? "bg-blue-600/20 border-blue-500/40 text-blue-300"
+                            : "bg-[#1C1C20] border-[#2A2A30] text-gray-400 hover:text-white"
+                        )}
+                      >
+                        <Layers size={10} />
+                        <span>Multi-Target</span>
+                      </button>
+                    </div>
+                    <p className="text-[8px] text-gray-500 mt-0.5 leading-tight">
+                      {(settings.targetMode || 'single') === 'single'
+                        ? "Single target mode limits target count to 1. Change to Multi-Target to enable adding image targets."
+                        : "Multi-Target mode is active. You can add image targets in the scene hierarchy."}
+                    </p>
+                  </div>
+                )}
+
+                {settings.trackingMode === 'face' && (
+                  <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20 text-[9px] text-purple-300 flex items-center gap-1.5 mt-1">
+                    <Smile size={12} className="text-purple-400 shrink-0" />
+                    <span>Face tracking scenes support a single face target with landmark anchors.</span>
+                  </div>
+                )}
+              </div>
+
               {/* Global Ambient Lighting */}
               <div className="flex flex-col gap-3 border-t border-[#222] pt-4">
                 <div className="flex items-center gap-1.5">
@@ -3396,39 +3619,32 @@ export function InspectorPanel({ width }: { width?: number }) {
           return !obj.type.startsWith('hud') ? (
             <InspectorSection 
               title={
-                <div className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-1.5">Transform</span>
-                  {activeStateObj && (
-                    <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
-                      <Sparkles size={9} /> State: {activeStateObj.name}
-                    </span>
-                  )}
+                <div className="flex items-center justify-between w-full pr-1">
+                  <span className="flex items-center gap-1.5 font-bold text-xs">Transform</span>
+                  <div className="flex items-center gap-2">
+                    {activeStateObj && (
+                      <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                        <Sparkles size={9} /> State: {activeStateObj.name}
+                      </span>
+                    )}
+                    <button
+                      onClick={handleResetTransform}
+                      className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-all cursor-pointer"
+                      title="Reset Position, Rotation & Scale to Default"
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  </div>
                 </div>
               } 
-              rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase">Locked</span>}
+              rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase font-bold">Locked</span>}
             >
-              <div className="flex flex-col gap-3">
-                {/* Scale Link Axes / Edit Uniformly (Only if Scale is shown) */}
-                {showScale && (
-                  <div className="flex items-center justify-between bg-black/30 px-2 py-1.5 rounded border border-[#222]/50">
-                    <span className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider select-none flex items-center gap-1.5">
-                      🔗 Link Axes (Uniform Scale)
-                    </span>
-                    <input
-                      type="checkbox"
-                      id="link-axes"
-                      checked={linkAxes}
-                      onChange={(e) => setLinkAxes(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded bg-black/50 border border-[#333] text-blue-500 focus:ring-0 cursor-pointer"
-                    />
+              <div className="flex flex-col gap-2">
+                {/* Position Row */}
+                <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                    <span>Position</span>
                   </div>
-                )}
-
-                {/* Position Block */}
-                <div className="flex flex-col gap-1.5 bg-black/20 p-2 rounded border border-[#222]/30">
-                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    📍 Position
-                  </span>
                   <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
                     <DraggableNumberInput
                       label="X"
@@ -3436,8 +3652,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                       disabled={obj.locked}
                       value={currentPos[0] ?? 0}
                       onChange={(v) => handleVectorChange('position', 0, v)}
-                      labelClass="px-1.5 text-red-500 font-bold border-r border-[#222]/50 bg-black/40"
-                      className="focus-within:border-red-500"
+                      labelClass="px-1.5 text-red-400 font-bold border-r border-[#2A2A32] bg-red-500/10"
+                      className="focus-within:border-red-500/50"
                     />
                     <DraggableNumberInput
                       label="Y"
@@ -3445,8 +3661,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                       disabled={obj.locked}
                       value={currentPos[1] ?? 0}
                       onChange={(v) => handleVectorChange('position', 1, v)}
-                      labelClass="px-1.5 text-green-500 font-bold border-r border-[#222]/50 bg-black/40"
-                      className="focus-within:border-green-500"
+                      labelClass="px-1.5 text-emerald-400 font-bold border-r border-[#2A2A32] bg-emerald-500/10"
+                      className="focus-within:border-emerald-500/50"
                     />
                     <DraggableNumberInput
                       label="Z"
@@ -3454,18 +3670,18 @@ export function InspectorPanel({ width }: { width?: number }) {
                       disabled={obj.locked}
                       value={currentPos[2] ?? 0}
                       onChange={(v) => handleVectorChange('position', 2, v)}
-                      labelClass="px-1.5 text-blue-500 font-bold border-r border-[#222]/50 bg-black/40"
-                      className="focus-within:border-blue-500"
+                      labelClass="px-1.5 text-blue-400 font-bold border-r border-[#2A2A32] bg-blue-500/10"
+                      className="focus-within:border-blue-500/50"
                     />
                   </div>
                 </div>
 
-                {/* Rotation Block */}
+                {/* Rotation Row */}
                 {showRotation && (
-                  <div className="flex flex-col gap-1.5 bg-black/20 p-2 rounded border border-[#222]/30">
-                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                      🔄 Rotation (Degrees)
-                    </span>
+                  <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      <span>Rotation (deg)</span>
+                    </div>
                     <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
                       <DraggableNumberInput
                         label="X"
@@ -3473,7 +3689,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                         disabled={obj.locked}
                         value={currentRot[0] ?? 0}
                         onChange={(v) => handleVectorChange('rotation', 0, v)}
-                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                        labelClass="px-1.5 text-red-400/80 font-bold border-r border-[#2A2A32] bg-red-500/5"
+                        className="focus-within:border-red-500/50"
                       />
                       <DraggableNumberInput
                         label="Y"
@@ -3481,7 +3698,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                         disabled={obj.locked}
                         value={currentRot[1] ?? 0}
                         onChange={(v) => handleVectorChange('rotation', 1, v)}
-                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                        labelClass="px-1.5 text-emerald-400/80 font-bold border-r border-[#2A2A32] bg-emerald-500/5"
+                        className="focus-within:border-emerald-500/50"
                       />
                       <DraggableNumberInput
                         label="Z"
@@ -3489,18 +3707,31 @@ export function InspectorPanel({ width }: { width?: number }) {
                         disabled={obj.locked}
                         value={currentRot[2] ?? 0}
                         onChange={(v) => handleVectorChange('rotation', 2, v)}
-                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                        labelClass="px-1.5 text-blue-400/80 font-bold border-r border-[#2A2A32] bg-blue-500/5"
+                        className="focus-within:border-blue-500/50"
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Scale Block */}
+                {/* Scale Row */}
                 {showScale && (
-                  <div className="flex flex-col gap-1.5 bg-black/20 p-2 rounded border border-[#222]/30">
-                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                      📐 Scale
-                    </span>
+                  <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      <span className="flex items-center gap-1">Scale</span>
+                      <button
+                        onClick={() => setLinkAxes(!linkAxes)}
+                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold transition-all cursor-pointer ${
+                          linkAxes 
+                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
+                            : 'bg-white/5 text-gray-500 hover:text-gray-300 border border-transparent'
+                        }`}
+                        title={linkAxes ? 'Unlink Scale Axes (Individual Scaling)' : 'Link Scale Axes (Uniform Proportional Scaling)'}
+                      >
+                        {linkAxes ? <Link size={10} /> : <Unlink size={10} />}
+                        <span>{linkAxes ? 'Linked' : 'Unlinked'}</span>
+                      </button>
+                    </div>
                     <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
                       <DraggableNumberInput
                         label="X"
@@ -3508,7 +3739,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                         disabled={obj.locked}
                         value={currentScl[0] ?? 1}
                         onChange={(v) => handleVectorChange('scale', 0, v)}
-                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                        labelClass="px-1.5 text-red-400/80 font-bold border-r border-[#2A2A32] bg-red-500/5"
+                        className="focus-within:border-red-500/50"
                       />
                       <DraggableNumberInput
                         label="Y"
@@ -3516,7 +3748,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                         disabled={obj.locked}
                         value={currentScl[1] ?? 1}
                         onChange={(v) => handleVectorChange('scale', 1, v)}
-                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                        labelClass="px-1.5 text-emerald-400/80 font-bold border-r border-[#2A2A32] bg-emerald-500/5"
+                        className="focus-within:border-emerald-500/50"
                       />
                       <DraggableNumberInput
                         label="Z"
@@ -3524,7 +3757,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                         disabled={obj.locked}
                         value={currentScl[2] ?? 1}
                         onChange={(v) => handleVectorChange('scale', 2, v)}
-                        labelClass="px-1.5 text-gray-400 font-bold border-r border-[#222]/50 bg-black/40"
+                        labelClass="px-1.5 text-blue-400/80 font-bold border-r border-[#2A2A32] bg-blue-500/5"
+                        className="focus-within:border-blue-500/50"
                       />
                     </div>
                   </div>
@@ -3942,24 +4176,46 @@ export function InspectorPanel({ width }: { width?: number }) {
                         {isExpanded && (
                           <div className="flex flex-col gap-2 mt-1 border-t border-[#222] pt-2">
                             <div className="flex flex-col gap-1">
-                              <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Trigger</label>
+                              <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Trigger Event</label>
                               <select
                                 value={evt.trigger}
                                 onChange={(e) => handleUpdateEvent(evt.id, { trigger: e.target.value })}
                                 className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
                               >
-                                <option value="onTap">👆 On Tap (Mouse Click)</option>
-                                <option value="start">🚀 On Start (Scene Load)</option>
-                                <option value="onPointerDown">⬇️ On Pointer Down (Mouse Down / Touch Start)</option>
-                                <option value="onPointerUp">⬆️ On Pointer Up (Mouse Up / Touch End)</option>
-                                <option value="onHoverEnter">🖱️ On Hover Enter (Pointer Over)</option>
-                                <option value="onHoverExit">🚪 On Hover Exit (Pointer Out)</option>
-                                <option value="onPointerMove">🖐️ On Pointer Move / Drag</option>
-                                <option value="onScroll">📜 On Scroll / Mouse Wheel</option>
-                                <option value="onKeyDown">⌨️ Key Down (Press)</option>
-                                <option value="onKeyUp">⌨️ Key Up (Release)</option>
-                                <option value="onProximityEnter">📏 Proximity Enter</option>
-                                <option value="onProximityExit">📏 Proximity Exit</option>
+                                <optgroup label="Augmented Reality (AR)">
+                                  <option value="onImageTargetFound">🎯 AR Image Target Found (Target Detected)</option>
+                                  <option value="onImageTargetLost">💨 AR Image Target Lost (Target Lost)</option>
+                                  <option value="onFaceTargetFound">👤 AR Face Target Found (Face Detected)</option>
+                                  <option value="onFaceTargetLost">👤 AR Face Target Lost (Face Lost)</option>
+                                  <option value="onTargetFound">🔍 Any AR Target Found</option>
+                                  <option value="onTargetLost">💨 Any AR Target Lost</option>
+                                  <option value="onARSessionStart">✨ AR Tracking Session Started</option>
+                                  <option value="onARSessionEnd">⏹️ AR Tracking Session Ended</option>
+                                </optgroup>
+                                <optgroup label="Interaction & Gestures">
+                                  <option value="onTap">👆 On Tap (Click)</option>
+                                  <option value="onDoubleTap">✌️ On Double Tap (Double Click)</option>
+                                  <option value="onLongPress">⏱️ On Long Press / Hold</option>
+                                  <option value="onPointerDown">⬇️ On Pointer Down (Touch Start)</option>
+                                  <option value="onPointerUp">⬆️ On Pointer Up (Touch End)</option>
+                                  <option value="onHoverEnter">🖱️ On Hover Enter (Pointer Over)</option>
+                                  <option value="onHoverExit">🚪 On Hover Exit (Pointer Out)</option>
+                                  <option value="onPointerMove">🖐️ On Pointer Move / Drag</option>
+                                  <option value="onScroll">📜 On Scroll / Wheel</option>
+                                  <option value="onKeyDown">⌨️ Key Down (Press)</option>
+                                  <option value="onKeyUp">⌨️ Key Up (Release)</option>
+                                  <option value="onProximityEnter">📏 Proximity Enter (Close Range)</option>
+                                  <option value="onProximityExit">📏 Proximity Exit (Far Range)</option>
+                                </optgroup>
+                                <optgroup label="Lifecycle & Media">
+                                  <option value="start">🚀 On Start (Scene Load)</option>
+                                  <option value="onMediaPlay">▶️ On Media / Video Play</option>
+                                  <option value="onMediaPause">⏸️ On Media / Video Pause</option>
+                                  <option value="onMediaEnd">🏁 On Media / Video End</option>
+                                  <option value="onAnimationComplete">🎬 On Animation Complete</option>
+                                  <option value="onVisible">👁️ On Object Visible</option>
+                                  <option value="onHidden">🙈 On Object Hidden</option>
+                                </optgroup>
                               </select>
                             </div>
 
@@ -4055,29 +4311,63 @@ export function InspectorPanel({ width }: { width?: number }) {
                                           }}
                                           className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
                                         >
-                                          <option value="transition">🔄 Transition</option>
-                                          <option value="playSound">🔊 Play Sound</option>
-                                          <option value="openUrl">🌐 Open URL</option>
-                                          <option value="toast">💬 Show Toast</option>
-                                          <option value="playAnimation">🎬 Play Animation</option>
-                                          <option value="pauseAnimation">⏸ Pause Animation</option>
-                                          <option value="youtubePlay">▶ Play YouTube</option>
-                                          <option value="youtubePause">⏸ Pause YouTube</option>
-                                          <option value="youtubeMute">🔇 Mute YouTube</option>
-                                          <option value="youtubeUnmute">🔊 Unmute YouTube</option>
-                                          <option value="youtubeSetVolume">🎚 Set YouTube Volume</option>
-                                          <option value="youtubeSetQuality">🎬 Set YouTube Quality</option>
-                                          <option value="youtubeSetDisplayMode">📺 Set YouTube Display Mode</option>
-                                          <option value="youtubeOpenOverlay">🪟 Open 2D YouTube Overlay</option>
-                                          <option value="youtubeCloseOverlay">✖ Close 2D YouTube Overlay</option>
-                                          <option value="youtubeToggleOverlay">🔄 Toggle 2D YouTube Overlay</option>
-                                          <option value="setTextureUrl">🖼 Set Texture URL</option>
-                                          <option value="centerTexture">🎯 Center Texture Alignment</option>
-                                          <option value="toggleHideOverlap">💧 Toggle Hide Overlap</option>
-                                          <option value="setHideOverlap">👁 Set Hide Overlap</option>
-                                          <option value="loadScene">🗺️ Load Scene</option>
-                                          <option value="show">👁 Show</option>
-                                          <option value="hide">🙈 Hide</option>
+                                          <optgroup label="YouTube Video Controls">
+                                            <option value="youtubePlay">▶ Play YouTube Video</option>
+                                            <option value="youtubePause">⏸ Pause YouTube Video</option>
+                                            <option value="youtubeTogglePlay">⏯ Toggle Play/Pause YouTube</option>
+                                            <option value="youtubeStop">⏹ Stop & Rewind YouTube</option>
+                                            <option value="youtubeMute">🔇 Mute YouTube Video</option>
+                                            <option value="youtubeUnmute">🔊 Unmute YouTube Video</option>
+                                            <option value="youtubeSetVolume">🎚 Set YouTube Volume</option>
+                                            <option value="youtubeSetQuality">🎬 Set YouTube Quality</option>
+                                            <option value="youtubeSetDisplayMode">📺 Set YouTube Display Mode (3D/2D)</option>
+                                            <option value="youtubeOpenOverlay">🪟 Open 2D YouTube Overlay</option>
+                                            <option value="youtubeCloseOverlay">✖ Close 2D YouTube Overlay</option>
+                                            <option value="youtubeToggleOverlay">🔄 Toggle 2D YouTube Overlay</option>
+                                            <option value="youtubeSeekTo">⏩ Seek YouTube Video</option>
+                                          </optgroup>
+                                          <optgroup label="Video & Audio Controls">
+                                            <option value="playVideo">🎬 Play Video</option>
+                                            <option value="pauseVideo">⏸ Pause Video</option>
+                                            <option value="stopVideo">⏹ Stop Video</option>
+                                            <option value="setVideoVolume">🎚 Set Video Volume</option>
+                                            <option value="setVideoMuted">🔇 Mute / Unmute Video</option>
+                                            <option value="seekVideo">⏩ Seek Video</option>
+                                            <option value="playSound">🔊 Play Sound / Audio</option>
+                                            <option value="pauseSound">⏸ Pause Sound</option>
+                                            <option value="stopSound">⏹ Stop Sound</option>
+                                            <option value="setSoundVolume">🎚 Set Sound Volume</option>
+                                          </optgroup>
+                                          <optgroup label="3D Animation & States">
+                                            <option value="transition">🔄 Transition State</option>
+                                            <option value="playAnimation">🎬 Play 3D Animation Track</option>
+                                            <option value="pauseAnimation">⏸ Pause 3D Animation Track</option>
+                                            <option value="stopAnimation">⏹ Stop 3D Animation Track</option>
+                                            <option value="playModelAnimation">🤖 Play Model Animation</option>
+                                            <option value="pauseModelAnimation">🤖 Pause Model Animation</option>
+                                            <option value="stopModelAnimation">🤖 Stop Model Animation</option>
+                                          </optgroup>
+                                          <optgroup label="Visibility & Appearance">
+                                            <option value="show">👁 Show Object</option>
+                                            <option value="hide">🙈 Hide Object</option>
+                                            <option value="toggleVisibility">🔄 Toggle Visibility</option>
+                                            <option value="setColor">🎨 Set Color / Tint</option>
+                                            <option value="setOpacity">🌫 Set Opacity</option>
+                                            <option value="fadeIn">✨ Fade In</option>
+                                            <option value="fadeOut">💨 Fade Out</option>
+                                            <option value="setTextureUrl">🖼 Set Texture URL</option>
+                                            <option value="centerTexture">🎯 Center Texture Alignment</option>
+                                            <option value="toggleHideOverlap">💧 Toggle Hide Overlap</option>
+                                            <option value="setHideOverlap">👁 Set Hide Overlap</option>
+                                          </optgroup>
+                                          <optgroup label="System & Interactivity">
+                                            <option value="takeScreenshot">📸 Take AR Screenshot / Snapshot</option>
+                                            <option value="openUrl">🌐 Open URL Link</option>
+                                            <option value="toast">💬 Show Toast Notification</option>
+                                            <option value="loadScene">🗺️ Load Scene</option>
+                                            <option value="triggerHaptic">📳 Trigger Haptic Vibration</option>
+                                            <option value="copyToClipboard">📋 Copy to Clipboard</option>
+                                          </optgroup>
                                         </select>
                                         
                                         <div className="flex flex-col gap-1 mt-1">
@@ -4097,10 +4387,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                                           </select>
                                         </div>
 
-                                        {action.type === 'youtubeSetVolume' && (
+                                        {(action.type === 'youtubeSetVolume' || action.type === 'setSoundVolume' || action.type === 'setVideoVolume') && (
                                           <div className="flex flex-col gap-1 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
                                             <div className="flex justify-between items-center">
-                                              <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Target Volume ({action.volumeValue ?? 100}%)</label>
+                                              <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Volume Level ({action.volumeValue ?? 100}%)</label>
                                             </div>
                                             <div className="flex items-center gap-2 mt-1">
                                               <input
@@ -4129,6 +4419,191 @@ export function InspectorPanel({ width }: { width?: number }) {
                                                 className="w-12 bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1 text-center font-mono"
                                               />
                                             </div>
+                                          </div>
+                                        )}
+
+                                        {(action.type === 'youtubeSeekTo' || action.type === 'seekVideo') && (
+                                          <div className="flex flex-col gap-1 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
+                                            <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Seek Time (Seconds)</label>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              step="0.5"
+                                              value={action.seekTime ?? 0}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, seekTime: val } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono mt-1"
+                                            />
+                                          </div>
+                                        )}
+
+                                        {action.type === 'setColor' && (
+                                          <div className="flex flex-col gap-1 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
+                                            <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Target Color / Tint</label>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              <input
+                                                type="color"
+                                                value={action.colorValue || '#3b82f6'}
+                                                onChange={(e) => {
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, colorValue: e.target.value } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                }}
+                                                className="w-7 h-7 rounded border border-neutral-700 bg-transparent cursor-pointer"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={action.colorValue || '#3b82f6'}
+                                                onChange={(e) => {
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, colorValue: e.target.value } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                }}
+                                                className="flex-1 bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 font-mono"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {action.type === 'setOpacity' && (
+                                          <div className="flex flex-col gap-1 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
+                                            <div className="flex justify-between items-center">
+                                              <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Opacity ({((action.opacityValue ?? 1.0) * 100).toFixed(0)}%)</label>
+                                            </div>
+                                            <input
+                                              type="range"
+                                              min="0"
+                                              max="1"
+                                              step="0.05"
+                                              value={action.opacityValue ?? 1.0}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value);
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, opacityValue: val } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              className="w-full accent-blue-500 h-1 bg-neutral-800 rounded-lg cursor-pointer mt-1"
+                                            />
+                                          </div>
+                                        )}
+
+                                        {action.type === 'triggerHaptic' && (
+                                          <div className="flex flex-col gap-1 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
+                                            <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Vibration Duration (ms)</label>
+                                            <select
+                                              value={action.hapticDuration ?? 50}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value, 10);
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, hapticDuration: val } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none mt-1"
+                                            >
+                                              <option value={20}>Light Tap (20ms)</option>
+                                              <option value={50}>Medium Impact (50ms)</option>
+                                              <option value={100}>Heavy Pulse (100ms)</option>
+                                              <option value={200}>Strong Alert (200ms)</option>
+                                            </select>
+                                          </div>
+                                        )}
+
+                                        {action.type === 'takeScreenshot' && (
+                                          <div className="flex flex-col gap-2 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
+                                            <div className="flex items-center gap-1.5 text-blue-400 text-[9px] font-mono uppercase tracking-wider font-semibold">
+                                              <span>📸 Screenshot Settings</span>
+                                            </div>
+                                            
+                                            <div className="flex flex-col gap-1">
+                                              <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Watermark Text</label>
+                                              <input
+                                                type="text"
+                                                placeholder="e.g. Captured with AR Studio"
+                                                value={action.screenshotWatermark ?? ''}
+                                                onChange={(e) => {
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, screenshotWatermark: e.target.value } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                }}
+                                                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                              />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2 mt-1">
+                                              <label className="flex items-center gap-1.5 text-[9px] text-neutral-300 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={action.screenshotIncludeTimestamp !== false}
+                                                  onChange={(e) => {
+                                                    const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, screenshotIncludeTimestamp: e.target.checked } : a);
+                                                    handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                  }}
+                                                  className="rounded accent-blue-500"
+                                                />
+                                                <span>Include Timestamp</span>
+                                              </label>
+
+                                              <label className="flex items-center gap-1.5 text-[9px] text-neutral-300 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={action.screenshotSound !== false}
+                                                  onChange={(e) => {
+                                                    const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, screenshotSound: e.target.checked } : a);
+                                                    handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                  }}
+                                                  className="rounded accent-blue-500"
+                                                />
+                                                <span>Shutter Sound</span>
+                                              </label>
+
+                                              <label className="flex items-center gap-1.5 text-[9px] text-neutral-300 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={action.screenshotFlash !== false}
+                                                  onChange={(e) => {
+                                                    const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, screenshotFlash: e.target.checked } : a);
+                                                    handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                  }}
+                                                  className="rounded accent-blue-500"
+                                                />
+                                                <span>Camera Flash</span>
+                                              </label>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1 mt-1">
+                                              <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Trigger Mode</label>
+                                              <select
+                                                value={action.screenshotDirectDownload ? 'download' : action.screenshotDirectShare ? 'share' : 'modal'}
+                                                onChange={(e) => {
+                                                  const val = e.target.value;
+                                                  const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { 
+                                                    ...a, 
+                                                    screenshotDirectDownload: val === 'download',
+                                                    screenshotDirectShare: val === 'share'
+                                                  } : a);
+                                                  handleUpdateEvent(evt.id, { actions: updatedActions });
+                                                }}
+                                                className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none"
+                                              >
+                                                <option value="modal">🪟 Open Snapshot Preview & Share Suite</option>
+                                                <option value="download">💾 Direct Download to Device Storage</option>
+                                                <option value="share">📱 Direct Native Web Share Sheet</option>
+                                              </select>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {action.type === 'copyToClipboard' && (
+                                          <div className="flex flex-col gap-1 mt-2 p-2 bg-[#141414] border border-[#222] rounded-lg">
+                                            <label className="text-[8px] text-[#888] font-mono uppercase tracking-wider">Text to Copy</label>
+                                            <input
+                                              type="text"
+                                              placeholder="Text to copy..."
+                                              value={action.clipboardText ?? ''}
+                                              onChange={(e) => {
+                                                const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, clipboardText: e.target.value } : a);
+                                                handleUpdateEvent(evt.id, { actions: updatedActions });
+                                              }}
+                                              className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono mt-1"
+                                            />
                                           </div>
                                         )}
 
@@ -4290,59 +4765,16 @@ export function InspectorPanel({ width }: { width?: number }) {
                                                     </select>
 
                                                     {/* SVG Curve Canvas */}
-                                                    <div className="relative h-24 bg-[#080808] rounded-lg border border-[#222] overflow-hidden flex items-center justify-center">
-                                                      <svg className="w-full h-full" viewBox="0 0 120 90">
-                                                        {/* Grid lines */}
-                                                        <line x1="10" y1="10" x2="110" y2="10" stroke="#1A1A1A" strokeWidth="0.5" strokeDasharray="2,2" />
-                                                        <line x1="10" y1="80" x2="110" y2="80" stroke="#1A1A1A" strokeWidth="0.5" />
-                                                        <line x1="10" y1="10" x2="10" y2="80" stroke="#1A1A1A" strokeWidth="0.5" />
-                                                        <line x1="110" y1="10" x2="110" y2="80" stroke="#1A1A1A" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                     <EasingCurveCanvas
+                                                       transitionEasing={action.transitionEasing}
+                                                       isCubicBezier={isCubicBezier}
+                                                       x1={x1}
+                                                       y1={y1}
+                                                       x2={x2}
+                                                       y2={y2}
+                                                     />
 
-                                                        {/* Bezier control handles */}
-                                                        {isCubicBezier && (
-                                                          <>
-                                                            <line x1="10" y1="80" x2={10 + x1 * 100} y2={80 - y1 * 60} stroke="#f43f5e" strokeWidth="1" strokeDasharray="1,1" />
-                                                            <circle cx={10 + x1 * 100} cy={80 - y1 * 60} r="3" fill="#f43f5e" />
-                                                            
-                                                            <line x1="110" y1="10" x2={10 + x2 * 100} y2={80 - y2 * 60} stroke="#3b82f6" strokeWidth="1" strokeDasharray="1,1" />
-                                                            <circle cx={10 + x2 * 100} cy={80 - y2 * 60} r="3" fill="#3b82f6" />
-                                                          </>
-                                                        )}
-
-                                                        {/* Graph Curve */}
-                                                        <path 
-                                                          d={(() => {
-                                                            const pts = [];
-                                                            for (let i = 0; i <= 40; i++) {
-                                                              const ratio = i / 40;
-                                                              const eased = getEasingValue(action.transitionEasing || 'linear', ratio);
-                                                              const px = 10 + ratio * 100;
-                                                              const py = 80 - eased * 60;
-                                                              pts.push(`${px},${py}`);
-                                                            }
-                                                            return `M ${pts.join(' L ')}`;
-                                                          })()}
-                                                          fill="none"
-                                                          stroke="#22d3ee"
-                                                          strokeWidth="1.5"
-                                                          className="opacity-80"
-                                                        />
-
-                                                        {/* Live animated preview dot */}
-                                                        <circle 
-                                                          cx={10 + curveProgress * 100} 
-                                                          cy={80 - getEasingValue(action.transitionEasing || 'linear', curveProgress) * 60} 
-                                                          r="3.5" 
-                                                          fill="#f97316"
-                                                        />
-                                                      </svg>
-
-                                                      <div className="absolute bottom-1 right-1 px-1 bg-black/60 rounded text-[7px] text-gray-500 font-mono uppercase">
-                                                        t: {curveProgress.toFixed(2)}
-                                                      </div>
-                                                    </div>
-
-                                                    {/* Interactive Bezier Sliders */}
+                                                     {/* Interactive Bezier Sliders */}
                                                     {isCubicBezier && (
                                                       <div className="flex flex-col gap-1.5 bg-black/40 p-2 rounded border border-neutral-800 animate-in fade-in duration-150">
                                                         <div className="flex items-center justify-between gap-2">
@@ -5876,76 +6308,296 @@ export function InspectorPanel({ width }: { width?: number }) {
               </div>
             )}
 
-            {/* --- 7. BUTTON INTERACTION SECTION --- */}
+            {/* --- 7. CANVA & SPATIAL BUTTON CONFIGURATION SECTION --- */}
             {obj.type === 'button' && (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3.5 bg-[#0F0F12] border border-[#222] p-3 rounded-xl shadow-inner">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-cyan-400" />
+                    <span>Button & CTA Settings</span>
+                  </span>
+                  <span className="text-[9px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-1.5 py-0.5 rounded">
+                    {obj.properties.buttonStyle || '3D Push'}
+                  </span>
+                </div>
+
+                {/* Button Style & Representation */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Button Representation</label>
+                  <label className="text-[10px] text-[#888] font-medium">Button Style / Preset</label>
                   <select
                     value={obj.properties.buttonStyle || '3d_push'}
-                    onChange={(e) => handlePropertyChange('buttonStyle', e.target.value)}
-                    className="bg-[#0A0A0A] text-[10px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+                    onChange={(e) => {
+                      const newStyle = e.target.value;
+                      const updates: Record<string, any> = { buttonStyle: newStyle };
+                      if (newStyle === 'pill') updates.borderRadius = 9999;
+                      if (newStyle === 'circle') { updates.shape = 'circle'; updates.borderRadius = 9999; }
+                      if (newStyle === 'chamfer') updates.shape = 'chamfer';
+                      if (newStyle === 'outline') updates.borderWidth = 2;
+                      handleMultiplePropertiesChange(updates);
+                    }}
+                    className="bg-[#0A0A0A] text-[10px] p-2 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
                   >
-                    <option value="3d_push">🔘 Physical 3D Push Button</option>
-                    <option value="glass_panel">✨ Glassmorphic UI Panel</option>
+                    <option value="pill">💊 Modern Gradient Pill CTA</option>
+                    <option value="rounded">🔲 Rounded Rectangle Button</option>
+                    <option value="3d_push">🔘 Physical 3D Push Plunger</option>
+                    <option value="glass_panel">✨ Spatial Vision Glass Panel</option>
+                    <option value="circle">⭕ Floating Action (FAB) Circle</option>
+                    <option value="outline">⚡ Neon Laser Wire Outline</option>
+                    <option value="chamfer">📐 Cyberpunk Chamfer Cut</option>
+                    <option value="gradient">🌈 Multi-Stop Gradient Button</option>
                   </select>
                 </div>
 
+                {/* Button Label Text */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Button Label Text</label>
+                  <label className="text-[10px] text-[#888] font-medium">Button Label Text</label>
                   <input 
                     type="text" 
                     value={obj.properties.text || ''}
                     onChange={(e) => handlePropertyChange('text', e.target.value)}
-                    className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-blue-500 outline-none"
+                    placeholder="e.g. Explore AR Experience"
+                    className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-medium"
                   />
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Button Color</label>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="color" 
-                      value={obj.properties.color || '#3b82f6'}
-                      onChange={(e) => handlePropertyChange('color', e.target.value)}
-                      className="w-8 h-8 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
-                    />
-                    <input 
-                      type="text" 
-                      value={obj.properties.color || '#3b82f6'}
-                      onChange={(e) => handlePropertyChange('color', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] p-2 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
-                    />
+                {/* Typography: Font Family & Font Weight */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Font Family</label>
+                    <select
+                      value={obj.properties.fontFamily || 'Inter'}
+                      onChange={(e) => handlePropertyChange('fontFamily', e.target.value)}
+                      className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                    >
+                      <option value="Inter">Inter (Clean UI)</option>
+                      <option value="JetBrains Mono">JetBrains Mono (Code)</option>
+                      <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                      <option value="Outfit">Outfit (Display)</option>
+                      <option value="Playfair Display">Playfair (Serif)</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Font Weight</label>
+                    <select
+                      value={obj.properties.fontWeight || '700'}
+                      onChange={(e) => handlePropertyChange('fontWeight', e.target.value)}
+                      className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                    >
+                      <option value="400">Regular (400)</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">Semibold (600)</option>
+                      <option value="700">Bold (700)</option>
+                      <option value="900">Black (900)</option>
+                    </select>
                   </div>
                 </div>
 
+                {/* Font Size Slider */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Text Color</label>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="color" 
-                      value={obj.properties.textColor || '#ffffff'}
-                      onChange={(e) => handlePropertyChange('textColor', e.target.value)}
-                      className="w-8 h-8 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
-                    />
-                    <input 
-                      type="text" 
-                      value={obj.properties.textColor || '#ffffff'}
-                      onChange={(e) => handlePropertyChange('textColor', e.target.value)}
-                      className="bg-[#0A0A0A] text-[10px] p-2 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
-                    />
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#888]">Font Size</span>
+                    <span className="text-cyan-400 font-mono font-semibold">{Math.round((obj.properties.fontSize ?? 0.18) * 100)}%</span>
                   </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-[#666] font-medium">Tap Link URL redirect</label>
                   <input 
-                    type="text" 
-                    value={obj.properties.url || ''}
-                    onChange={(e) => handlePropertyChange('url', e.target.value)}
-                    placeholder="https://..."
-                    className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
+                    type="range" 
+                    min="0.1" 
+                    max="0.4" 
+                    step="0.01" 
+                    value={obj.properties.fontSize ?? 0.18} 
+                    onChange={(e) => handlePropertyChange('fontSize', parseFloat(e.target.value))}
+                    className="accent-cyan-500 w-full h-1 cursor-pointer"
                   />
+                </div>
+
+                {/* Colors Grid: Primary, Secondary Gradient, Text, Border */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Primary Color</label>
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="color" 
+                        value={obj.properties.color || '#3b82f6'}
+                        onChange={(e) => handlePropertyChange('color', e.target.value)}
+                        className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                      />
+                      <input 
+                        type="text" 
+                        value={obj.properties.color || '#3b82f6'}
+                        onChange={(e) => handlePropertyChange('color', e.target.value)}
+                        className="bg-[#0A0A0A] text-[9px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Secondary / Gradient</label>
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="color" 
+                        value={obj.properties.secondaryColor || obj.properties.color || '#8b5cf6'}
+                        onChange={(e) => handlePropertyChange('secondaryColor', e.target.value)}
+                        className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                      />
+                      <input 
+                        type="text" 
+                        value={obj.properties.secondaryColor || obj.properties.color || '#8b5cf6'}
+                        onChange={(e) => handlePropertyChange('secondaryColor', e.target.value)}
+                        className="bg-[#0A0A0A] text-[9px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Text Color</label>
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="color" 
+                        value={obj.properties.textColor || '#ffffff'}
+                        onChange={(e) => handlePropertyChange('textColor', e.target.value)}
+                        className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                      />
+                      <input 
+                        type="text" 
+                        value={obj.properties.textColor || '#ffffff'}
+                        onChange={(e) => handlePropertyChange('textColor', e.target.value)}
+                        className="bg-[#0A0A0A] text-[9px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Border Color</label>
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="color" 
+                        value={obj.properties.borderColor || '#38bdf8'}
+                        onChange={(e) => handlePropertyChange('borderColor', e.target.value)}
+                        className="w-7 h-7 rounded cursor-pointer bg-[#0A0A0A] border border-[#222]"
+                      />
+                      <input 
+                        type="text" 
+                        value={obj.properties.borderColor || '#38bdf8'}
+                        onChange={(e) => handlePropertyChange('borderColor', e.target.value)}
+                        className="bg-[#0A0A0A] text-[9px] p-1.5 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Border Radius & Border Width */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[#888]">Corner Radius</span>
+                      <span className="text-gray-300 font-mono">{obj.properties.borderRadius ?? 12}px</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="40" 
+                      step="1" 
+                      value={Math.min(40, obj.properties.borderRadius ?? 12)} 
+                      onChange={(e) => handlePropertyChange('borderRadius', parseInt(e.target.value, 10))}
+                      className="accent-cyan-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-[#888]">Border Width</span>
+                      <span className="text-gray-300 font-mono">{obj.properties.borderWidth ?? 0}px</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="6" 
+                      step="1" 
+                      value={obj.properties.borderWidth ?? 0} 
+                      onChange={(e) => handlePropertyChange('borderWidth', parseInt(e.target.value, 10))}
+                      className="accent-cyan-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Icon Selector & Position */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Button Icon</label>
+                    <select
+                      value={obj.properties.icon || ''}
+                      onChange={(e) => handlePropertyChange('icon', e.target.value)}
+                      className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                    >
+                      <option value="">(None / Text Only)</option>
+                      <option value="Sparkles">✨ Sparkles</option>
+                      <option value="ArrowRight">➡️ Arrow Right</option>
+                      <option value="Play">▶️ Play Video/Audio</option>
+                      <option value="ShoppingCart">🛒 Shopping Cart</option>
+                      <option value="Heart">❤️ Heart / Like</option>
+                      <option value="Plus">➕ Plus / Add</option>
+                      <option value="Download">📥 Download</option>
+                      <option value="Rocket">🚀 Rocket Launch</option>
+                      <option value="Check">✔️ Checkmark</option>
+                      <option value="Zap">⚡ Zap / Energy</option>
+                      <option value="Shield">🛡️ Shield</option>
+                      <option value="Compass">🧭 Compass</option>
+                      <option value="Settings">⚙️ Settings</option>
+                      <option value="Star">⭐ Star</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] text-[#888] font-medium">Icon Position</label>
+                    <select
+                      value={obj.properties.iconPosition || 'left'}
+                      onChange={(e) => handlePropertyChange('iconPosition', e.target.value)}
+                      className="bg-[#0A0A0A] text-[10px] p-1.5 rounded border border-[#222] text-white focus:border-cyan-500 outline-none cursor-pointer"
+                    >
+                      <option value="left">Left of Text</option>
+                      <option value="right">Right of Text</option>
+                      <option value="only">Icon Only (No Text)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Glow Effect Toggle */}
+                <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                  <span className="text-[10px] text-[#888] font-medium">Luminous Neon Glow</span>
+                  <input 
+                    type="checkbox"
+                    checked={!!obj.properties.glowEffect}
+                    onChange={(e) => handlePropertyChange('glowEffect', e.target.checked)}
+                    className="accent-cyan-500 cursor-pointer w-3.5 h-3.5"
+                  />
+                </div>
+
+                {/* Tap Link URL redirect */}
+                <div className="flex flex-col gap-1 pt-1 border-t border-white/5">
+                  <label className="text-[10px] text-[#888] font-medium">Tap Link URL redirect</label>
+                  <div className="flex items-center gap-1.5">
+                    <input 
+                      type="text" 
+                      value={obj.properties.url || ''}
+                      onChange={(e) => handlePropertyChange('url', e.target.value)}
+                      placeholder="https://example.com"
+                      className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded flex-1 border border-[#222] focus:border-cyan-500 text-white outline-none"
+                    />
+                    {obj.properties.url && (
+                      <a
+                        href={obj.properties.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded text-cyan-300 text-[10px]"
+                        title="Test Link"
+                      >
+                        <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -5980,6 +6632,29 @@ export function InspectorPanel({ width }: { width?: number }) {
                       className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
                     />
                     <span className="text-[8px] text-[#555]">Unique ID from the end of a YouTube video link.</span>
+                  </div>
+
+                  {/* Play / Pause Quick Toggle Control */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const isCurrentlyPlaying = !!ytProps.isPlaying || !!ytProps.autoplay;
+                        const nextState = !isCurrentlyPlaying;
+                        handleMultiplePropertiesChange({
+                          isPlaying: nextState,
+                          autoplay: nextState
+                        });
+                      }}
+                      className={`w-full py-2 px-3 rounded-lg flex items-center justify-center gap-2 font-bold text-xs transition-all cursor-pointer shadow ${
+                        (ytProps.isPlaying || ytProps.autoplay)
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
+                          : 'bg-red-600 text-white hover:bg-red-500 shadow-red-900/40'
+                      }`}
+                    >
+                      {(ytProps.isPlaying || ytProps.autoplay) ? <Pause size={14} /> : <Play size={14} />}
+                      <span>{(ytProps.isPlaying || ytProps.autoplay) ? 'Pause YouTube Video' : 'Play YouTube Video'}</span>
+                    </button>
                   </div>
 
                   {/* Volume Slider & Numeric Input */}
@@ -6079,7 +6754,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                       <span>Video Quality / Resolution</span>
                     </label>
                     <select
-                      value={ytProps.resolution || '720p'}
+                      value={ytProps.resolution || '240p'}
                       onChange={(e) => handlePropertyChange('resolution', e.target.value)}
                       className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded w-full border border-[#222] focus:border-blue-500 text-white outline-none"
                     >
@@ -6164,16 +6839,9 @@ export function InspectorPanel({ width }: { width?: number }) {
                           const scl = obj.scale || [1, 1, 1];
                           const pos = obj.position || [0, 0, 0];
                           const sx = Math.abs(scl[0] ?? 1);
-                          const sy = Math.abs(scl[1] ?? 1);
 
-                          const ratioVal = sy > 0 ? sx / sy : 16 / 9;
-                          let bestRatio = '16:9';
-                          if (Math.abs(ratioVal - 16 / 9) < 0.15) bestRatio = '16:9';
-                          else if (Math.abs(ratioVal - 4 / 3) < 0.15) bestRatio = '4:3';
-                          else if (Math.abs(ratioVal - 21 / 9) < 0.15) bestRatio = '21:9';
-                          else if (Math.abs(ratioVal - 1.0) < 0.15) bestRatio = '1:1';
-                          else if (Math.abs(ratioVal - 9 / 16) < 0.15) bestRatio = '9:16';
-                          else bestRatio = `${Number(sx.toFixed(2))}:${Number(sy.toFixed(2))}`;
+                          // Preserve existing shared aspect ratio setting instead of overwriting with scale ratio
+                          const currentAspect = ytProps.aspectRatio || '16:9';
 
                           const posX = pos[0] ?? 0;
                           const posY = pos[1] ?? 0;
@@ -6198,7 +6866,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                             overlayOpen: true,
                             lockAspectRatio: true,
                             aspectRatioLocked: true,
-                            aspectRatio: bestRatio,
+                            aspectRatio: currentAspect,
                             width: baseWidth,
                             widthType: 'px',
                             heightType: 'auto',
@@ -6230,16 +6898,8 @@ export function InspectorPanel({ width }: { width?: number }) {
                               const scl = obj.scale || [1, 1, 1];
                               const pos = obj.position || [0, 0, 0];
                               const sx = Math.abs(scl[0] ?? 1);
-                              const sy = Math.abs(scl[1] ?? 1);
 
-                              const ratioVal = sy > 0 ? sx / sy : 16 / 9;
-                              let bestRatio = '16:9';
-                              if (Math.abs(ratioVal - 16 / 9) < 0.15) bestRatio = '16:9';
-                              else if (Math.abs(ratioVal - 4 / 3) < 0.15) bestRatio = '4:3';
-                              else if (Math.abs(ratioVal - 21 / 9) < 0.15) bestRatio = '21:9';
-                              else if (Math.abs(ratioVal - 1.0) < 0.15) bestRatio = '1:1';
-                              else if (Math.abs(ratioVal - 9 / 16) < 0.15) bestRatio = '9:16';
-                              else bestRatio = `${Number(sx.toFixed(2))}:${Number(sy.toFixed(2))}`;
+                              const currentAspect = ytProps.aspectRatio || '16:9';
 
                               const posX = pos[0] ?? 0;
                               const posY = pos[1] ?? 0;
@@ -6264,7 +6924,7 @@ export function InspectorPanel({ width }: { width?: number }) {
                                 overlayOpen: true,
                                 lockAspectRatio: true,
                                 aspectRatioLocked: true,
-                                aspectRatio: bestRatio,
+                                aspectRatio: currentAspect,
                                 width: baseWidth,
                                 widthType: 'px',
                                 heightType: 'auto',
@@ -6308,25 +6968,26 @@ export function InspectorPanel({ width }: { width?: number }) {
                             value={ytProps.overlaySize || 'medium'}
                             onChange={(e) => {
                               const size = e.target.value;
+                              const currentAspect = ytProps.aspectRatio || '16:9';
                               if (size === 'compact') {
-                                handleMultiplePropertiesChange({ overlaySize: size, widthType: 'px', width: 380, heightType: 'auto', aspectRatio: '16:9', lockAspectRatio: true, fullScreenWithMargins: false });
+                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 30, heightType: 'auto', aspectRatio: currentAspect, lockAspectRatio: true, fullScreenWithMargins: false, marginTop: 2, marginBottom: 2, marginLeft: 2, marginRight: 2 });
                               } else if (size === 'medium') {
-                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 50, heightType: 'auto', aspectRatio: '16:9', lockAspectRatio: true, fullScreenWithMargins: false });
+                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 50, heightType: 'auto', aspectRatio: currentAspect, lockAspectRatio: true, fullScreenWithMargins: false, marginTop: 2, marginBottom: 2, marginLeft: 2, marginRight: 2 });
                               } else if (size === 'large') {
-                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 80, heightType: 'auto', aspectRatio: '16:9', lockAspectRatio: true, fullScreenWithMargins: false });
+                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 80, heightType: 'auto', aspectRatio: currentAspect, lockAspectRatio: true, fullScreenWithMargins: false, marginTop: 2, marginBottom: 2, marginLeft: 2, marginRight: 2 });
                               } else if (size === 'fill') {
-                                handleMultiplePropertiesChange({ overlaySize: size, widthType: 'fill', heightType: 'auto', aspectRatio: '16:9', lockAspectRatio: true, fullScreenWithMargins: false });
+                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 95, heightType: 'auto', aspectRatio: currentAspect, lockAspectRatio: true, fullScreenWithMargins: false, marginTop: 2, marginBottom: 2, marginLeft: 2, marginRight: 2 });
                               } else if (size === 'full') {
-                                handleMultiplePropertiesChange({ overlaySize: size, widthType: 'fill', heightType: 'fill', fullScreenWithMargins: true, aspectRatio: '16:9', lockAspectRatio: true });
+                                handleMultiplePropertiesChange({ overlaySize: size, widthType: '%', width: 100, heightType: '%', height: 100, fullScreenWithMargins: true, aspectRatio: currentAspect, lockAspectRatio: true, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 });
                               }
                             }}
                             className="bg-[#0A0A0A] text-[9.5px] font-mono p-1.5 rounded border border-[#222] text-white outline-none focus:border-cyan-500"
                           >
-                            <option value="compact">Compact PIP (380px fixed width)</option>
-                            <option value="medium">Medium HUD (50% fluid flex width)</option>
-                            <option value="large">Large Modal (80% fluid flex width)</option>
-                            <option value="fill">Fill Parent Flex Width (100% width)</option>
-                            <option value="full">Full Screen Theater (Margin Anchored)</option>
+                            <option value="compact">Compact PIP (30% fluid viewport width)</option>
+                            <option value="medium">Medium HUD (50% fluid viewport width)</option>
+                            <option value="large">Large Modal (80% fluid viewport width)</option>
+                            <option value="fill">Fill Parent Flex Width (95% width)</option>
+                            <option value="full">Full Screen Theater (100% width & height)</option>
                           </select>
                         </div>
 
@@ -6386,41 +7047,133 @@ export function InspectorPanel({ width }: { width?: number }) {
                           </select>
                         </div>
 
-                        {/* Style Options: Corner Radius, Background Color, Backdrop Blur */}
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-cyan-500/10">
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8.5px] text-[#aaa]">Corner Radius</label>
+                        {/* Style Options: Corner Radius, Background Color, Backdrop Blur, Border, Header Bar */}
+                        <div className="flex flex-col gap-2 pt-2 border-t border-cyan-500/10">
+                          <span className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase">HUD Visual Styles</span>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-[#aaa] font-medium flex items-center gap-1">
+                              Show Top Header Bar
+                            </span>
                             <input
-                              type="number"
-                              min="0"
-                              max="40"
-                              value={ytProps.borderRadius ?? 16}
-                              onChange={(e) => handlePropertyChange('borderRadius', parseInt(e.target.value, 10) || 0)}
-                              className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded border border-[#222] text-white outline-none"
+                              type="checkbox"
+                              checked={ytProps.showOverlayHeader ?? true}
+                              onChange={(e) => handlePropertyChange('showOverlayHeader', e.target.checked)}
+                              className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5 cursor-pointer"
                             />
                           </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[8.5px] text-[#aaa]">Backdrop Blur (px)</label>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-[#aaa] font-medium">Show Custom Border</span>
                             <input
-                              type="number"
-                              min="0"
-                              max="40"
-                              value={ytProps.blur ?? 12}
-                              onChange={(e) => handlePropertyChange('blur', parseInt(e.target.value, 10) || 0)}
-                              className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded border border-[#222] text-white outline-none"
+                              type="checkbox"
+                              checked={ytProps.borderEnabled ?? true}
+                              onChange={(e) => handlePropertyChange('borderEnabled', e.target.checked)}
+                              className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5 cursor-pointer"
+                            />
+                          </div>
+
+                          {ytProps.borderEnabled !== false && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] text-[#888] font-medium pl-2">Border Color</span>
+                              <input
+                                type="color"
+                                value={ytProps.borderColor || '#2563eb'}
+                                onChange={(e) => handlePropertyChange('borderColor', e.target.value)}
+                                className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                              />
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[8.5px] text-[#aaa]">Corner Radius (px)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="40"
+                                value={ytProps.borderRadius ?? 16}
+                                onChange={(e) => handlePropertyChange('borderRadius', parseInt(e.target.value, 10) || 0)}
+                                className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded border border-[#222] text-white outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[8.5px] text-[#aaa]">Backdrop Blur (px)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="40"
+                                value={ytProps.blur ?? 12}
+                                onChange={(e) => handlePropertyChange('blur', parseInt(e.target.value, 10) || 0)}
+                                className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded border border-[#222] text-white outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] text-[#aaa]">HUD Background Color</label>
+                            <input
+                              type="color"
+                              value={ytProps.backgroundColor || '#0F0F12'}
+                              onChange={(e) => handlePropertyChange('backgroundColor', e.target.value)}
+                              className="w-6 h-6 rounded border border-[#333] bg-transparent cursor-pointer"
                             />
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-1">
-                          <label className="text-[8.5px] text-[#aaa]">HUD Background Color</label>
-                          <input
-                            type="color"
-                            value={ytProps.backgroundColor || '#0F0F12'}
-                            onChange={(e) => handlePropertyChange('backgroundColor', e.target.value)}
-                            className="w-6 h-6 rounded border border-[#333] bg-transparent cursor-pointer"
-                          />
-                        </div>
+                        {/* Full Screen margins when 'full' size is used */}
+                        {ytProps.overlaySize === 'full' && (
+                          <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-cyan-500/10">
+                            <label className="text-[9px] text-cyan-400 font-bold tracking-wider uppercase">Theater Screen Margins (%)</label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[8.5px] text-[#888] font-medium">Top (%)</label>
+                                <input 
+                                  type="number"
+                                  value={ytProps.marginTop ?? 0}
+                                  onChange={(e) => handlePropertyChange('marginTop', parseInt(e.target.value) || 0)}
+                                  className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded w-full border border-[#222] text-white outline-none"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[8.5px] text-[#888] font-medium">Bottom (%)</label>
+                                <input 
+                                  type="number"
+                                  value={ytProps.marginBottom ?? 0}
+                                  onChange={(e) => handlePropertyChange('marginBottom', parseInt(e.target.value) || 0)}
+                                  className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded w-full border border-[#222] text-white outline-none"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[8.5px] text-[#888] font-medium">Left (%)</label>
+                                <input 
+                                  type="number"
+                                  value={ytProps.marginLeft ?? 0}
+                                  onChange={(e) => handlePropertyChange('marginLeft', parseInt(e.target.value) || 0)}
+                                  className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded w-full border border-[#222] text-white outline-none"
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[8.5px] text-[#888] font-medium">Right (%)</label>
+                                <input 
+                                  type="number"
+                                  value={ytProps.marginRight ?? 0}
+                                  onChange={(e) => handlePropertyChange('marginRight', parseInt(e.target.value) || 0)}
+                                  className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded w-full border border-[#222] text-white outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1 mt-1">
+                              <label className="text-[8.5px] text-[#888] font-medium">Padding inside container (%)</label>
+                              <input 
+                                type="number"
+                                value={ytProps.padding ?? 0}
+                                onChange={(e) => handlePropertyChange('padding', parseInt(e.target.value) || 0)}
+                                className="bg-[#0A0A0A] text-[9.5px] font-mono p-1 rounded w-full border border-[#222] text-white outline-none"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -8014,28 +8767,24 @@ export function InspectorPanel({ width }: { width?: number }) {
                     </div>
                   )}
 
-                  {(obj.type === 'hudEmbed' || obj.type === 'youtube') && (
+                  {(obj.type === 'hudEmbed') && (
                     <>
-                      {obj.type === 'hudEmbed' && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] text-[#666] font-medium">Embed Web URL</label>
-                          <LocalUrlInput
-                            value={obj.properties.url || ''}
-                            onChange={(val) => handlePropertyChange('url', val)}
-                          />
-                        </div>
-                      )}
-                      {obj.type === 'hudEmbed' && (
-                        <div className="flex items-center justify-between mt-1">
-                          <label className="text-[10px] text-[#888] font-medium">Show Address Bar</label>
-                          <input 
-                            type="checkbox" 
-                            checked={obj.properties.showAddressBar ?? true} 
-                            onChange={(e) => handlePropertyChange('showAddressBar', e.target.checked)}
-                            className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5"
-                          />
-                        </div>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-[#666] font-medium">Embed Web URL</label>
+                        <LocalUrlInput
+                          value={obj.properties.url || ''}
+                          onChange={(val) => handlePropertyChange('url', val)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <label className="text-[10px] text-[#888] font-medium">Show Address Bar</label>
+                        <input 
+                          type="checkbox" 
+                          checked={obj.properties.showAddressBar ?? true} 
+                          onChange={(e) => handlePropertyChange('showAddressBar', e.target.checked)}
+                          className="rounded bg-[#0A0A0A] border-[#222] text-cyan-500 focus:ring-cyan-500 w-3.5 h-3.5"
+                        />
+                      </div>
                       <div className="flex items-center justify-between mt-1">
                         <label className="text-[10px] text-[#888] font-medium">Full Screen Container with Margins</label>
                         <input 

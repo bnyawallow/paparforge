@@ -1168,6 +1168,10 @@ ${audioPreloadScript}
               const audio = new Audio(act.soundUrl);
               audio.volume = 0.5;
               audio.play().catch(e => console.error(e));
+            } else if (act.type === 'takeScreenshot' || act.type === 'captureARSnapshot' || act.type === 'screenshot') {
+              if (typeof window.takeWebARSnapshot === 'function') {
+                window.takeWebARSnapshot(act);
+              }
             } else if (act.type === 'openUrl' && act.url) {
               window.open(act.url, '_blank');
             } else if (act.type === 'toast' && act.toastMessage) {
@@ -1333,6 +1337,13 @@ ${audioPreloadScript}
             case 'openUrl':
               if (b.url) {
                 window.open(b.url, '_blank', 'noopener,noreferrer');
+              }
+              break;
+            case 'takeScreenshot':
+            case 'captureARSnapshot':
+            case 'screenshot':
+              if (typeof window.takeWebARSnapshot === 'function') {
+                window.takeWebARSnapshot(b);
               }
               break;
             case 'playSound':
@@ -2625,6 +2636,13 @@ ${entitiesHtml}
               case 'openUrl':
                 if (b.url) window.open(b.url, '_blank', 'noopener,noreferrer');
                 break;
+              case 'takeScreenshot':
+              case 'captureARSnapshot':
+              case 'screenshot':
+                if (typeof window.takeWebARSnapshot === 'function') {
+                  window.takeWebARSnapshot(b);
+                }
+                break;
               case 'playSound': {
                 const playUrl = b.soundPreset || b.url || 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
                 const audio = (window.__audioCache && window.__audioCache[playUrl]) || new Audio(playUrl);
@@ -2838,6 +2856,10 @@ ${entitiesHtml}
                 const audio = new Audio(act.soundUrl);
                 audio.volume = 0.5;
                 audio.play().catch(e => console.error(e));
+              } else if (act.type === 'takeScreenshot' || act.type === 'captureARSnapshot' || act.type === 'screenshot') {
+                if (typeof window.takeWebARSnapshot === 'function') {
+                  window.takeWebARSnapshot(act);
+                }
               } else if (act.type === 'openUrl' && act.url) {
                 window.open(act.url, '_blank');
               } else if (act.type === 'toast' && act.toastMessage) {
@@ -2944,6 +2966,240 @@ ${entitiesHtml}
             }
           });
         });
+      }
+
+      // WebAR AR Snapshot & Share Suite Engine
+      window.takeWebARSnapshot = function(options) {
+        options = options || {};
+        const watermark = options.screenshotWatermark || 'Captured with WebAR Studio';
+        const includeTimestamp = options.screenshotIncludeTimestamp !== false;
+        const playSound = options.screenshotSound !== false;
+        const flash = options.screenshotFlash !== false;
+
+        // Flash animation
+        if (flash) {
+          const flashEl = document.createElement('div');
+          flashEl.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#ffffff;z-index:99999;opacity:1;transition:opacity 0.4s ease-out;pointer-events:none;';
+          document.body.appendChild(flashEl);
+          setTimeout(() => {
+            flashEl.style.opacity = '0';
+            setTimeout(() => flashEl.remove(), 400);
+          }, 50);
+        }
+
+        // Shutter sound
+        if (playSound) {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(550, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.15);
+          } catch(e) {}
+        }
+
+        // Canvas composite
+        try {
+          const videoEl = document.querySelector('video');
+          const sceneEl = document.querySelector('a-scene');
+          const canvasEl = sceneEl ? sceneEl.canvas : document.querySelector('canvas');
+
+          const width = canvasEl ? canvasEl.width : (videoEl ? videoEl.videoWidth || 1280 : 1280);
+          const height = canvasEl ? canvasEl.height : (videoEl ? videoEl.videoHeight || 720 : 720);
+
+          const offscreen = document.createElement('canvas');
+          offscreen.width = width;
+          offscreen.height = height;
+          const ctx = offscreen.getContext('2d');
+
+          // Draw camera video feed
+          if (videoEl && videoEl.videoWidth > 0) {
+            try {
+              ctx.drawImage(videoEl, 0, 0, width, height);
+            } catch(e) {
+              ctx.fillStyle = '#0a0a0c';
+              ctx.fillRect(0, 0, width, height);
+            }
+          } else {
+            ctx.fillStyle = '#0a0a0c';
+            ctx.fillRect(0, 0, width, height);
+          }
+
+          // Draw 3D scene canvas
+          if (canvasEl) {
+            try {
+              ctx.drawImage(canvasEl, 0, 0, width, height);
+            } catch(e) {}
+          }
+
+          // Draw optional watermark & timestamp overlay on offscreen canvas
+          if (watermark || includeTimestamp) {
+            ctx.save();
+            const fontSize = Math.max(14, Math.round(width * 0.016));
+            ctx.font = '600 ' + fontSize + 'px sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 2;
+            
+            if (watermark) {
+              ctx.textAlign = 'left';
+              ctx.fillText(watermark, fontSize * 1.5, height - fontSize * 1.5);
+            }
+
+            if (includeTimestamp) {
+              ctx.textAlign = 'right';
+              const now = new Date();
+              const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              ctx.fillText(dateStr, width - fontSize * 1.5, height - fontSize * 1.5);
+            }
+            ctx.restore();
+          }
+
+          const dataUrl = offscreen.toDataURL('image/png', 0.95);
+
+          // Direct download option
+          if (options.screenshotDirectDownload) {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = 'AR_Snapshot_' + Date.now() + '.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return;
+          }
+
+          // Direct Web Share option
+          if (options.screenshotDirectShare && navigator.share) {
+            offscreen.toBlob(blob => {
+              if (blob) {
+                const file = new File([blob], 'AR_Snapshot.png', { type: 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                  navigator.share({ title: 'AR Snapshot', files: [file] }).catch(() => {});
+                  return;
+                }
+              }
+              showWebARShareModal(dataUrl);
+            });
+            return;
+          }
+
+          // Show interactive modal
+          showWebARShareModal(dataUrl);
+        } catch(err) {
+          console.error('AR Snapshot error:', err);
+        }
+      };
+
+      function showWebARShareModal(dataUrl) {
+        let existing = document.getElementById('webar-snapshot-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'webar-snapshot-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,sans-serif;box-sizing:border-box;';
+        
+        modal.innerHTML = [
+          '<style>',
+          '  .webar-btn { display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all 0.15s; }',
+          '  .webar-btn:active { transform: scale(0.97); }',
+          '  .webar-btn-primary { background:#2563eb;color:#fff;box-shadow:0 4px 14px rgba(37,99,235,0.4); }',
+          '  .webar-btn-primary:hover { background:#1d4ed8; }',
+          '  .webar-btn-secondary { background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2); }',
+          '  .webar-btn-secondary:hover { background:rgba(255,255,255,0.18); }',
+          '</style>',
+          '<div style="background:#111116;border:1px solid rgba(255,255,255,0.15);border-radius:20px;max-width:480px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.9);">',
+          '  <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;">',
+          '    <div style="display:flex;align-items:center;gap:8px;">',
+          '      <span style="font-size:16px;">📸</span>',
+          '      <span style="font-size:14px;font-weight:700;color:#fff;letter-spacing:-0.01em;">AR Snapshot Captured</span>',
+          '    </div>',
+          '    <button id="webar-close-btn" style="background:transparent;border:none;color:#aaa;font-size:20px;cursor:pointer;line-height:1;margin-left:auto;">&times;</button>',
+          '  </div>',
+          '  <div style="padding:14px;background:#050508;display:flex;justify-content:center;align-items:center;max-height:45vh;overflow:hidden;">',
+          '    <img src="' + dataUrl + '" style="max-width:100%;max-height:42vh;border-radius:12px;object-fit:contain;box-shadow:0 8px 30px rgba(0,0,0,0.6);" alt="AR Snapshot" />',
+          '  </div>',
+          '  <div style="padding:16px;display:flex;flex-direction:column;gap:10px;background:#111116;">',
+          '    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">',
+          '      <button id="webar-download-btn" class="webar-btn webar-btn-primary">',
+          '        <span>💾</span> Save to Device',
+          '      </button>',
+          '      <button id="webar-share-btn" class="webar-btn webar-btn-secondary">',
+          '        <span>📱</span> Share / Social',
+          '      </button>',
+          '    </div>',
+          '    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">',
+          '      <button id="webar-copy-btn" class="webar-btn webar-btn-secondary">',
+          '        <span>📋</span> Copy Image',
+          '      </button>',
+          '      <button id="webar-email-btn" class="webar-btn webar-btn-secondary">',
+          '        <span>✉️</span> Share via Email',
+          '      </button>',
+          '    </div>',
+          '  </div>',
+          '</div>'
+        ].join('');
+
+        document.body.appendChild(modal);
+
+        document.getElementById('webar-close-btn').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        document.getElementById('webar-download-btn').onclick = () => {
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = 'AR_Snapshot_' + Date.now() + '.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        };
+
+        document.getElementById('webar-copy-btn').onclick = async () => {
+          try {
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            alert('Snapshot copied to clipboard!');
+          } catch(e) {
+            alert('Clipboard copy is not supported on this browser.');
+          }
+        };
+
+        document.getElementById('webar-email-btn').onclick = () => {
+          const subject = encodeURIComponent('Check out my Augmented Reality Snapshot!');
+          const body = encodeURIComponent('Hey! Take a look at this cool AR capture.');
+          window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+        };
+
+        document.getElementById('webar-share-btn').onclick = async () => {
+          if (navigator.share) {
+            try {
+              const res = await fetch(dataUrl);
+              const blob = await res.blob();
+              const file = new File([blob], 'AR_Snapshot.png', { type: 'image/png' });
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                  title: 'Augmented Reality Capture',
+                  text: 'Check out what I created in Augmented Reality!',
+                  files: [file]
+                });
+                return;
+              }
+            } catch(e) {}
+          }
+          // Fallback share prompt
+          const shareUrl = encodeURIComponent(window.location.href);
+          const shareText = encodeURIComponent('Check out this amazing Augmented Reality experience!');
+          window.open('https://twitter.com/intent/tweet?text=' + shareText + '&url=' + shareUrl, '_blank');
+        };
       }
 
       // Proactive Lifecycle Loggers

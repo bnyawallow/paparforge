@@ -7,7 +7,10 @@ export function Spline2DIconRenderer({ obj, isPreviewMode, onInteract }: { obj: 
   const iconName = (obj.properties?.iconName || 'Sparkles') as keyof typeof LucideIcons;
   const color = obj.properties?.color || '#3b82f6';
   const badgeStyle = obj.properties?.badgeStyle || 'glass';
-  const IconComponent = (LucideIcons[iconName] as React.ComponentType<{ size?: number; className?: string }>) || LucideIcons.Sparkles;
+  const RawIcon = LucideIcons[iconName];
+  const IconComponent = (RawIcon && (typeof RawIcon === 'function' || typeof RawIcon === 'object'))
+    ? (RawIcon as React.ComponentType<{ size?: number; className?: string }>)
+    : LucideIcons.Sparkles;
 
   // Custom styling based on badgeStyle
   const getBadgeStyle = () => {

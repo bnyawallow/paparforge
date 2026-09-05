@@ -1,22 +1,28 @@
 import { playCachedAudio, globalAudioCache } from '../../lib/audioManager';
-import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react';
+import { PivotNormalizationService } from '../../lib/PivotNormalizationService';
+import React, { useRef, useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useAnimations, Html, Environment, ContactShadows } from '@react-three/drei';
+import { CameraController } from './CameraController';
+import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useGizmoContext, useAnimations, Html, Environment, ContactShadows } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 import { SceneObject } from '../../types';
 import * as THREE from 'three';
 import { GlassCard, GlassFAB } from '../ui/HudComponents';
 import { Overlay2DRenderer } from "./Overlay2DRenderer";
+import { SnapshotShareModal } from './SnapshotShareModal';
+import { PublicationModal } from './PublicationModal';
 import { BloomEffect } from './BloomEffect';
 import { Spline3DIconRenderer } from './Spline3DIconRenderer';
 import { Spline2DIconRenderer } from './Spline2DIconRenderer';
+import { MarkerConflictBanner } from '../toolbar/MarkerConflictBanner';
 import { 
   Maximize, 
   RotateCw, 
   Move, 
+  MousePointer,
   Camera, 
   RefreshCw, 
   Video, 
@@ -28,7 +34,7 @@ import {
   BatteryCharging, 
   Sparkles,
   Magnet,
-  Grid as GridIcon,
+  Grid as GridIcon, Grid3x3,
   Layers,
   Compass,
   Globe,
@@ -47,7 +53,16 @@ import {
   ChevronDown,
   ChevronRight,
   Crosshair,
-  Shield
+  Shield,
+  ArrowRight,
+  ArrowUp,
+  ShoppingCart,
+  Heart,
+  Plus,
+  Download,
+  Settings,
+  Rocket,
+  Check
 } from 'lucide-react';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
@@ -99,33 +114,73 @@ function Volumetric3DText({ text, color, fontSize, position, ...props }: any) {
   );
 }
 
-// Interactive physical 3D Push Button and Floating Glassmorphic UI Panel
+// Helper to render icon for buttons
+function renderButtonIconHelper(name?: string, size = 16, className = '') {
+  if (!name) return null;
+  switch (name) {
+    case 'Sparkles': return <Sparkles size={size} className={className} />;
+    case 'ArrowRight': return <ArrowRight size={size} className={className} />;
+    case 'Play': return <Play size={size} className={className} />;
+    case 'ShoppingCart': return <ShoppingCart size={size} className={className} />;
+    case 'Heart': return <Heart size={size} className={className} />;
+    case 'Plus': return <Plus size={size} className={className} />;
+    case 'Download': return <Download size={size} className={className} />;
+    case 'Settings': return <Settings size={size} className={className} />;
+    case 'Rocket': return <Rocket size={size} className={className} />;
+    case 'Check': return <Check size={size} className={className} />;
+    case 'Zap': return <Zap size={size} className={className} />;
+    case 'Shield': return <Shield size={size} className={className} />;
+    case 'Compass': return <Compass size={size} className={className} />;
+    case 'Star': return <Star size={size} className={className} />;
+    case 'Globe': return <Globe size={size} className={className} />;
+    case 'Info': return <Info size={size} className={className} />;
+    default: return <Sparkles size={size} className={className} />;
+  }
+}
+
+// Interactive physical 3D Push Button and Spatial Canva UI Button / Floating Panel
 function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: () => void }) {
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
 
   const style = obj.properties.buttonStyle || '3d_push';
+  const shape = obj.properties.shape || 'rounded';
   const color = obj.properties.color || '#3b82f6';
+  const secondaryColor = obj.properties.secondaryColor || color;
+  const borderColor = obj.properties.borderColor || 'rgba(255,255,255,0.2)';
   const textColor = obj.properties.textColor || '#ffffff';
-  const text = obj.properties.text || 'Action';
+  const text = obj.properties.text || 'Action Button';
   const url = obj.properties.url || '';
+  const icon = obj.properties.icon || '';
+  const iconPosition = obj.properties.iconPosition || 'left';
+  const borderRadius = obj.properties.borderRadius ?? (shape === 'pill' || shape === 'circle' ? 9999 : shape === 'sharp' ? 0 : 12);
+  const borderWidth = obj.properties.borderWidth ?? (style === 'outline' ? 2 : 0);
+  const fontSize = obj.properties.fontSize ?? 0.18;
+  const fontFamily = obj.properties.fontFamily || 'Inter';
+  const fontWeight = obj.properties.fontWeight || '700';
+  const glowEffect = obj.properties.glowEffect ?? false;
+  const glowColor = obj.properties.glowColor || 'rgba(59, 130, 246, 0.5)';
 
   const handleClick = (e: any) => {
     e.stopPropagation();
+    if (url && isPreviewMode) {
+      window.open(url, '_blank');
+    }
     if (onInteract) onInteract();
   };
 
+  // 1. Spatial Glassmorphic UI Panel
   if (style === 'glass_panel') {
     return (
       <group>
         {/* Glass panel frame backing plate */}
         <mesh castShadow receiveShadow>
-          <planeGeometry args={[1.5, 0.8]} />
+          <planeGeometry args={[1.6, 0.9]} />
           <meshStandardMaterial 
             color="#0a0a0a" 
             transparent 
-            opacity={0.25} 
+            opacity={0.3} 
             roughness={0.15} 
             metalness={0.9} 
             side={THREE.DoubleSide} 
@@ -141,23 +196,147 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
           position={[0, 0, 0.02]}
           style={{ pointerEvents: isPreviewMode ? "auto" : "none" }}
         >
-          <div className="flex flex-col gap-2.5 p-4 bg-neutral-900/50 border border-white/10 backdrop-blur-md rounded-xl shadow-2xl text-white font-sans w-64 items-center justify-center select-none">
-            <div className="flex items-center gap-1.5 text-[9px] text-blue-400 font-mono tracking-wider uppercase">
-              <Sparkles size={10} className="animate-pulse" />
-              <span>Interactive Panel</span>
+          <div className="flex flex-col gap-2.5 p-4 bg-neutral-900/60 border border-white/15 backdrop-blur-xl rounded-2xl shadow-2xl text-white font-sans w-64 items-center justify-center select-none">
+            <div className="flex items-center justify-between w-full border-b border-white/10 pb-1.5 px-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-mono tracking-wider uppercase font-semibold">
+                <Sparkles size={11} className="animate-pulse" />
+                <span>Spatial HUD Panel</span>
+              </div>
+              <span className="text-[9px] text-gray-400 font-mono bg-white/10 px-1.5 py-0.5 rounded">
+                v2.4
+              </span>
             </div>
             
             <button 
               onClick={handleClick}
-              style={{ backgroundColor: color, color: textColor }}
-              className="w-full py-2 px-4 rounded-lg font-bold text-xs shadow-lg transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2"
+              style={{
+                background: secondaryColor && secondaryColor !== color
+                  ? `linear-gradient(135deg, ${color}, ${secondaryColor})`
+                  : color,
+                color: textColor,
+                borderRadius: `${borderRadius}px`,
+                border: borderWidth ? `${borderWidth}px solid ${borderColor}` : undefined,
+                fontFamily: fontFamily,
+                fontWeight: fontWeight,
+                boxShadow: glowEffect ? `0 0 20px ${glowColor}` : '0 10px 25px -5px rgba(0,0,0,0.5)',
+              }}
+              className="w-full py-2.5 px-4 font-bold text-xs shadow-lg transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
             >
+              {icon && iconPosition === 'left' && renderButtonIconHelper(icon, 14)}
               <span>{text}</span>
+              {icon && iconPosition === 'right' && renderButtonIconHelper(icon, 14)}
+              {icon && iconPosition === 'only' && renderButtonIconHelper(icon, 16)}
             </button>
             
             {url && (
-              <span className="text-[8px] text-neutral-400 font-mono truncate max-w-full">
-                {url}
+              <div className="flex items-center gap-1 text-[9px] text-neutral-400 font-mono truncate max-w-full hover:text-cyan-300 transition-colors">
+                <ExternalLink size={10} />
+                <span className="truncate">{url}</span>
+              </div>
+            )}
+          </div>
+        </Html>
+      </group>
+    );
+  }
+
+  // 2. High-Tech 2D/3D Hybrid Spatial Canva Buttons (Pill, Circle, Rounded, Chamfer, Gradient, Outline)
+  if (style !== '3d_push') {
+    const isCircle = shape === 'circle' || style === 'circle';
+    const isChamfer = shape === 'chamfer' || style === 'chamfer';
+    const isPill = shape === 'pill' || style === 'pill';
+    const isOutline = style === 'outline';
+
+    const bgStyle = isOutline
+      ? (color === 'transparent' ? 'rgba(15, 23, 42, 0.6)' : color)
+      : (secondaryColor && secondaryColor !== color
+        ? `linear-gradient(135deg, ${color}, ${secondaryColor})`
+        : color);
+
+    const clipPath = isChamfer
+      ? 'polygon(12px 0%, calc(100% - 12px) 0%, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0% calc(100% - 12px), 0% 12px)'
+      : undefined;
+
+    return (
+      <group>
+        {/* Invisible 3D hit volume so it can be dragged/transformed in 3D */}
+        <mesh 
+          castShadow 
+          receiveShadow
+          onClick={handleClick}
+          onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
+          onPointerOut={(e) => { e.stopPropagation(); setIsHovered(false); setIsPressed(false); }}
+          onPointerDown={(e) => { e.stopPropagation(); setIsPressed(true); }}
+          onPointerUp={(e) => { e.stopPropagation(); setIsPressed(false); }}
+        >
+          {isCircle ? (
+            <cylinderGeometry args={[0.35, 0.35, 0.04, 32]} />
+          ) : (
+            <boxGeometry args={[1.4, 0.5, 0.04]} />
+          )}
+          <meshStandardMaterial 
+            color={color === 'transparent' ? '#3b82f6' : color} 
+            transparent 
+            opacity={0.15} 
+            wireframe={wireframe}
+          />
+        </mesh>
+
+        <Html
+          zIndexRange={[10, 0]}
+          transform
+          occlude="blending"
+          pointerEvents={isPreviewMode ? "auto" : "none"}
+          distanceFactor={1.15}
+          position={[0, 0, 0.025]}
+          style={{ pointerEvents: isPreviewMode ? "auto" : "none" }}
+        >
+          <div
+            onClick={handleClick}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => { setIsHovered(false); setIsPressed(false); }}
+            onMouseDown={() => setIsPressed(true)}
+            onMouseUp={() => setIsPressed(false)}
+            style={{
+              background: bgStyle,
+              color: textColor,
+              borderRadius: isChamfer ? '0px' : `${borderRadius}px`,
+              clipPath: clipPath,
+              border: `${Math.max(borderWidth, isOutline ? 2 : 0)}px solid ${borderColor || color}`,
+              boxShadow: glowEffect
+                ? `0 0 25px ${glowColor}, 0 8px 20px rgba(0,0,0,0.4)`
+                : isHovered
+                ? '0 12px 28px -4px rgba(0,0,0,0.6)'
+                : '0 6px 16px -2px rgba(0,0,0,0.4)',
+              transform: isPressed ? 'scale(0.94)' : isHovered ? 'scale(1.04)' : 'scale(1)',
+              transition: 'all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              fontFamily: fontFamily,
+              fontWeight: fontWeight,
+            }}
+            className={`select-none cursor-pointer flex items-center justify-center gap-2 backdrop-blur-md ${
+              isCircle
+                ? 'w-14 h-14'
+                : isPill
+                ? 'py-2.5 px-6 min-w-[150px]'
+                : 'py-2.5 px-5 min-w-[140px]'
+            }`}
+          >
+            {icon && (iconPosition === 'left' || iconPosition === 'only') && (
+              <span className={iconPosition === 'only' ? '' : 'shrink-0'}>
+                {renderButtonIconHelper(icon, isCircle ? 20 : 16)}
+              </span>
+            )}
+            {(!icon || iconPosition !== 'only') && (
+              <span 
+                className="whitespace-nowrap tracking-wide leading-none text-center"
+                style={{ fontSize: `${Math.max(12, Math.round(fontSize * 75))}px` }}
+              >
+                {text}
+              </span>
+            )}
+            {icon && iconPosition === 'right' && (
+              <span className="shrink-0">
+                {renderButtonIconHelper(icon, 16)}
               </span>
             )}
           </div>
@@ -166,7 +345,7 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
     );
   }
 
-  // 3D Push Button Style
+  // 3. True Physical 3D Tactile Push Button
   const plungerZ = isPressed ? 0.01 : isHovered ? 0.04 : 0.05;
 
   return (
@@ -197,7 +376,7 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
             roughness={0.2} 
             metalness={0.1} 
             emissive={color}
-            emissiveIntensity={isHovered ? 0.15 : 0.0}
+            emissiveIntensity={isHovered ? 0.25 : 0.05}
             wireframe={wireframe}
           />
         </mesh>
@@ -206,7 +385,7 @@ function Interactive3DButton({ obj, isPreviewMode, onInteract }: { obj: SceneObj
         <Volumetric3DText 
           text={text}
           color={textColor}
-          fontSize={0.16}
+          fontSize={fontSize || 0.16}
           position={[0, 0, 0.06]}
           anchorX="center"
           anchorY="middle"
@@ -244,25 +423,36 @@ export function getYoutubeAspectRatioRatio(
 
 // Global helper to dispatch YouTube player commands via postMessage
 export function sendYoutubeCommand(objectId: string, command: string, args: any[] = []) {
-  const iframe = document.querySelector(`iframe[data-youtube-object-id="${objectId}"]`) as HTMLIFrameElement;
-  if (iframe && iframe.contentWindow) {
-    try {
-      iframe.contentWindow.postMessage(
-        JSON.stringify({
-          event: 'command',
-          func: command,
-          args: args
-        }),
-        '*'
-      );
-    } catch (e) {
-      console.warn('YouTube postMessage dispatch error:', e);
+  const iframes = document.querySelectorAll(`iframe[data-youtube-object-id="${objectId}"]`);
+  iframes.forEach((iframeNode) => {
+    const iframe = iframeNode as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: command,
+            args: args
+          }),
+          '*'
+        );
+      } catch (e) {
+        console.warn('YouTube postMessage dispatch error:', e);
+      }
     }
-  }
+  });
 }
 
-// Interactive 3D YouTube Screen & Bezel with Live Embedding
-function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; isPreviewMode: boolean }) {
+// Interactive 3D YouTube Screen with Clean Unified Interface across all Flavors
+function InteractiveYoutubeScreen({
+  obj,
+  isPreviewMode,
+  onInteract
+}: {
+  obj: SceneObject;
+  isPreviewMode: boolean;
+  onInteract?: () => void;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Active state property overrides if a state is active
@@ -286,7 +476,7 @@ function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; is
   const aspectRatio = effectiveProps.aspectRatio || '16:9';
   const customW = effectiveProps.customAspectRatioWidth;
   const customH = effectiveProps.customAspectRatioHeight;
-  const resolution = effectiveProps.resolution || '720p';
+  const resolution = effectiveProps.resolution || '240p';
   const displayMode = effectiveProps.displayMode || '3d'; // '3d' | '2d'
 
   // Compute aspect ratio multiplier
@@ -295,8 +485,9 @@ function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; is
   // Plane height in 3D scene (default 1.0 meter base)
   const planeHeight = 1.0;
   const planeWidth = Number((planeHeight * ratio).toFixed(3));
+  const panelDepth = 0.012; // sleek, slim flat chassis with no bevels
 
-  // Crisp HD 720p base canvas resolution (kept resolution-independent so 3D scale transforms remain rock-solid)
+  // Crisp HD base canvas resolution
   const baseHtmlHeight = 720;
   const baseHtmlWidth = Math.round(baseHtmlHeight * ratio);
 
@@ -331,6 +522,21 @@ function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; is
     return () => clearTimeout(timer);
   }, [videoId, volume, mute, vq]);
 
+  const isCurrentlyPlaying = !!effectiveProps.isPlaying || !!effectiveProps.autoplay;
+
+  // Sync play/pause state
+  useEffect(() => {
+    if (!iframeRef.current || !videoId) return;
+    const timer = setTimeout(() => {
+      if (isCurrentlyPlaying) {
+        sendYoutubeCommand(obj.id, 'playVideo');
+      } else {
+        sendYoutubeCommand(obj.id, 'pauseVideo');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [obj.id, videoId, isCurrentlyPlaying]);
+
   const isOverlayMode = displayMode === '2d';
 
   // Return to 3D World callback
@@ -341,100 +547,41 @@ function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; is
     });
   }, [obj.id, obj.properties]);
 
-  // 2D HUD Layout & Position Helpers
-  const overlayPosition = effectiveProps.overlayPosition || 'center';
-  const overlaySize = effectiveProps.overlaySize || 'medium';
-  const hudAnimation = effectiveProps.hudAnimation || 'slide-up';
-
-  const getAnimClass = () => {
-    if (!hudAnimation || hudAnimation === 'none') return '';
-    switch (hudAnimation) {
-      case 'fade-in': return 'animate-in fade-in duration-300';
-      case 'slide-up': return 'animate-in fade-in slide-in-from-bottom-8 duration-300';
-      case 'slide-down': return 'animate-in fade-in slide-in-from-top-8 duration-300';
-      case 'slide-left': return 'animate-in fade-in slide-in-from-right-8 duration-300';
-      case 'slide-right': return 'animate-in fade-in slide-in-from-left-8 duration-300';
-      case 'zoom-in': return 'animate-in fade-in zoom-in-75 duration-300';
-      case 'bounce': return 'animate-bounce';
-      default: return 'animate-in fade-in slide-in-from-bottom-8 duration-300';
+  const handlePanelClick = (e: any) => {
+    if (isPreviewMode) {
+      e.stopPropagation?.();
+      onInteract?.();
     }
-  };
-
-  const getOverlayPositionStyles = (): React.CSSProperties => {
-    switch (overlayPosition) {
-      case 'top-right':
-        return { justifyContent: 'flex-end', alignItems: 'flex-start', padding: '4.5rem 1.5rem 1.5rem 1.5rem' };
-      case 'bottom-right':
-        return { justifyContent: 'flex-end', alignItems: 'flex-end', padding: '1.5rem 1.5rem 3.5rem 1.5rem' };
-      case 'top-left':
-        return { justifyContent: 'flex-start', alignItems: 'flex-start', padding: '4.5rem 1.5rem 1.5rem 1.5rem' };
-      case 'bottom-left':
-        return { justifyContent: 'flex-start', alignItems: 'flex-end', padding: '1.5rem 1.5rem 3.5rem 1.5rem' };
-      case 'top-center':
-        return { justifyContent: 'center', alignItems: 'flex-start', padding: '4.5rem 1.5rem 1.5rem 1.5rem' };
-      case 'bottom-center':
-        return { justifyContent: 'center', alignItems: 'flex-end', padding: '1.5rem 1.5rem 3.5rem 1.5rem' };
-      case 'full':
-        return { justifyContent: 'center', alignItems: 'center', padding: '0px' };
-      case 'center':
-      default:
-        return { justifyContent: 'center', alignItems: 'center', padding: '1.5rem' };
-    }
-  };
-
-  const getOverlayWidthClass = () => {
-    if (overlayPosition === 'full' || overlaySize === 'full') return 'w-full max-w-none h-full';
-    if (effectiveProps.overlayWidth) return '';
-    if (['top-right', 'bottom-right', 'top-left', 'bottom-left'].includes(overlayPosition)) {
-      if (overlaySize === 'compact') return 'w-[360px] max-w-full';
-      if (overlaySize === 'large') return 'w-[560px] max-w-full';
-      return 'w-[440px] max-w-full';
-    }
-    if (overlaySize === 'compact') return 'w-[480px] max-w-full';
-    if (overlaySize === 'large') return 'w-full max-w-5xl';
-    return 'w-full max-w-4xl';
-  };
-
-  const hudCardStyle: React.CSSProperties = {
-    backgroundColor: effectiveProps.backgroundColor || '#0F0F12',
-    borderRadius: overlayPosition === 'full' ? '0px' : (effectiveProps.borderRadius !== undefined ? `${effectiveProps.borderRadius}px` : '16px'),
-    border: effectiveProps.borderEnabled !== false ? `1px solid ${effectiveProps.borderColor || 'rgba(255,255,255,0.18)'}` : 'none',
-    boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
-    backdropFilter: `blur(${effectiveProps.blur !== undefined ? effectiveProps.blur : 12}px)`,
-    WebkitBackdropFilter: `blur(${effectiveProps.blur !== undefined ? effectiveProps.blur : 12}px)`,
-    width: effectiveProps.overlayWidth && overlayPosition !== 'full' ? (typeof effectiveProps.overlayWidth === 'number' ? `${effectiveProps.overlayWidth}px` : effectiveProps.overlayWidth) : undefined,
   };
 
   return (
-    <group>
-      {/* 3D monitor plane back cover & mesh base */}
-      <mesh castShadow receiveShadow>
-        <planeGeometry args={[planeWidth, planeHeight]} />
-        <meshBasicMaterial 
-          color={isOverlayMode ? "#1a1a24" : "#000000"} 
-          wireframe={isOverlayMode}
-          transparent={isOverlayMode}
-          opacity={isOverlayMode ? 0.6 : 1.0}
-        />
+    <group onClick={handlePanelClick}>
+      {/* Clean Flat Slim Chassis (No bevels or extra moldings) */}
+      <mesh position={[0, 0, -panelDepth / 2]} castShadow receiveShadow>
+        <boxGeometry args={[planeWidth, planeHeight, panelDepth]} />
+        <meshStandardMaterial color="#111216" roughness={0.5} metalness={0.2} />
       </mesh>
 
-      {/* Spatial Anchor Label on 3D mesh when in 2D Overlay mode */}
+      {/* Spatial Anchor Markers on 3D mesh when in 2D Overlay mode */}
       {isOverlayMode && (
-        <group position={[0, 0, 0.01]}>
+        <group position={[0, 0, 0.001]}>
           <mesh>
-            <planeGeometry args={[planeWidth * 0.98, planeHeight * 0.98]} />
-            <meshBasicMaterial color="#0c0d12" transparent opacity={0.8} />
+            <planeGeometry args={[planeWidth, planeHeight]} />
+            <meshBasicMaterial color="#0b0c10" transparent opacity={0.85} />
           </mesh>
-          <Html center distanceFactor={2.0} position={[0, 0, 0.02]}>
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-white backdrop-blur-md select-none text-center min-w-[160px] shadow-2xl">
+          <Html center distanceFactor={2.0} position={[0, 0, 0.015]}>
+            <div className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-[#0e1017]/95 border border-red-500/40 text-white backdrop-blur-md select-none text-center min-w-[170px] shadow-xl">
               <div className="flex items-center gap-1.5 text-red-400 font-bold text-[10px] uppercase tracking-wider">
-                <Tv size={14} />
-                <span>2D Screen Overlay</span>
+                <Tv size={13} />
+                <span>Spatial Anchor Linked</span>
               </div>
-              <span className="text-[9px] text-gray-300 font-medium">Video active in Viewport</span>
+              <span className="text-[9px] text-gray-300 font-medium">Playing in 2D Screen Overlay</span>
+              <span className="text-[8px] font-mono text-gray-400">
+                {aspectRatio} ({resolution})
+              </span>
               <button
                 onClick={returnTo3D}
-                className="mt-1 px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold shadow transition-all cursor-pointer flex items-center gap-1"
+                className="mt-1 px-3 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white text-[9px] font-bold shadow transition-all cursor-pointer flex items-center gap-1"
               >
                 <Box size={10} />
                 <span>Dock to 3D World</span>
@@ -444,51 +591,154 @@ function InteractiveYoutubeScreen({ obj, isPreviewMode }: { obj: SceneObject; is
         </group>
       )}
 
-      {/* 3D Mode HTML Screen Container (Renders iframe on 3D monitor plane in 3D mode) */}
+      {/* 3D Mode Screen Content: Live Iframe during preview/play, Clean 3D Mesh in Editor mode for reliable transform gizmo manipulation */}
       {!isOverlayMode && (
-        <Html
-          zIndexRange={[10, 0]}
-          transform
-          occlude="blending"
-          pointerEvents={isPreviewMode ? 'auto' : 'none'}
-          distanceFactor={1.8}
-          position={[0, 0, 0.01]}
-          style={{
-            width: `${baseHtmlWidth}px`,
-            height: `${baseHtmlHeight}px`,
-            background: '#09090b',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.8)',
-            pointerEvents: isPreviewMode ? 'auto' : 'none',
-            transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-        >
-          {videoId ? (
-            <iframe
-              ref={iframeRef}
-              data-youtube-object-id={obj.id}
-              key={videoId}
-              width="100%"
-              height="100%"
-              src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}&autoplay=${autoplay}&controls=${controls}&mute=${mute}&loop=${loop}${loop ? `&playlist=${videoId}` : ''}&vq=${vq}&rel=0`}
-              title={obj.name || 'Interactive YouTube Screen'}
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              style={{ width: '100%', height: '100%', border: 'none', pointerEvents: isPreviewMode ? 'auto' : 'none' }}
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-neutral-900 to-neutral-950 p-6 flex flex-col justify-center items-center text-white font-sans border border-white/5 select-none">
-              <Tv size={48} className="text-red-500 mb-4" />
-              <h3 className="text-xl font-bold tracking-tight uppercase text-neutral-200">YouTube Video Plane</h3>
-              <p className="text-sm text-neutral-400 mt-2 max-w-[280px] text-center leading-relaxed">
-                Provide a YouTube Video ID in the Inspector properties panel to cast streaming HD video.
-              </p>
-            </div>
-          )}
-        </Html>
+        (isPreviewMode || obj.properties?.isPlaying || obj.properties?.autoplay) ? (
+          <Html
+            zIndexRange={[1, 0]}
+            transform
+            pointerEvents={isPreviewMode ? 'auto' : 'none'}
+            distanceFactor={400 / baseHtmlHeight}
+            position={[0, 0, 0.002]}
+            style={{
+              width: `${baseHtmlWidth}px`,
+              height: `${baseHtmlHeight}px`,
+              background: '#09090b',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'inset 0 0 16px rgba(0, 0, 0, 0.7)',
+              pointerEvents: isPreviewMode ? 'auto' : 'none',
+              transformOrigin: 'center center'
+            }}
+          >
+            {videoId ? (
+              <iframe
+                ref={iframeRef}
+                data-youtube-object-id={obj.id}
+                key={videoId}
+                width="100%"
+                height="100%"
+                src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}&autoplay=${autoplay ? 1 : 0}&controls=${controls ? 1 : 0}&mute=${mute ? 1 : 0}&loop=${loop ? 1 : 0}${loop ? `&playlist=${videoId}` : ''}&vq=${vq}&rel=0`}
+                title={obj.name || 'YouTube Player'}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                style={{ width: '100%', height: '100%', border: 'none', pointerEvents: isPreviewMode ? 'auto' : 'none' }}
+              />
+            ) : (
+              <div className="w-full h-full bg-[#0d0e12] p-6 flex flex-col justify-center items-center text-white font-sans border border-white/5 select-none">
+                <Tv size={40} className="text-red-500 mb-3" />
+                <h3 className="text-lg font-bold uppercase text-neutral-200">YouTube Video Player</h3>
+                <p className="text-xs text-neutral-400 mt-1 max-w-[260px] text-center">
+                  Enter a YouTube Video ID in the Inspector to stream video.
+                </p>
+              </div>
+            )}
+          </Html>
+        ) : (
+          <YoutubePoster3DMesh
+            videoId={videoId}
+            planeWidth={planeWidth}
+            planeHeight={planeHeight}
+            aspectRatio={aspectRatio}
+          />
+        )
       )}
+    </group>
+  );
+}
+
+// Clean 3D Poster Mesh for Editor Mode (Zero suspense, robust TextureLoader fallback, reliable gizmo manipulation)
+function YoutubePoster3DMesh({
+  videoId,
+  planeWidth,
+  planeHeight,
+  aspectRatio = '16:9'
+}: {
+  videoId?: string;
+  planeWidth: number;
+  planeHeight: number;
+  aspectRatio?: string;
+}) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    if (!videoId) {
+      setTexture(null);
+      return;
+    }
+
+    let isMounted = true;
+    const loader = new THREE.TextureLoader();
+    const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+    loader.load(
+      thumbUrl,
+      (loadedTex) => {
+        if (isMounted) {
+          loadedTex.colorSpace = THREE.SRGBColorSpace;
+          setTexture(loadedTex);
+        }
+      },
+      undefined,
+      () => {
+        if (isMounted) setTexture(null);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+    };
+  }, [videoId]);
+
+  const badgeScale = Math.min(planeWidth, planeHeight);
+  const badgeW = Math.max(0.12, badgeScale * 0.28);
+  const badgeH = Math.max(0.08, badgeScale * 0.18);
+  const playSize = Math.max(0.03, badgeScale * 0.08);
+
+  return (
+    <group position={[0, 0, 0.001]}>
+      {/* Video Screen Surface */}
+      <mesh>
+        <planeGeometry args={[planeWidth, planeHeight]} />
+        {texture ? (
+          <meshBasicMaterial map={texture} side={THREE.DoubleSide} />
+        ) : (
+          <meshStandardMaterial color="#090a0f" roughness={0.3} metalness={0.1} />
+        )}
+      </mesh>
+
+      {/* Subtle Screen Reflection Glare */}
+      <mesh position={[0, 0, 0.001]}>
+        <planeGeometry args={[planeWidth, planeHeight]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.03} />
+      </mesh>
+
+      {/* Red YouTube Center Play Button */}
+      <group position={[0, 0, 0.003]}>
+        {/* Red Rounded Play Pill */}
+        <mesh>
+          <planeGeometry args={[badgeW, badgeH]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+        {/* White Play Triangle */}
+        <mesh position={[badgeW * 0.05, 0, 0.001]} rotation={[0, 0, -Math.PI / 2]}>
+          <coneGeometry args={[playSize * 0.6, playSize, 3]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+      </group>
+
+      {/* Subtle Dimension/Aspect Ratio Tag in Bottom Corner */}
+      <Html
+        position={[planeWidth / 2 - 0.03, -planeHeight / 2 + 0.03, 0.003]}
+        center
+        distanceFactor={2.5}
+        style={{ pointerEvents: 'none' }}
+      >
+        <div className="px-1.5 py-0.5 rounded bg-black/70 text-[8px] font-mono font-bold text-gray-300 border border-white/10 select-none uppercase shadow">
+          {aspectRatio}
+        </div>
+      </Html>
     </group>
   );
 }
@@ -635,7 +885,9 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   
   // Clone scene so multiple model instances have independent animation/bone controllers
   const clonedScene = React.useMemo(() => {
-    return scene.clone();
+    const cl = scene.clone();
+    PivotNormalizationService.normalizePivot(cl);
+    return cl;
   }, [scene]);
 
   // Intelligent scaling & centering calculation to fit model inside Image Target frame and normalize scale
@@ -1388,6 +1640,7 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
 
 function ImageTargetRenderer({ obj }: { obj: SceneObject }) {
   const trackingMode = useEditorStore(state => state.settings.trackingMode);
+  if (!obj || !obj.properties) return null;
   const isFace = obj.properties?.targetType === 'face' || (trackingMode === 'face' && obj.properties?.targetType !== 'image');
   
   if (isFace) {
@@ -2141,72 +2394,109 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
     case 'box':
     case 'button':
     case 'youtube':
-      geometry = <boxGeometry args={[1.02, 1.02, 1.02]} />;
       label = "Box Collider";
       break;
     case 'sphere':
-      geometry = <sphereGeometry args={[0.51, 16, 16]} />;
       label = "Sphere Collider";
       break;
     case 'plane':
     case 'circle':
     case 'image':
     case 'video':
-      geometry = <planeGeometry args={[1.02, 1.02]} />;
       label = obj.type === 'circle' ? "Circle Collider" : "Plane Collider";
       break;
     case 'cylinder':
-      geometry = <cylinderGeometry args={[0.51, 0.51, 1.02, 16]} />;
       label = "Cylinder Collider";
       break;
     case 'cone':
     case 'pyramid':
-      geometry = <coneGeometry args={[0.51, 1.02, obj.type === 'pyramid' ? 4 : 16]} />;
       label = "Cone/Pyramid Collider";
       break;
     case 'torus':
-      geometry = <torusGeometry args={[0.41, 0.13, 8, 32]} />;
       label = "Torus Collider";
       break;
     case 'capsule':
-      geometry = <capsuleGeometry args={[0.31, 0.61, 8, 16]} />;
       label = "Capsule Collider";
       break;
     case 'dodecahedron':
-      geometry = <dodecahedronGeometry args={[0.51]} />;
       label = "Polyhedron Collider";
       break;
     case 'octahedron':
-      geometry = <octahedronGeometry args={[0.51]} />;
       label = "Octahedron Collider";
       break;
     case 'icosahedron':
-      geometry = <icosahedronGeometry args={[0.51]} />;
       label = "Geodesic Collider";
       break;
     case 'knot':
-      geometry = <torusKnotGeometry args={[0.31, 0.11, 32, 8]} />;
       label = "Mesh Collider";
       break;
     case 'model':
-      geometry = <boxGeometry args={[1.1, 1.1, 1.1]} />;
       label = "OBB Bounding Box";
       break;
     case 'icon':
     case 'icon2d':
-      geometry = <boxGeometry args={[0.8, 0.8, 0.3]} />;
       label = "Billboard Collider";
       break;
+    case 'empty':
+    case 'group':
+      label = obj.type === 'empty' ? "Empty Anchor Node" : "Group Origin Node";
+      break;
     default:
-      geometry = <boxGeometry args={[1, 1, 1]} />;
       label = "Generic Collider";
       break;
   }
 
+  const renderColliderGeom = () => {
+    switch (obj.type) {
+      case 'box':
+      case 'button':
+        return <boxGeometry args={[1.02, 1.02, 1.02]} />;
+      case 'youtube': {
+        const ratio = getYoutubeAspectRatioRatio(obj.properties?.aspectRatio, obj.properties?.customAspectRatioWidth, obj.properties?.customAspectRatioHeight);
+        const pw = Number((1.0 * ratio).toFixed(3));
+        return <boxGeometry args={[pw, 1.0, 0.05]} />;
+      }
+      case 'sphere':
+        return <sphereGeometry args={[0.51, 16, 16]} />;
+      case 'plane':
+      case 'circle':
+      case 'image':
+      case 'video':
+        return <planeGeometry args={[1.02, 1.02]} />;
+      case 'cylinder':
+        return <cylinderGeometry args={[0.51, 0.51, 1.02, 16]} />;
+      case 'cone':
+      case 'pyramid':
+        return <coneGeometry args={[0.51, 1.02, obj.type === 'pyramid' ? 4 : 16]} />;
+      case 'torus':
+        return <torusGeometry args={[0.41, 0.13, 8, 32]} />;
+      case 'capsule':
+        return <capsuleGeometry args={[0.31, 0.61, 8, 16]} />;
+      case 'dodecahedron':
+        return <dodecahedronGeometry args={[0.51]} />;
+      case 'octahedron':
+        return <octahedronGeometry args={[0.51]} />;
+      case 'icosahedron':
+        return <icosahedronGeometry args={[0.51]} />;
+      case 'knot':
+        return <torusKnotGeometry args={[0.31, 0.11, 32, 8]} />;
+      case 'model':
+        return <boxGeometry args={[1.1, 1.1, 1.1]} />;
+      case 'icon':
+      case 'icon2d':
+        return <boxGeometry args={[0.8, 0.8, 0.3]} />;
+      case 'empty':
+      case 'group':
+        return <octahedronGeometry args={[0.3, 0]} />;
+      default:
+        return <boxGeometry args={[1, 1, 1]} />;
+    }
+  };
+
   return (
     <group>
       <mesh>
-        {geometry}
+        {renderColliderGeom()}
         <meshBasicMaterial 
           color={wireframeColor} 
           wireframe 
@@ -2217,7 +2507,7 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
       </mesh>
       
       <mesh>
-        {geometry}
+        {renderColliderGeom()}
         <meshBasicMaterial 
           color={wireframeColor} 
           transparent 
@@ -2302,8 +2592,35 @@ function getEasingValue(type: string, t: number): number {
   }
 }
 
+function PivotNormalizer({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const group = groupRef.current;
+    if (!group) return;
+
+    // Normalize immediately for synchronous primitives
+    PivotNormalizationService.normalizePivot(group);
+
+    // Also normalize after a short delay to account for asynchronous GLTF/FBX model loading/mounting
+    const timer = setTimeout(() => {
+      PivotNormalizationService.normalizePivot(group);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [children, enabled]);
+
+  return (
+    <group ref={groupRef}>
+      {children}
+    </group>
+  );
+}
+
 function ObjectRenderer({ id }: { id: string }) {
   const obj = useEditorStore(state => state.objects[id]);
+  if (!obj) return null;
   const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
   const selectObject = useEditorStore(state => state.selectObject);
@@ -2332,6 +2649,18 @@ function ObjectRenderer({ id }: { id: string }) {
       }
     };
   }, [isSelected, id]);
+
+  // Global pivot normalization for newly instantiated primitives and models
+  useEffect(() => {
+    if (meshRef.current) {
+      const timer = setTimeout(() => {
+        if (meshRef.current) {
+          PivotNormalizationService.normalizePivot(meshRef.current);
+        }
+      }, 50); // Small timeout to ensure child meshes / geometries are fully populated
+      return () => clearTimeout(timer);
+    }
+  }, [obj?.type, obj?.properties?.url]);
 
   const executeBehaviorAction = (b: any) => {
     const actType = b.type || b.action;
@@ -2424,6 +2753,11 @@ function ObjectRenderer({ id }: { id: string }) {
         }
         break;
       }
+      case 'takeScreenshot':
+      case 'captureARSnapshot':
+      case 'screenshot':
+        window.dispatchEvent(new CustomEvent('trigger-ar-snapshot', { detail: b }));
+        break;
       case 'loadScene':
         if (b.targetSceneId) {
           useEditorStore.getState().loadScene(b.targetSceneId);
@@ -2440,14 +2774,39 @@ function ObjectRenderer({ id }: { id: string }) {
         const ytObj = useEditorStore.getState().objects[targetId];
         if (ytObj) {
           useEditorStore.getState().updateObject(targetId, {
-            properties: { ...ytObj.properties, autoplay: true }
+            properties: { ...ytObj.properties, autoplay: true, isPlaying: true }
           });
         }
         sendYoutubeCommand(targetId, 'playVideo');
         break;
       }
       case 'youtubePause': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, autoplay: false, isPlaying: false }
+          });
+        }
         sendYoutubeCommand(targetId, 'pauseVideo');
+        break;
+      }
+      case 'youtubeTogglePlay':
+      case 'youtubeTogglePlayPause': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          const isCurrentlyPlaying = !!ytObj.properties?.isPlaying || !!ytObj.properties?.autoplay;
+          const nextPlayingState = !isCurrentlyPlaying;
+          useEditorStore.getState().updateObject(targetId, {
+            properties: {
+              ...ytObj.properties,
+              autoplay: nextPlayingState,
+              isPlaying: nextPlayingState
+            }
+          });
+          sendYoutubeCommand(targetId, nextPlayingState ? 'playVideo' : 'pauseVideo');
+        } else {
+          sendYoutubeCommand(targetId, 'pauseVideo');
+        }
         break;
       }
       case 'youtubeMute': {
@@ -2553,6 +2912,22 @@ function ObjectRenderer({ id }: { id: string }) {
             sendYoutubeCommand(targetId, 'pauseVideo');
           }
         }
+        break;
+      }
+      case 'youtubeStop': {
+        const ytObj = useEditorStore.getState().objects[targetId];
+        if (ytObj) {
+          useEditorStore.getState().updateObject(targetId, {
+            properties: { ...ytObj.properties, autoplay: false, isPlaying: false }
+          });
+        }
+        sendYoutubeCommand(targetId, 'stopVideo');
+        sendYoutubeCommand(targetId, 'seekTo', [0, true]);
+        break;
+      }
+      case 'youtubeSeekTo': {
+        const seconds = typeof b.seekTime === 'number' ? b.seekTime : (b.propertyValue !== undefined ? parseFloat(b.propertyValue) : 0);
+        sendYoutubeCommand(targetId, 'seekTo', [seconds, true]);
         break;
       }
       case 'setTextureUrl': {
@@ -3011,6 +3386,10 @@ function ObjectRenderer({ id }: { id: string }) {
 
   if (!obj || !obj.visible) return null;
 
+  const px = obj.pivot ? obj.pivot[0] : 0;
+  const py = obj.pivot ? obj.pivot[1] : 0;
+  const pz = obj.pivot ? obj.pivot[2] : 0;
+
   const rotation: [number, number, number] = [
     THREE.MathUtils.degToRad(obj.rotation[0]),
     THREE.MathUtils.degToRad(obj.rotation[1]),
@@ -3061,6 +3440,33 @@ function ObjectRenderer({ id }: { id: string }) {
 
   const renderGeometry = () => {
     switch (obj.type) {
+      case 'empty':
+        return (
+          <group>
+            {!isPreviewMode && (
+              <group>
+                {/* Center diamond marker */}
+                <mesh scale={[0.12, 0.12, 0.12]}>
+                  <octahedronGeometry args={[0.5]} />
+                  <meshBasicMaterial color={isSelected ? "#38bdf8" : "#a1a1aa"} wireframe transparent opacity={0.85} />
+                </mesh>
+                {/* Subdued Axis Lines */}
+                <mesh position={[0, 0, 0]}>
+                  <boxGeometry args={[0.5, 0.015, 0.015]} />
+                  <meshBasicMaterial color="#ef4444" />
+                </mesh>
+                <mesh position={[0, 0, 0]}>
+                  <boxGeometry args={[0.015, 0.5, 0.015]} />
+                  <meshBasicMaterial color="#22c55e" />
+                </mesh>
+                <mesh position={[0, 0, 0]}>
+                  <boxGeometry args={[0.015, 0.015, 0.5]} />
+                  <meshBasicMaterial color="#3b82f6" />
+                </mesh>
+              </group>
+            )}
+          </group>
+        );
       case 'box':
         return (
           <mesh>
@@ -3150,7 +3556,7 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'button':
         return <Interactive3DButton obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'youtube':
-        return <InteractiveYoutubeScreen obj={obj} isPreviewMode={isPreviewMode} />;
+        return <InteractiveYoutubeScreen obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'imageTarget':
         return (
           <ErrorBoundary fallback={
@@ -3318,11 +3724,16 @@ function ObjectRenderer({ id }: { id: string }) {
       }}
       raycast={obj.properties.ignoreClicks ? () => null : undefined}
     >
-      {renderGeometry()}
-      {collisionDebuggerEnabled && <CollisionDebuggerOverlay obj={obj} />}
-      {obj.children.map(childId => (
-        <ObjectRenderer key={childId} id={childId} />
-      ))}
+      {/* Pivot-offset group */}
+      <group position={[-px, -py, -pz]}>
+        <PivotNormalizer enabled={obj.type !== 'empty' && obj.type !== 'light' && obj.type !== 'audio' && obj.type !== 'imageTarget'}>
+          {renderGeometry()}
+        </PivotNormalizer>
+        {collisionDebuggerEnabled && <CollisionDebuggerOverlay obj={obj} />}
+        {obj.children.map(childId => (
+          <ObjectRenderer key={childId} id={childId} />
+        ))}
+      </group>
     </group>
   );
 }
@@ -3435,28 +3846,33 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   };
 
   // Ensure gizmo controls are always rendered on top of 3D models without depth clipping and stay attached on property updates
-  useEffect(() => {
+  useFrame(() => {
     const controls = controlsRef.current;
     if (controls) {
-      if (target) {
-        try {
-          controls.attach(target);
-        } catch (e) {
-          // ignore
-        }
+      const helper = controls.getHelper ? controls.getHelper() : (controls as any)._gizmo;
+      if (helper) {
+        helper.traverse((child: any) => {
+          if (child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((m: any) => {
+              m.depthTest = false;
+              m.depthWrite = false;
+              m.transparent = true;
+            });
+            child.renderOrder = 99999;
+          }
+        });
       }
-      if (controls.getHelper) {
-        const helper = controls.getHelper();
-        if (helper) {
-          helper.traverse((child: any) => {
-            if (child.material) {
-              child.material.depthTest = false;
-              child.material.depthWrite = false;
-              child.material.transparent = true;
-              child.renderOrder = 999;
-            }
-          });
-        }
+    }
+  });
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (controls && target) {
+      try {
+        controls.attach(target);
+      } catch (e) {
+        // ignore
       }
     }
   }, [target, transformMode, transformSpace, selectedObjectId, obj?.properties?.displayMode, obj?.properties?.aspectRatio]);
@@ -3521,7 +3937,8 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     !obj ||
     !obj.visible ||
     obj.locked ||
-    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) ||
+    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) ||
+    (obj.type === 'youtube' && obj.properties?.displayMode === '2d') ||
     !isObjectInScene(target, scene)
   ) {
     return null;
@@ -3549,6 +3966,7 @@ const VIDEO_URLS = {
 
 function Hotspot3DRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: (e?: any) => void }) {
   const beaconRef = useRef<THREE.Group>(null);
+  if (!obj) return null;
   const ringRef = useRef<THREE.Mesh>(null);
   const setActiveHotspotCard = useEditorStore(state => state.setActiveHotspotCard);
   const [hovered, setHovered] = useState(false);
@@ -3665,7 +4083,7 @@ function SelectionHighlight3D() {
       {selectedObjectIds.map(id => {
         const obj = objects[id];
         if (!obj || !obj.visible) return null;
-        if (['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type)) return null;
+        if (['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) || (obj.type === 'youtube' && obj.properties?.displayMode === '2d')) return null;
 
         const target = scene.getObjectByName(id);
         if (!target || !isObjectInScene(target, scene)) return null;
@@ -3677,7 +4095,7 @@ function SelectionHighlight3D() {
 }
 
 function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObject; target: THREE.Object3D }) {
-  const [bounds, setBounds] = useState<{ center: [number, number, number]; size: [number, number, number] } | null>(null);
+  const [bounds, setBounds] = useState<{ center: [number, number, number]; size: [number, number, number]; is2D: boolean } | null>(null);
 
   useFrame(() => {
     if (!target) return;
@@ -3689,13 +4107,24 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
     box.getCenter(center);
     box.getSize(size);
 
-    size.x = Math.max(size.x, 0.2);
-    size.y = Math.max(size.y, 0.2);
-    size.z = Math.max(size.z, 0.2);
+    const is2D = 
+      ['plane', 'circle', 'image', 'imageTarget', 'text', 'button', 'icon2d', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type) ||
+      (obj.type === 'youtube' && obj.properties?.displayMode !== '3d') ||
+      size.z < 0.04;
+
+    size.x = Math.max(size.x, 0.1);
+    size.y = Math.max(size.y, 0.1);
+
+    if (is2D) {
+      size.z = 0.002; // Ultra-slim, planar boundary hugging the 2D surface
+    } else {
+      size.z = Math.max(size.z, 0.06);
+    }
 
     setBounds({
       center: [center.x, center.y, center.z],
       size: [size.x, size.y, size.z],
+      is2D
     });
   });
 
@@ -3707,27 +4136,275 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
   const hy = sy / 2;
   const hz = sz / 2;
 
+  const minDim = Math.min(sx, sy);
+  const legLen = Math.min(minDim * 0.25, 0.22);
+  const cornerThickness = Math.max(0.006, Math.min(0.016, minDim * 0.03));
+
+  const cyanColor = "#00f0ff";
+  const cyanGlow = "#38bdf8";
+
+  // Sleek, slim flat bounding frame for 2D objects (Figma/Spark AR precision style)
+  if (bounds.is2D) {
+    return (
+      <group position={[cx, cy, cz]} raycast={() => null}>
+        {/* Flat Perimeter Border */}
+        <mesh>
+          <boxGeometry args={[sx, sy, 0.001]} />
+          <meshBasicMaterial color={cyanColor} wireframe transparent opacity={0.6} />
+        </mesh>
+
+        {/* Subtle Semi-transparent Planar Tint */}
+        <mesh>
+          <planeGeometry args={[sx, sy]} />
+          <meshBasicMaterial color={cyanColor} transparent opacity={0.03} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* 4 Flat Precision Corner L-Brackets */}
+        {[-1, 1].map((signX) =>
+          [-1, 1].map((signY) => {
+            const vx = signX * hx;
+            const vy = signY * hy;
+            const key = `${signX}-${signY}`;
+
+            return (
+              <group key={key} position={[vx, vy, 0.001]}>
+                {/* Corner Node */}
+                <mesh>
+                  <boxGeometry args={[cornerThickness * 1.6, cornerThickness * 1.6, 0.002]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+                {/* Flat X Leg */}
+                <mesh position={[-signX * legLen / 2, 0, 0]}>
+                  <boxGeometry args={[legLen, cornerThickness, 0.002]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+                {/* Flat Y Leg */}
+                <mesh position={[0, -signY * legLen / 2, 0]}>
+                  <boxGeometry args={[cornerThickness, legLen, 0.002]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+              </group>
+            );
+          })
+        )}
+
+        {/* Center Pivot Reticle Crosshair (Middle & Centered) */}
+        <group position={[0, 0, 0.001]}>
+          <mesh>
+            <boxGeometry args={[Math.min(0.03, minDim * 0.12), cornerThickness * 0.7, 0.002]} />
+            <meshBasicMaterial color={cyanGlow} />
+          </mesh>
+          <mesh>
+            <boxGeometry args={[cornerThickness * 0.7, Math.min(0.03, minDim * 0.12), 0.002]} />
+            <meshBasicMaterial color={cyanGlow} />
+          </mesh>
+          <mesh>
+            <circleGeometry args={[cornerThickness * 0.9, 16]} />
+            <meshBasicMaterial color={cyanColor} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 3D Object Bounding Cage
   return (
-    <group position={[cx, cy, cz]}>
-      {/* Sleek Orange Accent Wireframe Bounding Box */}
+    <group position={[cx, cy, cz]} raycast={() => null}>
+      {/* 3D Hairline Box Outline */}
       <mesh>
         <boxGeometry args={[sx, sy, sz]} />
-        <meshBasicMaterial color="#f97316" wireframe transparent opacity={0.6} />
+        <meshBasicMaterial color={cyanColor} wireframe transparent opacity={0.35} />
       </mesh>
 
-      {/* Discrete Corner Vertex Markers */}
-      {[-hx, hx].map((x) =>
-        [-hy, hy].map((y) =>
-          [-hz, hz].map((z) => (
-            <mesh key={`${x}-${y}-${z}`} position={[x, y, z]}>
-              <boxGeometry args={[Math.min(0.04, sx * 0.1), Math.min(0.04, sy * 0.1), Math.min(0.04, sz * 0.1)]} />
-              <meshBasicMaterial color="#ffedd5" />
-            </mesh>
-          ))
+      {/* 8 Vertices with 3D L-Brackets */}
+      {[-1, 1].map((signX) =>
+        [-1, 1].map((signY) =>
+          [-1, 1].map((signZ) => {
+            const vx = signX * hx;
+            const vy = signY * hy;
+            const vz = signZ * hz;
+            const key = `${signX}-${signY}-${signZ}`;
+
+            return (
+              <group key={key} position={[vx, vy, vz]}>
+                {/* Vertex Corner Knob */}
+                <mesh>
+                  <boxGeometry args={[cornerThickness * 1.8, cornerThickness * 1.8, cornerThickness * 1.8]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+
+                {/* X Bracket Leg */}
+                <mesh position={[-signX * legLen / 2, 0, 0]}>
+                  <boxGeometry args={[legLen, cornerThickness, cornerThickness]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+
+                {/* Y Bracket Leg */}
+                <mesh position={[0, -signY * legLen / 2, 0]}>
+                  <boxGeometry args={[cornerThickness, legLen, cornerThickness]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+
+                {/* Z Bracket Leg */}
+                <mesh position={[0, 0, -signZ * legLen / 2]}>
+                  <boxGeometry args={[cornerThickness, cornerThickness, legLen]} />
+                  <meshBasicMaterial color={cyanColor} />
+                </mesh>
+              </group>
+            );
+          })
         )
       )}
+
+      {/* 3D Base Ground Reticle at z = -hz */}
+      <group position={[0, 0, -hz]}>
+        <mesh rotation={[0, 0, 0]}>
+          <ringGeometry args={[Math.min(hx, hy) * 0.55, Math.min(hx, hy) * 0.55 + 0.018, 32]} />
+          <meshBasicMaterial color={cyanGlow} transparent opacity={0.7} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh>
+          <circleGeometry args={[Math.min(0.04, minDim * 0.08), 16]} />
+          <meshBasicMaterial color={cyanColor} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
     </group>
   );
+}
+
+function ZUpAxisHead({
+  position,
+  label,
+  color,
+  labelColor = '#ffffff',
+  onTween,
+}: {
+  position: [number, number, number];
+  label?: string;
+  color: string;
+  labelColor?: string;
+  onTween: (pos: [number, number, number]) => void;
+}) {
+  const gl = useThree((state) => state.gl);
+  const [active, setActive] = useState(false);
+
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.beginPath();
+      ctx.arc(32, 32, 16, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+      if (label) {
+        ctx.font = 'bold 20px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = labelColor;
+        ctx.fillText(label, 32, 39);
+      }
+    }
+    return new THREE.CanvasTexture(canvas);
+  }, [color, label, labelColor]);
+
+  const scale = (label ? 1 : 0.75) * (active ? 1.25 : 1);
+
+  return (
+    <sprite
+      position={position}
+      scale={scale}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setActive(true);
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        setActive(false);
+      }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onTween(position);
+      }}
+    >
+      <spriteMaterial
+        map={texture}
+        map-anisotropy={gl.capabilities.getMaxAnisotropy() || 1}
+        alphaTest={0.3}
+        opacity={label ? 1 : 0.75}
+        toneMapped={false}
+      />
+    </sprite>
+  );
+}
+
+function ZUpAxis({ color, rotation }: { color: string; rotation: [number, number, number] }) {
+  return (
+    <group rotation={rotation}>
+      <mesh position={[0.4, 0, 0]}>
+        <boxGeometry args={[0.8, 0.05, 0.05]} />
+        <meshBasicMaterial color={color} toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function ZUpGizmoViewport({
+  axisColors = ['#ef4444', '#10b981', '#3b82f6'],
+  onSelectAxisView,
+}: {
+  axisColors?: [string, string, string];
+  onSelectAxisView?: (axis: 'X' | 'Y' | 'Z' | '3D') => void;
+}) {
+  const { tweenCamera } = useGizmoContext();
+
+  const handleTween = (pos: [number, number, number]) => {
+    let [x, y, z] = pos;
+    if (Math.abs(z) > 0.9 && Math.abs(x) < 0.1 && Math.abs(y) < 0.1) {
+      // Offset Y slightly for top/bottom view to prevent collinear singularity with up=[0,0,1]
+      y = z > 0 ? -0.0001 : 0.0001;
+    }
+    const targetVec = new THREE.Vector3(x, y, z).normalize();
+    tweenCamera(targetVec);
+
+    if (onSelectAxisView) {
+      if (Math.abs(pos[0]) > 0.9) onSelectAxisView('X');
+      else if (Math.abs(pos[1]) > 0.9) onSelectAxisView('Y');
+      else if (Math.abs(pos[2]) > 0.9) onSelectAxisView('Z');
+    }
+  };
+
+  const [colorX, colorY, colorZ] = axisColors;
+
+  return (
+    <group 
+      scale={40}
+      onPointerDown={() => {
+        if (onSelectAxisView) {
+          onSelectAxisView('3D');
+        }
+      }}
+    >
+      <ZUpAxis color={colorX} rotation={[0, 0, 0]} />
+      <ZUpAxis color={colorY} rotation={[0, 0, Math.PI / 2]} />
+      <ZUpAxis color={colorZ} rotation={[0, -Math.PI / 2, 0]} />
+
+      <ZUpAxisHead position={[1, 0, 0]} label="X" color={colorX} onTween={handleTween} />
+      <ZUpAxisHead position={[0, 1, 0]} label="Y" color={colorY} onTween={handleTween} />
+      <ZUpAxisHead position={[0, 0, 1]} label="Z" color={colorZ} onTween={handleTween} />
+
+      <ZUpAxisHead position={[-1, 0, 0]} color={colorX} onTween={handleTween} />
+      <ZUpAxisHead position={[0, -1, 0]} color={colorY} onTween={handleTween} />
+      <ZUpAxisHead position={[0, 0, -1]} color={colorZ} onTween={handleTween} />
+    </group>
+  );
+}
+
+function SceneRefCapturer({ sceneRef }: { sceneRef: React.MutableRefObject<THREE.Scene | null> }) {
+  const { scene } = useThree();
+  useEffect(() => {
+    sceneRef.current = scene;
+  }, [scene, sceneRef]);
+  return null;
 }
 
 function AutoSceneLightingEngine() {
@@ -3780,15 +4457,16 @@ function AutoSceneLightingEngine() {
       />
 
       {hdrEnabled && (
-        <Environment
+        <ErrorBoundary fallback={null}><Environment
           files={hdrType === 'custom' ? hdrUrl : undefined}
           preset={hdrType !== 'custom' ? (hdrPreset as any) : undefined}
           background={hdrBackground}
-        />
+        /></ErrorBoundary>
       )}
 
       <ContactShadows
-        position={[0, -0.01, 0]}
+        position={[0, 0, -0.01]}
+        rotation-x={Math.PI}
         opacity={0.55}
         scale={20}
         blur={2.5}
@@ -3803,6 +4481,11 @@ function AutoSceneLightingEngine() {
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
   const orbitControlsRef = useRef<any>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const [isPublicationModalOpen, setIsPublicationModalOpen] = useState(false);
+  const [axisUpdateId, setAxisUpdateId] = useState(0);
+  const [activeAxisView, setActiveAxisView] = useState<'X' | 'Y' | 'Z' | '3D'>('3D');
+  const [isAxisMenuOpen, setIsAxisMenuOpen] = useState(false);
 
   const { 
     addObject, 
@@ -4015,12 +4698,16 @@ export function Viewport() {
   const addToast = useEditorStore(state => state.addToast);
 
   const [showBezel, setShowBezel] = useState(true);
-  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(true);
+  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
   const [bgType, setBgType] = useState<'office' | 'livingroom' | 'techlab' | 'webcam'>('office');
   const [trackingStable, setTrackingStable] = useState(false);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [snapshotFlash, setSnapshotFlash] = useState(false);
   const [currentTime, setCurrentTime] = useState('09:41 AM');
+  const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
+  const [snapshotDataUrl, setSnapshotDataUrl] = useState<string>('');
+  const [snapshotInitialWatermark, setSnapshotInitialWatermark] = useState<string>('Captured with AR Studio');
+  const [snapshotIncludeTimestamp, setSnapshotIncludeTimestamp] = useState<boolean>(true);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const webCamRef = useRef<HTMLVideoElement>(null);
@@ -4238,27 +4925,129 @@ export function Viewport() {
     e.preventDefault();
   };
 
-  const triggerSnapshot = () => {
-    setSnapshotFlash(true);
-    // Play shutter sound via web audio API safely
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.15);
-    } catch (e) {}
+  const captureARSnapshot = useCallback((options: any = {}) => {
+    const shouldFlash = options.screenshotFlash !== false && options.flash !== false;
+    const shouldSound = options.screenshotSound !== false && options.sound !== false;
 
-    setTimeout(() => {
-      setSnapshotFlash(false);
-    }, 450);
+    if (shouldFlash) {
+      setSnapshotFlash(true);
+      setTimeout(() => {
+        setSnapshotFlash(false);
+      }, 450);
+    }
+
+    if (shouldSound) {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(550, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1100, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      } catch (e) {}
+    }
+
+    try {
+      // Find 3D WebGL Canvas
+      const webglCanvas = document.querySelector('canvas') as HTMLCanvasElement;
+      const activeVideo = (bgType === 'webcam' ? webCamRef.current : videoRef.current) as HTMLVideoElement;
+
+      // Composite onto high-res canvas
+      const width = webglCanvas ? (webglCanvas.width || 1280) : 1280;
+      const height = webglCanvas ? (webglCanvas.height || 720) : 720;
+
+      const offscreen = document.createElement('canvas');
+      offscreen.width = width;
+      offscreen.height = height;
+      const ctx = offscreen.getContext('2d');
+
+      if (ctx) {
+        // 1. Draw video background
+        if (activeVideo && activeVideo.videoWidth > 0) {
+          try {
+            ctx.drawImage(activeVideo, 0, 0, width, height);
+          } catch (e) {
+            ctx.fillStyle = '#0a0a0c';
+            ctx.fillRect(0, 0, width, height);
+          }
+        } else {
+          ctx.fillStyle = '#0a0a0c';
+          ctx.fillRect(0, 0, width, height);
+        }
+
+        // 2. Draw 3D WebGL Canvas on top
+        if (webglCanvas) {
+          try {
+            ctx.drawImage(webglCanvas, 0, 0, width, height);
+          } catch (e) {
+            console.warn('WebGL draw into snapshot error:', e);
+          }
+        }
+
+        const dataUrl = offscreen.toDataURL('image/png', 0.95);
+        setSnapshotDataUrl(dataUrl);
+        setSnapshotInitialWatermark(options.screenshotWatermark || 'Captured with AR Studio');
+        setSnapshotIncludeTimestamp(options.screenshotIncludeTimestamp !== false);
+
+        if (options.screenshotDirectDownload || options.directDownload) {
+          const d = new Date();
+          const filename = `AR_Snapshot_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}_${Date.now().toString().slice(-4)}.png`;
+          const a = document.createElement('a');
+          a.href = dataUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else if (options.screenshotDirectShare && typeof navigator !== 'undefined' && (navigator as any).share) {
+          offscreen.toBlob((blob) => {
+            if (blob) {
+              const file = new File([blob], 'AR_Snapshot.png', { type: 'image/png' });
+              if ((navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
+                (navigator as any).share({
+                  title: 'AR Snapshot',
+                  text: 'Check out this augmented reality experience capture!',
+                  files: [file]
+                }).catch(() => {
+                  setIsSnapshotModalOpen(true);
+                });
+                return;
+              }
+            }
+            setIsSnapshotModalOpen(true);
+          });
+        } else {
+          setIsSnapshotModalOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error('AR Snapshot capture failed:', err);
+    }
+  }, [bgType]);
+
+  // Listen for trigger-ar-snapshot custom event
+  useEffect(() => {
+    const handleSnapshotEvent = (e: any) => {
+      captureARSnapshot(e.detail || {});
+    };
+    window.addEventListener('trigger-ar-snapshot', handleSnapshotEvent);
+    return () => {
+      window.removeEventListener('trigger-ar-snapshot', handleSnapshotEvent);
+    };
+  }, [captureARSnapshot]);
+
+  const triggerSnapshot = () => {
+    captureARSnapshot({
+      screenshotWatermark: 'Captured with AR Studio',
+      screenshotIncludeTimestamp: true,
+      screenshotSound: true,
+      screenshotFlash: true,
+    });
   };
 
   const resetTracking = () => {
@@ -4387,12 +5176,27 @@ export function Viewport() {
               >
                 
                 <AutoSceneLightingEngine />
+                <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
+                <Grid 
+                  position={[0, 0, -0.01]} 
+                  args={[100, 100]} 
+                  cellSize={1} 
+                  cellThickness={1} 
+                  cellColor="#444" 
+                  sectionSize={5} 
+                  sectionThickness={1.5} 
+                  sectionColor="#888" 
+                  fadeDistance={30} 
+                  fadeStrength={1} 
+                  rotation={[Math.PI / 2, 0, 0]}
+                />
+
                 
                 {rootObjects.map(id => (
                   <ObjectRenderer key={id} id={id} />
                 ))}
 
-                <OrbitControls makeDefault />
+                <OrbitControls ref={orbitControlsRef} enableRotate={activeAxisView === '3D'} makeDefault />
                 <BloomEffect />
                 <PerformanceTracker />
               </Canvas>
@@ -4584,6 +5388,16 @@ export function Viewport() {
             </div>
           </div>
         </div>
+
+        {/* AR Snapshot Preview & Share Modal */}
+        <SnapshotShareModal
+          isOpen={isSnapshotModalOpen}
+          onClose={() => setIsSnapshotModalOpen(false)}
+          rawImageDataUrl={snapshotDataUrl}
+          initialWatermark={snapshotInitialWatermark}
+          initialIncludeTimestamp={snapshotIncludeTimestamp}
+          onRetake={() => captureARSnapshot()}
+        />
       </div>
     );
   }
@@ -4600,289 +5414,328 @@ export function Viewport() {
 
   return (
     <div 
-      className="w-full h-full relative bg-[#222224]"
+      className="w-full h-full relative bg-[#222224] select-none overflow-hidden"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {/* Real-time Performance Monitor Overlay */}
-      {showPerformanceMonitor && (
-        <GlassCard variant="dark" blur="md" className="absolute top-3 right-3 z-30 p-3 w-52 select-none pointer-events-none font-sans transition-all">
-          <div className="flex items-center justify-between border-b border-[#222] pb-1.5 mb-2">
-            <div className="flex items-center gap-1.5">
-              <Zap size={11} className="text-yellow-400 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-white">Performance Monitor</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></span>
-              <span className="text-[8px] font-mono text-green-400 uppercase">Live</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {/* FPS Row */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-[#888] font-semibold">Frame Rate</span>
-              <div className="flex items-baseline gap-0.5">
-                <span id="perf-fps" className="text-sm font-bold font-mono text-green-400">--</span>
-                <span className="text-[9px] font-semibold text-gray-500">FPS</span>
-              </div>
-            </div>
-
-            {/* Draw Calls Row */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-[#888] font-semibold">Draw Calls</span>
-              <div className="flex items-baseline gap-0.5">
-                <span id="perf-calls" className="text-sm font-bold font-mono text-blue-400">--</span>
-                <span className="text-[9px] font-semibold text-gray-500">calls</span>
-              </div>
-            </div>
-
-            {/* Memory Row */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-[#888] font-semibold">JS Heap / Memory</span>
-              <span id="perf-memory" className="text-xs font-bold font-mono text-amber-400">--</span>
-            </div>
-
-            {/* Resources Summary */}
-            <div className="grid grid-cols-2 gap-1.5 mt-1 pt-1.5 border-t border-[#222] text-[9px]">
-              <div className="flex items-center justify-between bg-black/30 px-1.5 py-0.5 rounded">
-                <span className="text-[#666]">Geoms</span>
-                <span id="perf-geometries" className="font-bold font-mono text-gray-300">0</span>
-              </div>
-              <div className="flex items-center justify-between bg-black/30 px-1.5 py-0.5 rounded">
-                <span className="text-[#666]">Texs</span>
-                <span id="perf-textures" className="font-bold font-mono text-gray-300">0</span>
-              </div>
-            </div>
-
-            {/* Mobile Optimizer Alert */}
-            <div className="mt-1.5 p-1.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-300 leading-snug">
-              💡 For best mobile AR performance, keep draw calls &lt; 50 and textures &lt; 15.
-            </div>
-          </div>
-        </GlassCard>
-      )}
-      <Canvas 
-        key={cameraType}
-        shadows={shadowsEnabled}
-        gl={{ preserveDrawingBuffer: true }}
-        orthographic={cameraType === 'orthographic'}
-        camera={cameraType === 'orthographic' 
-          ? { position: [0, -4, 4], zoom: 100, up: [0, 0, 1], near: -100, far: 1000 }
-          : { position: [0, -4, 4], fov: 50, up: [0, 0, 1] }
-        }
-        onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
+      {/* 3D WebGL Canvas Layer for Scene Editor */}
+      <div 
+        className="absolute inset-0 z-10"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
-        <ThumbnailCapturer />
-        <color attach="background" args={['#222224']} />
-        
-        {settings.hdrEnvironmentEnabled && (
-          <Environment 
-            files={settings.hdrEnvironmentType === 'custom' ? settings.hdrEnvironmentUrl : undefined} 
-            preset={settings.hdrEnvironmentType !== 'custom' ? (settings.hdrPreset || 'studio') : undefined}
-            background={settings.hdrBackgroundEnabled ?? false}
-          />
-        )}
-        
-        <ambientLight color={ambientColor} intensity={ambientIntensity} />
-        <directionalLight 
-          position={directionalPosition} 
-          color={directionalColor} 
-          intensity={directionalIntensity} 
-          castShadow={shadowsEnabled}
-          shadow-mapSize={[shadowResolution, shadowResolution]}
-          shadow-radius={shadowSoftness}
-          shadow-bias={-0.0005}
-        />
-        
-        <group rotation={[Math.PI / 2, 0, 0]}>
+        <Canvas 
+          camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
+          onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
+        >
+          <SceneRefCapturer sceneRef={sceneRef} />
+          <AutoSceneLightingEngine />
+          <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
           <Grid 
-            infiniteGrid 
-            fadeDistance={20} 
-            sectionColor="#6b7280" 
-            cellColor="#4b5563"
-            sectionThickness={1.5}
-            cellThickness={1.0}
-            cellSize={gridSnapEnabled ? gridSnapIncrement : 0.5}
-            sectionSize={gridSnapEnabled ? gridSnapIncrement * 10 : 5}
+            position={[0, 0, -0.01]} 
+            args={[100, 100]} 
+            cellSize={1} 
+            cellThickness={1} 
+            cellColor="#444" 
+            sectionSize={5} 
+            sectionThickness={1.5} 
+            sectionColor="#888" 
+            fadeDistance={30} 
+            fadeStrength={1} 
+            rotation={[Math.PI / 2, 0, 0]}
           />
-        </group>
-        <axesHelper args={[5]} />
-        
-        {rootObjects.map(id => (
-          <ObjectRenderer key={id} id={id} />
-        ))}
 
-        <SelectionHighlight3D />
-        <TransformController orbitControlsRef={orbitControlsRef} />
-        <ProjectedPositionsUpdater />
+          {rootObjects.map(id => (
+            <ObjectRenderer key={id} id={id} />
+          ))}
 
-        <GizmoHelper alignment="bottom-left" margin={[80, 80]}>
-          <GizmoViewport axisColors={['#ef4444', '#10b981', '#3b82f6']} labelColor="white" />
-        </GizmoHelper>
+          <TransformController orbitControlsRef={orbitControlsRef} />
+          <SelectionHighlight3D />
+          <ProjectedPositionsUpdater />
+          <ThumbnailCapturer />
 
-        <OrbitControls ref={orbitControlsRef} makeDefault />
-        <BloomEffect />
-        <PerformanceTracker />
-      </Canvas>
+          <GizmoHelper alignment="top-right" margin={[70, 70]}>
+            <ZUpGizmoViewport onSelectAxisView={(axis) => { setActiveAxisView(axis); setAxisUpdateId(n => n + 1); }} />
+          </GizmoHelper>
+
+          <OrbitControls ref={orbitControlsRef} enableRotate={activeAxisView === '3D'} makeDefault />
+          <BloomEffect />
+          <PerformanceTracker />
+        </Canvas>
+      </div>
+
+      {/* 2D Overlay / HUD Canvas */}
       <Overlay2DRenderer isPreviewMode={false} />
 
-      <GlassCard variant="dark" blur="lg" className="absolute bottom-4 right-4 z-40 p-1.5 pointer-events-auto border-t-white/10" childrenClassName="flex items-center gap-2">
-        {/* Transform Mode & Space Buttons Group */}
-        <div className="flex items-center gap-1 border-r border-[#2A2A2A] pr-2 mr-1">
-          <button 
-            onClick={() => setTransformMode('translate')}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'translate' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
-            title="Translate (Move) [W / T]"
-          >
-            <Move size={14} />
-          </button>
-          <button 
-            onClick={() => setTransformMode('rotate')}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'rotate' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
-            title="Rotate [E]"
-          >
-            <RotateCw size={14} />
-          </button>
-          <button 
-            onClick={() => setTransformMode('scale')}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformMode === 'scale' ? 'bg-blue-600 text-white font-semibold' : 'text-[#888] hover:text-white hover:bg-white/5'}`}
-            title="Scale [R / S]"
-          >
-            <Maximize size={14} />
-          </button>
-          <button 
-            onClick={() => setTransformGizmoEnabled(!transformGizmoEnabled)}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${transformGizmoEnabled ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-[0_0_10px_rgba(249,115,22,0.2)]' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title={`Toggle 3D Transform Gizmo: Currently ${transformGizmoEnabled ? 'Enabled' : 'Disabled'}`}
-          >
-            <Crosshair size={14} />
-          </button>
-          <button 
-            onClick={() => setTransformSpace(transformSpace === 'local' ? 'world' : 'local')}
-            className={`h-8 px-1.5 ml-1 rounded flex items-center gap-1 transition-all border text-[9px] font-bold font-mono ${transformSpace === 'world' ? 'bg-amber-600/15 border-amber-500/25 text-amber-400' : 'bg-blue-600/15 border-blue-500/25 text-blue-400'}`}
-            title={`Toggle Transform Space [Q]: Currently ${transformSpace === 'local' ? 'Local' : 'Global (World)'}`}
-          >
-            <Globe size={11} className={transformSpace === 'world' ? 'animate-pulse' : ''} />
-            <span>{transformSpace.toUpperCase()}</span>
-          </button>
-          
-          {activeStateId && activeStateId !== 'base' && (
-            <div className="flex items-center gap-1.5 ml-1.5 pl-1.5 border-l border-[#2A2A2A]">
-              <span className="text-[8px] font-bold text-purple-400 font-mono uppercase">Target:</span>
+      {/* AR Marker Conflict Alert Banner */}
+      <MarkerConflictBanner />
+
+      {/* Performance Engine Monitor HUD */}
+      {showPerformanceMonitor && (
+        <div className="absolute top-4 left-4 z-40 bg-[#121217]/90 backdrop-blur-md border border-white/10 rounded-xl p-3 shadow-2xl text-xs font-mono text-white flex flex-col gap-2 min-w-[200px] pointer-events-none">
+          <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+            <span className="text-[10px] text-yellow-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Zap size={12} className="text-yellow-400" />
+              Engine Stats
+            </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <span className="text-gray-400 text-[10px]">FPS</span>
+              <div id="perf-fps" className="text-sm font-bold text-emerald-400">60</div>
+            </div>
+            <div>
+              <span className="text-gray-400 text-[10px]">Draw Calls</span>
+              <div id="perf-calls" className="text-sm font-bold text-blue-400">0</div>
+            </div>
+            <div>
+              <span className="text-gray-400 text-[10px]">Geometries</span>
+              <div id="perf-geometries" className="text-sm font-bold text-gray-200">0</div>
+            </div>
+            <div>
+              <span className="text-gray-400 text-[10px]">Textures</span>
+              <div id="perf-textures" className="text-sm font-bold text-gray-200">0</div>
+            </div>
+          </div>
+          <div className="border-t border-white/10 pt-1 flex justify-between items-center text-[10px]">
+            <span className="text-gray-400">GPU/Memory:</span>
+            <span id="perf-memory" className="font-bold text-purple-300">0 MB</span>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Spline 3D Viewport Navigation Bar */}
+      {!isPreviewMode && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
+          <div className="flex items-center gap-1.5 p-1.5 bg-[#121217]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/80 font-sans text-xs select-none">
+            {/* Tool Modes Group: Select (V), Move (W), Rotate (E), Scale (R) */}
+            <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
+              <button
+                onClick={() => setTransformGizmoEnabled(false)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  !transformGizmoEnabled
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Select Mode [V] - Select objects without transform gizmo"
+              >
+                <MousePointer size={14} />
+              </button>
+
               <button
                 onClick={() => {
-                  setTransformApplyMode(transformApplyMode === 'activeStateOnly' ? 'all' : 'activeStateOnly');
+                  setTransformGizmoEnabled(true);
+                  setTransformMode('translate');
                 }}
-                className={`h-8 px-2 rounded flex items-center gap-1 transition-all border text-[9px] font-bold font-mono whitespace-nowrap ${
-                  transformApplyMode === 'activeStateOnly'
-                    ? 'bg-purple-600/20 border-purple-500/40 text-purple-300'
-                    : 'bg-[#1C1C1C] border-[#2A2A2A] text-gray-400 hover:text-white'
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  transformGizmoEnabled && transformMode === 'translate'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
-                title="Toggle transformation target: 'Active State Only' vs 'Apply to All'"
+                title="Translate / Move [W]"
               >
-                <span>
-                  {transformApplyMode === 'activeStateOnly'
-                    ? 'Active State Only'
-                    : 'Apply to All'}
-                </span>
+                <Move size={14} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setTransformGizmoEnabled(true);
+                  setTransformMode('rotate');
+                }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  transformGizmoEnabled && transformMode === 'rotate'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Rotate [E]"
+              >
+                <RotateCw size={14} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setTransformGizmoEnabled(true);
+                  setTransformMode('scale');
+                }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  transformGizmoEnabled && transformMode === 'scale'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Scale [R]"
+              >
+                <Maximize size={14} />
               </button>
             </div>
-          )}
-        </div>
 
-        {/* Grid Snapping Shortcuts */}
-        <div className="flex items-center gap-1.5 text-[10px] font-sans">
-          <button
-            onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${gridSnapEnabled ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title="Toggle Grid Snapping"
-          >
-            <Magnet size={14} />
-          </button>
-          {gridSnapEnabled && (
-            <select
-              value={gridSnapIncrement}
-              onChange={(e) => setGridSnapIncrement(parseFloat(e.target.value))}
-              className="bg-[#1C1C1C] border border-[#2A2A2A] rounded px-1 py-0.5 text-white font-mono text-[9px] outline-none cursor-pointer focus:border-blue-500"
-              title="Grid Snapping Increment"
+            <div className="w-px h-6 bg-white/10 mx-0.5" />
+
+            {/* Coordinate Space Toggle (Local vs World [Q]) */}
+            <button
+              onClick={() => {
+                const currentSpace = useEditorStore.getState().transformSpace;
+                useEditorStore.getState().setTransformSpace(currentSpace === 'local' ? 'world' : 'local');
+              }}
+              className="h-8 px-2.5 rounded-xl bg-[#1a1a24] border border-white/5 text-gray-300 hover:text-white hover:border-blue-500/40 flex items-center gap-1.5 transition-all cursor-pointer font-mono text-[10px]"
+              title="Toggle Transform Space (Local vs World) [Q]"
             >
-              <option value="0.05">0.05m</option>
-              <option value="0.1">0.1m</option>
-              <option value="0.25">0.25m</option>
-              <option value="0.5">0.5m</option>
-              <option value="1">1.0m</option>
-            </select>
-          )}
+              <Globe size={12} className="text-blue-400" />
+              <span className="font-bold uppercase tracking-wider">{transformSpace}</span>
+              <span className="text-[8px] bg-white/10 text-gray-400 px-1 py-0.2 rounded font-sans">Q</span>
+            </button>
+
+            <div className="w-px h-6 bg-white/10 mx-0.5" />
+
+            {/* Camera Controls Group: Frame Selected (F), Reset Camera Orbit (Home), Axis Presets, Projection Toggle */}
+            <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('trigger-frame-selected'))}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+                title="Focus / Frame Selected Object [F]"
+              >
+                <Crosshair size={14} className="text-cyan-400" />
+              </button>
+
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('trigger-reset-camera'))}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+                title="Reset Camera Orbit [Home]"
+              >
+                <RefreshCw size={14} className="text-amber-400" />
+              </button>
+
+              {/* Axis Preset Selector Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsAxisMenuOpen(!isAxisMenuOpen)}
+                  className="h-8 px-2.5 rounded-lg flex items-center gap-1 bg-[#121217] border border-white/10 text-gray-300 hover:text-white hover:bg-[#25252e] hover:border-blue-500/50 transition-all cursor-pointer select-none"
+                  title="Select Camera Axis Preset (Z, Y, X, 3D)"
+                >
+                  <span className="font-mono font-bold text-[10px] tracking-wide">{activeAxisView}</span>
+                  <ChevronDown size={10} className={`text-gray-500 transition-transform duration-200 ${isAxisMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isAxisMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setIsAxisMenuOpen(false)} 
+                    />
+                    <div className="absolute bottom-full mb-1.5 left-0 z-50 bg-[#121217]/95 border border-white/10 rounded-lg p-1 shadow-2xl min-w-[48px] flex flex-col gap-0.5 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      <button
+                        onClick={() => { setActiveAxisView('Z'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
+                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'Z' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20' : 'text-gray-300'}`}
+                      >
+                        Z
+                      </button>
+
+                      <button
+                        onClick={() => { setActiveAxisView('Y'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
+                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'Y' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20' : 'text-gray-300'}`}
+                      >
+                        Y
+                      </button>
+
+                      <button
+                        onClick={() => { setActiveAxisView('X'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
+                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'X' ? 'bg-red-600/20 text-red-400 border border-red-500/20' : 'text-gray-300'}`}
+                      >
+                        X
+                      </button>
+
+                      <button
+                        onClick={() => { setActiveAxisView('3D'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
+                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === '3D' ? 'bg-purple-600/20 text-purple-400 border border-purple-500/20' : 'text-gray-300'}`}
+                      >
+                        3D
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Perspective vs Orthographic Projection Toggle */}
+              <button
+                onClick={() => setCameraType(cameraType === 'perspective' ? 'orthographic' : 'perspective')}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${cameraType === 'orthographic' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                title={`Projection: ${cameraType === 'perspective' ? 'Perspective (Click for Orthographic)' : 'Orthographic (Click for Perspective)'}`}
+              >
+                <Compass size={14} className={cameraType === 'orthographic' ? 'animate-spin' : ''} style={{ animationDuration: cameraType === 'orthographic' ? '12s' : '0s' }} />
+              </button>
+            </div>
+
+            <div className="w-px h-6 bg-white/10 mx-0.5" />
+
+            {/* Viewport Overlays Group: Position Snap (G), Rotation Snap, Wireframe Mode, AR Physics & Collision Debugger, Performance Stats */}
+            <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
+              <button
+                onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  gridSnapEnabled ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Toggle Position Snap [G]"
+              >
+                <Grid3x3 size={14} />
+              </button>
+
+              <button
+                onClick={() => setRotationSnapEnabled(!rotationSnapEnabled)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  rotationSnapEnabled ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Toggle Rotation Snap"
+              >
+                <RotateCw size={14} />
+              </button>
+
+              <button
+                onClick={() => setWireframeEnabled(!wireframeEnabled)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${wireframeEnabled ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                title={wireframeEnabled ? "Disable Wireframe Mode" : "Enable Wireframe Mode"}
+              >
+                <Layers size={14} />
+              </button>
+
+              <button
+                onClick={() => setCollisionDebuggerEnabled(!collisionDebuggerEnabled)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 relative ${collisionDebuggerEnabled ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 scale-105 shadow-[0_0_10px_rgba(249,115,22,0.2)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                title={collisionDebuggerEnabled ? "Disable AR Physics & Collision Debugger" : "Enable AR Physics & Collision Debugger"}
+              >
+                <Shield size={14} className={collisionDebuggerEnabled ? 'animate-pulse' : ''} />
+                {collisionDebuggerEnabled && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-ping" />
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${showPerformanceMonitor ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                title={showPerformanceMonitor ? "Hide Performance Stats Engine" : "Show Performance Stats Engine"}
+              >
+                <Zap size={14} className={showPerformanceMonitor ? 'animate-pulse' : ''} />
+              </button>
+            </div>
+          </div>
         </div>
+      )}
 
-        {/* Rotation Snapping Shortcuts */}
-        <div className="flex items-center gap-1.5 text-[10px] font-sans border-l border-[#2A2A2A] pl-2 ml-1">
-          <button
-            onClick={() => setRotationSnapEnabled(!rotationSnapEnabled)}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${rotationSnapEnabled ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title="Toggle Rotation Snapping"
-          >
-            <RotateCw size={12} />
-          </button>
-          {rotationSnapEnabled && (
-            <select
-              value={rotationSnapIncrement}
-              onChange={(e) => setRotationSnapIncrement(parseInt(e.target.value))}
-              className="bg-[#1C1C1C] border border-[#2A2A2A] rounded px-1 py-0.5 text-white font-mono text-[9px] outline-none cursor-pointer focus:border-emerald-500"
-              title="Rotation Snapping Angle"
-            >
-              <option value="5">5°</option>
-              <option value="15">15°</option>
-              <option value="30">30°</option>
-              <option value="45">45°</option>
-              <option value="90">90°</option>
-            </select>
-          )}
-        </div>
+      {/* AR Snapshot Preview & Share Modal */}
+      <SnapshotShareModal
+        isOpen={isSnapshotModalOpen}
+        onClose={() => setIsSnapshotModalOpen(false)}
+        rawImageDataUrl={snapshotDataUrl}
+        initialWatermark={snapshotInitialWatermark}
+        initialIncludeTimestamp={snapshotIncludeTimestamp}
+        onRetake={() => captureARSnapshot()}
+      />
 
-        {/* Camera Projection & Wireframe Toggles */}
-        <div className="flex items-center gap-1.5 text-[10px] font-sans border-l border-[#2A2A2A] pl-2 ml-1">
-          {/* Camera projection toggle */}
-          <button
-            onClick={() => setCameraType(cameraType === 'perspective' ? 'orthographic' : 'perspective')}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${cameraType === 'orthographic' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title={`Switch to ${cameraType === 'perspective' ? 'Orthographic' : 'Perspective'} view`}
-          >
-            <Compass size={14} className={cameraType === 'orthographic' ? 'animate-spin' : ''} style={{ animationDuration: cameraType === 'orthographic' ? '12s' : '0s' }} />
-          </button>
-
-          {/* Wireframe toggle */}
-          <button
-            onClick={() => setWireframeEnabled(!wireframeEnabled)}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${wireframeEnabled ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title={wireframeEnabled ? "Disable wireframe view" : "Enable wireframe view"}
-          >
-            <Layers size={14} />
-          </button>
-
-          {/* Collision Debugger toggle */}
-          <button
-            onClick={() => setCollisionDebuggerEnabled(!collisionDebuggerEnabled)}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-all duration-300 relative ${collisionDebuggerEnabled ? 'bg-orange-600/20 text-orange-400 border border-orange-500/30 scale-105 shadow-[0_0_10px_rgba(249,115,22,0.2)]' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title={collisionDebuggerEnabled ? "Disable Collision Mesh Debugger" : "Enable Collision Mesh Debugger (Visualizes AR physics hitboxes)"}
-          >
-            <Shield size={14} className={collisionDebuggerEnabled ? 'animate-pulse' : ''} />
-            {collisionDebuggerEnabled && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-ping" />
-            )}
-          </button>
-
-          {/* Performance Monitor toggle */}
-          <button
-            onClick={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
-            className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${showPerformanceMonitor ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30' : 'text-[#666] hover:text-[#999] bg-[#1C1C1C] border border-transparent'}`}
-            title={showPerformanceMonitor ? "Hide Performance Monitor" : "Show Performance Monitor"}
-          >
-            <Zap size={14} className={showPerformanceMonitor ? 'animate-pulse' : ''} />
-          </button>
-        </div>
-      </GlassCard>
+      {/* Spline 3D Publish & Export Center Modal */}
+      <PublicationModal
+        isOpen={isPublicationModalOpen}
+        onClose={() => setIsPublicationModalOpen(false)}
+        sceneRef={sceneRef.current}
+      />
     </div>
   );
 }

@@ -14,17 +14,30 @@ export interface ActionData {
   type: 
     | 'transition' 
     | 'playSound' 
+    | 'pauseSound'
+    | 'stopSound'
+    | 'setSoundVolume'
     | 'openUrl' 
     | 'toast' 
     | 'playAnimation' 
     | 'pauseAnimation' 
+    | 'stopAnimation'
     | 'show' 
     | 'hide' 
+    | 'toggleVisibility'
+    | 'setColor'
+    | 'setOpacity'
+    | 'fadeIn'
+    | 'fadeOut'
     | 'loadScene' 
     | 'playModelAnimation' 
     | 'pauseModelAnimation'
+    | 'stopModelAnimation'
     | 'youtubePlay'
     | 'youtubePause'
+    | 'youtubeTogglePlay'
+    | 'youtubeTogglePlayPause'
+    | 'youtubeStop'
     | 'youtubeMute'
     | 'youtubeUnmute'
     | 'youtubeSetVolume'
@@ -33,11 +46,21 @@ export interface ActionData {
     | 'youtubeOpenOverlay'
     | 'youtubeCloseOverlay'
     | 'youtubeToggleOverlay'
+    | 'youtubeSeekTo'
+    | 'playVideo'
+    | 'pauseVideo'
+    | 'stopVideo'
+    | 'setVideoVolume'
+    | 'setVideoMuted'
+    | 'seekVideo'
     | 'setTextureUrl'
     | 'setTextureOptions'
     | 'centerTexture'
     | 'toggleHideOverlap'
-    | 'setHideOverlap';
+    | 'setHideOverlap'
+    | 'triggerHaptic'
+    | 'copyToClipboard'
+    | 'takeScreenshot';
   targetId?: string; // which object it targets (if empty, assumes self)
   transitionTargetStateId?: string; // for 'transition' action
   transitionDuration?: number; // in seconds
@@ -48,7 +71,7 @@ export interface ActionData {
   toastMessage?: string;
   targetSceneId?: string; // for 'loadScene' action
   animationClipName?: string; // for playing specific animation clip/track
-  volumeValue?: number; // 0 - 100 for youtubeSetVolume
+  volumeValue?: number; // 0 - 100 for youtubeSetVolume, setSoundVolume, setVideoVolume
   qualityValue?: string; // e.g. '1080p', '720p', '480p', '360p', '240p', 'auto'
   youtubeDisplayMode?: '3d' | '2d';
   textureUrl?: string;
@@ -60,14 +83,38 @@ export interface ActionData {
   textureOffsetX?: number;
   textureOffsetY?: number;
   textureRotation?: number;
+  colorValue?: string;
+  opacityValue?: number;
+  seekTime?: number;
+  clipboardText?: string;
+  hapticDuration?: number;
+  screenshotWatermark?: string;
+  screenshotIncludeTimestamp?: boolean;
+  screenshotSound?: boolean;
+  screenshotFlash?: boolean;
+  screenshotDirectDownload?: boolean;
+  screenshotDirectShare?: boolean;
+  screenshotWatermarkPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 }
 
 export interface EventData {
   id: string;
   name: string;
   trigger: 
+    // AR Target & Tracking Triggers
+    | 'onImageTargetFound'
+    | 'onImageTargetLost'
+    | 'onFaceTargetFound'
+    | 'onFaceTargetLost'
+    | 'onTargetFound'
+    | 'onTargetLost'
+    | 'onARSessionStart'
+    | 'onARSessionEnd'
+    // Standard Interaction & Pointer Triggers
     | 'start' 
     | 'onTap' 
+    | 'onDoubleTap'
+    | 'onLongPress'
     | 'onPointerDown' 
     | 'onPointerUp' 
     | 'onHoverEnter' 
@@ -77,7 +124,14 @@ export interface EventData {
     | 'onKeyDown' 
     | 'onKeyUp' 
     | 'onProximityEnter' 
-    | 'onProximityExit';
+    | 'onProximityExit'
+    // Media & Animation Triggers
+    | 'onMediaPlay'
+    | 'onMediaPause'
+    | 'onMediaEnd'
+    | 'onAnimationComplete'
+    | 'onVisible'
+    | 'onHidden';
   triggerKey?: string;
   proximityDistance?: number;
   actions: ActionData[];
@@ -86,10 +140,11 @@ export interface EventData {
 export interface SceneObject {
   id: string;
   name: string;
-  type: 'group' | 'box' | 'plane' | 'circle' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
+  type: 'group' | 'empty' | 'box' | 'plane' | 'circle' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
   position: Vector3Data;
   rotation: Vector3Data; // Euler angles in degrees
   scale: Vector3Data;
+  pivot?: Vector3Data; // Relative offset pivot point [x, y, z]
   visible: boolean;
   locked?: boolean;
   children: string[]; // IDs of child objects
@@ -112,6 +167,7 @@ export interface ProjectSettings {
   projectName: string;
   imageTargetName: string | null;
   trackingMode?: 'image' | 'face';
+  targetMode?: 'single' | 'multi';
   faceAnchor?: 'head' | 'nose' | 'forehead' | 'chin' | 'leftEye' | 'rightEye' | 'mouth';
   showFaceMesh?: boolean;
   showFaceOccluder?: boolean;
@@ -269,7 +325,7 @@ export interface EditorState {
   // Multiple Scenes state
   activeSceneId: string;
   scenes: Record<string, { id: string; name: string; objects: Record<string, SceneObject>; rootObjects: string[] }>;
-  createScene: (name: string) => void;
+  createScene: (name: string, targetMode?: 'single' | 'multi') => void;
   loadScene: (sceneId: string) => void;
   deleteScene: (sceneId: string) => void;
   renameScene: (sceneId: string, newName: string) => void;
@@ -296,7 +352,7 @@ export interface EditorState {
   loadProject: (projectId: string) => void;
   openProject: (projectId: string) => void;
   closeProject: () => void;
-  createProject: (name: string, templateType: string, customTemplateData?: any) => string;
+  createProject: (name: string, templateType: string, customTemplateData?: any, trackingOptions?: { trackingMode?: 'image' | 'face'; targetMode?: 'single' | 'multi' } | any) => string;
   deleteProject: (projectId: string) => void;
   duplicateProject: (projectId: string) => void;
   saveCurrentProject: () => void;

@@ -378,7 +378,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
   },
   {
     id: '2d_wifi_gauge',
-    name: 'Wireless Signal',
+    name: 'Wireless Signal Gauge',
     category: 'Tech & Dev',
     iconName: 'Wifi',
     defaultColor: '#10b981',
@@ -408,7 +408,7 @@ export const SPLINE_2D_ICONS: Spline2DIconMetadata[] = [
   },
   {
     id: '2d_terminal_console',
-    name: 'CLI Terminal',
+    name: 'Terminal Console',
     category: 'Tech & Dev',
     iconName: 'Terminal',
     defaultColor: '#22c55e',

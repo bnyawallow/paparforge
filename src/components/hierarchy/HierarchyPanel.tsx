@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
+import { useMarkerValidation } from '../../hooks/useMarkerValidation';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -38,6 +39,8 @@ import {
   ArrowDown,
   Columns,
   Rows,
+  AlertTriangle,
+  Radio,
   Maximize,
   AlignCenter,
   AlignLeft,
@@ -108,10 +111,12 @@ export function HierarchyPanel({ width }: { width?: number }) {
     selectObject(targetId);
     useEditorStore.getState().addToast(`Added AR Target (${isFace ? 'Face' : 'Image'}) to scene`);
   };
+  const { conflictedTargetIds, switchToMultiTargetMode } = useMarkerValidation();
   const [sceneModal, setSceneModal] = useState<{
     type: 'create' | 'rename' | 'delete' | null;
     value?: string;
     sceneId?: string;
+    targetMode?: 'single' | 'multi';
   }>({ type: null });
   const [isSceneDropdownOpen, setIsSceneDropdownOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -175,7 +180,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
       newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: 'https://example.com' };
       newObj.scale = [1, 0.3, 0.05];
     } else if (type === 'youtube') {
-      newObj.properties = { videoId: 'dQw4w9WgXcQ' };
+      newObj.properties = { videoId: 'dQw4w9WgXcQ', resolution: '240p' };
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'hudCanvas') {
       newObj.properties = { 
@@ -684,6 +689,15 @@ export function HierarchyPanel({ width }: { width?: number }) {
               <span className={cn("truncate", obj.locked && "opacity-60 italic")}>
                 {highlightText(obj.name, searchQuery)}
               </span>
+              {conflictedTargetIds.includes(id) && (
+                <span 
+                  className="ml-1.5 px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1 animate-pulse shrink-0"
+                  title="AR Tracking Marker Conflict Detected! Click to inspect."
+                >
+                  <AlertTriangle size={10} />
+                  <span className="text-[8px] font-bold uppercase tracking-wider hidden sm:inline">Conflict</span>
+                </span>
+              )}
               {obj.events && obj.events.length > 0 && (() => {
                 const behaviors = obj.events || [];
                 let hasAudio = false;
@@ -1324,60 +1338,119 @@ export function HierarchyPanel({ width }: { width?: number }) {
         )}
 
         {/* Add Target Action Footer */}
-        <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex flex-col gap-1.5">
-          <button
-            onClick={() => setIsAddDropdownOpen(!isAddDropdownOpen)}
-            disabled={isPreviewMode}
-            className="w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 border border-blue-500/40 hover:border-blue-400 disabled:opacity-20 rounded-lg text-xs font-bold text-white transition-all cursor-pointer shadow-sm select-none"
-            title={isPreviewMode ? "Creator disabled in Live Preview" : "Add a new AR Target to scene"}
-          >
-            <div className="flex items-center gap-1.5">
-              <Plus size={14} className="text-blue-400 stroke-[3]" />
-              <span>Add Target</span>
-            </div>
-            <ChevronDown size={12} className={cn("text-gray-400 transition-transform", isAddDropdownOpen ? "rotate-180" : "")} />
-          </button>
+        {(() => {
+          const currentTrackingMode = settings.trackingMode || 'image';
+          const isFaceTracking = currentTrackingMode === 'face' || Object.values(objects).some((o: any) => o?.type === 'imageTarget' && o?.properties?.targetType === 'face');
+          const isSingleTargetMode = (settings.targetMode || 'single') === 'single';
+          const targetCount = Object.values(objects).filter((o: any) => o && o.type === 'imageTarget').length;
 
-          {isAddDropdownOpen && (
-            <div className="flex flex-col gap-1 p-1 bg-[#1A1A1A] border border-[#333] rounded-lg shadow-xl animate-in fade-in slide-in-from-bottom-2">
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1 border-b border-white/5 flex items-center gap-1">
-                <Sparkles size={10} className="text-amber-400" />
-                Select Target Type
-              </span>
-              <button
-                onClick={() => {
-                  handleAddTarget('image');
-                  setIsAddDropdownOpen(false);
-                }}
-                className="flex items-center gap-2 p-2 hover:bg-blue-600/20 text-left rounded text-xs font-medium text-gray-200 hover:text-white transition-colors cursor-pointer group"
-              >
-                <div className="p-1 rounded bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
-                  <ImageIcon size={14} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-xs text-blue-300">Image Target</span>
-                  <span className="text-[9px] text-gray-400">Track 2D posters, cards & prints</span>
-                </div>
-              </button>
+          // Determine if adding target is disabled and why
+          let isAddTargetDisabled = isPreviewMode;
+          let disabledReason = '';
 
-              <button
-                onClick={() => {
-                  handleAddTarget('face');
-                  setIsAddDropdownOpen(false);
-                }}
-                className="flex items-center gap-2 p-2 hover:bg-purple-600/20 text-left rounded text-xs font-medium text-gray-200 hover:text-white transition-colors cursor-pointer group"
-              >
-                <div className="p-1 rounded bg-purple-500/20 text-purple-400 group-hover:scale-110 transition-transform">
-                  <Smile size={14} />
+          if (isFaceTracking) {
+            if (targetCount >= 1) {
+              isAddTargetDisabled = true;
+              disabledReason = 'Scenes with face tracking can only have a single face target.';
+            }
+          } else {
+            if (isSingleTargetMode && targetCount >= 1) {
+              isAddTargetDisabled = true;
+              disabledReason = 'Single image target scene (default). Change to Multi-Target in Scene Settings to enable Add Image Target.';
+            }
+          }
+
+          return (
+            <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex flex-col gap-1.5">
+              {/* If in Multi-Target mode and image tracking, button directly adds Image Target */}
+              {!isFaceTracking && !isSingleTargetMode ? (
+                <button
+                  onClick={() => {
+                    if (isPreviewMode) return;
+                    handleAddTarget('image');
+                  }}
+                  disabled={isPreviewMode}
+                  className="w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 border border-blue-500/40 hover:border-blue-400 text-white cursor-pointer shadow-sm"
+                  title="Add a new Image Target to the scene"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Plus size={14} className="text-blue-400 stroke-[3]" />
+                    <span>Add Image Target</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-normal border border-blue-500/30">
+                    Multi-Target
+                  </span>
+                </button>
+              ) : (
+                /* Disabled or Single Mode state */
+                <button
+                  onClick={() => {
+                    if (isAddTargetDisabled) {
+                      useEditorStore.getState().addToast(disabledReason);
+                      return;
+                    }
+                    if (isFaceTracking) {
+                      handleAddTarget('face');
+                    } else {
+                      handleAddTarget('image');
+                    }
+                  }}
+                  disabled={isAddTargetDisabled}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none",
+                    isAddTargetDisabled
+                      ? "bg-[#222224] border border-[#333336] text-gray-500 opacity-60 cursor-not-allowed"
+                      : "bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 border border-blue-500/40 hover:border-blue-400 text-white cursor-pointer shadow-sm"
+                  )}
+                  title={isAddTargetDisabled ? disabledReason : "Add target to scene"}
+                >
+                  <div className="flex items-center gap-1.5">
+                    {isAddTargetDisabled ? (
+                      <Lock size={13} className="text-gray-500" />
+                    ) : (
+                      <Plus size={14} className="text-blue-400 stroke-[3]" />
+                    )}
+                    <span>{isFaceTracking ? 'Add Face Target' : 'Add Image Target'}</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-gray-800 text-gray-400 font-normal border border-white/5">
+                    {isFaceTracking ? 'Face (1/1 Max)' : 'Single (1/1)'}
+                  </span>
+                </button>
+              )}
+
+              {/* Mode Status Footer & Toggle Link */}
+              {!isPreviewMode && (
+                <div className="flex items-center justify-between px-1 text-[10px]">
+                  {isFaceTracking ? (
+                    <span className="flex items-center gap-1 text-purple-400/90 font-medium">
+                      <Smile size={10} className="text-purple-400" />
+                      <span>Face Tracking Scene (1 Target Max)</span>
+                    </span>
+                  ) : isSingleTargetMode && targetCount >= 1 ? (
+                    <>
+                      <span className="flex items-center gap-1 text-gray-500">
+                        <Lock size={10} className="text-amber-500/70" />
+                        <span>Single Target Scene</span>
+                      </span>
+                      <button
+                        onClick={() => switchToMultiTargetMode()}
+                        className="text-[10px] text-blue-400 hover:text-blue-300 font-medium underline underline-offset-2 cursor-pointer transition-colors"
+                        title="Switch project to Multi-Target Mode to enable adding image targets"
+                      >
+                        Enable Multi-Target
+                      </button>
+                    </>
+                  ) : (
+                    <span className="flex items-center gap-1 text-blue-400/90 font-medium">
+                      <Layers size={10} className="text-blue-400" />
+                      <span>Multi-Target Image Scene ({targetCount} target{targetCount !== 1 ? 's' : ''})</span>
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-xs text-purple-300">Face Target</span>
-                  <span className="text-[9px] text-gray-400">3D Face Mesh landmark tracking</span>
-                </div>
-              </button>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {/* Floating Context Menu for HUD Alignment */}
@@ -1522,7 +1595,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                   if (e.key === 'Enter' && sceneModal.value?.trim()) {
                     const trimmed = sceneModal.value.trim();
                     if (sceneModal.type === 'create') {
-                      createScene(trimmed);
+                      createScene(trimmed, sceneModal.targetMode || 'single');
                       useEditorStore.getState().saveCurrentProject();
                       useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
                     } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
@@ -1544,6 +1617,62 @@ export function HierarchyPanel({ width }: { width?: number }) {
                 placeholder="e.g. Gallery Scene"
               />
             </div>
+
+            {sceneModal.type === 'create' && (
+              <div className="flex flex-col gap-2">
+                <label className={cn("text-[10px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>
+                  AR Tracking Target Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'single' }))}
+                    className={cn(
+                      "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                      (sceneModal.targetMode || 'single') === 'single'
+                        ? "bg-blue-600/15 border-blue-500 text-white shadow-sm"
+                        : t.isLight
+                          ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                          : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-blue-400">Single Marker</span>
+                      {(sceneModal.targetMode || 'single') === 'single' && (
+                        <span className="w-2 h-2 rounded-full bg-blue-400" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-gray-400 leading-tight">
+                      Single anchor marker. High tracking stability & FPS.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'multi' }))}
+                    className={cn(
+                      "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                      sceneModal.targetMode === 'multi'
+                        ? "bg-purple-600/15 border-purple-500 text-white shadow-sm"
+                        : t.isLight
+                          ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                          : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-purple-400">Multi-Target</span>
+                      {sceneModal.targetMode === 'multi' && (
+                        <span className="w-2 h-2 rounded-full bg-purple-400" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-gray-400 leading-tight">
+                      Simultaneous multi-marker tracking & dynamic registration.
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 mt-2">
               <button
                 onClick={() => setSceneModal({ type: null })}
@@ -1562,7 +1691,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                   if (sceneModal.value?.trim()) {
                     const trimmed = sceneModal.value.trim();
                     if (sceneModal.type === 'create') {
-                      createScene(trimmed);
+                      createScene(trimmed, sceneModal.targetMode || 'single');
                       useEditorStore.getState().saveCurrentProject();
                       useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
                     } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {

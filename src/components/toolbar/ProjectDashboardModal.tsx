@@ -28,6 +28,7 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
 
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('empty');
+  const [targetMode, setTargetMode] = useState<'single' | 'multi'>('single');
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [analyticsProjectId, setAnalyticsProjectId] = useState<string | null>(null);
@@ -174,7 +175,8 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
     }
 
     const createdId = createProject(newProjectName.trim(), selectedTemplate);
-    addToast(`Project "${newProjectName.trim()}" created successfully!`);
+    useEditorStore.getState().updateSettings({ targetMode });
+    addToast(`Project "${newProjectName.trim()}" created in ${targetMode === 'multi' ? 'Multi-Target' : 'Single Marker'} mode!`);
     setNewProjectName('');
     onClose();
   };
@@ -362,6 +364,48 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Target Mode Setting */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#888]">Target Tracking Mode</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTargetMode('single')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      targetMode === 'single'
+                        ? 'bg-blue-600/15 border-blue-500 text-white'
+                        : 'bg-[#181818] border-[#252525] text-gray-400 hover:text-white hover:border-[#333]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-blue-400">Single Marker</span>
+                      {targetMode === 'single' && <span className="w-2 h-2 rounded-full bg-blue-400" />}
+                    </div>
+                    <p className="text-[10px] text-[#777] leading-tight">
+                      Single image target. Optimal frame rate & stability.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetMode('multi')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      targetMode === 'multi'
+                        ? 'bg-purple-600/15 border-purple-500 text-white'
+                        : 'bg-[#181818] border-[#252525] text-gray-400 hover:text-white hover:border-[#333]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-purple-400">Multi-Target</span>
+                      {targetMode === 'multi' && <span className="w-2 h-2 rounded-full bg-purple-400" />}
+                    </div>
+                    <p className="text-[10px] text-[#777] leading-tight">
+                      Multiple simultaneous image targets with dynamic registration.
+                    </p>
+                  </button>
                 </div>
               </div>
 
