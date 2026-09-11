@@ -16,6 +16,7 @@ import {
   MousePointerClick,
   Video,
   Play,
+  Armchair,
   Image as ImageIcon
 } from 'lucide-react';
 import { CategoryTab, DockCategory } from './assetTypes';
@@ -33,6 +34,14 @@ export const CANVA_DOCK_CATEGORIES: DockCategory[] = [
     iconName: 'Compass',
     accentColor: '#38bdf8',
     gradient: 'from-sky-500 to-blue-600',
+    group: 'primary',
+  },
+  {
+    id: 'architecture',
+    label: 'Furniture',
+    iconName: 'Armchair',
+    accentColor: '#10b981',
+    gradient: 'from-emerald-500 to-teal-600',
     group: 'primary',
   },
   {
@@ -153,6 +162,7 @@ export function CanvaDock({ activeTab, onSelectTab, counts = {} }: CanvaDockProp
   const renderIcon = (name: string, size = 20, className = '') => {
     switch (name) {
       case 'Compass': return <Compass size={size} className={className} />;
+      case 'Armchair': return <Armchair size={size} className={className} />;
       case 'Box': return <Box size={size} className={className} />;
       case 'Video': return <Video size={size} className={className} />;
       case 'MousePointerClick': return <MousePointerClick size={size} className={className} />;

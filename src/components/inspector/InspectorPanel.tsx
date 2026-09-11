@@ -4,10 +4,11 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE, SAMPLE_TARGET_TEXTURES } from '../../lib/arTargetTexture';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
-import { Upload, Layers, Printer, Link, Unlink, RotateCcw } from 'lucide-react';
+import { Upload, Layers, Printer, Link, Unlink, RotateCcw, Move, Maximize2 } from 'lucide-react';
 import { TextureOptimizerPanel } from './TextureOptimizerPanel';
 import { ModelMaterialEditor } from './ModelMaterialEditor';
 import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
+import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
 
 function cubicBezier(t: number, x1: number, y1: number, x2: number, y2: number): number {
   let low = 0;
@@ -740,7 +741,8 @@ import {
   User,
   Compass,
   Box,
-  Target
+  Target,
+  GitFork
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../lib/theme';
@@ -764,6 +766,22 @@ export const FONT_LIBRARY = [
   { name: 'Righteous', url: 'https://unpkg.com/@fontsource/righteous/files/righteous-latin-400-normal.woff' },
   { name: 'Lobster', url: 'https://unpkg.com/@fontsource/lobster/files/lobster-latin-400-normal.woff' },
 ];
+
+// Helper predicates for context-aware property visibility
+export const isTextOrUIObject = (type?: string): boolean => 
+  Boolean(type && ['text', 'text3d', 'curved-text', 'hudText', 'hudButton', 'button', 'card', 'banner', 'badge', 'callout'].includes(type));
+
+export const isLightObject = (type?: string): boolean => 
+  Boolean(type && ['light', 'directionalLight', 'ambientLight', 'pointLight', 'spotLight'].includes(type));
+
+export const isThemeRelevantObject = (type?: string): boolean => 
+  Boolean(type && ['hudText', 'hudButton', 'hudImage', 'hudEmbed', 'hudCanvas', 'button', 'card', 'banner', 'badge', 'callout'].includes(type));
+
+export const isVisual3DObject = (type?: string): boolean => 
+  Boolean(type && !['imageTarget', 'light', 'directionalLight', 'ambientLight', 'pointLight', 'spotLight', 'audio', 'empty', 'hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(type));
+
+export const canReceiveTapEvents = (type?: string): boolean => 
+  Boolean(type && !['imageTarget', 'light', 'directionalLight', 'ambientLight', 'pointLight', 'spotLight', 'audio', 'empty'].includes(type));
 
 export interface TextPresetStyle {
   id: string;
@@ -1293,6 +1311,7 @@ const BEHAVIOR_OPTIONS = [
   { value: '', label: 'None (Static)' },
   { value: 'spin', label: '🔄 Continuous Spin' },
   { value: 'hover', label: '🎈 Gentle Float' },
+  { value: 'float', label: '🎈 Gentle Float (float)' },
   { value: 'pulse', label: '💓 Rhythmic Pulse' },
   { value: 'bounce', label: '🏀 Bounce' },
   { value: 'shake', label: '📳 Shake' },
@@ -1300,6 +1319,7 @@ const BEHAVIOR_OPTIONS = [
   { value: 'pendulum', label: '🕰️ Pendulum Swing' },
   { value: 'orbit', label: '🌍 Orbit' },
   { value: 'draggable', label: '🖐️ Draggable' },
+  { value: 'play-sound', label: '🔊 Play Sound (On Tap)' },
   { value: 'fade-in', label: '👻 Fade In (On Load)' },
   { value: 'fade-out', label: '👻 Fade Out' },
   { value: 'scale-up', label: '📈 Scale Up' },
@@ -1444,7 +1464,7 @@ const LIGHTING_PRESETS = {
   }
 } as const;
 
-export function InspectorPanel({ width }: { width?: number }) {
+export function InspectorPanel({ width, onClose }: { width?: number; onClose?: () => void }) {
   const t = useTheme();
   const { 
     objects, 
@@ -1479,10 +1499,24 @@ export function InspectorPanel({ width }: { width?: number }) {
     copyObjectStates,
     pasteObjectStates,
     setIsAssetBrowserOpen,
-    setReplaceTargetObjectId
+    setReplaceTargetObjectId,
+    addToast,
+    liveInteractionsInDesign,
+    setLiveInteractionsInDesign
   } = useEditorStore();
 
-  const [activePanelTab, setActivePanelTab] = useState<'inspector' | 'lighting' | 'typography' | 'theme'>('inspector');
+  const [activeFlyout, setActiveFlyout] = useState<'none' | 'lighting' | 'typography' | 'theme'>('none');
+
+  // Close flyout on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && activeFlyout !== 'none') {
+        setActiveFlyout('none');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeFlyout]);
   const [linkAxes, setLinkAxes] = useState(false);
   const [showMarkerStudio, setShowMarkerStudio] = useState(false);
   const [previewingPresetId, setPreviewingPresetId] = useState<string | null>(null);
@@ -1806,8 +1840,9 @@ export function InspectorPanel({ width }: { width?: number }) {
     if (type === 'behavior') {
       handlePropertyChange('behavior', 'spin');
     } else if (type === 'sound') {
-      handlePropertyChange('soundUrl', '/sounds/cyber_click.wav');
-      handlePropertyChange('soundName', 'Cyber Click');
+      handlePropertyChange('behavior', 'play-sound');
+      handlePropertyChange('interactionSoundUrl', '/sounds/ui/click_soft.wav');
+      handlePropertyChange('interactionSoundVolume', 0.5);
     }
   };
 
@@ -2125,7 +2160,7 @@ export function InspectorPanel({ width }: { width?: number }) {
 
     const applyStyleToComponents = (style: typeof textStyles[0], targetIds: string[]) => {
       if (targetIds.length === 0) {
-        alert("Please select or check some 2D Text components first.");
+        addToast("Please select or check some 2D Text components first.");
         return;
       }
 
@@ -2979,9 +3014,9 @@ export function InspectorPanel({ width }: { width?: number }) {
 
   return (
     <aside 
-      style={{ width: width ? `${width}px` : '288px' }}
+      style={{ width: width ? `${width}px` : '100%' }}
       className={cn(
-        "border-l flex flex-col shrink-0 relative z-[45] transition-colors duration-200",
+        "border-l flex flex-col shrink-0 relative z-[45] transition-colors duration-200 h-full w-full",
         t.bgPanel,
         t.border
       )}
@@ -2989,67 +3024,134 @@ export function InspectorPanel({ width }: { width?: number }) {
       {/* Portal target for nested flyouts/panels so they don't get clipped by overflow containers */}
       <div id="inspector-flyout-portal" className="absolute top-0 right-0 pointer-events-none" style={{ zIndex: 100 }} />
 
-      {/* Tab Switcher */}
-      <div className={cn("flex border-b shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
-        <button
-          onClick={() => setActivePanelTab('inspector')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-            activePanelTab === 'inspector' 
-              ? "text-blue-500 border-blue-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
-              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
+      {/* Flyout Panel for Lighting, Typography, and HUD Theme Studios */}
+      {activeFlyout !== 'none' && (
+        <>
+          {/* Backdrop on mobile/tablet viewports */}
+          <div 
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] md:hidden" 
+            onClick={() => setActiveFlyout('none')} 
+          />
+          <div 
+            className="absolute right-full top-0 bottom-0 w-80 sm:w-96 bg-[#111114]/98 backdrop-blur-2xl border-r border-[#26262B] shadow-[-20px_0_40px_rgba(0,0,0,0.6)] z-50 flex flex-col overflow-hidden animate-in fade-in slide-in-from-right-3 duration-200"
+          >
+            {/* Flyout Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#26262B] bg-[#16161A]/90 shrink-0">
+              <div className="flex items-center gap-2">
+                {activeFlyout === 'lighting' && <Lightbulb size={15} className="text-yellow-400" />}
+                {activeFlyout === 'typography' && <Type size={15} className="text-cyan-400" />}
+                {activeFlyout === 'theme' && <Palette size={15} className="text-purple-400" />}
+                <div>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    {activeFlyout === 'lighting' ? 'Lighting Studio' : activeFlyout === 'typography' ? 'Typography Studio' : 'HUD Theme Studio'}
+                  </h3>
+                  <p className="text-[9px] text-[#777]">
+                    {activeFlyout === 'lighting' ? 'Atmosphere, sun angle, shadows & lights' : activeFlyout === 'typography' ? 'Curated font pairings, scales & styling' : 'Aesthetic presets & color systems'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setActiveFlyout('none')}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close Flyout (Esc)"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Flyout Content Area */}
+            <div className="flex-1 overflow-y-auto">
+              {activeFlyout === 'lighting' && renderLightingPanel()}
+              {activeFlyout === 'typography' && renderTypographyPanel()}
+              {activeFlyout === 'theme' && renderThemePanel()}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Inspector Panel Top Header */}
+      <div className={cn("px-3 py-2.5 border-b shrink-0 flex items-center justify-between gap-2 transition-colors duration-200", t.bgPanelHeader, t.border)}>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-5 h-5 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
+            <Sliders size={11} />
+          </div>
+          <div className="truncate">
+            <h3 className="text-[11px] font-bold text-white uppercase tracking-wider truncate">
+              {obj ? obj.name : 'Scene Workspace'}
+            </h3>
+            <span className="text-[9px] text-gray-500 font-mono">
+              {obj ? `${obj.type} properties` : 'Global configuration'}
+            </span>
+          </div>
+        </div>
+
+        {/* Context-Aware Flyout Triggers */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Typography Studio Trigger (Only shown on text/UI objects or global) */}
+          {(isTextOrUIObject(obj?.type) || !obj) && (
+            <button
+              onClick={() => setActiveFlyout(f => f === 'typography' ? 'none' : 'typography')}
+              className={cn(
+                "px-2 py-1 text-[10px] font-semibold rounded border flex items-center gap-1 transition-all cursor-pointer",
+                activeFlyout === 'typography'
+                  ? "bg-cyan-500/20 border-cyan-500 text-cyan-400 font-bold shadow-sm"
+                  : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:text-white hover:border-[#444]"
+              )}
+              title="Open Typography Studio Flyout"
+            >
+              <Type size={11} className={activeFlyout === 'typography' ? "text-cyan-400" : "text-gray-400"} />
+              <span className="hidden sm:inline">Type</span>
+            </button>
           )}
-        >
-          <Sliders size={11} />
-          Inspector
-        </button>
-        <button
-          onClick={() => setActivePanelTab('lighting')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-            activePanelTab === 'lighting' 
-              ? "text-yellow-500 border-yellow-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
-              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
+
+          {/* Lighting Studio Trigger (Only shown on light objects or global) */}
+          {(isLightObject(obj?.type) || !obj) && (
+            <button
+              onClick={() => setActiveFlyout(f => f === 'lighting' ? 'none' : 'lighting')}
+              className={cn(
+                "px-2 py-1 text-[10px] font-semibold rounded border flex items-center gap-1 transition-all cursor-pointer",
+                activeFlyout === 'lighting'
+                  ? "bg-yellow-500/20 border-yellow-500 text-yellow-400 font-bold shadow-sm"
+                  : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:text-white hover:border-[#444]"
+              )}
+              title="Open Lighting Studio Flyout"
+            >
+              <Lightbulb size={11} className={activeFlyout === 'lighting' ? "text-yellow-400" : "text-gray-400"} />
+              <span className="hidden sm:inline">Light</span>
+            </button>
           )}
-        >
-          <Lightbulb size={11} className={activePanelTab === 'lighting' ? "text-yellow-500" : "text-[#666]"} />
-          Lighting
-        </button>
-        <button
-          onClick={() => setActivePanelTab('typography')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-            activePanelTab === 'typography' 
-              ? "text-cyan-500 border-cyan-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
-              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
+
+          {/* Theme Studio Trigger (Only shown on HUD/UI objects or global) */}
+          {(isThemeRelevantObject(obj?.type) || !obj) && (
+            <button
+              onClick={() => setActiveFlyout(f => f === 'theme' ? 'none' : 'theme')}
+              className={cn(
+                "px-2 py-1 text-[10px] font-semibold rounded border flex items-center gap-1 transition-all cursor-pointer",
+                activeFlyout === 'theme'
+                  ? "bg-purple-500/20 border-purple-500 text-purple-400 font-bold shadow-sm"
+                  : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:text-white hover:border-[#444]"
+              )}
+              title="Open HUD Theme Studio Flyout"
+            >
+              <Palette size={11} className={activeFlyout === 'theme' ? "text-purple-400" : "text-gray-400"} />
+              <span className="hidden sm:inline">Theme</span>
+            </button>
           )}
-        >
-          <Type size={11} className={activePanelTab === 'typography' ? "text-cyan-500" : "text-[#666]"} />
-          Typography
-        </button>
-        <button
-          onClick={() => setActivePanelTab('theme')}
-          className={cn(
-            "flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5",
-            activePanelTab === 'theme' 
-              ? "text-purple-500 border-purple-500" + (t.isLight ? " bg-white" : " bg-[#141414]")
-              : cn(t.isLight ? "text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-100/50" : "text-[#666] border-transparent hover:text-white hover:bg-white/5")
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ml-0.5"
+              title="Close panel"
+            >
+              <X size={13} />
+            </button>
           )}
-        >
-          <Palette size={11} className={activePanelTab === 'theme' ? "text-purple-500" : "text-[#666]"} />
-          Theme
-        </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {activePanelTab === 'lighting' ? (
-          renderLightingPanel()
-        ) : activePanelTab === 'typography' ? (
-          renderTypographyPanel()
-        ) : activePanelTab === 'theme' ? (
-          renderThemePanel()
-        ) : (
-          !selectedObjectId || !objects[selectedObjectId] ? (
+        {!selectedObjectId || !objects[selectedObjectId] ? (
             <div className="p-4 flex flex-col gap-6">
               {/* Project Details section */}
               <div className="flex flex-col gap-3">
@@ -3544,83 +3646,22 @@ export function InspectorPanel({ width }: { width?: number }) {
           )}
         </div>
 
-        {obj.type !== 'imageTarget' && obj.type !== 'audio' && obj.type !== 'light' && (
-          <div className="flex flex-col gap-2">
-
-            {/* Always Face Camera Toggle Panel */}
-            <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Keep this 3D object dynamically rotated toward the active camera (Billboard mode)">
-                <Camera size={12} className={obj.properties.billboard ? "text-cyan-400" : "text-[#555]"} />
-                <span className="text-[11px] font-semibold text-gray-200">Always Face Camera</span>
-              </span>
-              <button
-                onClick={() => handlePropertyChange('billboard', !obj.properties.billboard)}
-                className={cn(
-                  "w-8 h-4 rounded-full transition-colors relative cursor-pointer",
-                  obj.properties.billboard ? "bg-cyan-600" : "bg-[#333]"
-                )}
-                title="Toggle Billboard mode (always face screen camera)"
-              >
-                <div className={cn(
-                  "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
-                  obj.properties.billboard ? "left-[18px]" : "left-0.5"
-                )} />
-              </button>
-            </div>
-
-            {/* Ignore Clicks Toggle Panel */}
-            <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Ignore pointer events on this object (raycast pass-through)">
-                <MousePointerClick size={12} className={obj.properties.ignoreClicks ? "text-[#555]" : "text-blue-400"} />
-                <span className="text-[11px]">Receive Tap Events</span>
-              </span>
-              <button
-                onClick={() => handlePropertyChange('ignoreClicks', !obj.properties.ignoreClicks)}
-                className={cn(
-                  "w-8 h-4 rounded-full transition-colors relative",
-                  !obj.properties.ignoreClicks ? "bg-blue-600" : "bg-[#333]"
-                )}
-              >
-                <div className={cn(
-                  "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
-                  !obj.properties.ignoreClicks ? "left-[18px]" : "left-0.5"
-                )} />
-              </button>
-            </div>
-            
-            {/* Mouse Cursor Selector */}
-            {!obj.properties.ignoreClicks && (
-              <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-                <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
-                  <span className="text-[11px]">Custom AR Cursor</span>
-                </span>
-                <select
-                  value={obj.properties.cursor || 'pointer'}
-                  onChange={(e) => handlePropertyChange('cursor', e.target.value)}
-                  className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1 focus:border-blue-500 outline-none w-28"
-                >
-                  <option value="pointer">👆 Default Tap</option>
-                  <option value="grab">🖐️ Grab</option>
-                  <option value="zoom-in">🔍 Zoom</option>
-                  <option value="crosshair">🎯 Target</option>
-                  <option value="help">❓ Help</option>
-                  <option value="not-allowed">🚫 Blocked</option>
-                </select>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Transform Component */}
+        {/* Transform Component (Moved to the very top under Object Name / Title) */}
         {(() => {
+          const isAmbientLight = obj.type === 'light' && obj.properties.lightType === 'ambient';
+          if (isAmbientLight) return null;
+
           const showRotation = obj.type !== 'audio' && !(obj.type === 'light' && obj.properties.lightType === 'point');
-          const showScale = obj.type !== 'audio' && obj.type !== 'light';
+          const showScale = obj.type !== 'audio' && obj.type !== 'light' && obj.type !== 'imageTarget';
           
           return !obj.type.startsWith('hud') ? (
             <InspectorSection 
               title={
                 <div className="flex items-center justify-between w-full pr-1">
-                  <span className="flex items-center gap-1.5 font-bold text-xs">Transform</span>
+                  <span className="flex items-center gap-1.5 font-bold text-xs">
+                    <Move size={12} className="text-blue-400" />
+                    Transform
+                  </span>
                   <div className="flex items-center gap-2">
                     {activeStateObj && (
                       <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
@@ -3637,13 +3678,16 @@ export function InspectorPanel({ width }: { width?: number }) {
                   </div>
                 </div>
               } 
-              rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase font-bold">Locked</span>}
+              rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase font-bold flex items-center gap-1"><Lock size={9} /> Locked</span>}
             >
               <div className="flex flex-col gap-2">
                 {/* Position Row */}
                 <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
                   <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                    <span>Position</span>
+                    <span className="flex items-center gap-1">
+                      <Move size={10} className="text-blue-400" />
+                      Position
+                    </span>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
                     <DraggableNumberInput
@@ -3680,7 +3724,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                 {showRotation && (
                   <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
                     <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                      <span>Rotation (deg)</span>
+                      <span className="flex items-center gap-1">
+                        <RotateCw size={10} className="text-emerald-400" />
+                        Rotation (deg)
+                      </span>
                     </div>
                     <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
                       <DraggableNumberInput
@@ -3718,7 +3765,10 @@ export function InspectorPanel({ width }: { width?: number }) {
                 {showScale && (
                   <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
                     <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                      <span className="flex items-center gap-1">Scale</span>
+                      <span className="flex items-center gap-1">
+                        <Maximize2 size={10} className="text-purple-400" />
+                        Scale
+                      </span>
                       <button
                         onClick={() => setLinkAxes(!linkAxes)}
                         className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold transition-all cursor-pointer ${
@@ -3769,7 +3819,10 @@ export function InspectorPanel({ width }: { width?: number }) {
             <InspectorSection 
               title={
                 <div className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-1.5">Transform</span>
+                  <span className="flex items-center gap-1.5">
+                    <Move size={12} className="text-blue-400" />
+                    Transform
+                  </span>
                 </div>
               }
             >
@@ -3785,23 +3838,175 @@ export function InspectorPanel({ width }: { width?: number }) {
           );
         })()}
 
+        {/* Context-Aware Interaction & Camera Facing */}
+        {isVisual3DObject(obj.type) && (
+          <div className="flex flex-col gap-2">
+            {/* Always Face Camera Toggle Panel (Only relevant for 3D visual objects, not 2D screen HUD or abstract nodes) */}
+            <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Keep this 3D object dynamically rotated toward the active camera (Billboard mode)">
+                <Camera size={12} className={obj.properties.billboard ? "text-cyan-400" : "text-[#555]"} />
+                <span className="text-[11px] font-semibold text-gray-200">Always Face Camera</span>
+              </span>
+              <button
+                onClick={() => handlePropertyChange('billboard', !obj.properties.billboard)}
+                className={cn(
+                  "w-8 h-4 rounded-full transition-colors relative cursor-pointer",
+                  obj.properties.billboard ? "bg-cyan-600" : "bg-[#333]"
+                )}
+                title="Toggle Billboard mode (always face screen camera)"
+              >
+                <div className={cn(
+                  "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
+                  obj.properties.billboard ? "left-[18px]" : "left-0.5"
+                )} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {canReceiveTapEvents(obj.type) && (
+          <div className="flex flex-col gap-2">
+            {/* Ignore Clicks Toggle Panel */}
+            <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Ignore pointer events on this object (raycast pass-through)">
+                <MousePointerClick size={12} className={obj.properties.ignoreClicks ? "text-[#555]" : "text-blue-400"} />
+                <span className="text-[11px]">Receive Tap Events</span>
+              </span>
+              <button
+                onClick={() => handlePropertyChange('ignoreClicks', !obj.properties.ignoreClicks)}
+                className={cn(
+                  "w-8 h-4 rounded-full transition-colors relative",
+                  !obj.properties.ignoreClicks ? "bg-blue-600" : "bg-[#333]"
+                )}
+              >
+                <div className={cn(
+                  "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
+                  !obj.properties.ignoreClicks ? "left-[18px]" : "left-0.5"
+                )} />
+              </button>
+            </div>
+            
+            {/* Mouse Cursor Selector */}
+            {!obj.properties.ignoreClicks && (
+              <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
+                <span className="text-[#888] font-medium flex items-center gap-1.5 select-none">
+                  <span className="text-[11px]">Custom AR Cursor</span>
+                </span>
+                <select
+                  value={obj.properties.cursor || 'pointer'}
+                  onChange={(e) => handlePropertyChange('cursor', e.target.value)}
+                  className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1 focus:border-blue-500 outline-none w-28"
+                >
+                  <option value="pointer">👆 Default Tap</option>
+                  <option value="grab">🖐️ Grab</option>
+                  <option value="zoom-in">🔍 Zoom</option>
+                  <option value="crosshair">🎯 Target</option>
+                  <option value="help">❓ Help</option>
+                  <option value="not-allowed">🚫 Blocked</option>
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* AR Properties / Interactivity Panel */}
         {obj.type !== 'imageTarget' && obj.type !== 'audio' && obj.type !== 'light' && (
           <InspectorSection 
             title={
-              <>
-                <Sparkles size={11} className="text-orange-400 animate-pulse" />
-                AR Interactivity Traits
-              </>
+              <div className="flex items-center justify-between w-full pr-1">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles size={11} className="text-orange-400 animate-pulse" />
+                  Live Behaviors & Interactivity
+                </span>
+                {obj.properties.behavior ? (
+                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 uppercase font-semibold">
+                    {obj.properties.behavior}
+                  </span>
+                ) : (
+                  (() => {
+                    const parentObj = obj.parentId ? objects[obj.parentId] : null;
+                    const parentBeh = parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : null;
+                    return parentBeh ? (
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase flex items-center gap-1 font-semibold">
+                        <GitFork size={8} className="rotate-180" /> {parentBeh} (Inherited)
+                      </span>
+                    ) : null;
+                  })()
+                )}
+              </div>
             }
-            defaultOpen={false}
+            defaultOpen={Boolean(obj.properties.behavior)}
           >
             <div className="flex flex-col gap-4">
+              {/* Live Interactions in Design Mode Toggle */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#0E0E0E] border border-[#222]">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-medium text-gray-200 flex items-center gap-1.5">
+                    <Play size={10} className={liveInteractionsInDesign ? 'text-emerald-400 fill-emerald-400' : 'text-gray-400'} />
+                    Play in Design View
+                  </span>
+                  <span className="text-[9px] text-[#666]">
+                    {liveInteractionsInDesign ? 'Live in design & preview' : 'Plays in preview only (default)'}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={liveInteractionsInDesign}
+                  onChange={(e) => setLiveInteractionsInDesign(e.target.checked)}
+                  className="accent-emerald-500 w-3.5 h-3.5 rounded cursor-pointer"
+                  title="Toggle live interactions in design view"
+                />
+              </div>
+
+              {/* Inherited Parent Behavior Notice */}
+              {(() => {
+                const parentObj = obj.parentId ? objects[obj.parentId] : null;
+                const parentBeh = parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : null;
+                if (!obj.properties.behavior && parentBeh) {
+                  return (
+                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5 flex flex-col gap-1.5 text-[10px]">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                          <GitFork size={12} className="rotate-180 text-amber-400" />
+                          Inherited Motion Active
+                        </span>
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 uppercase font-bold">
+                          {parentBeh}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-gray-300 leading-relaxed">
+                        This object automatically inherits <b>{parentBeh}</b> live behavior from parent group <b>&ldquo;{parentObj?.name}&rdquo;</b>. Select a rule below to override it.
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Children Cascading Notice */}
+              {Boolean(obj.properties.behavior && obj.children && obj.children.length > 0) && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 flex items-center gap-2 text-[9px] text-blue-300">
+                  <Layers size={11} className="text-blue-400 shrink-0" />
+                  <span>Cascading: This behavior automatically animates all {obj.children.length} child {obj.children.length === 1 ? 'object' : 'objects'}.</span>
+                </div>
+              )}
+
               {/* 1. Behavior Dropdown */}
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
-                  <Zap size={10} className="text-orange-400" />
-                  Live Behavior Rule
+                <label className="text-[10px] text-[#666] font-medium flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Zap size={10} className="text-orange-400" />
+                    Live Behavior Rule
+                  </span>
+                  {obj.properties.behavior && (
+                    <button
+                      onClick={() => handlePropertyChange('behavior', '')}
+                      className="text-[9px] text-gray-400 hover:text-red-400 transition-colors"
+                      title="Clear behavior"
+                    >
+                      Reset to Static
+                    </button>
+                  )}
                 </label>
                 <select
                   value={obj.properties.behavior || ''}
@@ -3816,71 +4021,110 @@ export function InspectorPanel({ width }: { width?: number }) {
                 </select>
               </div>
 
-              {obj.properties.behavior === 'spin' && (
+              {['spin', 'spin-fast', 'pendulum'].includes(obj.properties.behavior) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium flex items-center gap-1">
                     <Zap size={10} className="text-blue-400" />
-                    Spin Axis
+                    Spin / Oscillation Axis
                   </label>
                   <select
                     value={obj.properties.spinAxis || 'z'}
                     onChange={(e) => handlePropertyChange('spinAxis', e.target.value)}
                     className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
                   >
-                    <option value="x">X Axis</option>
-                    <option value="y">Y Axis</option>
-                    <option value="z">Z Axis</option>
+                    <option value="x">X Axis (Pitch)</option>
+                    <option value="y">Y Axis (Yaw)</option>
+                    <option value="z">Z Axis (Roll)</option>
                   </select>
                 </div>
               )}
 
-              {/* 2. Interactive Audio Trigger */}
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-[#666] font-medium flex items-center gap-1">
-                    <Volume2 size={10} className="text-pink-400" />
-                    Audio click Response
-                  </span>
-                  {obj.properties.soundUrl && (
-                    <div className="flex items-center gap-1">
+              {Boolean(obj.properties.behavior && obj.properties.behavior !== 'play-sound' && obj.properties.behavior !== 'draggable') && (
+                <div className="grid grid-cols-2 gap-2 bg-[#0A0A0A] p-2 rounded border border-[#222]">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-gray-400">Motion Speed</span>
+                      <span className="text-blue-400 font-mono">{(obj.properties.behaviorSpeed ?? 1.0).toFixed(1)}x</span>
+                    </div>
+                    <input 
+                      type="range"
+                      min="0.2"
+                      max="3.0"
+                      step="0.1"
+                      value={obj.properties.behaviorSpeed ?? 1.0}
+                      onChange={(e) => handlePropertyChange('behaviorSpeed', parseFloat(e.target.value))}
+                      className="accent-blue-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-gray-400">Motion Amplitude</span>
+                      <span className="text-orange-400 font-mono">{(obj.properties.behaviorIntensity ?? 1.0).toFixed(1)}x</span>
+                    </div>
+                    <input 
+                      type="range"
+                      min="0.2"
+                      max="3.0"
+                      step="0.1"
+                      value={obj.properties.behaviorIntensity ?? 1.0}
+                      onChange={(e) => handlePropertyChange('behaviorIntensity', parseFloat(e.target.value))}
+                      className="accent-orange-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* On Tap Audio Clip Configuration (when behavior === 'play-sound') */}
+              {obj.properties.behavior === 'play-sound' && (
+                <div className="flex flex-col gap-2.5 p-2.5 bg-[#0A0A0A] rounded border border-[#222]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-[#888] font-medium flex items-center gap-1">
+                      <Volume2 size={11} className="text-pink-400" />
+                      On Tap Audio Clip
+                    </span>
+                    {(obj.properties.interactionSoundUrl || obj.properties.soundUrl) && (
                       <button
-                        onClick={() => playPreviewSound(obj.properties.soundUrl)}
+                        onClick={() => playPreviewSound(obj.properties.interactionSoundUrl || obj.properties.soundUrl)}
                         className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/10 hover:bg-pink-600/20 text-pink-400 border border-pink-500/20 rounded text-[8px] uppercase font-bold transition-colors"
                         title="Play Preview Sound"
                       >
                         <Play size={8} className="fill-pink-400/20" />
                         <span>Test Play</span>
                       </button>
-                      <button
-                        onClick={() => {
-                          handlePropertyChange('soundUrl', undefined);
-                          handlePropertyChange('soundName', undefined);
-                        }}
-                        className="text-[#666] hover:text-red-400 transition-colors p-0.5 rounded hover:bg-black/25"
-                        title="Remove Sound"
-                      >
-                        <Trash2 size={10} />
-                      </button>
+                    )}
+                  </div>
+                  <MediaAssetPicker 
+                    value={obj.properties.interactionSoundUrl || obj.properties.soundUrl || '/sounds/ui/click_soft.wav'}
+                    onChange={(url) => {
+                      handlePropertyChange('interactionSoundUrl', url);
+                    }}
+                    type="audio"
+                    accept="audio/*"
+                    placeholder="Select SFX or Paste URL..."
+                  />
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-gray-400">Audio Volume</span>
+                      <span className="text-pink-400 font-mono">{Math.round((obj.properties.interactionSoundVolume ?? 0.5) * 100)}%</span>
                     </div>
-                  )}
+                    <input 
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={obj.properties.interactionSoundVolume ?? 0.5}
+                      onChange={(e) => handlePropertyChange('interactionSoundVolume', parseFloat(e.target.value))}
+                      className="accent-pink-500 w-full h-1 cursor-pointer"
+                    />
+                  </div>
                 </div>
-                <MediaAssetPicker 
-                  value={obj.properties.soundUrl || ''}
-                  onChange={(url) => {
-                    handlePropertyChange('soundUrl', url);
-                    handlePropertyChange('soundName', url.substring(url.lastIndexOf('/') + 1));
-                  }}
-                  type="audio"
-                  accept="audio/*"
-                  placeholder="Select SFX or Paste URL..."
-                />
-              </div>
+              )}
             </div>
           </InspectorSection>
         )}
 
         {/* States Section */}
-        {obj.type !== 'imageTarget' && (
+        {obj.type !== 'imageTarget' && obj.type !== 'light' && obj.type !== 'audio' && (
           <InspectorSection
             title={
               <>
@@ -4094,7 +4338,7 @@ export function InspectorPanel({ width }: { width?: number }) {
         )}
 
         {/* Events Section */}
-        {obj.type !== 'imageTarget' && (
+        {obj.type !== 'imageTarget' && obj.type !== 'light' && obj.type !== 'audio' && (
           <InspectorSection
             title={
               <>
@@ -4995,12 +5239,14 @@ export function InspectorPanel({ width }: { width?: number }) {
           
           <div className="flex flex-col gap-4">
             {/* --- 1. PRIMITIVES SECTION --- */}
-            {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'circle'].includes(obj.type) && (
-              <ModelMaterialEditor 
-                obj={obj} 
-                handlePropertyChange={handlePropertyChange} 
-                handleMultiplePropertiesChange={handleMultiplePropertiesChange} 
-              />
+            {['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'circle', 'pyramid', 'capsule', 'dodecahedron', 'octahedron', 'icosahedron', 'knot'].includes(obj.type) && (
+              <>
+                <ModelMaterialEditor 
+                  obj={obj} 
+                  handlePropertyChange={handlePropertyChange} 
+                  handleMultiplePropertiesChange={handleMultiplePropertiesChange} 
+                />
+              </>
             )}
 
             {obj.type === 'circle' && (
@@ -5607,6 +5853,25 @@ export function InspectorPanel({ width }: { width?: number }) {
             {/* --- 2. 3D TEXT SECTION --- */}
             {obj.type === 'text' && (
               <div className="flex flex-col gap-3">
+                {/* Typography Studio Quick Flyout Launcher */}
+                <div className="bg-cyan-500/10 border border-cyan-500/25 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                      <Type size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[11px] font-bold text-white leading-tight">Typography Studio</h4>
+                      <p className="text-[9px] text-gray-400 truncate">Font pairings, typographic hierarchy & styling</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveFlyout('typography')}
+                    className="px-2.5 py-1 text-[10px] font-bold rounded bg-cyan-500 hover:bg-cyan-400 text-black shrink-0 transition-all cursor-pointer shadow"
+                  >
+                    Open Studio ↗
+                  </button>
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">Text Content</label>
                   <textarea 
@@ -6223,6 +6488,25 @@ export function InspectorPanel({ width }: { width?: number }) {
             {/* --- 6. DYNAMIC LIGHTS SECTION --- */}
             {obj.type === 'light' && (
               <div className="flex flex-col gap-3.5">
+                {/* Lighting Studio Quick Flyout Launcher */}
+                <div className="bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center justify-center shrink-0">
+                      <Lightbulb size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[11px] font-bold text-white leading-tight">Lighting Studio</h4>
+                      <p className="text-[9px] text-gray-400 truncate">Atmosphere, sun angle, shadows & lights</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveFlyout('lighting')}
+                    className="px-2.5 py-1 text-[10px] font-bold rounded bg-yellow-500 hover:bg-yellow-400 text-black shrink-0 transition-all cursor-pointer shadow"
+                  >
+                    Open Studio ↗
+                  </button>
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">Light Source Node Type</label>
                   <select
@@ -6305,6 +6589,157 @@ export function InspectorPanel({ width }: { width?: number }) {
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Camera Object Inspector */}
+            {obj.type === 'camera' && (
+              <div className="flex flex-col gap-3.5">
+                <div className="bg-blue-500/10 border border-blue-500/25 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
+                      <Camera size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[11px] font-bold text-white leading-tight">Custom 3D Camera</h4>
+                      <p className="text-[9px] text-gray-400 truncate">FOV, Projection & Active Scene View</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const isActive = !(obj.properties?.active);
+                      handlePropertyChange('active', isActive);
+                      useEditorStore.getState().addToast(isActive ? 'Set camera as active view' : 'Deactivated camera');
+                    }}
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded shrink-0 transition-all cursor-pointer shadow ${
+                      obj.properties?.active ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {obj.properties?.active ? 'Active View ✓' : 'Set Active'}
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#888] font-medium">Field of View (FOV)</span>
+                    <span className="text-blue-400 font-mono font-bold">{obj.properties.fov || 60}°</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="15" 
+                    max="120" 
+                    step="1" 
+                    value={obj.properties.fov || 60} 
+                    onChange={(e) => handlePropertyChange('fov', parseInt(e.target.value))}
+                    className="accent-blue-500 w-full h-1 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-[#888] font-medium">Camera Aspect Ratio</label>
+                  <select
+                    value={obj.properties.aspectRatio || '16:9'}
+                    onChange={(e) => handlePropertyChange('aspectRatio', e.target.value)}
+                    className="bg-[#0A0A0A] text-[11px] p-2 rounded border border-[#222] text-white focus:border-blue-500 outline-none cursor-pointer"
+                  >
+                    <option value="16:9">16 : 9 (Standard Widescreen)</option>
+                    <option value="4:3">4 : 3 (Classic Display)</option>
+                    <option value="1:1">1 : 1 (Square Frame)</option>
+                    <option value="9:16">9 : 16 (Portrait Mobile)</option>
+                  </select>
+                </div>
+
+                <label className="p-2.5 rounded-lg border border-[#222] bg-[#0A0A0A] hover:bg-[#121212] transition-colors cursor-pointer flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Video size={13} className="text-blue-400" />
+                    Live Camera Preview PIP Window
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={obj.properties.showPreview ?? true}
+                    onChange={(e) => handlePropertyChange('showPreview', e.target.checked)}
+                    className="w-4 h-4 rounded border-[#333] text-blue-600 focus:ring-blue-500 bg-[#222] cursor-pointer"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* External Web 3D Embed Inspector */}
+            {obj.type === 'web3dScene' && (
+              <div className="flex flex-col gap-3.5">
+                <div className="bg-purple-500/10 border border-purple-500/25 rounded-xl p-3 flex items-center justify-between gap-2 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
+                      <Globe size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-[11px] font-bold text-white leading-tight">External Web 3D Embed</h4>
+                      <p className="text-[9px] text-gray-400 truncate">WebGL, Three.js, Spline & Custom URLs</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      try {
+                        window.open(obj.properties.url, '_blank', 'noopener,noreferrer');
+                      } catch (err) {}
+                    }}
+                    className="px-2.5 py-1 text-[10px] font-bold rounded bg-purple-600 hover:bg-purple-500 text-white shrink-0 transition-all cursor-pointer shadow"
+                  >
+                    Open URL ↗
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-[#888] font-medium">Custom Web 3D Scene URL</label>
+                  <input
+                    type="text"
+                    value={obj.properties.url || ''}
+                    onChange={(e) => handlePropertyChange('url', e.target.value)}
+                    placeholder="https://example.com/3d-scene"
+                    className="bg-[#0A0A0A] text-[10px] p-2 rounded border border-[#222] text-white focus:border-purple-500 outline-none font-mono"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-[#888] font-medium">Display Spatial Mode</label>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#121212] rounded-lg border border-[#222]">
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('displayMode', '3d')}
+                      className={`py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                        (obj.properties.displayMode || '3d') === '3d'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'text-[#888] hover:text-white'
+                      }`}
+                    >
+                      3D World Plane
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('displayMode', '2d')}
+                      className={`py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                        obj.properties.displayMode === '2d'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'text-[#888] hover:text-white'
+                      }`}
+                    >
+                      2D Screen HUD
+                    </button>
+                  </div>
+                </div>
+
+                <label className="p-2.5 rounded-lg border border-[#222] bg-[#0A0A0A] hover:bg-[#121212] transition-colors cursor-pointer flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                    <Sliders size={13} className="text-purple-400" />
+                    Enable WebGL Orbit/Mouse Interaction
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={obj.properties.interactive ?? true}
+                    onChange={(e) => handlePropertyChange('interactive', e.target.checked)}
+                    className="w-4 h-4 rounded border-[#333] text-purple-600 focus:ring-purple-500 bg-[#222] cursor-pointer"
+                  />
+                </label>
               </div>
             )}
 
@@ -7843,37 +8278,15 @@ export function InspectorPanel({ width }: { width?: number }) {
                       <span className="text-[8px] text-[#555]">Physical 2D image blueprint scanned by camera.</span>
                     </div>
 
-                    <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-col gap-2">
                       <label className="text-[10px] text-[#888] font-medium flex items-center justify-between">
-                        <span>Target Physical Width (meters)</span>
+                        <span>Physical Marker Scale & Print Media Preset</span>
                         <span className="font-mono text-blue-400 font-bold">{obj.properties.physicalWidth || 0.1}m</span>
                       </label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        min="0.001"
+                      <PrintMediaPresetPicker 
                         value={obj.properties.physicalWidth || 0.1}
-                        onChange={(e) => handlePropertyChange('physicalWidth', parseFloat(e.target.value) || 0.1)}
-                        className="bg-[#0A0A0A] text-[10px] font-mono p-2 rounded-lg w-full border border-[#222] focus:border-blue-500 text-white outline-none"
+                        onChange={(val) => handlePropertyChange('physicalWidth', val)}
                       />
-                      
-                      <div className="grid grid-cols-4 gap-1 pt-1">
-                        {[
-                          { label: 'Card', val: 0.09 },
-                          { label: 'QR', val: 0.05 },
-                          { label: 'A4', val: 0.21 },
-                          { label: 'Mag', val: 0.22 },
-                        ].map(preset => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => handlePropertyChange('physicalWidth', preset.val)}
-                            className="py-1 bg-[#181818] hover:bg-[#222] rounded border border-[#2A2A2A] text-[9px] font-mono text-[#AAA] hover:text-white text-center cursor-pointer transition-colors"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
 
                     {/* Published App Tracker Display Options */}
@@ -9453,28 +9866,24 @@ export function InspectorPanel({ width }: { width?: number }) {
       </div>
 
         {/* Quick Add Interactions section */}
-        {obj.type !== 'imageTarget' && (!obj.properties.behavior || !obj.properties.soundUrl) && (
+        {obj.type !== 'imageTarget' && !obj.properties.behavior && (
           <div className="flex flex-col gap-2.5 border-t border-[#222] pt-4 p-4">
             <span className="text-[9px] font-bold text-[#555] uppercase tracking-wider">Quick Interactions</span>
             <div className="flex flex-col gap-1.5">
-              {!obj.properties.behavior && (
-                <button
-                  onClick={() => addInteractiveTrait('behavior')}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[10px] font-medium text-[#AAA] hover:text-white transition-colors"
-                >
-                  <PlusCircle size={12} className="text-blue-400" />
-                  Add Spin Animation Behavior
-                </button>
-              )}
-              {!obj.properties.soundUrl && (
-                <button
-                  onClick={() => addInteractiveTrait('sound')}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[10px] font-medium text-[#AAA] hover:text-white transition-colors"
-                >
-                  <PlusCircle size={12} className="text-pink-400" />
-                  Add Click Audio Feedback
-                </button>
-              )}
+              <button
+                onClick={() => addInteractiveTrait('behavior')}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[10px] font-medium text-[#AAA] hover:text-white transition-colors"
+              >
+                <PlusCircle size={12} className="text-blue-400" />
+                Add Spin Animation Behavior
+              </button>
+              <button
+                onClick={() => addInteractiveTrait('sound')}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[10px] font-medium text-[#AAA] hover:text-white transition-colors"
+              >
+                <PlusCircle size={12} className="text-pink-400" />
+                Add On Tap Sound Interaction
+              </button>
             </div>
           </div>
         )}
@@ -9523,8 +9932,7 @@ export function InspectorPanel({ width }: { width?: number }) {
           </div>
         )}
             </>
-          )
-        )}
+          )}
       </div>
 
       {showMarkerStudio && (

@@ -38,7 +38,8 @@ import {
   Star,
   ExternalLink,
   ChevronRight,
-  Filter
+  Filter,
+  Armchair
 } from 'lucide-react';
 import { Asset, AssetType, SceneObject } from '../../types';
 import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
@@ -50,12 +51,27 @@ import { SPLINE_SOUND_PRESETS, playSplineSound, SplineSoundPreset } from '../../
 import { BUTTON_TEMPLATES, ButtonTemplate } from '../../lib/buttonTemplates';
 import { PRIMITIVE_TEMPLATES, PrimitiveTemplate } from '../../lib/primitiveTemplates';
 import { MEDIA_WIDGET_TEMPLATES, MediaWidgetTemplate } from '../../lib/mediaTemplates';
+import { ARCHITECTURAL_ASSETS, ArchitecturalAsset } from '../../lib/architecturalAssets';
 import { CategoryTab } from './assetTypes';
 import { CanvaDock } from './CanvaDock';
 import { CanvaHeader } from './CanvaHeader';
 import { DiscoverView, renderButtonPreview, renderPrimitivePreview, renderMediaPreview } from './DiscoverView';
 import { AssetCard } from './AssetCard';
 import { MousePointerClick } from 'lucide-react';
+
+export function renderArchitecturalPreview(asset: ArchitecturalAsset) {
+  return (
+    <div 
+      className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden rounded-lg group-hover:scale-105 transition-transform duration-300"
+      style={{ background: asset.previewGradient || 'radial-gradient(circle, #10b981 0%, #064e3b 100%)' }}
+    >
+      <span className="text-3xl drop-shadow-md select-none">{asset.icon}</span>
+      <span className="mt-1 text-[9px] font-mono font-bold tracking-wider uppercase text-white/90 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
+        {asset.category}
+      </span>
+    </div>
+  );
+}
 
 export function getSplineThumbnailStyle(name: string) {
   let hash = 0;
@@ -730,6 +746,23 @@ export function AssetBrowser() {
   // Add Handlers
   const handleAddTemplate = (type: string) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
+    
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: type as any,
+        name: `${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        properties: {
+          color: '#6366f1',
+          roughness: 0.3,
+          metalness: 0.2,
+        }
+      });
+      showToast(`Replaced object with ${type} primitive`);
+      setReplaceTargetObjectId(null);
+      handleAssetAddedSuccess();
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -813,6 +846,25 @@ export function AssetBrowser() {
 
   const handleAdd2DIcon = (icon: Spline2DIconMetadata) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
+
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: 'icon2d' as any,
+        name: icon.name,
+        properties: {
+          iconName: icon.iconName,
+          color: icon.defaultColor,
+          secondaryColor: icon.secondaryColor,
+          badgeStyle: icon.badgeStyle,
+          text: icon.name,
+        }
+      });
+      showToast(`Replaced object with 2D badge "${icon.name}"`);
+      setReplaceTargetObjectId(null);
+      handleAssetAddedSuccess();
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -846,6 +898,19 @@ export function AssetBrowser() {
 
   const handleAddUIKit = (preset: UIKitPreset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
+
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: preset.objectType as any,
+        name: preset.name,
+        properties: { ...preset.properties }
+      });
+      showToast(`Replaced object with UI kit "${preset.name}"`);
+      setReplaceTargetObjectId(null);
+      handleAssetAddedSuccess();
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -872,17 +937,40 @@ export function AssetBrowser() {
     handleAssetAddedSuccess();
   };
 
+  const handleAddArchitecturalAsset = (asset: ArchitecturalAsset) => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    let parentId = selectedObjectId;
+    if (!parentId) {
+      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+      if (imageTarget) parentId = imageTarget.id;
+    }
+
+    const newId = uuidv4();
+    const newObj = asset.createObject(newId);
+    newObj.parentId = parentId || null;
+
+    addObject(newObj, parentId || undefined);
+    showToast(`Added "${asset.name}" to the scene`);
+    addToRecentAssets({ id: asset.id, name: asset.name, type: 'Furniture', description: asset.description });
+    handleAssetAddedSuccess();
+  };
+
   const handleAddTextStyle = (style: TextStylePreset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
-    if (selectedObjectId && objects[selectedObjectId]) {
-      const target = objects[selectedObjectId];
-      updateObject(selectedObjectId, {
+    const targetId = replaceTargetObjectId || selectedObjectId;
+    if (targetId && objects[targetId]) {
+      const target = objects[targetId];
+      updateObject(targetId, {
         properties: {
           ...target.properties,
           ...style.properties,
         }
       });
       showToast(`Applied typography style "${style.name}" to ${target.name}`);
+      if (replaceTargetObjectId) {
+        setReplaceTargetObjectId(null);
+        handleAssetAddedSuccess();
+      }
       return;
     }
 
@@ -917,15 +1005,20 @@ export function AssetBrowser() {
 
   const handleApplySplineMaterial = (preset: SplineMaterialPreset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
-    if (selectedObjectId && objects[selectedObjectId]) {
-      const targetObj = objects[selectedObjectId];
-      updateObject(selectedObjectId, {
+    const targetId = replaceTargetObjectId || selectedObjectId;
+    if (targetId && objects[targetId]) {
+      const targetObj = objects[targetId];
+      updateObject(targetId, {
         properties: {
           ...targetObj.properties,
           ...preset.materialProps,
         }
       });
       showToast(`Applied "${preset.name}" material to ${targetObj.name}`);
+      if (replaceTargetObjectId) {
+        setReplaceTargetObjectId(null);
+        handleAssetAddedSuccess();
+      }
     } else {
       const newId = uuidv4();
       const newObj: SceneObject = {
@@ -951,9 +1044,10 @@ export function AssetBrowser() {
 
   const handleApplyARTexture = (tex: { id: string; name: string; previewUrl: string; category?: string; normalMapUrl?: string; roughnessMapUrl?: string; recommendedScale?: [number, number] }) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
-    if (selectedObjectId && objects[selectedObjectId]) {
-      const targetObj = objects[selectedObjectId];
-      updateObject(selectedObjectId, {
+    const targetId = replaceTargetObjectId || selectedObjectId;
+    if (targetId && objects[targetId]) {
+      const targetObj = objects[targetId];
+      updateObject(targetId, {
         properties: {
           ...targetObj.properties,
           textureUrl: tex.previewUrl,
@@ -964,6 +1058,10 @@ export function AssetBrowser() {
         }
       });
       showToast(`Applied "${tex.name}" texture to ${targetObj.name}`);
+      if (replaceTargetObjectId) {
+        setReplaceTargetObjectId(null);
+        handleAssetAddedSuccess();
+      }
     } else {
       const newId = uuidv4();
       const newObj: SceneObject = {
@@ -1088,6 +1186,38 @@ export function AssetBrowser() {
   };
 
   const handleAddButtonTemplate = (template: ButtonTemplate) => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: 'button',
+        name: template.name,
+        properties: {
+          buttonStyle: template.buttonStyle,
+          shape: template.shape,
+          text: template.text,
+          color: template.color,
+          secondaryColor: template.secondaryColor || template.color,
+          borderColor: template.borderColor || 'rgba(255,255,255,0.2)',
+          textColor: template.textColor,
+          icon: template.icon || '',
+          iconPosition: template.iconPosition || 'left',
+          borderRadius: template.borderRadius ?? (template.shape === 'pill' ? 9999 : template.shape === 'circle' ? 9999 : 12),
+          borderWidth: template.borderWidth ?? 0,
+          fontSize: template.fontSize ?? 0.18,
+          fontFamily: template.fontFamily || 'Inter',
+          fontWeight: template.fontWeight || '700',
+          letterSpacing: template.letterSpacing ?? 0,
+          glowEffect: template.glowEffect ?? false,
+          glowColor: template.glowColor || 'rgba(59, 130, 246, 0.5)',
+          url: template.url || '',
+        }
+      });
+      showToast(`Replaced object with button "${template.name}"`);
+      setReplaceTargetObjectId(null);
+      handleAssetAddedSuccess();
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -1134,6 +1264,21 @@ export function AssetBrowser() {
   };
 
   const handleAddPrimitiveTemplate = (prim: PrimitiveTemplate) => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: prim.type as any,
+        name: prim.name,
+        properties: {
+          ...prim.properties,
+        }
+      });
+      showToast(`Replaced object with primitive "${prim.name}"`);
+      setReplaceTargetObjectId(null);
+      handleAssetAddedSuccess();
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -1164,19 +1309,36 @@ export function AssetBrowser() {
 
   const handleAddMediaTemplate = (media: MediaWidgetTemplate) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
+    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+      replaceObjectAsset(replaceTargetObjectId, {
+        type: media.type as any,
+        name: media.name,
+        properties: {
+          ...media.properties,
+        }
+      });
+      showToast(`Replaced object with media "${media.name}"`);
+      setReplaceTargetObjectId(null);
+      handleAssetAddedSuccess();
+      return;
+    }
+
     let parentId = selectedObjectId;
     if (!parentId) {
       const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
       if (imageTarget) parentId = imageTarget.id;
     }
 
+    const isVideoOrYt = media.type === 'youtube' || media.type === 'video' || media.type === 'web3dScene';
+    const isImage = media.type === 'image';
+    const isCam = media.type === 'camera';
     const newId = uuidv4();
     const newObj: SceneObject = {
       id: newId,
       name: media.name,
       type: media.type as any,
-      position: [0, 0, 0],
-      rotation: [0, 0, 0],
+      position: isCam ? [0, 1.5, 3] : (isVideoOrYt ? [0, 0, 0.05] : [0, 0, 0]),
+      rotation: isCam ? [-15, 0, 0] : [0, 0, 0],
       scale: [1, 1, 1],
       visible: true,
       locked: false,
@@ -1197,6 +1359,8 @@ export function AssetBrowser() {
   // Filter chips per category
   const filterChipsForTab = useMemo(() => {
     switch (activeTab) {
+      case 'architecture':
+        return ['All', 'Furniture', 'Architecture', 'Deco', 'Lighting', 'Outdoor'];
       case 'primitives':
         return ['All', 'Basic Geometry', 'Textured Shapes', 'Sci-Fi Primitives', 'Organic & Metallic'];
       case 'media':
@@ -1229,6 +1393,7 @@ export function AssetBrowser() {
   // Asset counts for dock badges
   const categoryCounts = useMemo(() => {
     return {
+      'architecture': ARCHITECTURAL_ASSETS.length,
       'primitives': PRIMITIVE_TEMPLATES.length,
       'media': MEDIA_WIDGET_TEMPLATES.length,
       'buttons': BUTTON_TEMPLATES.length,
@@ -1545,6 +1710,53 @@ export function AssetBrowser() {
                     </div>
                   </section>
                 )}
+              </div>
+            )}
+
+            {/* ARCHITECTURE & FURNITURE TAB (Chairs, Tables, Lighting, Walls, Props) */}
+            {activeTab === 'architecture' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Armchair size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">Furniture & Architectural Assets</h3>
+                      <p className="text-[11px] text-gray-400">Add interior design furniture, spatial dividers, lighting fixtures, and architectural fixtures</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {ARCHITECTURAL_ASSETS.filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || a.category === activeFilterChip;
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {ARCHITECTURAL_ASSETS
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || asset.category === activeFilterChip;
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
               </div>
             )}
 
@@ -2127,6 +2339,18 @@ export function AssetBrowser() {
                         description={item.description}
                         metaText={item.creator}
                         onSelect={() => {
+                          if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+                            replaceObjectAsset(replaceTargetObjectId, {
+                              type: 'model',
+                              name: item.name,
+                              properties: { modelUrl: item.url }
+                            });
+                            showToast(`Replaced object with Sketchfab model "${item.name}"`);
+                            setReplaceTargetObjectId(null);
+                            handleAssetAddedSuccess();
+                            return;
+                          }
+
                           const newObj: SceneObject = {
                             id: uuidv4(),
                             name: item.name,
@@ -2200,6 +2424,27 @@ export function AssetBrowser() {
                         }
                         description={`Uploaded ${asset.type}`}
                         onSelect={() => {
+                          if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+                            const newType = asset.type === 'model' ? 'model' : asset.type === 'video' ? 'video' : asset.type === 'audio' ? 'audio' : 'image';
+                            const assetProps = asset.type === 'model'
+                              ? { modelUrl: asset.url }
+                              : asset.type === 'image'
+                              ? { textureUrl: asset.url }
+                              : asset.type === 'video'
+                              ? { videoUrl: asset.url }
+                              : { soundUrl: asset.url };
+                            replaceObjectAsset(replaceTargetObjectId, {
+                              type: newType,
+                              name: asset.name,
+                              url: asset.url,
+                              properties: assetProps
+                            });
+                            showToast(`Replaced object with uploaded "${asset.name}"`);
+                            setReplaceTargetObjectId(null);
+                            handleAssetAddedSuccess();
+                            return;
+                          }
+
                           if (asset.type === 'model') {
                             const newObj: SceneObject = {
                               id: uuidv4(),

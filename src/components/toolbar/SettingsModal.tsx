@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Save, Info, Tag, Layers, CheckCircle } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
+import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -94,39 +95,22 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             />
           </div>
 
-          {/* Target Physical Width */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#888] flex items-center gap-1.5">
+          {/* Target Physical Width & Print Media Presets */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-[#AAA] flex items-center gap-1.5">
               <Layers size={12} className="text-purple-400" />
-              Image Target Physical Width (meters)
+              Image Target Physical Scale & Print Media Preset
             </label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                step="0.001"
-                min="0.001"
-                value={physicalWidth}
-                onChange={(e) => setPhysicalWidth(e.target.value)}
-                placeholder="0.10"
-                className="w-full bg-[#1C1C1C] border border-[#2D2D2D] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 transition-colors font-mono"
-                required
-              />
-              <span className="bg-[#1C1C1C] border border-[#2D2D2D] rounded-lg px-3 py-2 text-xs text-[#666] flex items-center font-semibold">
-                m
-              </span>
-            </div>
-            
-            {/* Helper Table for common dimensions */}
-            <div className="p-3 bg-[#1A1A1A] rounded-lg border border-[#252525] space-y-1.5 text-[11px] text-[#777] leading-normal">
+            <PrintMediaPresetPicker 
+              value={parseFloat(physicalWidth) || 0.1}
+              onChange={(val) => setPhysicalWidth(val.toString())}
+            />
+
+            {/* Helper Text */}
+            <div className="p-3 bg-[#1A1A1A] rounded-lg border border-[#252525] space-y-1.5 text-[11px] text-[#777] leading-normal mt-2">
               <div className="flex items-start gap-1.5">
                 <Info size={12} className="text-[#555] mt-0.5 shrink-0" />
-                <span>Provides correct real-world scale for floating elements.</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 border-t border-[#252525] font-mono text-[10px]">
-                <div className="flex justify-between"><span>Business Card:</span> <span className="text-[#999]">0.09 m</span></div>
-                <div className="flex justify-between"><span>A4 Poster:</span> <span className="text-[#999]">0.21 m</span></div>
-                <div className="flex justify-between"><span>Magazine Page:</span> <span className="text-[#999]">0.22 m</span></div>
-                <div className="flex justify-between"><span>QR Code:</span> <span className="text-[#999]">0.05 m</span></div>
+                <span>Provides correct real-world scale for AR elements relative to the physical tracker width.</span>
               </div>
             </div>
           </div>

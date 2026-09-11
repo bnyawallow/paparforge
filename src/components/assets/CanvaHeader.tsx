@@ -64,20 +64,20 @@ export function CanvaHeader({
   return (
     <div className="border-b border-white/10 bg-[#121217] flex flex-col shrink-0 z-10 select-none">
       {/* Top action row */}
-      <div className="h-14 px-5 flex items-center justify-between gap-4">
+      <div className="min-h-14 px-3 sm:px-5 py-2 sm:py-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-4">
         {/* Left: Category Title */}
-        <div className="flex items-center gap-2.5 min-w-[180px]">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           <div 
-            className="w-2.5 h-2.5 rounded-full"
+            className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full"
             style={{ backgroundColor: currentCategory.accentColor }}
           />
-          <h2 className="text-sm font-bold tracking-wide text-white uppercase font-mono">
+          <h2 className="text-xs sm:text-sm font-bold tracking-wide text-white uppercase font-mono">
             {currentCategory.label}
           </h2>
         </div>
 
         {/* Center: Canva-Style Search Bar */}
-        <div className="flex-1 max-w-xl relative">
+        <div className="flex-1 w-full sm:w-auto order-last sm:order-none relative min-w-[150px]">
           <div className="relative flex items-center">
             <Search size={15} className="absolute left-3.5 text-gray-400 pointer-events-none" />
             <input
@@ -85,7 +85,7 @@ export function CanvaHeader({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={`Search ${currentCategory.label.toLowerCase()} or all assets... (Press '/' to focus)`}
+              placeholder={`Search ${currentCategory.label.toLowerCase()} or all assets...`}
               className="w-full bg-[#181820] hover:bg-[#1E1E28] focus:bg-[#1E1E28] text-xs text-white placeholder-gray-400 pl-9 pr-9 py-2 rounded-xl border border-white/10 focus:border-blue-500/80 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
             />
             {searchQuery && (
@@ -101,7 +101,7 @@ export function CanvaHeader({
         </div>
 
         {/* Right: Quick Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             onClick={onOpenMarkerManager}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 hover:border-white/20 rounded-xl text-xs font-medium transition-all"
@@ -113,17 +113,17 @@ export function CanvaHeader({
 
           <button
             onClick={onOpenUpload}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 active:scale-95"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-md shadow-blue-500/20 active:scale-95"
             title="Import 3D models, textures, audio or images"
           >
             <Plus size={14} />
-            <span>Upload</span>
+            <span className="hidden xs:inline">Upload</span>
           </button>
 
           {/* Density toggle */}
           <button
             onClick={onToggleDensity}
-            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+            className="hidden xs:block p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg sm:rounded-xl transition-colors"
             title={density === 'comfortable' ? 'Switch to compact grid' : 'Switch to comfortable grid'}
           >
             {density === 'comfortable' ? <LayoutGrid size={16} /> : <Grid3X3 size={16} />}
@@ -132,7 +132,7 @@ export function CanvaHeader({
           {/* Close modal */}
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors ml-1"
+            className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg sm:rounded-xl transition-colors ml-1 shrink-0"
             title="Close asset browser (Esc)"
           >
             <X size={18} />

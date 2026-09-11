@@ -29,6 +29,9 @@ export class PivotNormalizationService {
     const center = new THREE.Vector3();
     bbox.getCenter(center);
 
+    // Override Z center to use the bottom of the bounding box
+    center.z = bbox.min.z;
+
     // 4. Convert the center from world coordinates to the local coordinate system of the object itself
     object.worldToLocal(center);
 

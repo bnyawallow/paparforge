@@ -52,8 +52,9 @@ import { SceneObject } from '../../types';
 import { PREBUILT_TEMPLATES, instantiateTemplate } from '../../utils/prebuiltTemplates';
 import { useTheme } from '../../lib/theme';
 import { GlassModal } from '../ui/HudComponents';
+import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
 
-export function HierarchyPanel({ width }: { width?: number }) {
+export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: () => void }) {
   const t = useTheme();
   const { 
     objects, 
@@ -117,6 +118,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
     value?: string;
     sceneId?: string;
     targetMode?: 'single' | 'multi';
+    physicalWidth?: number;
   }>({ type: null });
   const [isSceneDropdownOpen, setIsSceneDropdownOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -170,17 +172,30 @@ export function HierarchyPanel({ width }: { width?: number }) {
       newObj.properties = { textureUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80', opacity: 1.0, doubleSided: true };
     } else if (type === 'video') {
       newObj.properties = { videoUrl: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c05c5c839d39e7fa17b4474775836a0c&profile_id=139&oauth2_token_id=57447761', playing: true, loop: true, muted: true, volume: 0.5 };
+      newObj.position = [0, 0, 0.05];
+      newObj.rotation = [Math.PI / 2, 0, 0];
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'audio') {
       newObj.properties = { soundUrl: '/sounds/forest_ambient.wav', autoplay: true, playing: true, loop: true, volume: 0.5 };
     } else if (type === 'light') {
-      newObj.properties = { lightType: 'point', color: '#ffedd5', intensity: 3.0, distance: 12.0, decay: 1.5, angle: 0.78 };
-      newObj.position = [0, 2, 0];
+      newObj.properties = { lightType: 'point', color: '#ffedd5', intensity: 3.0, distance: 12.0, decay: 1.5, angle: 0.78, castShadow: true };
+      newObj.position = [0, 2, 1];
+    } else if (type === 'camera') {
+      newObj.properties = { fov: 60, near: 0.1, far: 1000, cameraType: 'perspective', active: true, showPreview: true, aspectRatio: '16:9' };
+      newObj.position = [0, 1.5, 3];
+      newObj.rotation = [-15, 0, 0];
+    } else if (type === 'web3dScene') {
+      newObj.properties = { url: 'https://threejs.org/examples/webgl_geometry_shapes.html', width: 1.6, height: 0.9, displayMode: '3d', transparentBg: false, interactive: true, title: 'External Web 3D Scene' };
+      newObj.position = [0, 0, 0.05];
+      newObj.rotation = [Math.PI / 2, 0, 0];
+      newObj.scale = [1, 1, 1];
     } else if (type === 'button') {
       newObj.properties = { text: 'Click Me', color: '#3b82f6', textColor: '#ffffff', url: 'https://example.com' };
       newObj.scale = [1, 0.3, 0.05];
     } else if (type === 'youtube') {
       newObj.properties = { videoId: 'dQw4w9WgXcQ', resolution: '240p' };
+      newObj.position = [0, 0, 0.05];
+      newObj.rotation = [0, 0, 0];
       newObj.scale = [1.6, 0.9, 1];
     } else if (type === 'hudCanvas') {
       newObj.properties = { 
@@ -892,9 +907,9 @@ export function HierarchyPanel({ width }: { width?: number }) {
 
   return (
     <aside 
-      style={{ width: width ? `${width}px` : '240px' }}
+      style={{ width: width ? `${width}px` : '100%' }}
       className={cn(
-        "border-r flex flex-col shrink-0 relative z-30 animate-in fade-in transition-colors duration-200",
+        "border-r flex flex-col shrink-0 relative z-30 animate-in fade-in transition-colors duration-200 h-full w-full",
         t.bgPanel,
         t.border
       )}
@@ -939,6 +954,15 @@ export function HierarchyPanel({ width }: { width?: number }) {
             >
               <FolderPlus size={13} />
             </button>
+            {onClose && (
+              <button 
+                onClick={onClose}
+                className={cn("p-1 rounded transition-colors ml-0.5", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
+                title="Close / Collapse Panel"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1295,10 +1319,10 @@ export function HierarchyPanel({ width }: { width?: number }) {
                     selectedObjectIds.forEach(id => {
                       const obj = objects[id];
                       if (obj) {
-                        updateObject(id, { properties: { ...obj.properties, soundUrl: '/sounds/cyber_click.wav', autoplay: true, playing: true } });
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'play-sound', interactionSoundUrl: '/sounds/cyber_click.wav', interactionSoundVolume: 0.5 } });
                       }
                     });
-                    useEditorStore.getState().addToast("Applied 'Cyber Sound' preset to selected objects");
+                    useEditorStore.getState().addToast("Applied 'Cyber Sound' on-tap interaction to selected objects");
                   }}
                   className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
                 >
@@ -1309,10 +1333,10 @@ export function HierarchyPanel({ width }: { width?: number }) {
                     selectedObjectIds.forEach(id => {
                       const obj = objects[id];
                       if (obj) {
-                        updateObject(id, { properties: { ...obj.properties, soundUrl: '/sounds/success.wav', autoplay: true, playing: true } });
+                        updateObject(id, { properties: { ...obj.properties, behavior: 'play-sound', interactionSoundUrl: '/sounds/success.wav', interactionSoundVolume: 0.5 } });
                       }
                     });
-                    useEditorStore.getState().addToast("Applied 'Success Sound' preset to selected objects");
+                    useEditorStore.getState().addToast("Applied 'Success Sound' on-tap interaction to selected objects");
                   }}
                   className="bg-[#1C1C1C] hover:bg-blue-600/10 hover:text-blue-300 border border-transparent hover:border-blue-500/25 py-1 px-1.5 rounded text-left transition-all"
                 >
@@ -1323,7 +1347,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                     selectedObjectIds.forEach(id => {
                       const obj = objects[id];
                       if (obj) {
-                        updateObject(id, { properties: { ...obj.properties, behavior: '' } });
+                        updateObject(id, { properties: { ...obj.properties, behavior: '', interactionSoundUrl: undefined } });
                       }
                     });
                     useEditorStore.getState().addToast("Cleared presets on selected objects");
@@ -1595,7 +1619,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                   if (e.key === 'Enter' && sceneModal.value?.trim()) {
                     const trimmed = sceneModal.value.trim();
                     if (sceneModal.type === 'create') {
-                      createScene(trimmed, sceneModal.targetMode || 'single');
+                      createScene(trimmed, sceneModal.targetMode || 'single', sceneModal.physicalWidth || 0.127);
                       useEditorStore.getState().saveCurrentProject();
                       useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
                     } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
@@ -1619,58 +1643,77 @@ export function HierarchyPanel({ width }: { width?: number }) {
             </div>
 
             {sceneModal.type === 'create' && (
-              <div className="flex flex-col gap-2">
-                <label className={cn("text-[10px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>
-                  AR Tracking Target Mode
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'single' }))}
-                    className={cn(
-                      "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
-                      (sceneModal.targetMode || 'single') === 'single'
-                        ? "bg-blue-600/15 border-blue-500 text-white shadow-sm"
-                        : t.isLight
-                          ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                          : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-blue-400">Single Marker</span>
-                      {(sceneModal.targetMode || 'single') === 'single' && (
-                        <span className="w-2 h-2 rounded-full bg-blue-400" />
+              <>
+                <div className="flex flex-col gap-2">
+                  <label className={cn("text-[10px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>
+                    AR Tracking Target Mode
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'single' }))}
+                      className={cn(
+                        "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                        (sceneModal.targetMode || 'single') === 'single'
+                          ? "bg-blue-600/15 border-blue-500 text-white shadow-sm"
+                          : t.isLight
+                            ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                            : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
                       )}
-                    </div>
-                    <span className="text-[10px] text-gray-400 leading-tight">
-                      Single anchor marker. High tracking stability & FPS.
-                    </span>
-                  </button>
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-blue-400">Single Marker</span>
+                        {(sceneModal.targetMode || 'single') === 'single' && (
+                          <span className="w-2 h-2 rounded-full bg-blue-400" />
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400 leading-tight">
+                        Single anchor marker. High tracking stability & FPS.
+                      </span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'multi' }))}
-                    className={cn(
-                      "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
-                      sceneModal.targetMode === 'multi'
-                        ? "bg-purple-600/15 border-purple-500 text-white shadow-sm"
-                        : t.isLight
-                          ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                          : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-purple-400">Multi-Target</span>
-                      {sceneModal.targetMode === 'multi' && (
-                        <span className="w-2 h-2 rounded-full bg-purple-400" />
+                    <button
+                      type="button"
+                      onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'multi' }))}
+                      className={cn(
+                        "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                        sceneModal.targetMode === 'multi'
+                          ? "bg-purple-600/15 border-purple-500 text-white shadow-sm"
+                          : t.isLight
+                            ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                            : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
                       )}
-                    </div>
-                    <span className="text-[10px] text-gray-400 leading-tight">
-                      Simultaneous multi-marker tracking & dynamic registration.
-                    </span>
-                  </button>
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-purple-400">Multi-Target</span>
+                        {sceneModal.targetMode === 'multi' && (
+                          <span className="w-2 h-2 rounded-full bg-purple-400" />
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400 leading-tight">
+                        Simultaneous multi-marker tracking & dynamic registration.
+                      </span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className={cn("text-[10px] font-bold uppercase tracking-wider flex items-center justify-between", t.isLight ? "text-gray-400" : "text-gray-500")}>
+                    <span className="flex items-center gap-1.5">
+                      <Layers size={11} className="text-blue-400" />
+                      Print Media & Marker Size Preset
+                    </span>
+                    <span className="text-blue-400 font-mono font-bold">
+                      {((sceneModal.physicalWidth || 0.127) * 100).toFixed(1)} cm
+                    </span>
+                  </label>
+                  <PrintMediaPresetPicker 
+                    value={sceneModal.physicalWidth || 0.127}
+                    onChange={(w) => setSceneModal(prev => ({ ...prev, physicalWidth: w }))}
+                    compact={true}
+                  />
+                </div>
+              </>
             )}
 
             <div className="flex justify-end gap-2 mt-2">
@@ -1691,7 +1734,7 @@ export function HierarchyPanel({ width }: { width?: number }) {
                   if (sceneModal.value?.trim()) {
                     const trimmed = sceneModal.value.trim();
                     if (sceneModal.type === 'create') {
-                      createScene(trimmed, sceneModal.targetMode || 'single');
+                      createScene(trimmed, sceneModal.targetMode || 'single', sceneModal.physicalWidth || 0.127);
                       useEditorStore.getState().saveCurrentProject();
                       useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
                     } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {

@@ -1,8 +1,10 @@
 import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
+import * as THREE from 'three';
 import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType, Asset } from '../types';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../lib/arTargetTexture';
+import { DirtyNodeTracker } from '../lib/dirtyNodeTracker';
 
 const getStorageKey = (key: string) => {
   const user = useAuthStore.getState().user;
@@ -63,6 +65,24 @@ const defaultScene: Record<string, SceneObject> = {
       metalness: 0.2
     }
   }
+};
+
+const computeWorldMatrix = (id: string, objects: Record<string, SceneObject>): THREE.Matrix4 => {
+  const obj = objects[id];
+  if (!obj) return new THREE.Matrix4();
+  
+  const localMatrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(...obj.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...obj.rotation)),
+    new THREE.Vector3(...obj.scale)
+  );
+
+  if (obj.parentId) {
+    const parentMatrix = computeWorldMatrix(obj.parentId, objects);
+    return parentMatrix.multiply(localMatrix);
+  }
+  
+  return localMatrix;
 };
 
 // Generate template scenes to allow quick prototyping
@@ -1583,6 +1603,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   assets: initialAssets,
   copiedObjectData: null,
   isPreviewMode: false,
+  liveInteractionsInDesign: false,
+  setLiveInteractionsInDesign: (enabled: boolean) => set({ liveInteractionsInDesign: enabled }),
+  toggleLiveInteractionsInDesign: () => set((state) => ({ liveInteractionsInDesign: !state.liveInteractionsInDesign })),
+  isDraggableDragging: false,
+  setIsDraggableDragging: (dragging: boolean) => set({ isDraggableDragging: dragging }),
   activeHotspotCard: null,
   setActiveHotspotCard: (card) => set({ activeHotspotCard: card }),
   lastSavedTime: initialLastSavedTime,
@@ -1599,9 +1624,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   activeSceneId: initialActiveSceneId,
   scenes: initialScenes,
-  createScene: (name) => set((state) => {
+  createScene: (name, targetMode = 'single', physicalWidth?: number) => set((state) => {
     const newSceneId = `scene_${Date.now()}`;
-    const newScene = { id: newSceneId, name, objects: JSON.parse(JSON.stringify(defaultScene)), rootObjects: [initialImageTargetId] };
+    const initialObjects = JSON.parse(JSON.stringify(defaultScene));
+    if (typeof physicalWidth === 'number' && physicalWidth > 0) {
+      Object.values(initialObjects).forEach((obj: any) => {
+        if (obj.type === 'imageTarget') {
+          obj.properties = { ...obj.properties, physicalWidth };
+        }
+      });
+    }
+    const newScene = { id: newSceneId, name, objects: initialObjects, rootObjects: [initialImageTargetId] };
     
     // Save current scene state before switching
     const currentScenes = { ...state.scenes };
@@ -1807,9 +1840,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const preservedScale = [...obj.scale] as [number, number, number];
     const preservedParentId = obj.parentId;
     const preservedChildren = [...obj.children];
+    const preservedPivot = obj.pivot ? ([...obj.pivot] as [number, number, number]) : undefined;
+    const preservedLocked = obj.locked;
+    const preservedVisible = obj.visible ?? true;
 
-    let newType = obj.type;
-    let newProps = { ...obj.properties };
+    // Preserve live behaviors & interactivity traits strictly
+    const preservedBehavior = obj.properties?.behavior;
+    const preservedSpinAxis = obj.properties?.spinAxis;
+    const preservedBehaviorSpeed = obj.properties?.behaviorSpeed;
+    const preservedBehaviorIntensity = obj.properties?.behaviorIntensity;
+    const preservedVisualBehaviors = obj.properties?.visualBehaviors;
+    const preservedFloatAnim = obj.properties?.floatAnim;
+    const preservedRotationSpeed = obj.properties?.rotationSpeed;
+    const preservedBillboard = obj.properties?.billboard;
+    const preservedLookAtCamera = obj.properties?.lookAtCamera;
+    const preservedSoundUrl = obj.properties?.soundUrl;
+    const preservedSoundName = obj.properties?.soundName;
+    const preservedClickSoundUrl = obj.properties?.clickSoundUrl;
+    const preservedInteractivitySoundPreset = obj.properties?.interactivitySoundPreset;
+    const preservedEvents = obj.events ? JSON.parse(JSON.stringify(obj.events)) : undefined;
+    const preservedStates = obj.states ? JSON.parse(JSON.stringify(obj.states)) : undefined;
+
+    let newType = (newAsset.type || obj.type) as any;
+    let newProps: Record<string, any> = {};
 
     if (newAsset.type === 'model') {
       newType = 'model';
@@ -1861,12 +1914,59 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         badgeStyle: newAsset.properties?.badgeStyle || newProps.badgeStyle,
         color: newAsset.properties?.color || newProps.color || '#3b82f6',
       };
+    } else if (newAsset.type === 'button') {
+      newType = 'button';
+      newProps = {
+        ...newAsset.properties,
+      };
     } else if (newAsset.properties) {
       if (newAsset.type) newType = newAsset.type as any;
       newProps = {
-        ...newProps,
         ...newAsset.properties
       };
+    } else {
+      newProps = { ...obj.properties };
+    }
+
+    // Strictly inherit live behaviors and interactivity from the replaced object
+    if (preservedBehavior !== undefined && preservedBehavior !== '') {
+      newProps.behavior = preservedBehavior;
+    }
+    if (preservedSpinAxis !== undefined) {
+      newProps.spinAxis = preservedSpinAxis;
+    }
+    if (preservedBehaviorSpeed !== undefined) {
+      newProps.behaviorSpeed = preservedBehaviorSpeed;
+    }
+    if (preservedBehaviorIntensity !== undefined) {
+      newProps.behaviorIntensity = preservedBehaviorIntensity;
+    }
+    if (preservedVisualBehaviors !== undefined) {
+      newProps.visualBehaviors = preservedVisualBehaviors;
+    }
+    if (preservedFloatAnim !== undefined) {
+      newProps.floatAnim = preservedFloatAnim;
+    }
+    if (preservedRotationSpeed !== undefined) {
+      newProps.rotationSpeed = preservedRotationSpeed;
+    }
+    if (preservedBillboard !== undefined) {
+      newProps.billboard = preservedBillboard;
+    }
+    if (preservedLookAtCamera !== undefined) {
+      newProps.lookAtCamera = preservedLookAtCamera;
+    }
+    if (preservedSoundUrl !== undefined) {
+      newProps.soundUrl = preservedSoundUrl;
+    }
+    if (preservedSoundName !== undefined) {
+      newProps.soundName = preservedSoundName;
+    }
+    if (preservedClickSoundUrl !== undefined) {
+      newProps.clickSoundUrl = preservedClickSoundUrl;
+    }
+    if (preservedInteractivitySoundPreset !== undefined) {
+      newProps.interactivitySoundPreset = preservedInteractivitySoundPreset;
     }
 
     const updatedObj: SceneObject = {
@@ -1876,15 +1976,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       position: preservedPosition,
       rotation: preservedRotation,
       scale: preservedScale,
+      pivot: preservedPivot,
+      locked: preservedLocked,
+      visible: preservedVisible,
       parentId: preservedParentId,
       children: preservedChildren,
-      properties: newProps
+      properties: newProps,
+      events: preservedEvents !== undefined ? preservedEvents : obj.events,
+      states: preservedStates !== undefined ? preservedStates : obj.states
     };
 
     const toastId = Math.random().toString(36).substring(2, 9);
     setTimeout(() => {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== toastId) }));
     }, 3000);
+
+    const behaviorNote = preservedBehavior ? ` with "${preservedBehavior}" behavior preserved` : '';
 
     return {
       objects: {
@@ -1895,7 +2002,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       past: newPast,
       future: [],
       hasUnsavedChanges: true,
-      toasts: [...state.toasts, { id: toastId, message: `Replaced asset on "${obj.name}" preserving transform!` }]
+      toasts: [...state.toasts, { id: toastId, message: `Replaced object "${obj.name}" preserving transform${behaviorNote}!` }]
     };
   }),
   overlayGridEnabled: false,
@@ -1907,6 +2014,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   wireframeEnabled: false,
   collisionDebuggerEnabled: false,
   editorTheme: 'dark',
+  
+  // UI Optimizer & Device Viewport Resolution initial state
+  targetDprScale: 'auto',
+  shadowQualityPreset: 'med',
+  uiDensityMode: 'balanced',
+  deviceSimulationPreset: null,
+  isUIOptimizerOpen: false,
   
   // History state
   past: [],
@@ -2117,12 +2231,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ? state.lastSelectedTargetId
       : (remainingTargets[0]?.id || null);
 
+    // If deleted object had a parent tracker or if selection was deleted, auto-select parent tracker
+    let autoSelectedId = isSelectedDeleted ? null : state.selectedObjectId;
+    if (isSelectedDeleted) {
+      if (objToRemove.parentId && newObjects[objToRemove.parentId]) {
+        autoSelectedId = objToRemove.parentId;
+      } else if (newLastSelectedTargetId && newObjects[newLastSelectedTargetId]) {
+        autoSelectedId = newLastSelectedTargetId;
+      }
+    }
+
     return {
       objects: newObjects,
       rootObjects: state.rootObjects.filter(rootId => rootId !== id),
-      selectedObjectId: isSelectedDeleted ? null : state.selectedObjectId,
-      selectedObjectIds: state.selectedObjectIds.filter(x => newObjects[x]),
-      selectedObjectRef: isSelectedDeleted ? null : state.selectedObjectRef,
+      selectedObjectId: autoSelectedId,
+      selectedObjectIds: autoSelectedId ? [autoSelectedId] : [],
+      selectedObjectRef: autoSelectedId === state.selectedObjectId ? state.selectedObjectRef : null,
       lastSelectedTargetId: newLastSelectedTargetId,
       past: newPast,
       future: [], // Clear redo stack on new action
@@ -2199,6 +2323,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } else {
       finalObject = { ...finalObject, ...updates };
     }
+
+    DirtyNodeTracker.markDirty(id, hasTransformUpdate ? 'transform' : 'all');
 
     return {
       objects: {
@@ -2577,9 +2703,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         newRootObjects.push(draggedId);
       }
 
+      const isDragged2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'youtube'].includes(draggedObj.type);
+
+      let newPosition = [...draggedObj.position];
+      let newRotation = [...draggedObj.rotation];
+      let newScale = [...draggedObj.scale];
+
+      if (!isDragged2D) {
+        const draggedWorldMatrix = computeWorldMatrix(draggedId, state.objects);
+        const newParentWorldMatrix = new THREE.Matrix4().identity();
+        const newLocalMatrix = newParentWorldMatrix.clone().invert().multiply(draggedWorldMatrix);
+        
+        const p = new THREE.Vector3();
+        const q = new THREE.Quaternion();
+        const s = new THREE.Vector3();
+        newLocalMatrix.decompose(p, q, s);
+        const euler = new THREE.Euler().setFromQuaternion(q);
+        
+        newPosition = [p.x, p.y, p.z];
+        newRotation = [euler.x, euler.y, euler.z];
+        newScale = [s.x, s.y, s.z];
+      }
+
       newObjects[draggedId] = {
         ...draggedObj,
-        parentId: null
+        parentId: null,
+        position: newPosition as [number, number, number],
+        rotation: newRotation as [number, number, number],
+        scale: newScale as [number, number, number],
       };
 
       return {
@@ -2595,8 +2746,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!targetObj) return state;
     if (draggedId === targetId) return state;
 
-    const isDragged2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(draggedObj.type);
-    const isTarget2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(targetObj.type);
+    const isDragged2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'youtube'].includes(draggedObj.type);
+    const isTarget2D = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'youtube'].includes(targetObj.type);
 
     if (isDragged2D && isTarget2D) {
       // Prevent cyclic drops
@@ -2745,9 +2896,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }
 
+    let newPosition = [...draggedObj.position];
+    let newRotation = [...draggedObj.rotation];
+    let newScale = [...draggedObj.scale];
+
+    if (!isDragged2D) {
+      const draggedWorldMatrix = computeWorldMatrix(draggedId, state.objects);
+      const newParentWorldMatrix = computeWorldMatrix(targetId, state.objects);
+      const newLocalMatrix = newParentWorldMatrix.clone().invert().multiply(draggedWorldMatrix);
+      
+      const p = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      const s = new THREE.Vector3();
+      newLocalMatrix.decompose(p, q, s);
+      const euler = new THREE.Euler().setFromQuaternion(q);
+      
+      newPosition = [p.x, p.y, p.z];
+      newRotation = [euler.x, euler.y, euler.z];
+      newScale = [s.x, s.y, s.z];
+    }
+
     newObjects[draggedId] = {
       ...newObjects[draggedId],
-      parentId: targetId
+      parentId: targetId,
+      position: newPosition as [number, number, number],
+      rotation: newRotation as [number, number, number],
+      scale: newScale as [number, number, number],
     };
 
     return { 
@@ -3344,7 +3518,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     assets: state.assets.map(a => a.id === id ? { ...a, name } : a),
     hasUnsavedChanges: true
   })),
-  setPreviewMode: (preview) => set({ isPreviewMode: preview }),
+  previewSnapshotObjects: null,
+  setPreviewMode: (preview) => set((state) => {
+    if (preview) {
+      // Snapshot current design state objects so preview animations or actions never corrupt design transforms
+      return {
+        isPreviewMode: true,
+        previewSnapshotObjects: JSON.parse(JSON.stringify(state.objects))
+      };
+    } else {
+      // Exiting preview mode: restore design view objects snapshot and reset runtime transitions/states
+      return {
+        isPreviewMode: false,
+        objects: state.previewSnapshotObjects ? state.previewSnapshotObjects : state.objects,
+        previewSnapshotObjects: null,
+        activeTransitions: {},
+        activeStateId: null
+      };
+    }
+  }),
   
   // Script & behavior implementation
   activeStateId: null,
@@ -3691,6 +3883,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
               targetType: 'image'
             };
           }
+        }
+      });
+    }
+
+    const initialPhysicalWidth = (trackingOptions as any)?.physicalWidth;
+    if (typeof initialPhysicalWidth === 'number' && initialPhysicalWidth > 0) {
+      Object.values(objects).forEach((obj) => {
+        if (obj.type === 'imageTarget') {
+          obj.properties = {
+            ...obj.properties,
+            physicalWidth: initialPhysicalWidth
+          };
         }
       });
     }
@@ -4269,6 +4473,269 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setRotationSnapEnabled: (enabled) => set({ rotationSnapEnabled: enabled }),
   setRotationSnapIncrement: (increment) => set({ rotationSnapIncrement: increment }),
 
+  snapObjectToGround: (id: string) => set((state) => {
+    const obj = state.objects[id];
+    if (!obj || obj.locked || obj.type === 'imageTarget' || obj.type === 'hudCanvas') return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    const scaleY = obj.scale?.[1] ?? 1;
+    let targetY = 0;
+
+    if (obj.type === 'box') {
+      const h = obj.properties?.height ?? 1;
+      targetY = (h * scaleY) / 2;
+    } else if (obj.type === 'sphere') {
+      const r = obj.properties?.radius ?? 0.5;
+      targetY = r * scaleY;
+    } else if (obj.type === 'cylinder' || obj.type === 'cone') {
+      const h = obj.properties?.height ?? 1;
+      targetY = (h * scaleY) / 2;
+    } else if (obj.type === 'torus') {
+      const r = (obj.properties?.radius ?? 0.5) + (obj.properties?.tube ?? 0.1);
+      targetY = r * scaleY;
+    } else if (obj.type === 'plane' || obj.type === 'circle' || obj.type === 'image') {
+      targetY = 0.005; // Rest slightly above ground plane
+    } else {
+      targetY = 0;
+    }
+
+    const updatedObj: SceneObject = {
+      ...obj,
+      position: [obj.position[0], parseFloat(targetY.toFixed(4)), obj.position[2]]
+    };
+
+    DirtyNodeTracker.markDirty(id, 'transform');
+
+    return {
+      objects: {
+        ...state.objects,
+        [id]: updatedObj
+      },
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: `toast-${Date.now()}`, message: `Dropped "${obj.name}" flush to canvas surface` }]
+    };
+  }),
+
+  snapSelectedToGround: () => set((state) => {
+    const targetIds = state.selectedObjectIds.length > 0 
+      ? state.selectedObjectIds 
+      : (state.selectedObjectId ? [state.selectedObjectId] : []);
+
+    if (targetIds.length === 0) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    const updatedObjects = { ...state.objects };
+    let modifiedCount = 0;
+
+    targetIds.forEach(id => {
+      const obj = updatedObjects[id];
+      if (!obj || obj.locked || obj.type === 'imageTarget' || obj.type === 'hudCanvas') return;
+
+      const scaleY = obj.scale?.[1] ?? 1;
+      let targetY = 0;
+
+      if (obj.type === 'box') {
+        const h = obj.properties?.height ?? 1;
+        targetY = (h * scaleY) / 2;
+      } else if (obj.type === 'sphere') {
+        const r = obj.properties?.radius ?? 0.5;
+        targetY = r * scaleY;
+      } else if (obj.type === 'cylinder' || obj.type === 'cone') {
+        const h = obj.properties?.height ?? 1;
+        targetY = (h * scaleY) / 2;
+      } else if (obj.type === 'torus') {
+        const r = (obj.properties?.radius ?? 0.5) + (obj.properties?.tube ?? 0.1);
+        targetY = r * scaleY;
+      } else if (obj.type === 'plane' || obj.type === 'circle' || obj.type === 'image') {
+        targetY = 0.005;
+      } else {
+        targetY = 0;
+      }
+
+      updatedObjects[id] = {
+        ...obj,
+        position: [obj.position[0], parseFloat(targetY.toFixed(4)), obj.position[2]]
+      };
+      DirtyNodeTracker.markDirty(id, 'transform');
+      modifiedCount++;
+    });
+
+    if (modifiedCount === 0) return state;
+
+    return {
+      objects: updatedObjects,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: `toast-${Date.now()}`, message: `Snapped ${modifiedCount} object(s) flush to canvas surface` }]
+    };
+  }),
+
+  snapObjectToGrid: (id: string) => set((state) => {
+    const obj = state.objects[id];
+    if (!obj || obj.locked || obj.type === 'imageTarget' || obj.type === 'hudCanvas') return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    const inc = state.gridSnapIncrement || 0.1;
+    const rotInc = state.rotationSnapIncrement || 15;
+
+    const snapVal = (v: number) => Math.round(v / inc) * inc;
+    const snapRot = (r: number) => Math.round(r / rotInc) * rotInc;
+
+    const updatedObj: SceneObject = {
+      ...obj,
+      position: [
+        parseFloat(snapVal(obj.position[0]).toFixed(4)),
+        parseFloat(snapVal(obj.position[1]).toFixed(4)),
+        parseFloat(snapVal(obj.position[2]).toFixed(4))
+      ],
+      rotation: [
+        parseFloat(snapRot(obj.rotation[0]).toFixed(2)),
+        parseFloat(snapRot(obj.rotation[1]).toFixed(2)),
+        parseFloat(snapRot(obj.rotation[2]).toFixed(2))
+      ]
+    };
+
+    DirtyNodeTracker.markDirty(id, 'transform');
+
+    return {
+      objects: {
+        ...state.objects,
+        [id]: updatedObj
+      },
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: `toast-${Date.now()}`, message: `Snapped "${obj.name}" to grid (${inc}m)` }]
+    };
+  }),
+
+  snapSelectedToGrid: () => set((state) => {
+    const targetIds = state.selectedObjectIds.length > 0 
+      ? state.selectedObjectIds 
+      : (state.selectedObjectId ? [state.selectedObjectId] : []);
+
+    if (targetIds.length === 0) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    const inc = state.gridSnapIncrement || 0.1;
+    const rotInc = state.rotationSnapIncrement || 15;
+    const snapVal = (v: number) => Math.round(v / inc) * inc;
+    const snapRot = (r: number) => Math.round(r / rotInc) * rotInc;
+
+    const updatedObjects = { ...state.objects };
+    let modifiedCount = 0;
+
+    targetIds.forEach(id => {
+      const obj = updatedObjects[id];
+      if (!obj || obj.locked || obj.type === 'imageTarget' || obj.type === 'hudCanvas') return;
+
+      updatedObjects[id] = {
+        ...obj,
+        position: [
+          parseFloat(snapVal(obj.position[0]).toFixed(4)),
+          parseFloat(snapVal(obj.position[1]).toFixed(4)),
+          parseFloat(snapVal(obj.position[2]).toFixed(4))
+        ],
+        rotation: [
+          parseFloat(snapRot(obj.rotation[0]).toFixed(2)),
+          parseFloat(snapRot(obj.rotation[1]).toFixed(2)),
+          parseFloat(snapRot(obj.rotation[2]).toFixed(2))
+        ]
+      };
+      DirtyNodeTracker.markDirty(id, 'transform');
+      modifiedCount++;
+    });
+
+    if (modifiedCount === 0) return state;
+
+    return {
+      objects: updatedObjects,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: `toast-${Date.now()}`, message: `Snapped ${modifiedCount} object(s) to grid (${inc}m)` }]
+    };
+  }),
+
+  centerObjectOnTarget: (id: string) => set((state) => {
+    const obj = state.objects[id];
+    if (!obj || obj.locked || obj.type === 'imageTarget' || obj.type === 'hudCanvas') return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    const updatedObj: SceneObject = {
+      ...obj,
+      position: [0, obj.position[1], 0]
+    };
+
+    DirtyNodeTracker.markDirty(id, 'transform');
+
+    return {
+      objects: {
+        ...state.objects,
+        [id]: updatedObj
+      },
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: `toast-${Date.now()}`, message: `Centered "${obj.name}" on target canvas` }]
+    };
+  }),
+
+  centerSelectedOnTarget: () => set((state) => {
+    const targetIds = state.selectedObjectIds.length > 0 
+      ? state.selectedObjectIds 
+      : (state.selectedObjectId ? [state.selectedObjectId] : []);
+
+    if (targetIds.length === 0) return state;
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    const updatedObjects = { ...state.objects };
+    let modifiedCount = 0;
+
+    targetIds.forEach(id => {
+      const obj = updatedObjects[id];
+      if (!obj || obj.locked || obj.type === 'imageTarget' || obj.type === 'hudCanvas') return;
+
+      updatedObjects[id] = {
+        ...obj,
+        position: [0, obj.position[1], 0]
+      };
+      DirtyNodeTracker.markDirty(id, 'transform');
+      modifiedCount++;
+    });
+
+    if (modifiedCount === 0) return state;
+
+    return {
+      objects: updatedObjects,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      toasts: [...state.toasts, { id: `toast-${Date.now()}`, message: `Centered ${modifiedCount} object(s) on target` }]
+    };
+  }),
+
   setOverlayGridEnabled: (enabled) => set({ overlayGridEnabled: enabled }),
   setOverlayGridSize: (size) => set({ overlayGridSize: size }),
   setHudDebugGridEnabled: (enabled) => set({ hudDebugGridEnabled: enabled }),
@@ -4277,6 +4744,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setWireframeEnabled: (enabled) => set({ wireframeEnabled: enabled }),
   setCollisionDebuggerEnabled: (enabled) => set({ collisionDebuggerEnabled: enabled }),
   toggleEditorTheme: () => set((state) => ({ editorTheme: state.editorTheme === 'dark' ? 'light' : 'dark' })),
+  
+  setTargetDprScale: (scale) => set({ targetDprScale: scale }),
+  setShadowQualityPreset: (preset) => set({ shadowQualityPreset: preset }),
+  setUiDensityMode: (mode) => set({ uiDensityMode: mode }),
+  setDeviceSimulationPreset: (preset) => set({ deviceSimulationPreset: preset }),
+  setIsUIOptimizerOpen: (open) => set({ isUIOptimizerOpen: open }),
 
   createVersionSnapshot: (customName?: string) => set((state) => {
     const versionId = `ver_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;

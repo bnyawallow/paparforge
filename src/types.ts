@@ -140,7 +140,7 @@ export interface EventData {
 export interface SceneObject {
   id: string;
   name: string;
-  type: 'group' | 'empty' | 'box' | 'plane' | 'circle' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
+  type: 'group' | 'empty' | 'box' | 'plane' | 'circle' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'camera' | 'web3dScene' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
   position: Vector3Data;
   rotation: Vector3Data; // Euler angles in degrees
   scale: Vector3Data;
@@ -166,7 +166,7 @@ export interface Asset {
 export interface ProjectSettings {
   projectName: string;
   imageTargetName: string | null;
-  trackingMode?: 'image' | 'face';
+  trackingMode?: 'image' | 'face' | 'world' | 'none';
   targetMode?: 'single' | 'multi';
   faceAnchor?: 'head' | 'nose' | 'forehead' | 'chin' | 'leftEye' | 'rightEye' | 'mouth';
   showFaceMesh?: boolean;
@@ -260,6 +260,11 @@ export interface EditorState {
 
   assets: Asset[];
   isPreviewMode: boolean;
+  liveInteractionsInDesign: boolean;
+  setLiveInteractionsInDesign: (enabled: boolean) => void;
+  toggleLiveInteractionsInDesign: () => void;
+  isDraggableDragging: boolean;
+  setIsDraggableDragging: (dragging: boolean) => void;
   
   // Custom script & behavior state
   editingScriptObjectId: string | null;
@@ -288,6 +293,12 @@ export interface EditorState {
   setGridSnapIncrement: (increment: number) => void;
   setRotationSnapEnabled: (enabled: boolean) => void;
   setRotationSnapIncrement: (increment: number) => void;
+  snapSelectedToGround: () => void;
+  snapSelectedToGrid: () => void;
+  centerSelectedOnTarget: () => void;
+  snapObjectToGround: (id: string) => void;
+  snapObjectToGrid: (id: string) => void;
+  centerObjectOnTarget: (id: string) => void;
   
   isAssetBrowserOpen: boolean;
   assetBrowserTab?: string;
@@ -322,10 +333,22 @@ export interface EditorState {
   editorTheme: 'dark' | 'light';
   toggleEditorTheme: () => void;
   
+  // UI Optimizer & Device Viewport Resolution state
+  targetDprScale: number | 'auto';
+  setTargetDprScale: (scale: number | 'auto') => void;
+  shadowQualityPreset: 'off' | 'low' | 'med' | 'high' | 'ultra';
+  setShadowQualityPreset: (preset: 'off' | 'low' | 'med' | 'high' | 'ultra') => void;
+  uiDensityMode: 'compact' | 'balanced' | 'touch';
+  setUiDensityMode: (mode: 'compact' | 'balanced' | 'touch') => void;
+  deviceSimulationPreset: string | null;
+  setDeviceSimulationPreset: (preset: string | null) => void;
+  isUIOptimizerOpen: boolean;
+  setIsUIOptimizerOpen: (open: boolean) => void;
+  
   // Multiple Scenes state
   activeSceneId: string;
   scenes: Record<string, { id: string; name: string; objects: Record<string, SceneObject>; rootObjects: string[] }>;
-  createScene: (name: string, targetMode?: 'single' | 'multi') => void;
+  createScene: (name: string, targetMode?: 'single' | 'multi', physicalWidth?: number) => void;
   loadScene: (sceneId: string) => void;
   deleteScene: (sceneId: string) => void;
   renameScene: (sceneId: string, newName: string) => void;
@@ -383,6 +406,7 @@ export interface EditorState {
   removeAsset: (id: string) => void;
   updateAsset: (id: string, name: string) => void;
   setPreviewMode: (preview: boolean) => void;
+  previewSnapshotObjects?: Record<string, SceneObject> | null;
   
   // Script & behavior actions
   activeStateId: string | null;

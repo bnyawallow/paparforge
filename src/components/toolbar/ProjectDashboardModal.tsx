@@ -8,6 +8,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
 import { TemplateType } from '../../types';
 import { AnalyticsDashboardOverlay } from '../dashboard/AnalyticsDashboardOverlay';
+import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
 
 interface ProjectDashboardModalProps {
   onClose: () => void;
@@ -29,6 +30,7 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('empty');
   const [targetMode, setTargetMode] = useState<'single' | 'multi'>('single');
+  const [projectPhysicalWidth, setProjectPhysicalWidth] = useState<number>(0.127);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [analyticsProjectId, setAnalyticsProjectId] = useState<string | null>(null);
@@ -174,7 +176,10 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
       return;
     }
 
-    const createdId = createProject(newProjectName.trim(), selectedTemplate);
+    const createdId = createProject(newProjectName.trim(), selectedTemplate, undefined, {
+      targetMode,
+      physicalWidth: projectPhysicalWidth
+    });
     useEditorStore.getState().updateSettings({ targetMode });
     addToast(`Project "${newProjectName.trim()}" created in ${targetMode === 'multi' ? 'Multi-Target' : 'Single Marker'} mode!`);
     setNewProjectName('');
@@ -407,6 +412,24 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                     </p>
                   </button>
                 </div>
+              </div>
+
+              {/* Physical Print Media & Marker Preset */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#AAA] flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Layers size={13} className="text-blue-400" />
+                    Print Media & Marker Size
+                  </span>
+                  <span className="text-[10px] text-blue-400 font-mono font-bold">
+                    {(projectPhysicalWidth * 100).toFixed(1)} cm
+                  </span>
+                </label>
+                <PrintMediaPresetPicker 
+                  value={projectPhysicalWidth}
+                  onChange={setProjectPhysicalWidth}
+                  compact={true}
+                />
               </div>
 
               <button

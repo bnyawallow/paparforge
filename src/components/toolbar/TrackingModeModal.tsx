@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Image, Smile, Check, Info, Sliders, Layers, Sparkles, User, HelpCircle, Shield, Eye } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
+import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
 
 interface TrackingModeModalProps {
   onClose: () => void;
@@ -160,46 +161,16 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
               <span className="text-[10px] font-mono text-[#666]">Physical Scale Config</span>
             </div>
 
-            {/* Target Physical Width */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[#888] flex items-center gap-1.5">
+            {/* Target Physical Width & Print Media Presets */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-[#AAA] flex items-center gap-1.5">
                 <Layers size={12} className="text-purple-400" />
-                Image Target Physical Width (meters)
+                Image Target Physical Scale & Print Media Preset
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0.001"
-                  value={physicalWidth}
-                  onChange={(e) => setPhysicalWidth(e.target.value)}
-                  placeholder="0.10"
-                  className="w-full bg-[#141414] border border-[#2D2D2D] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors font-mono"
-                  required
-                />
-                <span className="bg-[#141414] border border-[#2D2D2D] rounded-lg px-3 py-2 text-xs text-[#666] flex items-center font-semibold">
-                  meters
-                </span>
-              </div>
-              
-              {/* Presets Grid */}
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
-                {[
-                  { label: 'Business Card', val: '0.09' },
-                  { label: 'QR Code', val: '0.05' },
-                  { label: 'A4 Poster', val: '0.21' },
-                  { label: 'Magazine', val: '0.22' },
-                ].map(preset => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => setPhysicalWidth(preset.val)}
-                    className="p-1.5 bg-[#222] hover:bg-[#2A2A2A] rounded border border-[#333] text-[10px] font-mono text-[#AAA] hover:text-white text-center transition-colors cursor-pointer"
-                  >
-                    {preset.label} ({preset.val}m)
-                  </button>
-                ))}
-              </div>
+              <PrintMediaPresetPicker 
+                value={parseFloat(physicalWidth) || 0.1}
+                onChange={(val) => setPhysicalWidth(val.toString())}
+              />
             </div>
           </div>
         ) : (

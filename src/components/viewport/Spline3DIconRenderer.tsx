@@ -1726,6 +1726,9 @@ function ProceduralIconShape({ iconType, color, secondaryColor, style }: { iconT
 
 export function Spline3DIconRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: (e: any) => void }) {
   const groupRef = useRef<THREE.Group>(null);
+  const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
+  const isInteractiveActive = isPreviewMode || liveInteractionsInDesign;
+  
   const iconType = obj.properties?.iconType || 'rocket';
   const color = obj.properties?.color || '#ef4444';
   const secondaryColor = obj.properties?.secondaryColor || '#ffffff';
@@ -1734,13 +1737,20 @@ export function Spline3DIconRenderer({ obj, isPreviewMode, onInteract }: { obj: 
   const rotationSpeed = obj.properties?.rotationSpeed ?? 0.5;
 
   useFrame((state, delta) => {
-    if (groupRef.current && (enableFloat || isPreviewMode)) {
+    if (!groupRef.current) return;
+    
+    if (isInteractiveActive) {
       const t = state.clock.getElapsedTime();
       if (enableFloat) {
         groupRef.current.position.y = Math.sin(t * 2) * 0.08;
       }
-      if (rotationSpeed > 0 && isPreviewMode) {
+      if (rotationSpeed > 0) {
         groupRef.current.rotation.y += delta * rotationSpeed;
+      }
+    } else {
+      // In design mode when live interaction is disabled, reset to default rest pose
+      if (groupRef.current.position.y !== 0) {
+        groupRef.current.position.y = 0;
       }
     }
   });

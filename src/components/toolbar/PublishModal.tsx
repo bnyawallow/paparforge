@@ -35,29 +35,45 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
   const stats = React.useMemo(() => {
     let scriptCount = 0;
     let behaviorCount = 0;
+    let inheritedBehaviorCount = 0;
     let buttonCount = 0;
     let mediaCount = 0;
-    let boxCount = 0;
+    let lightCount = 0;
+    let interactiveCount = 0;
 
-    Object.values(objects).forEach((obj) => {
-      if (obj.properties.scriptCode && (obj.properties.scriptEnabled ?? true)) {
+    Object.values(objects).forEach((obj: any) => {
+      if (obj.properties?.scriptCode && (obj.properties.scriptEnabled ?? true)) {
         scriptCount++;
       }
-      if (obj.properties.visualBehaviors && obj.properties.visualBehaviors.length > 0) {
-        behaviorCount += obj.properties.visualBehaviors.length;
+      if (obj.properties?.behavior) {
+        behaviorCount++;
+      } else if (obj.parentId && objects[obj.parentId]?.properties?.behavior) {
+        inheritedBehaviorCount++;
       }
       if (obj.type === 'button') {
         buttonCount++;
       }
-      if (obj.type === 'youtube' || obj.properties.soundUrl) {
+      if (obj.type === 'light') {
+        lightCount++;
+      }
+      if (obj.type === 'audio' || obj.type === 'youtube' || obj.properties?.soundUrl) {
         mediaCount++;
       }
-      if (obj.type === 'box') {
-        boxCount++;
+      if ((obj.events && obj.events.length > 0) || (obj.states && obj.states.length > 0) || obj.properties?.billboard) {
+        interactiveCount++;
       }
     });
 
-    return { scriptCount, behaviorCount, buttonCount, mediaCount, boxCount };
+    return { 
+      totalObjects: Object.keys(objects).length,
+      scriptCount, 
+      behaviorCount: behaviorCount + inheritedBehaviorCount,
+      inheritedBehaviorCount,
+      buttonCount, 
+      mediaCount, 
+      lightCount,
+      interactiveCount 
+    };
   }, [objects]);
 
   const htmlContent = generateAFrameScene(useEditorStore.getState());
@@ -80,37 +96,44 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadQR = async () => {
+    if (!publishedUrl) return;
+    try {
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&color=000000&bgcolor=ffffff&data=${encodeURIComponent(publishedUrl)}`;
+      const response = await fetch(qrApiUrl);
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `${projectSlug}-ar-qr.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      useEditorStore.getState().addToast('Downloaded high-res QR code image (.png)');
+    } catch {
+      useEditorStore.getState().addToast('Failed to download QR image');
+    }
+  };
+
   const handlePublish = async () => {
     if (publishStep !== 'idle' && publishStep !== 'success') return;
     
-    setPublishProgress(0);
+    setPublishProgress(25);
     setPublishStep('validating');
-    
-    // Smooth progress bar transitions representing backend deployment & asset compilation
-    const duration = 2800; // 2.8s total
-    const intervalTime = 40;
-    const steps = duration / intervalTime;
-    let currentStep = 0;
-
-    const timer = setInterval(() => {
-      currentStep++;
-      const percent = Math.min(Math.round((currentStep / steps) * 100), 99);
-      setPublishProgress(percent);
-
-      if (percent < 25) {
-        setPublishStep('validating');
-      } else if (percent < 55) {
-        setPublishStep('packaging');
-      } else if (percent < 80) {
-        setPublishStep('optimizing');
-      } else if (percent < 100) {
-        setPublishStep('deploying');
-      }
-    }, intervalTime);
 
     try {
-      const { SupabaseService } = await import('../../services/supabaseService');
+      // Step 1: Pre-publish validation of scene and objects
       const storeState = useEditorStore.getState();
+      const objCount = Object.keys(storeState.objects).length;
+      if (objCount === 0) {
+        useEditorStore.getState().addToast('Scene is empty. Add at least one object before publishing.');
+      }
+
+      setPublishProgress(50);
+      setPublishStep('packaging');
+
+      const { SupabaseService } = await import('../../services/supabaseService');
       const projName = storeState.settings.projectName || 'AR Experience';
       const projectId = storeState.settings.publishedProjectId || Math.random().toString(36).substring(2, 8);
       
@@ -126,8 +149,11 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         activeSceneId: storeState.activeSceneId
       };
 
-      // Generate the full HTML for standalone
-      const htmlContent = generateAFrameScene({
+      setPublishProgress(75);
+      setPublishStep('optimizing');
+
+      // Generate the full HTML for standalone with comprehensive object properties & inheritance
+      const compiledHtml = generateAFrameScene({
         ...storeState,
         settings: {
           ...storeState.settings,
@@ -135,15 +161,17 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
         }
       });
 
-      // Delegate database persistence and deployment path selection to the unified service layer
+      setPublishProgress(90);
+      setPublishStep('deploying');
+
+      // Delegate persistence and deployment to the unified service layer
       const result = await SupabaseService.publishProject(
         projectId,
         projName,
         projectData,
-        htmlContent
+        compiledHtml
       );
 
-      clearInterval(timer);
       setPublishProgress(100);
       setPublishStep('success');
       
@@ -158,13 +186,14 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
       
       const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(result.url)}`;
       setQrCodeUrl(qr);
+      useEditorStore.getState().addToast('Experience published live with all object properties!');
     } catch (err) {
-      clearInterval(timer);
       console.error('Publishing failed:', err);
-      // Optional: Handle error state in UI
       setPublishStep('success'); // Fallback to serverless demo
       const url = `${window.location.origin}/papar/local-demo-only`;
       setPublishedUrl(url);
+      const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
+      setQrCodeUrl(qr);
     }
   };
 
@@ -337,7 +366,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                       </span>
                     </div>
 
-                    {/* Event Behaviors Audit */}
+                    {/* Event Behaviors & Parent Inheritance Audit */}
                     <div className="flex items-center justify-between p-2.5 bg-[#0F0F0F] rounded-lg border border-[#1C1C1C]">
                       <div className="flex items-center gap-2.5">
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] ${
@@ -348,8 +377,12 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                           {stats.behaviorCount > 0 ? '✓' : '•'}
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-white">Spatial Event Behaviors</p>
-                          <p className="text-[9px] text-gray-500">Triggers onStart, onTap, and user camera proximity events</p>
+                          <p className="text-xs font-semibold text-white">Live Behaviors & Parent Inheritance</p>
+                          <p className="text-[9px] text-gray-500">
+                            {stats.inheritedBehaviorCount > 0 
+                              ? `${stats.inheritedBehaviorCount} entities inheriting parent live motion`
+                              : 'Autonomous loops, spin, bounce, and parent motion inheritance'}
+                          </p>
                         </div>
                       </div>
                       <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border ${
@@ -357,7 +390,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                           ? 'bg-purple-900/40 text-purple-400 border-purple-800/30' 
                           : 'bg-gray-900/30 text-gray-500 border-gray-800/20'
                       }`}>
-                        {stats.behaviorCount > 0 ? `${stats.behaviorCount} Rules` : 'None'}
+                        {stats.behaviorCount > 0 ? `${stats.behaviorCount} Active` : 'None'}
                       </span>
                     </div>
 
@@ -461,7 +494,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                     </div>
 
                     {/* Real QR Code container */}
-                    <div className="bg-white p-2.5 rounded-lg w-36 h-36 mx-auto border border-[#E0E0E0] shadow-md flex items-center justify-center">
+                    <div className="bg-white p-2.5 rounded-lg w-36 h-36 mx-auto border border-[#E0E0E0] shadow-md flex items-center justify-center relative group">
                       {qrCodeUrl ? (
                         <img 
                           src={qrCodeUrl} 
@@ -474,9 +507,17 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                       )}
                     </div>
 
+                    <button
+                      onClick={handleDownloadQR}
+                      className="text-[10px] text-gray-400 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer py-1"
+                    >
+                      <Download size={11} />
+                      <span>Download QR Code (.PNG)</span>
+                    </button>
+
                     {/* Live URL Link Block */}
                     <div className="bg-[#0E0E0E] border border-[#222] rounded-lg p-2.5 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-blue-400 truncate pr-3 max-w-[170px]" title={publishedUrl}>{publishedUrl}</span>
+                      <span className="text-blue-400 truncate pr-3 max-w-[160px]" title={publishedUrl}>{publishedUrl}</span>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button 
                           onClick={() => {
@@ -493,7 +534,7 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                           href={publishedUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="p-1 hover:bg-[#1A1A1A] rounded text-gray-400 hover:text-white transition-colors"
+                          className="p-1 hover:bg-[#1A1A1A] rounded text-gray-400 hover:text-white transition-colors flex items-center gap-1"
                           title="Launch AR"
                         >
                           <ExternalLink size={12} />
@@ -501,13 +542,24 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
 
-                    <button
-                      onClick={handlePublish}
-                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold font-mono text-white uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Sparkles size={12} />
-                      Republish Project Updates
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={publishedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider transition-all text-center flex items-center justify-center gap-1.5"
+                      >
+                        <ExternalLink size={11} />
+                        Open Live AR
+                      </a>
+                      <button
+                        onClick={handlePublish}
+                        className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold font-mono text-white uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles size={11} />
+                        Sync / Republish
+                      </button>
+                    </div>
                   </div>
                 )}
 

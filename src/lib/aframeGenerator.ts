@@ -146,14 +146,26 @@ export const generateAFrameScene = (state: any) => {
 
       const indent = '  '.repeat(depth + 3);
       
+      // Check parent inheritance for live behaviors
+      const parentObj = obj.parentId ? objects[obj.parentId] : null;
+      const effectiveBehavior = obj.properties.behavior || (parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : '');
+      const effectiveSpeed = typeof obj.properties.behaviorSpeed === 'number' 
+        ? obj.properties.behaviorSpeed 
+        : (parentObj && typeof parentObj.properties?.behaviorSpeed === 'number' ? parentObj.properties.behaviorSpeed : 1.0);
+      const effectiveIntensity = typeof obj.properties.behaviorIntensity === 'number' 
+        ? obj.properties.behaviorIntensity 
+        : (parentObj && typeof parentObj.properties?.behaviorIntensity === 'number' ? parentObj.properties.behaviorIntensity : 1.0);
+      const effectiveSpinAxis = obj.properties.spinAxis || (parentObj ? parentObj.properties?.spinAxis : 'z') || 'z';
+
       // Inject standard click handlers, custom script hooks, and visual event components
       let customComponents = '';
       let isClickable = false;
       
-      if (obj.properties.soundUrl) {
-        audioAssetUrls.add(obj.properties.soundUrl);
-        // Safe string escaping
-        const escapedUrl = obj.properties.soundUrl.replace(/"/g, '&quot;');
+      const isSoundInteraction = effectiveBehavior === 'play-sound' || effectiveBehavior === 'click-sound';
+      if (isSoundInteraction || obj.properties.soundUrl) {
+        const soundSrc = obj.properties.interactionSoundUrl || obj.properties.soundUrl || '/sounds/ui/click_soft.wav';
+        audioAssetUrls.add(soundSrc);
+        const escapedUrl = soundSrc.replace(/"/g, '&quot;');
         customComponents += ` sound-on-click data-sound-url="${escapedUrl}"`;
         isClickable = true;
       }
@@ -184,17 +196,16 @@ export const generateAFrameScene = (state: any) => {
         isClickable = true;
       }
 
-      if (obj.properties.behavior || obj.properties.billboard || obj.properties.lookAtCamera) {
-        if (obj.properties.behavior === 'draggable') {
+      if (effectiveBehavior || obj.properties.billboard || obj.properties.lookAtCamera) {
+        if (effectiveBehavior === 'draggable') {
             customComponents += ' draggable-object ';
             if (obj.properties.billboard || obj.properties.lookAtCamera) {
                 customComponents += ` live-behavior="billboard: true"`;
             }
             isClickable = true;
         } else {
-            const spinAxis = obj.properties.spinAxis || 'z';
             const isBb = !!(obj.properties.billboard || obj.properties.lookAtCamera);
-            customComponents += ` live-behavior="rule: ${obj.properties.behavior || ''}; spinAxis: ${spinAxis}; billboard: ${isBb}"`;
+            customComponents += ` live-behavior="rule: ${effectiveBehavior}; spinAxis: ${effectiveSpinAxis}; speed: ${effectiveSpeed}; intensity: ${effectiveIntensity}; billboard: ${isBb}"`;
         }
       }
 
@@ -767,6 +778,9 @@ export const generateAFrameScene = (state: any) => {
       if (obj.properties?.soundUrl) {
         soundUrls.add(obj.properties.soundUrl);
       }
+      if (obj.properties?.interactionSoundUrl) {
+        soundUrls.add(obj.properties.interactionSoundUrl);
+      }
       if (obj.properties?.visualBehaviors) {
         obj.properties.visualBehaviors.forEach((b: any) => {
           if (b.action === 'playSound' && (b.soundPreset || b.url)) {
@@ -939,38 +953,80 @@ ${audioPreloadScript}
           this.el.sceneEl.addEventListener('mouseup', this.onMouseUp);
           this.el.sceneEl.addEventListener('mousemove', this.onMouseMove);
 
-          this.el.addEventListener('touchstart', (e) => this.onMouseDown(e.touches[0]));
+          this.el.addEventListener('touchstart', (e) => {
+            if (e.touches && e.touches[0]) this.onMouseDown(e.touches[0]);
+          });
           this.el.sceneEl.addEventListener('touchend', this.onMouseUp);
-          this.el.sceneEl.addEventListener('touchmove', (e) => this.onMouseMove(e.touches[0]));
+          this.el.sceneEl.addEventListener('touchmove', (e) => {
+            if (e.touches && e.touches[0]) this.onMouseMove(e.touches[0]);
+          });
           
           this.plane = new THREE.Plane();
-          this.pNormal = new THREE.Vector3(0, 0, 1); // Z-facing plane
-          this.shift = new THREE.Vector3();
+          this.pNormal = new THREE.Vector3();
+          this.offset = new THREE.Vector3();
           this.intersection = new THREE.Vector3();
-          this.dragStart = new THREE.Vector3();
         },
         onMouseDown: function (evt) {
+          if (!this.camera) this.camera = document.querySelector('a-camera') || document.querySelector('[camera]');
+          if (!this.camera || !this.camera.object3D) return;
           this.isDragging = true;
-          // Calculate intersection plane
-          const camPos = this.camera.object3D.position;
-          this.pNormal.copy(camPos).sub(this.el.object3D.position).normalize();
-          this.plane.setFromNormalAndCoplanarPoint(this.pNormal, this.el.object3D.position);
-          this.dragStart.copy(this.el.object3D.position);
+          
+          const worldPos = new THREE.Vector3();
+          this.el.object3D.getWorldPosition(worldPos);
+
+          const camPos = new THREE.Vector3();
+          this.camera.object3D.getWorldPosition(camPos);
+
+          this.pNormal.copy(camPos).sub(worldPos).normalize();
+          this.plane.setFromNormalAndCoplanarPoint(this.pNormal, worldPos);
+
+          const sceneEl = this.el.sceneEl;
+          const canvas = sceneEl.canvas;
+          if (canvas) {
+            const clientX = evt.clientX !== undefined ? evt.clientX : (evt.pageX || 0);
+            const clientY = evt.clientY !== undefined ? evt.clientY : (evt.pageY || 0);
+            const rect = canvas.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+              ((clientX - rect.left) / rect.width) * 2 - 1,
+              -((clientY - rect.top) / rect.height) * 2 + 1
+            );
+            const cameraThree = this.camera.getObject3D('camera');
+            if (cameraThree) {
+              const raycaster = new THREE.Raycaster();
+              raycaster.setFromCamera(mouse, cameraThree);
+              if (raycaster.ray.intersectPlane(this.plane, this.intersection)) {
+                this.offset.subVectors(worldPos, this.intersection);
+              }
+            }
+          }
         },
         onMouseUp: function (evt) {
           this.isDragging = false;
         },
         onMouseMove: function (evt) {
           if (!this.isDragging || !this.camera) return;
-          const raycaster = this.el.sceneEl.components.raycaster;
-          if (!raycaster) return;
-          
-          const rawIntersections = raycaster.raycaster.intersectObject(this.el.sceneEl.object3D, true);
-          if (rawIntersections.length > 0) {
-             // Basic screen-space dragging implementation:
-             // Because AR/VR introduces complex coordinate spaces, we move the object relative to its parent
-             // based on mouse movement deltas in world space.
-             // (Simplified for this use-case)
+          const sceneEl = this.el.sceneEl;
+          const canvas = sceneEl.canvas;
+          if (!canvas) return;
+
+          const clientX = evt.clientX !== undefined ? evt.clientX : (evt.pageX || 0);
+          const clientY = evt.clientY !== undefined ? evt.clientY : (evt.pageY || 0);
+          const rect = canvas.getBoundingClientRect();
+          const mouse = new THREE.Vector2(
+            ((clientX - rect.left) / rect.width) * 2 - 1,
+            -((clientY - rect.top) / rect.height) * 2 + 1
+          );
+          const cameraThree = this.camera.getObject3D('camera');
+          if (!cameraThree) return;
+
+          const raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(mouse, cameraThree);
+          if (raycaster.ray.intersectPlane(this.plane, this.intersection)) {
+            const targetPos = this.intersection.clone().add(this.offset);
+            if (this.el.object3D.parent) {
+              this.el.object3D.parent.worldToLocal(targetPos);
+            }
+            this.el.object3D.position.copy(targetPos);
           }
         },
         remove: function() {
@@ -1024,6 +1080,8 @@ ${audioPreloadScript}
         schema: {
           rule: {type: 'string', default: ''},
           spinAxis: {type: 'string', default: 'z'},
+          speed: {type: 'number', default: 1.0},
+          intensity: {type: 'number', default: 1.0},
           billboard: {type: 'boolean', default: false}
         },
         init: function() {
@@ -1042,39 +1100,41 @@ ${audioPreloadScript}
         tick: function(time, timeDelta) {
           const rule = this.data.rule;
           const spinAxis = this.data.spinAxis;
-          if (!rule) return;
-          this.time += timeDelta / 1000;
+          const speed = this.data.speed || 1.0;
+          const intensity = this.data.intensity || 1.0;
+          if (!rule && !this.data.billboard) return;
+          this.time += (timeDelta / 1000) * speed;
           const t = this.time;
           
           this.el.object3D.position.set(this.initialX, this.initialY, this.initialZ);
           this.el.object3D.rotation.set(this.initialRotX, this.initialRotY, this.initialRotZ);
           this.el.object3D.scale.set(this.initialScaleX, this.initialScaleY, this.initialScaleZ);
 
-          if (rule === 'hover') {
-            this.el.object3D.position.z = this.initialZ + Math.sin(t * 3) * 0.2;
+          if (rule === 'hover' || rule === 'float') {
+            this.el.object3D.position.z = this.initialZ + Math.sin(t * 3) * 0.2 * intensity;
           } else if (rule === 'bounce') {
-            this.el.object3D.position.z = this.initialZ + Math.abs(Math.sin(t * 4)) * 0.5;
+            this.el.object3D.position.z = this.initialZ + Math.abs(Math.sin(t * 4)) * 0.5 * intensity;
           } else if (rule === 'shake') {
-            this.el.object3D.position.x = this.initialX + (Math.random() - 0.5) * 0.1;
-            this.el.object3D.position.y = this.initialY + (Math.random() - 0.5) * 0.1;
+            this.el.object3D.position.x = this.initialX + (Math.random() - 0.5) * 0.1 * intensity;
+            this.el.object3D.position.y = this.initialY + (Math.random() - 0.5) * 0.1 * intensity;
           } else if (rule === 'orbit') {
-            const radius = 2;
+            const radius = 2 * intensity;
             this.el.object3D.position.x = this.initialX + Math.cos(t) * radius;
             this.el.object3D.position.y = this.initialY + Math.sin(t) * radius;
           }
 
           if (rule === 'spin') {
-            if (spinAxis === 'x') this.el.object3D.rotation.x += t * 1.5;
-            else if (spinAxis === 'y') this.el.object3D.rotation.y += t * 1.5;
-            else this.el.object3D.rotation.z += t * 1.5;
+            if (spinAxis === 'x') this.el.object3D.rotation.x = this.initialRotX + t * 2.0;
+            else if (spinAxis === 'y') this.el.object3D.rotation.y = this.initialRotY + t * 2.0;
+            else this.el.object3D.rotation.z = this.initialRotZ + t * 2.0;
           } else if (rule === 'spin-fast') {
-            if (spinAxis === 'x') this.el.object3D.rotation.x += t * 6.0;
-            else if (spinAxis === 'y') this.el.object3D.rotation.y += t * 6.0;
-            else this.el.object3D.rotation.z += t * 6.0;
+            if (spinAxis === 'x') this.el.object3D.rotation.x = this.initialRotX + t * 6.0;
+            else if (spinAxis === 'y') this.el.object3D.rotation.y = this.initialRotY + t * 6.0;
+            else this.el.object3D.rotation.z = this.initialRotZ + t * 6.0;
           } else if (rule === 'pendulum') {
-            if (spinAxis === 'x') this.el.object3D.rotation.x += Math.sin(t * 2) * 0.5;
-            else if (spinAxis === 'y') this.el.object3D.rotation.y += Math.sin(t * 2) * 0.5;
-            else this.el.object3D.rotation.z += Math.sin(t * 2) * 0.5;
+            if (spinAxis === 'x') this.el.object3D.rotation.x = this.initialRotX + Math.sin(t * 2) * 0.5 * intensity;
+            else if (spinAxis === 'y') this.el.object3D.rotation.y = this.initialRotY + Math.sin(t * 2) * 0.5 * intensity;
+            else this.el.object3D.rotation.z = this.initialRotZ + Math.sin(t * 2) * 0.5 * intensity;
           } else if (rule === 'look-at-camera' || this.data.billboard) {
             const camera = this.el.sceneEl.camera;
             if (camera) {
@@ -1083,13 +1143,13 @@ ${audioPreloadScript}
           }
 
           if (rule === 'pulse') {
-            const scaleVal = 1 + Math.sin(t * 4.5) * 0.08;
+            const scaleVal = 1 + Math.sin(t * 4.5) * 0.08 * intensity;
             this.el.object3D.scale.set(this.initialScaleX * scaleVal, this.initialScaleY * scaleVal, this.initialScaleZ * scaleVal);
           } else if (rule === 'scale-up') {
-            const scaleVal = Math.min(1 + t * 0.5, 2.0);
+            const scaleVal = Math.min(1 + t * 0.5 * intensity, 2.0);
             this.el.object3D.scale.set(this.initialScaleX * scaleVal, this.initialScaleY * scaleVal, this.initialScaleZ * scaleVal);
           } else if (rule === 'scale-down') {
-            const scaleVal = Math.max(1 - t * 0.2, 0.1);
+            const scaleVal = Math.max(1 - t * 0.2 * intensity, 0.1);
             this.el.object3D.scale.set(this.initialScaleX * scaleVal, this.initialScaleY * scaleVal, this.initialScaleZ * scaleVal);
           }
 

@@ -28,6 +28,10 @@ export interface PrimitiveTemplate {
     wireframe?: boolean;
     radius?: number;
     segments?: number;
+    behavior?: string;
+    spinAxis?: 'x' | 'y' | 'z';
+    behaviorSpeed?: number;
+    behaviorIntensity?: number;
   };
   previewColor: string;
   previewGradient?: string;
@@ -124,11 +128,14 @@ export const PRIMITIVE_TEMPLATES: PrimitiveTemplate[] = [
     name: 'Standard Torus Ring',
     category: 'Basic Geometry',
     type: 'torus',
-    description: 'Circular donut ring torus geometry',
+    description: 'Circular donut ring torus geometry with gentle float behavior',
     properties: {
       color: '#8b5cf6',
       roughness: 0.25,
       metalness: 0.4,
+      behavior: 'hover',
+      behaviorSpeed: 1.0,
+      behaviorIntensity: 1.0,
     },
     previewColor: '#8b5cf6',
     previewGradient: 'radial-gradient(circle, #a78bfa 0%, #7c3aed 100%)',
@@ -179,12 +186,16 @@ export const PRIMITIVE_TEMPLATES: PrimitiveTemplate[] = [
     name: 'Torus Knot Polyhedron',
     category: 'Basic Geometry',
     type: 'knot',
-    description: 'Complex intertwined 3D torus knot mathematical geometry',
+    description: 'Complex intertwined 3D torus knot mathematical geometry with continuous spin',
     properties: {
       color: '#ec4899',
       roughness: 0.2,
       metalness: 0.8,
       clearcoat: 0.6,
+      behavior: 'spin',
+      spinAxis: 'y',
+      behaviorSpeed: 1.0,
+      behaviorIntensity: 1.0,
     },
     previewColor: '#ec4899',
     previewGradient: 'linear-gradient(135deg, #f472b6, #9333ea)',
@@ -197,12 +208,15 @@ export const PRIMITIVE_TEMPLATES: PrimitiveTemplate[] = [
     name: 'Icosahedron Gem',
     category: 'Basic Geometry',
     type: 'icosahedron',
-    description: '20-faced equilateral triangular polyhedron geometric mesh',
+    description: '20-faced equilateral triangular polyhedron geometric mesh with pulse motion',
     properties: {
       color: '#14b8a6',
       roughness: 0.15,
       metalness: 0.7,
       clearcoat: 0.8,
+      behavior: 'pulse',
+      behaviorSpeed: 1.2,
+      behaviorIntensity: 1.0,
     },
     previewColor: '#14b8a6',
     previewGradient: 'radial-gradient(circle, #5eead4, #0f766e)',
@@ -270,6 +284,10 @@ export const PRIMITIVE_TEMPLATES: PrimitiveTemplate[] = [
       doubleSided: true,
       radius: 0.6,
       segments: 64,
+      behavior: 'spin',
+      spinAxis: 'z',
+      behaviorSpeed: 1.0,
+      behaviorIntensity: 1.0,
     },
     previewColor: '#06b6d4',
     previewGradient: 'radial-gradient(circle, #67e8f9 0%, #06b6d4 50%, #7c3aed 100%)',

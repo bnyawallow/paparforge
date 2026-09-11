@@ -35,20 +35,21 @@ export const PublicationModal: React.FC<PublicationModalProps> = ({ isOpen, onCl
   style="border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);"
 ></iframe>`;
 
-  const splineViewerCode = `<!-- Spline 3D Web Component Embed -->
-<script type="module" src="https://unpkg.com/@splinetool/viewer@1.9.72/build/spline-viewer.js"></script>
-<spline-viewer 
-  url="${currentUrl}"
+  const splineViewerCode = `<!-- 3D Web Component Embed -->
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+<model-viewer 
+  src="${currentUrl}"
   ${autoRotate ? 'auto-rotate' : ''}
-  ${transparentBg ? 'background="transparent"' : ''}
-  loading-anim
-></spline-viewer>`;
+  camera-controls
+  touch-action="pan-y"
+  shadow-intensity="1"
+></model-viewer>`;
 
   const r3fCodeSnippet = `import React from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows } from '@react-three/drei';
 
-export default function Spline3DScene() {
+export default function Scene3DView() {
   return (
     <div style={{ width: '100vw', height: '100vh', background: '${transparentBg ? 'transparent' : '#0d0d11'}' }}>
       <Canvas
@@ -59,7 +60,7 @@ export default function Spline3DScene() {
         <directionalLight position={[5, 5, 5]} intensity={1.2} castShadow />
         <Environment preset="city" />
         
-        {/* Rendered Spline Objects Count: ${Object.keys(objects).length} */}
+        {/* Rendered 3D Objects Count: ${Object.keys(objects).length} */}
         {/* Injected 3D Scene Components */}
         
         ${enableShadows ? '<ContactShadows position={[0, 0, -0.5]} opacity={0.4} scale={10} blur={2} />' : ''}
@@ -67,7 +68,7 @@ export default function Spline3DScene() {
       </Canvas>
     </div>
   );
-}`;
+};`;
 
   const handleCopy = (text: string, fieldId: string) => {
     navigator.clipboard.writeText(text);
@@ -77,7 +78,7 @@ export default function Spline3DScene() {
 
   const handleExportGLTF = () => {
     if (!sceneRef) {
-      alert("Scene object not ready. Please interact with the viewport first.");
+      useEditorStore.getState().addToast("Scene object not ready. Please interact with the viewport first.");
       return;
     }
 
@@ -97,7 +98,7 @@ export default function Spline3DScene() {
         (gltf) => {
           setIsExportingGLTF(false);
           let blob: Blob;
-          let filename = `spline_scene_${currentProjectId || 'export'}.${exportFormat}`;
+          let filename = `scene_3d_${currentProjectId || 'export'}.${exportFormat}`;
 
           if (gltf instanceof ArrayBuffer) {
             blob = new Blob([gltf], { type: 'application/octet-stream' });
@@ -111,17 +112,18 @@ export default function Spline3DScene() {
           link.download = filename;
           link.click();
           URL.revokeObjectURL(link.href);
+          useEditorStore.getState().addToast(`Exported ${filename} successfully`);
         },
-        (error) => {
+        (error: any) => {
           setIsExportingGLTF(false);
           console.error("GLTF Export Error:", error);
-          alert("Export failed: " + error.message);
+          useEditorStore.getState().addToast("Export failed: " + (error?.message || 'Unknown error'));
         },
         options
       );
     } catch (err: any) {
       setIsExportingGLTF(false);
-      alert("Export initialization error: " + err.message);
+      useEditorStore.getState().addToast("Export initialization error: " + (err?.message || 'Unknown error'));
     }
   };
 
@@ -136,7 +138,7 @@ export default function Spline3DScene() {
             </div>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                Spline 3D Publish & Export Hub
+                3D Scene Publish & Export Hub
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30">
                   v3.0 Live
                 </span>

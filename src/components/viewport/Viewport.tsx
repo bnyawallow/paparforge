@@ -38,6 +38,7 @@ import {
   Layers,
   Compass,
   Globe,
+  Gauge,
   Zap,
   Info,
   HelpCircle,
@@ -1218,11 +1219,12 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   }, [clonedScene, properties.subObjectOverrides]);
 
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
   const animationPlaying = properties.animationPlaying !== false;
   const actualAnimationPlaying = isPreviewMode
     ? (properties.autoplayAnimation !== false && animationPlaying)
-    : animationPlaying;
+    : (liveInteractionsInDesign && animationPlaying);
   const animationSpeed = properties.animationSpeed ?? 1.0;
   const loopAnimation = properties.loopAnimation !== false;
 
@@ -2371,14 +2373,151 @@ function LightNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
 
       {/* Embedded functional light node */}
       {lightType === 'directional' && (
-        <directionalLight color={color} intensity={intensity} />
+        <directionalLight color={color} intensity={intensity} castShadow={properties.castShadow ?? true} />
       )}
       {lightType === 'point' && (
-        <pointLight color={color} intensity={intensity} distance={distance} decay={decay} />
+        <pointLight color={color} intensity={intensity} distance={distance} decay={decay} castShadow={properties.castShadow ?? true} />
       )}
       {lightType === 'spot' && (
-        <spotLight color={color} intensity={intensity} distance={distance} angle={angle} decay={decay} />
+        <spotLight color={color} intensity={intensity} distance={distance} angle={angle} decay={decay} castShadow={properties.castShadow ?? true} />
       )}
+    </group>
+  );
+}
+
+// Physical 3D camera node representation
+function CameraNodeRenderer({ obj, isPreviewMode }: { obj: SceneObject; isPreviewMode: boolean }) {
+  const wireframe = useEditorStore(state => state.wireframeEnabled) || false;
+  const isActive = obj.properties?.active ?? true;
+  const fov = obj.properties?.fov || 60;
+  const color = isActive ? "#3b82f6" : "#888888";
+
+  return (
+    <group>
+      {!isPreviewMode && (
+        <group>
+          {/* Camera Main Body Box */}
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.3, 0.22, 0.35]} />
+            <meshStandardMaterial color={color} metalness={0.4} roughness={0.3} wireframe={wireframe} />
+          </mesh>
+          {/* Camera Lens Cylinder */}
+          <mesh position={[0, 0, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.09, 0.09, 0.15, 16]} />
+            <meshStandardMaterial color="#111111" metalness={0.8} roughness={0.2} wireframe={wireframe} />
+          </mesh>
+          {/* Camera Top Reel */}
+          <mesh position={[0, 0.14, 0]}>
+            <boxGeometry args={[0.12, 0.06, 0.15]} />
+            <meshStandardMaterial color="#222222" wireframe={wireframe} />
+          </mesh>
+          {/* Frustum Wireframe Pyramid */}
+          <mesh position={[0, 0, -0.5]} rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.35 * (fov / 60), 0.5, 4]} />
+            <meshBasicMaterial color={color} wireframe opacity={0.4} transparent />
+          </mesh>
+          {/* Active Badge Label */}
+          <Html position={[0, 0.28, 0]} center distanceFactor={8} zIndexRange={[100, 0]}>
+            <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase font-mono shadow-md border ${
+              isActive 
+                ? 'bg-blue-600 border-blue-400 text-white' 
+                : 'bg-gray-800/80 border-gray-600 text-gray-300'
+            }`}>
+              {isActive ? '🎥 Active Cam' : '📷 Camera'}
+            </div>
+          </Html>
+        </group>
+      )}
+    </group>
+  );
+}
+
+// External Web 3D Scene / URL Embed renderer
+function Web3DSceneRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObject; isPreviewMode: boolean; onInteract?: (e: any) => void }) {
+  const properties = obj.properties || {};
+  const url = properties.url || 'https://threejs.org/examples/webgl_geometry_shapes.html';
+  const width = properties.width || 1.6;
+  const height = properties.height || 0.9;
+  const isInteractive = properties.interactive ?? true;
+  const title = properties.title || 'External Web 3D Scene';
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const handleOpenNewTab = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {}
+  };
+
+  return (
+    <group onClick={onInteract}>
+      {/* 3D Glass Screen Frame */}
+      <mesh position={[0, 0, -0.01]}>
+        <planeGeometry args={[width + 0.1, height + 0.18]} />
+        <meshStandardMaterial color="#111116" roughness={0.2} metalness={0.8} />
+      </mesh>
+
+      {/* Interactive HTML WebGL Embed Frame */}
+      <Html
+        transform
+        distanceFactor={1.4}
+        position={[0, -0.02, 0.01]}
+        style={{
+          width: `${width * 380}px`,
+          height: `${height * 380}px`,
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+          background: '#09090b',
+          border: '1px solid rgba(255,255,255,0.12)',
+          pointerEvents: isInteractive ? 'auto' : 'none'
+        }}
+      >
+        <div className="w-full h-full flex flex-col bg-[#0d0d11] text-white font-sans select-none overflow-hidden">
+          {/* Header Control Bar */}
+          <div className="px-3 py-1.5 bg-[#14141a] border-b border-[#252530] flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Globe size={13} className="text-blue-400 shrink-0" />
+              <span className="text-[11px] font-bold text-gray-200 truncate">{title}</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-mono font-bold shrink-0">
+                Web 3D
+              </span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setReloadKey(k => k + 1);
+                }}
+                className="p-1 hover:bg-[#252532] rounded text-gray-400 hover:text-white transition-colors cursor-pointer"
+                title="Reload Embed"
+              >
+                <RotateCcw size={12} />
+              </button>
+              <button
+                onClick={handleOpenNewTab}
+                className="p-1 hover:bg-[#252532] rounded text-gray-400 hover:text-white transition-colors cursor-pointer"
+                title="Open in New Tab"
+              >
+                <ExternalLink size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* Web 3D Iframe Canvas View */}
+          <div className="flex-1 relative bg-black">
+            <iframe
+              key={reloadKey}
+              src={url}
+              title={title}
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; xr-spatial-tracking"
+              allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            />
+          </div>
+        </div>
+      </Html>
     </group>
   );
 }
@@ -2495,27 +2634,29 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
 
   return (
     <group>
-      <mesh>
-        {renderColliderGeom()}
-        <meshBasicMaterial 
-          color={wireframeColor} 
-          wireframe 
-          transparent 
-          opacity={0.8} 
-          depthTest={false} 
-        />
-      </mesh>
-      
-      <mesh>
-        {renderColliderGeom()}
-        <meshBasicMaterial 
-          color={wireframeColor} 
-          transparent 
-          opacity={0.12} 
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      <PivotNormalizer enabled={obj.type !== 'empty' && obj.type !== 'light' && obj.type !== 'audio' && obj.type !== 'imageTarget'}>
+        <mesh>
+          {renderColliderGeom()}
+          <meshBasicMaterial 
+            color={wireframeColor} 
+            wireframe 
+            transparent 
+            opacity={0.8} 
+            depthTest={false} 
+          />
+        </mesh>
+        
+        <mesh>
+          {renderColliderGeom()}
+          <meshBasicMaterial 
+            color={wireframeColor} 
+            transparent 
+            opacity={0.12} 
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </PivotNormalizer>
       
       <Html distanceFactor={4} position={[0, 0.7, 0]} center>
         <div className="bg-black/85 border border-[#333] text-[9px] text-white px-2 py-0.5 rounded font-mono flex items-center gap-1.5 whitespace-nowrap shadow-xl">
@@ -2621,14 +2762,80 @@ function PivotNormalizer({ children, enabled = true }: { children: React.ReactNo
 function ObjectRenderer({ id }: { id: string }) {
   const obj = useEditorStore(state => state.objects[id]);
   if (!obj) return null;
-  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
-  const selectedObjectId = useEditorStore(state => state.selectedObjectId);
+  // Granular boolean selector: only re-renders when this specific object's selection state changes
+  const isSelected = useEditorStore(state => state.selectedObjectId === id || (state.selectedObjectIds && state.selectedObjectIds.includes(id)));
   const selectObject = useEditorStore(state => state.selectObject);
+  const updateObject = useEditorStore(state => state.updateObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
+  const isInteractiveActive = isPreviewMode || liveInteractionsInDesign;
   const collisionDebuggerEnabled = useEditorStore(state => state.collisionDebuggerEnabled);
   const meshRef = useRef<THREE.Group>(null);
-  
-  const isSelected = selectedObjectIds.includes(id);
+
+  const { camera, gl } = useThree();
+  const controls = useThree((state) => state.controls as any);
+
+  // Check parent object for live behavior inheritance if child doesn't specify one
+  const parentObj = obj.parentId ? useEditorStore.getState().objects[obj.parentId] : null;
+  const effectiveBehavior = obj.properties.behavior || (parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : undefined);
+
+  // Draggable interaction state and refs
+  const isDraggingRef = useRef(false);
+  const dragPlaneRef = useRef(new THREE.Plane());
+  const dragOffsetRef = useRef(new THREE.Vector3());
+  const hasDraggedRef = useRef(false);
+
+  // Global window pointer listeners for drag-and-drop resilience
+  useEffect(() => {
+    const onGlobalPointerMove = (evt: PointerEvent) => {
+      if (!isDraggingRef.current || !meshRef.current) return;
+      hasDraggedRef.current = true;
+      const canvas = gl.domElement;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+      const mouseY = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
+      const intersection = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(dragPlaneRef.current, intersection)) {
+        const targetWorld = intersection.add(dragOffsetRef.current);
+        if (meshRef.current.parent) {
+          meshRef.current.parent.worldToLocal(targetWorld);
+        }
+        meshRef.current.position.copy(targetWorld);
+      }
+    };
+
+    const onGlobalPointerUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        useEditorStore.getState().setIsDraggableDragging(false);
+        document.body.style.cursor = 'auto';
+        if (controls) {
+          controls.enabled = true;
+        }
+        if (hasDraggedRef.current && meshRef.current) {
+          const finalPos: [number, number, number] = [
+            Number(meshRef.current.position.x.toFixed(3)),
+            Number(meshRef.current.position.y.toFixed(3)),
+            Number(meshRef.current.position.z.toFixed(3)),
+          ];
+          updateObject(id, { position: finalPos });
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', onGlobalPointerMove);
+    window.addEventListener('pointerup', onGlobalPointerUp);
+    window.addEventListener('pointercancel', onGlobalPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', onGlobalPointerMove);
+      window.removeEventListener('pointerup', onGlobalPointerUp);
+      window.removeEventListener('pointercancel', onGlobalPointerUp);
+    };
+  }, [id, camera, gl, controls, updateObject]);
 
   // Local state/refs for scripts & proximity triggers
   const wasProximityActiveRef = useRef<Record<string, boolean>>({});
@@ -2638,6 +2845,15 @@ function ObjectRenderer({ id }: { id: string }) {
     onUpdate: ((time: number, delta: number) => void) | null;
   }>({ onTap: null, onUpdate: null });
   const hasInitializedScriptRef = useRef(false);
+  const lastTransformRef = useRef<{
+    px: number; py: number; pz: number;
+    rx: number; ry: number; rz: number;
+    sx: number; sy: number; sz: number;
+  }>({
+    px: Number.NaN, py: Number.NaN, pz: Number.NaN,
+    rx: Number.NaN, ry: Number.NaN, rz: Number.NaN,
+    sx: Number.NaN, sy: Number.NaN, sz: Number.NaN
+  });
 
   useEffect(() => {
     if (isSelected && meshRef.current) {
@@ -2650,15 +2866,20 @@ function ObjectRenderer({ id }: { id: string }) {
     };
   }, [isSelected, id]);
 
-  // Global pivot normalization for newly instantiated primitives and models
+  // Global pivot normalization for newly instantiated primitives and groups
   useEffect(() => {
-    if (meshRef.current) {
-      const timer = setTimeout(() => {
-        if (meshRef.current) {
-          PivotNormalizationService.normalizePivot(meshRef.current);
+    if (meshRef.current && obj) {
+      // Only normalize geometries for primitive shapes and groups. GLTF Models already handle normalized bounds & offsets.
+      if (['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'group'].includes(obj.type)) {
+        if (!obj.properties?.skipPivotNormalization) {
+          const timer = setTimeout(() => {
+            if (meshRef.current) {
+              PivotNormalizationService.normalizePivot(meshRef.current);
+            }
+          }, 50); // Small timeout to ensure child meshes / geometries are fully populated
+          return () => clearTimeout(timer);
         }
-      }, 50); // Small timeout to ensure child meshes / geometries are fully populated
-      return () => clearTimeout(timer);
+      }
     }
   }, [obj?.type, obj?.properties?.url]);
 
@@ -3151,8 +3372,9 @@ function ObjectRenderer({ id }: { id: string }) {
   useFrame((state) => {
     if (!meshRef.current || !obj) return;
 
-    // Skip updating position/rotation/scale when actively transforming this selected object
+    // Skip updating position/rotation/scale when actively transforming or dragging this object
     if (isSelected && isTransformDragging) return;
+    if (isDraggingRef.current) return;
 
     const curActiveStateId = useEditorStore.getState().activeStateId;
     const activeStateObj = (!isPreviewMode && isSelected && curActiveStateId && curActiveStateId !== 'base' && obj.states)
@@ -3210,72 +3432,74 @@ function ObjectRenderer({ id }: { id: string }) {
       ];
     }
 
-    // Reset rotation before applying behaviors
+    // Always initialize mesh transforms to the target design state
     meshRef.current.rotation.set(
       THREE.MathUtils.degToRad(targetRot[0]),
       THREE.MathUtils.degToRad(targetRot[1]),
       THREE.MathUtils.degToRad(targetRot[2])
     );
-    // Reset scale before applying behaviors
     meshRef.current.scale.set(targetScl[0], targetScl[1], targetScl[2]);
-
-    // Position updates
     meshRef.current.position.set(targetPos[0], targetPos[1], targetPos[2]);
 
-    // Always Face Camera (Billboard) mode support in both editor and preview
-    if (obj.properties?.billboard || obj.properties?.lookAtCamera) {
+    const isBillboard = !!(obj.properties?.billboard || obj.properties?.lookAtCamera);
+    if (isBillboard) {
       meshRef.current.lookAt(state.camera.position);
     }
 
-    // Don't display interactive behavior animations in the editor view, only in preview/publish mode
-    if (!isPreviewMode) return;
+    // Don't display interactive behavior animations if interaction is not active
+    if (!isInteractiveActive) return;
 
-    const behavior = obj.properties.behavior;
+    const behavior = effectiveBehavior;
     const t = state.clock.getElapsedTime();
     const dt = state.clock.getDelta();
+    const speed = typeof obj.properties.behaviorSpeed === 'number' 
+      ? obj.properties.behaviorSpeed 
+      : (parentObj && typeof parentObj.properties?.behaviorSpeed === 'number' ? parentObj.properties.behaviorSpeed : 1.0);
+    const intensity = typeof obj.properties.behaviorIntensity === 'number' 
+      ? obj.properties.behaviorIntensity 
+      : (parentObj && typeof parentObj.properties?.behaviorIntensity === 'number' ? parentObj.properties.behaviorIntensity : 1.0);
+    const effectiveT = t * speed;
 
-    if (behavior === 'hover') {
-      meshRef.current.position.z += Math.sin(t * 3) * 0.2;
+    if (behavior === 'hover' || behavior === 'float') {
+      meshRef.current.position.z += Math.sin(effectiveT * 3) * 0.2 * intensity;
     } else if (behavior === 'bounce') {
-      meshRef.current.position.z += Math.abs(Math.sin(t * 4)) * 0.5;
+      meshRef.current.position.z += Math.abs(Math.sin(effectiveT * 4)) * 0.5 * intensity;
     } else if (behavior === 'shake') {
-      meshRef.current.position.x += (Math.random() - 0.5) * 0.1;
-      meshRef.current.position.y += (Math.random() - 0.5) * 0.1;
+      meshRef.current.position.x += (Math.random() - 0.5) * 0.1 * intensity;
+      meshRef.current.position.y += (Math.random() - 0.5) * 0.1 * intensity;
     } else if (behavior === 'orbit') {
-      const radius = 2;
-      meshRef.current.position.x += Math.cos(t) * radius;
-      meshRef.current.position.y += Math.sin(t) * radius;
+      const radius = 2 * intensity;
+      meshRef.current.position.x += Math.cos(effectiveT) * radius;
+      meshRef.current.position.y += Math.sin(effectiveT) * radius;
     }
 
-    const spinAxis = obj.properties.spinAxis || 'z';
+    const spinAxis = obj.properties.spinAxis || (parentObj ? parentObj.properties?.spinAxis : 'z') || 'z';
     const localAxis = new THREE.Vector3();
     if (spinAxis === 'x') localAxis.set(1, 0, 0);
     else if (spinAxis === 'y') localAxis.set(0, 1, 0);
     else localAxis.set(0, 0, 1);
 
     if (behavior === 'spin') {
-      meshRef.current.rotateOnAxis(localAxis, t * 1.5);
+      meshRef.current.rotateOnAxis(localAxis, dt * 2.0 * speed);
     } else if (behavior === 'spin-fast') {
-      meshRef.current.rotateOnAxis(localAxis, t * 6.0);
+      meshRef.current.rotateOnAxis(localAxis, dt * 6.0 * speed);
     } else if (behavior === 'pendulum') {
-      meshRef.current.rotateOnAxis(localAxis, Math.sin(t * 2) * 0.5);
+      meshRef.current.rotateOnAxis(localAxis, Math.sin(effectiveT * 2) * 0.05 * intensity);
     } else if (behavior === 'look-at-camera') {
       meshRef.current.lookAt(state.camera.position);
     }
 
     if (behavior === 'pulse') {
-      const scaleVal = 1 + Math.sin(t * 4.5) * 0.08;
+      const scaleVal = 1 + Math.sin(effectiveT * 4.5) * 0.08 * intensity;
       meshRef.current.scale.multiplyScalar(scaleVal);
     } else if (behavior === 'scale-up') {
-      const scaleVal = Math.min(1 + t * 0.5, 2.0); // Caps at 2.0
+      const scaleVal = Math.min(1 + effectiveT * 0.5, 2.0); // Caps at 2.0
       meshRef.current.scale.multiplyScalar(scaleVal);
     } else if (behavior === 'scale-down') {
-      const scaleVal = Math.max(1 - t * 0.2, 0.1); // Caps at 0.1
+      const scaleVal = Math.max(1 - effectiveT * 0.2, 0.1); // Caps at 0.1
       meshRef.current.scale.multiplyScalar(scaleVal);
     }
     
-    // Opacity/Fade is tricky since we'd need to access the material, which might be complex if it's an imported model.
-    // Assuming simple mesh or we can traverse.
     if (behavior === 'fade-in' || behavior === 'fade-out') {
       meshRef.current.traverse((child: any) => {
         if (child.isMesh && child.material) {
@@ -3289,9 +3513,8 @@ function ObjectRenderer({ id }: { id: string }) {
       });
     }
 
-    // Draggable behavior is complex in standard r3f without drei/DragControls, so we will skip it for now or implement a simplified version.
-// 4. Run Custom Script update callback loop
-    if (isPreviewMode && scriptCallbacksRef.current.onUpdate && (obj.properties.scriptEnabled ?? true)) {
+    // Run Custom Script update callback loop
+    if (isInteractiveActive && scriptCallbacksRef.current.onUpdate && (obj.properties.scriptEnabled ?? true)) {
       try {
         scriptCallbacksRef.current.onUpdate(t, state.clock.getDelta());
       } catch (err) {
@@ -3299,8 +3522,8 @@ function ObjectRenderer({ id }: { id: string }) {
       }
     }
 
-    // 5. Evaluate Proximity Visual Event triggers
-    if (isPreviewMode) {
+    // Evaluate Proximity Visual Event triggers
+    if (isInteractiveActive) {
       const behaviors = (obj.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onProximity') {
@@ -3397,7 +3620,12 @@ function ObjectRenderer({ id }: { id: string }) {
   ];
 
   function handleInteract(e?: any) {
-    if (!isPreviewMode && obj.locked) return; // Prevent selection or clicks on locked items in 3D viewport
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      return;
+    }
+    if (!isInteractiveActive && obj.locked) return; // Prevent selection or clicks on locked items in 3D viewport
+    if (obj.type === 'imageTarget' && obj.properties?.targetType !== 'face') return; // Disable interaction with image trackers, allow face trackers
     if (e && e.stopPropagation) e.stopPropagation();
     
     console.log(`[Debug Log] Screen tapped on object: ${obj.name} (ID: ${id})`);
@@ -3406,20 +3634,20 @@ function ObjectRenderer({ id }: { id: string }) {
       selectObject(id, isMulti);
     }
     
-    // Standard Audio playback on click if a sound asset is attached, OR default interactive tap feedback in preview mode!
-    if (obj.properties.soundUrl) {
-      playCachedAudio(obj.properties.soundUrl, false, 0.5);
-    } else if (isPreviewMode) {
-      playCachedAudio('sfx-ui-cyber-click', false, 0.4);
+    // Play sound ONLY if object has a live interaction 'play-sound' or 'click-sound' behavior, or via event actions
+    if (isInteractiveActive && (effectiveBehavior === 'play-sound' || effectiveBehavior === 'click-sound')) {
+      const sUrl = obj.properties.interactionSoundUrl || obj.properties.soundUrl || '/sounds/ui/click_soft.wav';
+      const sVol = obj.properties.interactionSoundVolume ?? 0.5;
+      playCachedAudio(sUrl, false, sVol);
     }
 
-    // Button redirect in live preview
-    if (isPreviewMode && obj.type === 'button' && obj.properties.url) {
+    // Button redirect in live interaction / preview
+    if (isInteractiveActive && obj.type === 'button' && obj.properties.url) {
       window.open(obj.properties.url, '_blank', 'noopener,noreferrer');
     }
 
     // Run On Tap visual event rules
-    if (isPreviewMode) {
+    if (isInteractiveActive) {
       const behaviors = (obj.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onTap') {
@@ -3429,7 +3657,7 @@ function ObjectRenderer({ id }: { id: string }) {
     }
 
     // Run onTap script callbacks
-    if (isPreviewMode && scriptCallbacksRef.current.onTap && (obj.properties.scriptEnabled ?? true)) {
+    if (isInteractiveActive && scriptCallbacksRef.current.onTap && (obj.properties.scriptEnabled ?? true)) {
       try {
         scriptCallbacksRef.current.onTap();
       } catch (err) {
@@ -3553,18 +3781,17 @@ function ObjectRenderer({ id }: { id: string }) {
         return <AudioNodeRenderer properties={obj.properties} isPreviewMode={isPreviewMode} />;
       case 'light':
         return <LightNodeRenderer properties={obj.properties} isPreviewMode={isPreviewMode} />;
+      case 'camera':
+        return <CameraNodeRenderer obj={obj} isPreviewMode={isPreviewMode} />;
+      case 'web3dScene':
+        return <Web3DSceneRenderer obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'button':
         return <Interactive3DButton obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'youtube':
         return <InteractiveYoutubeScreen obj={obj} isPreviewMode={isPreviewMode} onInteract={handleInteract} />;
       case 'imageTarget':
         return (
-          <ErrorBoundary fallback={
-            <mesh>
-              <planeGeometry args={[(obj.properties.physicalWidth || 1) * 50, (obj.properties.physicalWidth || 1) * 50]} />
-              <meshBasicMaterial color="#ef4444" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
-            </mesh>
-          }>
+          <ErrorBoundary fallback={null}>
             <Suspense fallback={<ImageTargetLoadingFallback obj={obj} />}>
               <ImageTargetRenderer obj={obj} />
             </Suspense>
@@ -3652,11 +3879,14 @@ function ObjectRenderer({ id }: { id: string }) {
       rotation={rotation}
       rotation-order="YXZ"
       scale={obj.scale}
+      visible={obj.visible ?? true}
       onClick={handleInteract}
       onPointerOver={(e) => {
-        if (isPreviewMode) {
+        if (isInteractiveActive) {
           e.stopPropagation();
-          if (obj.properties.cursor && !obj.properties.ignoreClicks) {
+          if (effectiveBehavior === 'draggable') {
+            document.body.style.cursor = isDraggingRef.current ? 'grabbing' : 'grab';
+          } else if (obj.properties.cursor && !obj.properties.ignoreClicks) {
             document.body.style.cursor = obj.properties.cursor;
           }
           const behaviors = (obj.events || []) || [];
@@ -3668,8 +3898,10 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerOut={(e) => {
-        if (isPreviewMode) {
-          if (obj.properties.cursor && !obj.properties.ignoreClicks) {
+        if (isInteractiveActive) {
+          if (effectiveBehavior === 'draggable') {
+            if (!isDraggingRef.current) document.body.style.cursor = 'auto';
+          } else if (obj.properties.cursor && !obj.properties.ignoreClicks) {
             document.body.style.cursor = 'auto';
           }
           const behaviors = (obj.events || []) || [];
@@ -3681,7 +3913,34 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerDown={(e) => {
-        if (isPreviewMode) {
+        if (isInteractiveActive && effectiveBehavior === 'draggable') {
+          e.stopPropagation();
+          isDraggingRef.current = true;
+          hasDraggedRef.current = false;
+          useEditorStore.getState().setIsDraggableDragging(true);
+
+          if (controls) {
+            controls.enabled = false;
+          }
+
+          const worldPos = new THREE.Vector3();
+          meshRef.current?.getWorldPosition(worldPos);
+
+          const camDir = new THREE.Vector3();
+          camera.getWorldDirection(camDir).negate();
+          dragPlaneRef.current.setFromNormalAndCoplanarPoint(camDir, worldPos);
+
+          const intersection = new THREE.Vector3();
+          if (e.ray && e.ray.intersectPlane(dragPlaneRef.current, intersection)) {
+            dragOffsetRef.current.subVectors(worldPos, intersection);
+          } else {
+            dragOffsetRef.current.set(0, 0, 0);
+          }
+
+          document.body.style.cursor = 'grabbing';
+        }
+
+        if (isInteractiveActive) {
           e.stopPropagation();
           const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
@@ -3692,7 +3951,27 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerUp={(e) => {
-        if (isPreviewMode) {
+        if (isDraggingRef.current) {
+          e.stopPropagation();
+          isDraggingRef.current = false;
+          useEditorStore.getState().setIsDraggableDragging(false);
+          document.body.style.cursor = 'grab';
+
+          if (controls) {
+            controls.enabled = true;
+          }
+
+          if (hasDraggedRef.current && meshRef.current) {
+            const finalPos: [number, number, number] = [
+              Number(meshRef.current.position.x.toFixed(3)),
+              Number(meshRef.current.position.y.toFixed(3)),
+              Number(meshRef.current.position.z.toFixed(3)),
+            ];
+            updateObject(id, { position: finalPos });
+          }
+        }
+
+        if (isInteractiveActive) {
           e.stopPropagation();
           const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
@@ -3703,7 +3982,20 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerMove={(e) => {
-        if (isPreviewMode) {
+        if (isDraggingRef.current && isInteractiveActive && effectiveBehavior === 'draggable') {
+          e.stopPropagation();
+          hasDraggedRef.current = true;
+          const intersection = new THREE.Vector3();
+          if (e.ray && e.ray.intersectPlane(dragPlaneRef.current, intersection)) {
+            const targetWorld = intersection.add(dragOffsetRef.current);
+            if (meshRef.current?.parent) {
+              meshRef.current.parent.worldToLocal(targetWorld);
+            }
+            meshRef.current?.position.copy(targetWorld);
+          }
+        }
+
+        if (isInteractiveActive) {
           const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
             if (b.trigger === 'onPointerMove') {
@@ -3713,7 +4005,7 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onWheel={(e) => {
-        if (isPreviewMode) {
+        if (isInteractiveActive) {
           const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
             if (b.trigger === 'onScroll') {
@@ -3731,12 +4023,14 @@ function ObjectRenderer({ id }: { id: string }) {
         </PivotNormalizer>
         {collisionDebuggerEnabled && <CollisionDebuggerOverlay obj={obj} />}
         {obj.children.map(childId => (
-          <ObjectRenderer key={childId} id={childId} />
+          <MemoizedObjectRenderer key={childId} id={childId} />
         ))}
       </group>
     </group>
   );
 }
+
+const MemoizedObjectRenderer = React.memo(ObjectRenderer);
 
 function ProjectedPositionsUpdater() {
   const { scene, camera, size } = useThree();
@@ -3937,6 +4231,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     !obj ||
     !obj.visible ||
     obj.locked ||
+    (obj.type === 'imageTarget' && obj.properties?.targetType !== 'face') ||
     ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) ||
     (obj.type === 'youtube' && obj.properties?.displayMode === '2d') ||
     !isObjectInScene(target, scene)
@@ -3974,6 +4269,9 @@ function Hotspot3DRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObjec
   const props = obj.properties || {};
   const title = props.title || obj.name || 'Hotspot';
   const description = props.description || 'Tap to interact with this feature.';
+  const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
+  const isInteractiveActive = isPreviewMode || liveInteractionsInDesign;
+
   const color = props.beaconColor || '#06b6d4';
   const iconType = props.icon || 'Sparkles';
   const action = props.action || 'show_card';
@@ -3982,6 +4280,7 @@ function Hotspot3DRenderer({ obj, isPreviewMode, onInteract }: { obj: SceneObjec
   const cardMediaUrl = props.cardMediaUrl || '';
 
   useFrame((state, delta) => {
+    if (!isInteractiveActive) return;
     if (ringRef.current) {
       ringRef.current.rotation.z += delta * 1.5;
       const scale = 1 + Math.sin(state.clock.elapsedTime * 4) * 0.25;
@@ -4510,8 +4809,15 @@ export function Viewport() {
     setCollisionDebuggerEnabled,
     activeStateId,
     transformApplyMode,
-    setTransformApplyMode
+    setTransformApplyMode,
+    liveInteractionsInDesign,
+    toggleLiveInteractionsInDesign,
+    isDraggableDragging,
+    targetDprScale,
+    setIsUIOptimizerOpen
   } = useEditorStore();
+
+  const canvasDpr = typeof targetDprScale === 'number' ? targetDprScale : [1, 2];
 
   const objectsRef = useRef(objects);
   useEffect(() => {
@@ -4525,6 +4831,9 @@ export function Viewport() {
       Object.values(objects || {}).forEach((obj: any) => {
         if (obj.properties?.soundUrl) {
           soundUrls.add(obj.properties.soundUrl);
+        }
+        if (obj.properties?.interactionSoundUrl) {
+          soundUrls.add(obj.properties.interactionSoundUrl);
         }
         if ((obj?.events || [])) {
           (obj.events || []).forEach((b: any) => {
@@ -5178,25 +5487,25 @@ export function Viewport() {
                 <AutoSceneLightingEngine />
                 <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
                 <Grid 
-                  position={[0, 0, -0.01]} 
+                  position={[0, 0, 0]} 
                   args={[100, 100]} 
                   cellSize={1} 
                   cellThickness={1} 
-                  cellColor="#444" 
+                  cellColor="#333338" 
                   sectionSize={5} 
                   sectionThickness={1.5} 
-                  sectionColor="#888" 
-                  fadeDistance={30} 
+                  sectionColor="#555562" 
+                  fadeDistance={40} 
                   fadeStrength={1} 
                   rotation={[Math.PI / 2, 0, 0]}
                 />
 
                 
                 {rootObjects.map(id => (
-                  <ObjectRenderer key={id} id={id} />
+                  <MemoizedObjectRenderer key={id} id={id} />
                 ))}
 
-                <OrbitControls ref={orbitControlsRef} enableRotate={activeAxisView === '3D'} makeDefault />
+                <OrbitControls ref={orbitControlsRef} enabled={!isDraggableDragging} enableRotate={!isDraggableDragging && (activeAxisView === '3D')} makeDefault />
                 <BloomEffect />
                 <PerformanceTracker />
               </Canvas>
@@ -5432,21 +5741,21 @@ export function Viewport() {
           <AutoSceneLightingEngine />
           <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
           <Grid 
-            position={[0, 0, -0.01]} 
+            position={[0, 0, 0]} 
             args={[100, 100]} 
             cellSize={1} 
             cellThickness={1} 
-            cellColor="#444" 
+            cellColor="#333338" 
             sectionSize={5} 
             sectionThickness={1.5} 
-            sectionColor="#888" 
-            fadeDistance={30} 
+            sectionColor="#555562" 
+            fadeDistance={40} 
             fadeStrength={1} 
             rotation={[Math.PI / 2, 0, 0]}
           />
 
           {rootObjects.map(id => (
-            <ObjectRenderer key={id} id={id} />
+            <MemoizedObjectRenderer key={id} id={id} />
           ))}
 
           <TransformController orbitControlsRef={orbitControlsRef} />
@@ -5458,7 +5767,7 @@ export function Viewport() {
             <ZUpGizmoViewport onSelectAxisView={(axis) => { setActiveAxisView(axis); setAxisUpdateId(n => n + 1); }} />
           </GizmoHelper>
 
-          <OrbitControls ref={orbitControlsRef} enableRotate={activeAxisView === '3D'} makeDefault />
+          <OrbitControls ref={orbitControlsRef} enabled={!isDraggableDragging} enableRotate={!isDraggableDragging && (activeAxisView === '3D')} makeDefault />
           <BloomEffect />
           <PerformanceTracker />
         </Canvas>
@@ -5507,8 +5816,8 @@ export function Viewport() {
 
       {/* Floating Spline 3D Viewport Navigation Bar */}
       {!isPreviewMode && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
-          <div className="flex items-center gap-1.5 p-1.5 bg-[#121217]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/80 font-sans text-xs select-none">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto max-w-[95vw]">
+          <div className="flex items-center gap-1.5 p-1.5 bg-[#121217]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/80 font-sans text-xs select-none overflow-x-auto no-scrollbar touch-pan-x">
             {/* Tool Modes Group: Select (V), Move (W), Rotate (E), Scale (R) */}
             <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
               <button
@@ -5714,6 +6023,31 @@ export function Viewport() {
                 title={showPerformanceMonitor ? "Hide Performance Stats Engine" : "Show Performance Stats Engine"}
               >
                 <Zap size={14} className={showPerformanceMonitor ? 'animate-pulse' : ''} />
+              </button>
+
+              <button
+                onClick={() => toggleLiveInteractionsInDesign()}
+                className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 transition-colors text-xs font-medium ${
+                  liveInteractionsInDesign
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+                title={
+                  liveInteractionsInDesign
+                    ? "Live Interactions Active in Design View (Click to Disable)"
+                    : "Enable Live Interactions in Design View (Preview-only by default)"
+                }
+              >
+                <Play size={12} className={liveInteractionsInDesign ? 'fill-emerald-400 text-emerald-400' : ''} />
+                <span>Live</span>
+              </button>
+
+              <button
+                onClick={() => setIsPublicationModalOpen(true)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-gray-400 hover:text-white hover:bg-white/5"
+                title="Open 3D Embed & GLTF Export Center"
+              >
+                <Download size={14} />
               </button>
             </div>
           </div>
