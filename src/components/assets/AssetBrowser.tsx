@@ -39,14 +39,23 @@ import {
   ExternalLink,
   ChevronRight,
   Filter,
-  Armchair
+  Armchair,
+  AlertCircle
 } from 'lucide-react';
+import { SketchfabBrowser, CURATED_3D_ARCHIVE } from './SketchfabBrowser';
 import { Asset, AssetType, SceneObject } from '../../types';
 import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
 import { SPLINE_2D_ICONS, Spline2DIconMetadata } from '../../lib/spline2DIcons';
 import { SPLINE_MATERIAL_PRESETS, getOptimizedARTextures, SplineMaterialPreset, GeneratedARTexture } from '../../lib/splineMaterials';
 import { UI_KIT_PRESETS, UIKitPreset } from '../../lib/uiKits';
 import { TEXT_STYLE_PRESETS, TextStylePreset } from '../../lib/textStylesCollection';
+import { 
+  UNIFIED_TEXT_PRESETS, 
+  UnifiedTextPreset, 
+  applyTypographyPresetToObject, 
+  createObjectFromTypographyPreset, 
+  DESIGN_FONTS 
+} from '../../lib/typographySystem';
 import { SPLINE_SOUND_PRESETS, playSplineSound, SplineSoundPreset } from '../../lib/splineSoundEngine';
 import { BUTTON_TEMPLATES, ButtonTemplate } from '../../lib/buttonTemplates';
 import { PRIMITIVE_TEMPLATES, PrimitiveTemplate } from '../../lib/primitiveTemplates';
@@ -62,11 +71,32 @@ import { MousePointerClick } from 'lucide-react';
 export function renderArchitecturalPreview(asset: ArchitecturalAsset) {
   return (
     <div 
-      className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden rounded-lg group-hover:scale-105 transition-transform duration-300"
-      style={{ background: asset.previewGradient || 'radial-gradient(circle, #10b981 0%, #064e3b 100%)' }}
+      className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden rounded-lg bg-[#0d0d12] border border-white/5 group-hover:scale-105 group-hover:border-white/20 transition-all duration-300"
     >
-      <span className="text-3xl drop-shadow-md select-none">{asset.icon}</span>
-      <span className="mt-1 text-[9px] font-mono font-bold tracking-wider uppercase text-white/90 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-xs">
+      {asset.thumbnailUrl ? (
+        <img
+          src={asset.thumbnailUrl}
+          alt={asset.name}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="w-full h-full object-contain p-2 drop-shadow-md transition-transform duration-300 group-hover:scale-110"
+          onError={(e) => {
+            (e.currentTarget as HTMLElement).style.display = 'none';
+            const fallback = e.currentTarget.parentElement?.querySelector('.asset-icon-fallback') as HTMLElement | null;
+            if (fallback) fallback.style.display = 'flex';
+          }}
+        />
+      ) : null}
+      <div 
+        className="asset-icon-fallback w-full h-full flex flex-col items-center justify-center"
+        style={{ 
+          display: asset.thumbnailUrl ? 'none' : 'flex',
+          background: asset.previewGradient || 'radial-gradient(circle, #10b981 0%, #064e3b 100%)' 
+        }}
+      >
+        <span className="text-3xl drop-shadow-md select-none">{asset.icon}</span>
+      </div>
+      <span className="absolute bottom-1.5 right-1.5 text-[8px] font-mono font-bold tracking-wider uppercase text-white/90 bg-black/60 px-1.5 py-0.5 rounded backdrop-blur-xs border border-white/10">
         {asset.category}
       </span>
     </div>
@@ -263,7 +293,7 @@ const PRESET_MODELS = [
     name: 'Astronaut',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
-    thumbnail: '🚀',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Astronaut/screenshot/screenshot.png',
     category: 'Characters',
     description: 'Classic zero-gravity space explorer GLB model',
   },
@@ -272,7 +302,7 @@ const PRESET_MODELS = [
     name: 'Toy Retro Car',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
-    thumbnail: '🚗',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/ToyCar/screenshot/screenshot.png',
     category: 'Vehicles',
     description: 'Highly detailed vintage toy car GLB model',
   },
@@ -281,7 +311,7 @@ const PRESET_MODELS = [
     name: 'Expressive Robot',
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
-    thumbnail: '🤖',
+    thumbnail: 'https://threejs.org/files/models/gltf/RobotExpressive/thumbnail.png',
     category: 'Characters',
     description: 'Robot with animated face panels and joints',
   },
@@ -290,7 +320,7 @@ const PRESET_MODELS = [
     name: 'Bronze Vase',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
-    thumbnail: '🏺',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/VaseBronze/screenshot/screenshot.png',
     category: 'Items',
     description: 'Ancient bronze museum artifact GLB model',
   },
@@ -299,7 +329,7 @@ const PRESET_MODELS = [
     name: 'Vintage Lantern',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
-    thumbnail: '🏮',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/screenshot/screenshot.png',
     category: 'Items',
     description: 'Detailed classic light container GLB model',
   },
@@ -308,7 +338,7 @@ const PRESET_MODELS = [
     name: 'E-Comm Sneaker',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
-    thumbnail: '👟',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/thumbnail.png',
     category: 'Items',
     description: 'E-commerce athletic sneaker with material variants',
   },
@@ -317,7 +347,7 @@ const PRESET_MODELS = [
     name: 'Damaged Sci-Fi Helmet',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
-    thumbnail: '🪖',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/thumbnail.png',
     category: 'Items',
     description: 'High-poly sci-fi battle-damaged helmet',
   },
@@ -326,7 +356,7 @@ const PRESET_MODELS = [
     name: '3D Avocado',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Avocado/glTF-Binary/Avocado.glb',
-    thumbnail: '🥑',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/screenshot/screenshot.png',
     category: 'Food',
     description: 'Photorealistic fresh avocado GLB model',
   },
@@ -335,7 +365,7 @@ const PRESET_MODELS = [
     name: 'Retro BoomBox',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
-    thumbnail: '📻',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoomBox/screenshot/screenshot.png',
     category: 'Items',
     description: '80s cassette player stereo boombox',
   },
@@ -344,7 +374,7 @@ const PRESET_MODELS = [
     name: 'Rubber Duck',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Duck/glTF-Binary/Duck.glb',
-    thumbnail: '🦆',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/screenshot/screenshot.png',
     category: 'Animals',
     description: 'Yellow bath rubber duck GLB model',
   },
@@ -353,7 +383,7 @@ const PRESET_MODELS = [
     name: 'Low-Poly Fox',
     type: 'model' as AssetType,
     url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb',
-    thumbnail: '🦊',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/screenshot/screenshot.png',
     category: 'Animals',
     description: 'Animated low-poly forest fox character',
   },
@@ -362,7 +392,7 @@ const PRESET_MODELS = [
     name: 'Modern Sheen Chair',
     type: 'model' as AssetType,
     url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb',
-    thumbnail: '🪑',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/SheenChair/screenshot/screenshot.png',
     category: 'Furniture',
     description: 'Velvet fabric modern lounge arm chair',
   },
@@ -371,7 +401,7 @@ const PRESET_MODELS = [
     name: 'Tropical Flamingo',
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/Flamingo.glb',
-    thumbnail: '🦩',
+    thumbnail: 'https://images.unsplash.com/photo-1548681528-6a5c45b66b42?w=500&auto=format&fit=crop&q=80',
     category: 'Animals',
     description: 'Animated flying tropical flamingo mesh',
   },
@@ -380,7 +410,7 @@ const PRESET_MODELS = [
     name: 'Wild Stallion Horse',
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/Horse.glb',
-    thumbnail: '🐎',
+    thumbnail: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=500&auto=format&fit=crop&q=80',
     category: 'Animals',
     description: 'Galloping wild stallion horse GLB model',
   },
@@ -389,7 +419,7 @@ const PRESET_MODELS = [
     name: 'Exotic Parrot',
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/Parrot.glb',
-    thumbnail: '🦜',
+    thumbnail: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=500&auto=format&fit=crop&q=80',
     category: 'Animals',
     description: 'Animated flying jungle parrot mesh',
   }
@@ -480,6 +510,62 @@ const MARKER_PRESETS = [
     url: 'https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.jpg',
     stability: '95% (Standard Industrial)',
     description: 'Standard Kanji marker pattern for target tracking',
+  },
+  {
+    id: 'marker-art-portrait',
+    name: 'Masterpiece Oil Portrait',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=600&auto=format&fit=crop&q=80',
+    stability: '98% (High Corner Density)',
+    description: 'High-contrast fine art portrait target image for wall attachment',
+  },
+  {
+    id: 'marker-celestial-map',
+    name: 'Constellation Star Chart',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=600&auto=format&fit=crop&q=80',
+    stability: '97% (High Point Cloud Density)',
+    description: 'Celestial astronomy constellation map for robust surface tracking',
+  },
+  {
+    id: 'marker-qr-data-grid',
+    name: 'QR Data Grid Matrix',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+    stability: '100% (Maximum Optical Contrast)',
+    description: 'High-contrast geometric data grid for ultra-precise camera lock',
+  },
+  {
+    id: 'marker-circuit-board',
+    name: 'Microchip Circuit Trace',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&auto=format&fit=crop&q=80',
+    stability: '99% (High Frequency Tracing)',
+    description: 'Intricate motherboard circuit target for technical AR overlays',
+  },
+  {
+    id: 'marker-typography-cover',
+    name: 'Editorial Magazine Cover',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80',
+    stability: '96% (High Contrast Type)',
+    description: 'Bold editorial magazine cover target for print AR experiences',
+  },
+  {
+    id: 'marker-blueprint-draft',
+    name: 'Architectural CAD Blueprint',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?w=600&auto=format&fit=crop&q=80',
+    stability: '97% (High Vector Density)',
+    description: 'Detailed blue CAD engineering blueprint target poster',
+  },
+  {
+    id: 'marker-topographic-map',
+    name: 'Contour Topographic Map',
+    type: 'marker',
+    url: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&auto=format&fit=crop&q=80',
+    stability: '98% (Dense Isobar Traces)',
+    description: 'Elevated topographic contour line map for outdoor AR placement',
   }
 ];
 
@@ -554,6 +640,10 @@ export function AssetBrowser() {
   const [activeTab, setActiveTab] = useState<CategoryTab>('discover');
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
 
+  const selectedObj = selectedObjectId ? objects[selectedObjectId] : null;
+  const isTextSelected = Boolean(selectedObj && (selectedObj.type === 'text' || selectedObj.type === 'hudText' || selectedObj.type === 'button'));
+  const activeSelectedText = isTextSelected ? (selectedObj?.properties?.text || selectedObj?.name || '') : '';
+
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterChip, setActiveFilterChip] = useState('All');
@@ -569,6 +659,8 @@ export function AssetBrowser() {
   const [notification, setNotification] = useState<string | null>(null);
   const [showMarkerManager, setShowMarkerManager] = useState(false);
   const [validationModel, setValidationModel] = useState<any | null>(null);
+  const [pendingSceneAsset, setPendingSceneAsset] = useState<any | null>(null);
+  const [pendingSceneAction, setPendingSceneAction] = useState<(() => void) | null>(null);
   const [importProgress, setImportProgress] = useState<{ fileName: string; progress: number; status: string } | null>(null);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [recentAssets, setRecentAssets] = useState<any[]>([]);
@@ -577,7 +669,7 @@ export function AssetBrowser() {
   useEffect(() => {
     if (storeAssetBrowserTab && isAssetBrowserOpen) {
       if (storeAssetBrowserTab === 'models') {
-        setActiveTab('elements');
+        setActiveTab('sketchfab');
       } else if (storeAssetBrowserTab === 'templates') {
         setActiveTab('discover');
       } else {
@@ -666,6 +758,13 @@ export function AssetBrowser() {
   const executeAssetImport = async (file: File, type: AssetType, stats?: any) => {
     const name = file.name;
     setImportProgress({ fileName: name, progress: 20, status: 'Reading asset data...' });
+    useEditorStore.getState().setGlobalLoading({
+      active: true,
+      title: 'Importing Spatial Asset...',
+      detail: `Reading "${name}"...`,
+      progress: 25,
+      type: 'asset'
+    });
     
     try {
       const { SupabaseService } = await import('../../services/supabaseService');
@@ -675,9 +774,23 @@ export function AssetBrowser() {
       let url = '';
       if (SupabaseService.isConfigured()) {
         setImportProgress({ fileName: name, progress: 60, status: 'Uploading to cloud storage...' });
+        useEditorStore.getState().setGlobalLoading({
+          active: true,
+          title: 'Importing Spatial Asset...',
+          detail: `Uploading "${name}" to cloud storage...`,
+          progress: 60,
+          type: 'asset'
+        });
         url = await SupabaseService.uploadAsset(file, projectName);
       } else {
         setImportProgress({ fileName: name, progress: 70, status: 'Processing local buffer...' });
+        useEditorStore.getState().setGlobalLoading({
+          active: true,
+          title: 'Importing Spatial Asset...',
+          detail: `Processing buffer for "${name}"...`,
+          progress: 75,
+          type: 'asset'
+        });
         url = await fileToDataUrl(file);
       }
       
@@ -691,6 +804,7 @@ export function AssetBrowser() {
       addAsset(asset);
       addToRecentAssets({ id: asset.id, name: asset.name, type: asset.type, url: asset.url });
       setImportProgress(null);
+      useEditorStore.getState().setGlobalLoading(null);
 
       if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
         replaceObjectAsset(replaceTargetObjectId, asset);
@@ -701,6 +815,7 @@ export function AssetBrowser() {
       }
     } catch (err: any) {
       setImportProgress(null);
+      useEditorStore.getState().setGlobalLoading(null);
       showToast(`Import failed: ${err.message}`);
     }
   };
@@ -744,6 +859,27 @@ export function AssetBrowser() {
   };
 
   // Add Handlers
+  const resolveTargetParentId = (): string | null => {
+    // 1. Child of selected object (if valid 3D container/object)
+    if (selectedObjectId && objects[selectedObjectId]) {
+      const sel = objects[selectedObjectId];
+      if (sel.type !== 'hudCanvas' && !['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(sel.type)) {
+        return selectedObjectId;
+      }
+    }
+    // 2. Child of tracker (active tracker or scene tracker)
+    const activeTargetId = useEditorStore.getState().lastSelectedTargetId;
+    if (activeTargetId && objects[activeTargetId]?.type === 'imageTarget') {
+      return activeTargetId;
+    }
+    const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+    if (imageTarget) {
+      return imageTarget.id;
+    }
+    // 3. Otherwise root in world scene
+    return null;
+  };
+
   const handleAddTemplate = (type: string) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
     
@@ -763,11 +899,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newId = uuidv4();
     const newObj: SceneObject = {
@@ -812,11 +944,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newObj: SceneObject = {
       id: uuidv4(),
@@ -865,11 +993,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newObj: SceneObject = {
       id: uuidv4(),
@@ -911,11 +1035,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newId = uuidv4();
     const newObj: SceneObject = {
@@ -939,34 +1059,36 @@ export function AssetBrowser() {
 
   const handleAddArchitecturalAsset = (asset: ArchitecturalAsset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
+    const parentId = resolveTargetParentId();
+    let arTargetWidth = 5.0; // Default AR target width in 3D viewport units
+    const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+    if (imageTarget) {
+      const rawWidth = imageTarget.properties?.physicalWidth || 0.1;
+      arTargetWidth = rawWidth <= 1 ? rawWidth * 50 : rawWidth;
     }
 
     const newId = uuidv4();
-    const newObj = asset.createObject(newId);
+    const newObj = asset.createObject(newId, arTargetWidth);
     newObj.parentId = parentId || null;
 
+    // Ensure all architectural assets are Z-up with [0,0,0] rotation and clean default scale
+    newObj.rotation = [0, 0, 0];
+
     addObject(newObj, parentId || undefined);
-    showToast(`Added "${asset.name}" to the scene`);
+    const pct = Math.round((asset.categoryProportionFactor || 0.5) * (asset.maxPlacementPercent || 50));
+    showToast(`Added "${asset.name}" (proportionally scaled to ${pct}% of AR Target)`);
     addToRecentAssets({ id: asset.id, name: asset.name, type: 'Furniture', description: asset.description });
     handleAssetAddedSuccess();
   };
 
-  const handleAddTextStyle = (style: TextStylePreset) => {
+  const handleApplyUnifiedTextPreset = (preset: UnifiedTextPreset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
     const targetId = replaceTargetObjectId || selectedObjectId;
     if (targetId && objects[targetId]) {
       const target = objects[targetId];
-      updateObject(targetId, {
-        properties: {
-          ...target.properties,
-          ...style.properties,
-        }
-      });
-      showToast(`Applied typography style "${style.name}" to ${target.name}`);
+      const patch = applyTypographyPresetToObject(target, preset, false);
+      updateObject(targetId, patch);
+      showToast(`Applied "${preset.name}" style to ${target.name}`);
       if (replaceTargetObjectId) {
         setReplaceTargetObjectId(null);
         handleAssetAddedSuccess();
@@ -974,32 +1096,129 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
-
+    const parentId = resolveTargetParentId();
     const newId = uuidv4();
-    const newObj: SceneObject = {
-      id: newId,
-      name: `${style.name}`,
-      type: style.objectType as any,
-      position: style.position || [0, 0, 0],
-      rotation: style.rotation || [0, 0, 0],
-      scale: style.scale || [1, 1, 1],
-      visible: true,
-      children: [],
-      parentId: parentId || null,
-      properties: {
-        text: style.sampleText || 'AR TYPOGRAPHY',
-        ...style.properties,
-      }
-    };
+    const newObj = createObjectFromTypographyPreset(newId, preset, undefined);
+    newObj.parentId = parentId || null;
 
     addObject(newObj, parentId || undefined);
-    showToast(`Added text "${style.name}" to scene`);
-    addToRecentAssets({ id: style.id, name: style.name, type: 'Text Style' });
+    useEditorStore.getState().selectObject(newId);
+    showToast(`Added "${preset.name}" to scene`);
+    addToRecentAssets({ id: preset.id, name: preset.name, type: 'Text Style', description: preset.description });
+    handleAssetAddedSuccess();
+  };
+
+  const handleAddTextStyle = (style: any) => {
+    const unified = UNIFIED_TEXT_PRESETS.find(p => p.id === style?.id) || style;
+    if (unified && unified.style) {
+      handleApplyUnifiedTextPreset(unified);
+      return;
+    }
+    handleApplyUnifiedTextPreset(UNIFIED_TEXT_PRESETS[0]);
+  };
+
+  const handleQuickAddText = (kind: 'heading' | 'subheading' | 'body' | 'spatial3d') => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    const parentId = resolveTargetParentId();
+    const newId = uuidv4();
+    let newObj: SceneObject;
+
+    if (kind === 'heading') {
+      newObj = {
+        id: newId,
+        name: 'Heading',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentId || null,
+        properties: {
+          text: 'Heading',
+          fontSize: 36,
+          fontWeight: '800',
+          fontFamily: 'Playfair Display, serif',
+          fontUrl: 'https://unpkg.com/@fontsource/playfair-display/files/playfair-display-latin-400-normal.woff',
+          color: '#FFFFFF',
+          letterSpacing: -0.02,
+          hudPosition: 'top-center',
+          hudOffset: [0, 60]
+        }
+      };
+    } else if (kind === 'subheading') {
+      newObj = {
+        id: newId,
+        name: 'Subheading',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentId || null,
+        properties: {
+          text: 'Subheading',
+          fontSize: 22,
+          fontWeight: '600',
+          fontFamily: 'Poppins, sans-serif',
+          fontUrl: 'https://unpkg.com/@fontsource/poppins/files/poppins-latin-400-normal.woff',
+          color: '#E2E8F0',
+          letterSpacing: 0,
+          hudPosition: 'top-center',
+          hudOffset: [0, 110]
+        }
+      };
+    } else if (kind === 'body') {
+      newObj = {
+        id: newId,
+        name: 'Body Text',
+        type: 'hudText',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentId || null,
+        properties: {
+          text: 'Add a little bit of body text for your AR story or description.',
+          fontSize: 16,
+          fontWeight: '400',
+          fontFamily: 'Montserrat, sans-serif',
+          fontUrl: 'https://unpkg.com/@fontsource/montserrat/files/montserrat-latin-400-normal.woff',
+          color: '#CBD5E1',
+          letterSpacing: 0.01,
+          lineHeight: 1.5,
+          hudPosition: 'center',
+          hudOffset: [0, 0]
+        }
+      };
+    } else {
+      newObj = {
+        id: newId,
+        name: '3D Spatial Text',
+        type: 'text',
+        position: [0, 1.2, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        visible: true,
+        children: [],
+        parentId: parentId || null,
+        properties: {
+          text: 'SPATIAL 3D',
+          fontSize: 0.35,
+          color: '#00F3FF',
+          outlineColor: '#FF007F',
+          outlineWidth: 0.02,
+          fontUrl: 'https://unpkg.com/@fontsource/orbitron/files/orbitron-latin-400-normal.woff',
+          billboard: true
+        }
+      };
+    }
+
+    addObject(newObj, parentId || undefined);
+    useEditorStore.getState().selectObject(newId);
+    showToast(`Added ${newObj.name} to scene`);
     handleAssetAddedSuccess();
   };
 
@@ -1145,8 +1364,28 @@ export function AssetBrowser() {
     addToRecentAssets({ id: layoutType, name: `HUD ${layoutType}`, type: 'Layout' });
   };
 
-  const handleAddPresetModel = (model: typeof PRESET_MODELS[0]) => {
+  const executeSceneAction = (replace: boolean) => {
+    if (replace) {
+      useEditorStore.getState().clearScene();
+    }
+    if (pendingSceneAction) {
+      setTimeout(() => pendingSceneAction(), replace ? 50 : 0);
+    }
+    setPendingSceneAsset(null);
+    setPendingSceneAction(null);
+  };
+
+  const handleAddPresetModel = (model: typeof PRESET_MODELS[0] & { isScene?: boolean }) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
+
+    const performAdd = () => {
+      useEditorStore.getState().setGlobalLoading({
+      active: true,
+      title: 'Loading 3D Model...',
+      detail: `Fetching and preparing "${model.name}"...`,
+      progress: 30,
+      type: 'asset'
+    });
     if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
       replaceObjectAsset(replaceTargetObjectId, {
         type: 'model',
@@ -1158,11 +1397,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newObj: SceneObject = {
       id: uuidv4(),
@@ -1183,6 +1418,14 @@ export function AssetBrowser() {
     showToast(`Added 3D model "${model.name}" to scene`);
     addToRecentAssets({ id: model.id, name: model.name, type: '3D Model', thumbnail: model.thumbnail });
     handleAssetAddedSuccess();
+    };
+
+    if (model.isScene) {
+      setPendingSceneAction(() => performAdd);
+      setPendingSceneAsset({ ...model, isScene: true });
+    } else {
+      performAdd();
+    }
   };
 
   const handleAddButtonTemplate = (template: ButtonTemplate) => {
@@ -1218,11 +1461,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newObj: SceneObject = {
       id: uuidv4(),
@@ -1279,11 +1518,7 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
     const newObj: SceneObject = {
       id: uuidv4(),
@@ -1323,15 +1558,11 @@ export function AssetBrowser() {
       return;
     }
 
-    let parentId = selectedObjectId;
-    if (!parentId) {
-      const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-      if (imageTarget) parentId = imageTarget.id;
-    }
+    const parentId = resolveTargetParentId();
 
-    const isVideoOrYt = media.type === 'youtube' || media.type === 'video' || media.type === 'web3dScene';
+    const isVideoOrYt = (media.type as string) === 'youtube' || (media.type as string) === 'video' || (media.type as string) === 'web3dScene';
     const isImage = media.type === 'image';
-    const isCam = media.type === 'camera';
+    const isCam = (media.type as string) === 'camera';
     const newId = uuidv4();
     const newObj: SceneObject = {
       id: newId,
@@ -1372,7 +1603,7 @@ export function AssetBrowser() {
       case 'ui-kits':
         return ['All', 'Glassmorphic', 'Futuristic', 'Cyberpunk', 'Minimal', 'Gaming', 'Meters & Gauges'];
       case 'text-styles':
-        return ['All', 'Hero Titles', 'Neon & Glow', 'Glassmorphic', 'Cyberpunk', 'Minimal & Clean'];
+        return ['All', 'Print & Editorial', 'Neon & Glow', 'Luxury Gold', 'Billboard & Posters', 'Artisanal Scripts', 'Futuristic & Cyber', 'Minimal & Modern', 'Badges & CTAs'];
       case 'materials':
         return ['All', 'Glass & Hologram', 'Metals & Chrome', 'Cyber & Neon', 'Organic', 'Clay & Matte'];
       case 'textures':
@@ -1399,7 +1630,7 @@ export function AssetBrowser() {
       'buttons': BUTTON_TEMPLATES.length,
       'elements': SPLINE_3D_ICONS.length + SPLINE_2D_ICONS.length + PRESET_MODELS.length + PRIMITIVE_TEMPLATES.length,
       'ui-kits': UI_KIT_PRESETS.length,
-      'text-styles': TEXT_STYLE_PRESETS.length,
+      'text-styles': UNIFIED_TEXT_PRESETS.length,
       'materials': SPLINE_MATERIAL_PRESETS.length,
       'textures': getOptimizedARTextures().length,
       'audio': SPLINE_SOUND_PRESETS.length,
@@ -1429,8 +1660,8 @@ export function AssetBrowser() {
     : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-2 sm:p-6 animate-in fade-in duration-200">
-      <div className="w-full h-full max-w-7xl max-h-[90vh] rounded-2xl overflow-hidden border border-white/10 bg-[#0F0F14] flex flex-col relative select-none shadow-[0_25px_80px_rgba(0,0,0,0.8)] ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-6 animate-in fade-in duration-200">
+      <div className="w-full h-full sm:max-w-7xl sm:max-h-[90vh] rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-white/10 bg-[#0F0F14] flex flex-col relative select-none shadow-[0_25px_80px_rgba(0,0,0,0.8)] ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
         
         {/* Toast Notification */}
         {notification && (
@@ -1485,7 +1716,7 @@ export function AssetBrowser() {
         />
 
         {/* Main Body Area: Canva Left Dock + Content Canvas */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Canva Navigation Rail */}
           <CanvaDock
             activeTab={activeTab}
@@ -2025,14 +2256,24 @@ export function AssetBrowser() {
                   </section>
                 )}
 
-                {/* 3D Models Section */}
+                {/* 3D Models & External Sources Section */}
                 {(activeFilterChip === 'All' || activeFilterChip === '3D Models') && (
                   <section className="space-y-3 pt-4 border-t border-white/5">
-                    <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-                      <Box size={15} className="text-emerald-400" />
-                      <span>Curated 3D Models (.glb)</span>
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                        <Box size={15} className="text-emerald-400" />
+                        <span>3D Models Library & External Repositories (Sketchfab, NASA, Poly Pizza)</span>
+                      </h3>
+                      <button
+                        onClick={() => setActiveTab('sketchfab')}
+                        className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        Browse All 3D Repos <ChevronRight size={13} />
+                      </button>
+                    </div>
+
                     <div className={`grid ${gridColsClass} gap-3`}>
+                      {/* Built-in Presets */}
                       {PRESET_MODELS
                         .filter(m => !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.description.toLowerCase().includes(searchQuery.toLowerCase()))
                         .map((model) => (
@@ -2041,12 +2282,50 @@ export function AssetBrowser() {
                             id={model.id}
                             name={model.name}
                             badge="3D MODEL"
-                            badgeColor="bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                            badgeColor="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 font-bold"
                             thumbnail={model.thumbnail}
                             description={model.description}
                             isFavorite={!!favorites[model.id]}
                             onToggleFavorite={() => toggleFavorite(model.id)}
                             onSelect={() => handleAddPresetModel(model)}
+                          />
+                        ))}
+
+                      {/* External Multi-Platform Models (Sketchfab, NASA, Poly Pizza, Smithsonian, Khronos) */}
+                      {CURATED_3D_ARCHIVE
+                        .filter(m => !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.description.toLowerCase().includes(searchQuery.toLowerCase()) || m.platform.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map((item) => (
+                          <AssetCard
+                            key={item.id}
+                            id={item.id}
+                            name={item.name}
+                            badge={item.platform.toUpperCase()}
+                            badgeColor="bg-blue-500/20 text-blue-300 border-blue-500/30 font-bold"
+                            thumbnail={item.thumbnail}
+                            description={`${item.platform} • ${item.creator}`}
+                            metaText={item.priceText}
+                            isFavorite={!!favorites[item.id]}
+                            onToggleFavorite={() => toggleFavorite(item.id)}
+                            onSelect={() => {
+                              const parentId = resolveTargetParentId();
+                              const newObj: SceneObject = {
+                                id: uuidv4(),
+                                name: item.name,
+                                type: 'model',
+                                position: [0, 0, 0],
+                                rotation: [0, 0, 0],
+                                scale: [1, 1, 1],
+                                visible: true,
+                                locked: false,
+                                children: [],
+                                parentId: parentId || null,
+                                properties: { modelUrl: item.url }
+                              };
+                              addObject(newObj, parentId || undefined);
+                              showToast(`Added ${item.platform} 3D model "${item.name}" to scene`);
+                              addToRecentAssets({ id: item.id, name: item.name, type: '3D Model' });
+                              handleAssetAddedSuccess();
+                            }}
                           />
                         ))}
                     </div>
@@ -2132,41 +2411,170 @@ export function AssetBrowser() {
 
             {/* 4. TEXT STYLES TAB */}
             {activeTab === 'text-styles' && (
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
-                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4`}>
-                  {TEXT_STYLE_PRESETS
-                    .filter(style => {
-                      const matchesSearch = !searchQuery || style.name.toLowerCase().includes(searchQuery.toLowerCase()) || style.description.toLowerCase().includes(searchQuery.toLowerCase());
-                      const matchesFilter = activeFilterChip === 'All' || style.category.toLowerCase().includes(activeFilterChip.toLowerCase());
-                      return matchesSearch && matchesFilter;
-                    })
-                    .map((style) => (
-                      <AssetCard
-                        key={style.id}
-                        id={style.id}
-                        name={style.name}
-                        badge="FONT STYLE"
-                        badgeColor="bg-amber-500/20 text-amber-300 border-amber-500/30"
-                        thumbnail={
-                          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-black/50 rounded-lg">
-                            <span
-                              className="text-lg font-black tracking-wider uppercase leading-tight truncate w-full"
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                {/* Contextual Header: Selected Text editor OR Canva Quick-Add Banner */}
+                {isTextSelected ? (
+                  <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/80 to-slate-900/90 border border-purple-500/30 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center shrink-0">
+                        <Type size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded-full">
+                            Editing Selected Text
+                          </span>
+                          <span className="text-xs font-bold text-white truncate">{selectedObj?.name}</span>
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={activeSelectedText}
+                            onChange={(e) => updateObject(selectedObj!.id, { properties: { ...selectedObj!.properties, text: e.target.value } })}
+                            placeholder="Type text to preview live across all presets below..."
+                            className="bg-black/60 border border-purple-500/40 focus:border-purple-400 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 w-full max-w-md outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] text-purple-300 hidden lg:inline">Click any style below to apply</span>
+                      <button
+                        onClick={() => useEditorStore.getState().selectObject('')}
+                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-gray-200 hover:text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Deselect (Add New)
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-zinc-900/90 to-zinc-950/90 border border-white/10 rounded-2xl p-4 shadow-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                          <Type size={14} />
+                        </div>
+                        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Quick Add Text</h3>
+                      </div>
+                      <span className="text-[10px] text-gray-400">Click to insert instantly into scene</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                      <button
+                        onClick={() => handleQuickAddText('heading')}
+                        className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/50 flex flex-col items-start gap-1 text-left transition-all cursor-pointer group"
+                      >
+                        <span className="text-xl font-extrabold text-white leading-tight group-hover:text-amber-300 transition-colors font-serif">Add a heading</span>
+                        <span className="text-[10px] text-gray-400">Playfair Display Headline (36px)</span>
+                      </button>
+                      <button
+                        onClick={() => handleQuickAddText('subheading')}
+                        className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/50 flex flex-col items-start gap-1 text-left transition-all cursor-pointer group"
+                      >
+                        <span className="text-base font-semibold text-gray-200 leading-tight group-hover:text-amber-300 transition-colors">Add a subheading</span>
+                        <span className="text-[10px] text-gray-400">Poppins Section Subtitle (22px)</span>
+                      </button>
+                      <button
+                        onClick={() => handleQuickAddText('body')}
+                        className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/50 flex flex-col items-start gap-1 text-left transition-all cursor-pointer group"
+                      >
+                        <span className="text-xs font-normal text-gray-400 leading-tight group-hover:text-white transition-colors">Add a little bit of body text</span>
+                        <span className="text-[10px] text-gray-500">Montserrat Clean Paragraph (16px)</span>
+                      </button>
+                      <button
+                        onClick={() => handleQuickAddText('spatial3d')}
+                        className="p-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 flex flex-col items-start gap-1 text-left transition-all cursor-pointer group"
+                      >
+                        <span className="text-sm font-bold text-amber-300 leading-tight flex items-center gap-1.5">
+                          <Sparkles size={13} /> 3D Spatial Text
+                        </span>
+                        <span className="text-[10px] text-amber-200/70">Orbitron Holographic Billboard</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Typography Presets Grid */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-amber-400" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Design Styles & Font Combinations ({UNIFIED_TEXT_PRESETS.length})
+                      </h3>
+                    </div>
+                    {isTextSelected && (
+                      <span className="text-[10px] text-amber-300 font-mono">
+                        Previews dynamically reflect: "{activeSelectedText || selectedObj?.name}"
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {UNIFIED_TEXT_PRESETS
+                      .filter(preset => {
+                        const matchesSearch = !searchQuery || 
+                          preset.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          preset.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          preset.fontFamily.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          preset.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                        const matchesFilter = activeFilterChip === 'All' || preset.category.toLowerCase().includes(activeFilterChip.toLowerCase());
+                        return matchesSearch && matchesFilter;
+                      })
+                      .map((preset) => {
+                        const previewText = activeSelectedText.trim() || preset.sampleText;
+                        return (
+                          <div
+                            key={preset.id}
+                            onClick={() => handleApplyUnifiedTextPreset(preset)}
+                            className="bg-black/40 hover:bg-black/70 border border-white/10 hover:border-amber-400/50 rounded-xl overflow-hidden flex flex-col p-3 transition-all duration-200 cursor-pointer group hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] relative"
+                          >
+                            {/* Top info */}
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="text-xs font-bold text-white truncate group-hover:text-amber-300 transition-colors">
+                                {preset.name}
+                              </span>
+                              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                {preset.badge}
+                              </span>
+                            </div>
+
+                            {/* Stylized Preview Box (Canva-inspired) */}
+                            <div 
+                              className="w-full h-28 rounded-lg flex items-center justify-center p-3 text-center overflow-hidden relative border border-white/5 group-hover:border-white/20 transition-all"
                               style={{
-                                color: style.previewStyle?.color || '#ffffff',
-                                textShadow: style.previewStyle?.textShadow || '0 0 10px rgba(245,158,11,0.5)',
+                                background: (preset.style as any).backgroundColor || (preset.style as any).background ? 'transparent' : 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.6) 100%)',
                               }}
                             >
-                              {style.sampleText || style.name}
-                            </span>
-                            <span className="text-[9px] text-gray-400 mt-2 font-mono">{style.category}</span>
+                              <span
+                                className="max-w-full truncate block leading-normal select-none"
+                                style={{
+                                  ...preset.style,
+                                  fontSize: previewText.length > 20 ? '14px' : (previewText.length > 12 ? '18px' : '22px'),
+                                }}
+                              >
+                                {previewText}
+                              </span>
+                            </div>
+
+                            {/* Bottom Font & Category details */}
+                            <div className="mt-2.5 flex items-center justify-between text-[10px] text-gray-400">
+                              <span className="truncate max-w-[65%] font-medium text-gray-300">
+                                {preset.fontFamily.split(',')[0].replace(/['"]/g, '')}
+                              </span>
+                              <span className="text-[9px] font-mono text-gray-500 uppercase">
+                                {preset.category}
+                              </span>
+                            </div>
+
+                            {/* Action Hover Prompt */}
+                            <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[9px] text-gray-500 group-hover:text-amber-400 transition-colors">
+                              <span>{isTextSelected ? 'Apply to Selected' : 'Add to Scene'}</span>
+                              <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+                            </div>
                           </div>
-                        }
-                        description={style.description}
-                        isFavorite={!!favorites[style.id]}
-                        onToggleFavorite={() => toggleFavorite(style.id)}
-                        onSelect={() => handleAddTextStyle(style)}
-                      />
-                    ))}
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
             )}
@@ -2212,7 +2620,11 @@ export function AssetBrowser() {
               <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
                 <div className={`grid ${gridColsClass} gap-3`}>
                   {getOptimizedARTextures()
-                    .filter(tex => !searchQuery || tex.name.toLowerCase().includes(searchQuery.toLowerCase()) || tex.category.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .filter(tex => {
+                      const matchesSearch = !searchQuery || tex.name.toLowerCase().includes(searchQuery.toLowerCase()) || (tex.category && tex.category.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || (tex.category && tex.category.toLowerCase().includes(activeFilterChip.toLowerCase())) || tex.name.toLowerCase().includes(activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
                     .map((tex) => (
                       <AssetCard
                         key={tex.id}
@@ -2221,7 +2633,8 @@ export function AssetBrowser() {
                         badge="TEXTURE"
                         badgeColor="bg-teal-500/20 text-teal-300 border-teal-500/30"
                         thumbnail={tex.previewUrl}
-                        description={tex.category}
+                        description={tex.category || 'High-Res PBR Texture'}
+                        metaText={selectedObjectId ? 'Apply Texture to Selected' : undefined}
                         isFavorite={!!favorites[tex.id]}
                         onToggleFavorite={() => toggleFavorite(tex.id)}
                         onSelect={() => handleApplyARTexture(tex)}
@@ -2236,7 +2649,11 @@ export function AssetBrowser() {
               <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
                 <div className={`grid ${gridColsClass} gap-3`}>
                   {SPLINE_SOUND_PRESETS
-                    .filter(sound => !searchQuery || sound.name.toLowerCase().includes(searchQuery.toLowerCase()) || sound.category.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .filter(sound => {
+                      const matchesSearch = !searchQuery || sound.name.toLowerCase().includes(searchQuery.toLowerCase()) || sound.category.toLowerCase().includes(searchQuery.toLowerCase());
+                      const matchesFilter = activeFilterChip === 'All' || sound.category.toLowerCase().includes(activeFilterChip.toLowerCase()) || (activeFilterChip.includes('UI') && sound.category.toLowerCase().includes('ui'));
+                      return matchesSearch && matchesFilter;
+                    })
                     .map((sound) => (
                       <AssetCard
                         key={sound.id}
@@ -2246,6 +2663,7 @@ export function AssetBrowser() {
                         badgeColor="bg-rose-500/20 text-rose-300 border-rose-500/30"
                         thumbnail="🎵"
                         description={sound.description || sound.category}
+                        metaText={selectedObjectId ? 'Assign SFX to Selected' : undefined}
                         isPlaying={playingSoundId === sound.id}
                         onPlayToggle={() => handlePlaySoundToggle(sound)}
                         isFavorite={!!favorites[sound.id]}
@@ -2262,7 +2680,11 @@ export function AssetBrowser() {
               <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {LIGHTING_PRESETS
-                    .filter(l => !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .filter(l => {
+                      const matchesSearch = !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.description.toLowerCase().includes(searchQuery.toLowerCase());
+                      const matchesFilter = activeFilterChip === 'All' || l.name.toLowerCase().includes(activeFilterChip.toLowerCase()) || l.description.toLowerCase().includes(activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
                     .map((preset) => (
                       <AssetCard
                         key={preset.id}
@@ -2281,6 +2703,7 @@ export function AssetBrowser() {
                           </div>
                         }
                         description={preset.description}
+                        metaText="Apply Environment"
                         isFavorite={!!favorites[preset.id]}
                         onToggleFavorite={() => toggleFavorite(preset.id)}
                         onSelect={() => handleAddLighting(preset)}
@@ -2294,82 +2717,87 @@ export function AssetBrowser() {
             {activeTab === 'markers' && (
               <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {MARKER_PRESETS.map((marker) => (
-                    <AssetCard
-                      key={marker.id}
-                      id={marker.id}
-                      name={marker.name}
-                      badge="AR TARGET"
-                      badgeColor="bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-                      thumbnail={marker.url}
-                      description={marker.description}
-                      metaText={marker.stability}
-                      onSelect={() => {
-                        const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
-                        if (imageTarget) {
-                          updateObject(imageTarget.id, {
-                            properties: {
-                              ...imageTarget.properties,
-                              textureUrl: marker.url,
-                            }
-                          });
-                        }
-                        showToast(`Set tracking target poster to "${marker.name}"`);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 10. SKETCHFAB TAB */}
-            {activeTab === 'sketchfab' && (
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
-                <div className={`grid ${gridColsClass} gap-3`}>
-                  {SKETCHFAB_PRESETS
-                    .filter(m => !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.description.toLowerCase().includes(searchQuery.toLowerCase()))
-                    .map((item, idx) => (
+                  {MARKER_PRESETS
+                    .filter(marker => {
+                      const matchesSearch = !searchQuery || marker.name.toLowerCase().includes(searchQuery.toLowerCase()) || marker.description.toLowerCase().includes(searchQuery.toLowerCase());
+                      const matchesFilter = activeFilterChip === 'All' || (activeFilterChip === 'Posters' && marker.name.toLowerCase().includes('poster')) || (activeFilterChip === 'Standard Patterns' && marker.name.toLowerCase().includes('target')) || (activeFilterChip === 'Custom Targets' && !marker.name.toLowerCase().includes('poster'));
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((marker) => (
                       <AssetCard
-                        key={idx}
-                        id={`sketchfab-${idx}`}
-                        name={item.name}
-                        badge="SKETCHFAB"
-                        badgeColor="bg-blue-500/20 text-blue-300 border-blue-500/30"
-                        thumbnail="🌐"
-                        description={item.description}
-                        metaText={item.creator}
+                        key={marker.id}
+                        id={marker.id}
+                        name={marker.name}
+                        badge="AR TARGET"
+                        badgeColor="bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                        thumbnail={marker.url}
+                        description={marker.description}
+                        metaText={`Target Stability: ${marker.stability}`}
                         onSelect={() => {
-                          if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
-                            replaceObjectAsset(replaceTargetObjectId, {
-                              type: 'model',
-                              name: item.name,
-                              properties: { modelUrl: item.url }
+                          const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
+                          if (imageTarget) {
+                            updateObject(imageTarget.id, {
+                              properties: {
+                                ...imageTarget.properties,
+                                textureUrl: marker.url,
+                              }
                             });
-                            showToast(`Replaced object with Sketchfab model "${item.name}"`);
-                            setReplaceTargetObjectId(null);
-                            handleAssetAddedSuccess();
-                            return;
                           }
-
-                          const newObj: SceneObject = {
-                            id: uuidv4(),
-                            name: item.name,
-                            type: 'model',
-                            position: [0, 0, 0],
-                            rotation: [0, 0, 0],
-                            scale: [1, 1, 1],
-                            visible: true,
-                            children: [],
-                            parentId: null,
-                            properties: { modelUrl: item.url }
-                          };
-                          addObject(newObj);
-                          showToast(`Imported Sketchfab asset "${item.name}"`);
+                          showToast(`Set tracking target poster to "${marker.name}"`);
                         }}
                       />
                     ))}
                 </div>
               </div>
+            )}
+
+            {/* 10. SKETCHFAB TAB (In-App Sketchfab & 3D Archive Browser) */}
+            {activeTab === 'sketchfab' && (
+              <SketchfabBrowser
+                selectedObjectId={selectedObjectId}
+                replaceTargetObjectId={replaceTargetObjectId}
+                onSelectModel={(item) => {
+                  const performAdd = () => {
+                    if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+                      replaceObjectAsset(replaceTargetObjectId, {
+                        type: 'model',
+                        name: item.name,
+                        properties: { modelUrl: item.url }
+                      });
+                      showToast(`Replaced object with Sketchfab model "${item.name}"`);
+                      setReplaceTargetObjectId(null);
+                      handleAssetAddedSuccess();
+                      return;
+                    }
+
+                    const parentId = resolveTargetParentId();
+                    const newObj: SceneObject = {
+                      id: uuidv4(),
+                      name: item.name,
+                      type: 'model',
+                      position: [0, 0, 0],
+                      rotation: [0, 0, 0],
+                      scale: [1, 1, 1],
+                      visible: true,
+                      locked: false,
+                      children: [],
+                      parentId: parentId || null,
+                      properties: { modelUrl: item.url }
+                    };
+                    addObject(newObj, parentId || undefined);
+                    showToast(`Added Sketchfab model "${item.name}" to scene`);
+                    addToRecentAssets({ id: item.id, name: item.name, type: '3D Model' });
+                    handleAssetAddedSuccess();
+                  };
+
+                  if (item.isScene) {
+                    setPendingSceneAction(() => performAdd);
+                    setPendingSceneAsset({ ...item, isScene: true });
+                  } else {
+                    performAdd();
+                  }
+                }}
+              />
             )}
 
             {/* 11. UPLOADS TAB */}
@@ -2409,69 +2837,90 @@ export function AssetBrowser() {
                   </div>
                 ) : (
                   <div className={`grid ${gridColsClass} gap-3`}>
-                    {assets.map((asset) => (
-                      <AssetCard
-                        key={asset.id}
-                        id={asset.id}
-                        name={asset.name}
-                        badge={asset.type.toUpperCase()}
-                        badgeColor="bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                        thumbnail={
-                          asset.type === 'image' ? asset.url :
-                          asset.type === 'model' ? '🧊' :
-                          asset.type === 'audio' ? '🎵' :
-                          asset.type === 'video' ? '🎬' : '📄'
-                        }
-                        description={`Uploaded ${asset.type}`}
-                        onSelect={() => {
-                          if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
-                            const newType = asset.type === 'model' ? 'model' : asset.type === 'video' ? 'video' : asset.type === 'audio' ? 'audio' : 'image';
-                            const assetProps = asset.type === 'model'
-                              ? { modelUrl: asset.url }
-                              : asset.type === 'image'
-                              ? { textureUrl: asset.url }
-                              : asset.type === 'video'
-                              ? { videoUrl: asset.url }
-                              : { soundUrl: asset.url };
-                            replaceObjectAsset(replaceTargetObjectId, {
-                              type: newType,
-                              name: asset.name,
-                              url: asset.url,
-                              properties: assetProps
-                            });
-                            showToast(`Replaced object with uploaded "${asset.name}"`);
-                            setReplaceTargetObjectId(null);
-                            handleAssetAddedSuccess();
-                            return;
+                    {assets
+                      .filter(asset => {
+                        const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.type.toLowerCase().includes(searchQuery.toLowerCase());
+                        const matchesFilter = activeFilterChip === 'All' || 
+                          (activeFilterChip.includes('3D Models') && asset.type === 'model') ||
+                          (activeFilterChip.includes('Images') && asset.type === 'image') ||
+                          (activeFilterChip.includes('Audio') && asset.type === 'audio') ||
+                          (activeFilterChip.includes('Video') && asset.type === 'video');
+                        return matchesSearch && matchesFilter;
+                      })
+                      .map((asset) => (
+                        <AssetCard
+                          key={asset.id}
+                          id={asset.id}
+                          name={asset.name}
+                          badge={asset.type.toUpperCase()}
+                          badgeColor="bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                          thumbnail={
+                            asset.type === 'image' ? asset.url :
+                            asset.type === 'model' ? '🧊' :
+                            asset.type === 'audio' ? '🎵' :
+                            asset.type === 'video' ? '🎬' : '📄'
                           }
+                          description={`Uploaded ${asset.type}`}
+                          metaText={replaceTargetObjectId || selectedObjectId ? `Apply to Selected Object` : `Ready to Add`}
+                          onSelect={() => {
+                            const performAdd = () => {
+                              if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
+                                const newType = asset.type === 'model' ? 'model' : asset.type === 'video' ? 'video' : asset.type === 'audio' ? 'audio' : 'image';
+                                const assetProps = asset.type === 'model'
+                                  ? { modelUrl: asset.url }
+                                  : asset.type === 'image'
+                                  ? { textureUrl: asset.url }
+                                  : asset.type === 'video'
+                                  ? { videoUrl: asset.url }
+                                  : { soundUrl: asset.url };
+                                replaceObjectAsset(replaceTargetObjectId, {
+                                  type: newType,
+                                  name: asset.name,
+                                  url: asset.url,
+                                  properties: assetProps
+                                });
+                                showToast(`Replaced object with uploaded "${asset.name}"`);
+                                setReplaceTargetObjectId(null);
+                                handleAssetAddedSuccess();
+                                return;
+                              }
 
-                          if (asset.type === 'model') {
-                            const newObj: SceneObject = {
-                              id: uuidv4(),
-                              name: asset.name,
-                              type: 'model',
-                              position: [0, 0, 0],
-                              rotation: [0, 0, 0],
-                              scale: [1, 1, 1],
-                              visible: true,
-                              children: [],
-                              parentId: null,
-                              properties: { modelUrl: asset.url }
+                              if (asset.type === 'model') {
+                                const newObj: SceneObject = {
+                                  id: uuidv4(),
+                                  name: asset.name,
+                                  type: 'model',
+                                  position: [0, 0, 0],
+                                  rotation: [0, 0, 0],
+                                  scale: [1, 1, 1],
+                                  visible: true,
+                                  children: [],
+                                  parentId: null,
+                                  properties: { modelUrl: asset.url }
+                                };
+                                addObject(newObj);
+                                showToast(`Added "${asset.name}" to scene`);
+                              } else if (asset.type === 'image') {
+                                handleApplyARTexture({
+                                  id: asset.id,
+                                  name: asset.name,
+                                  previewUrl: asset.url,
+                                  category: 'Uploads',
+                                  recommendedScale: [1, 1],
+                                });
+                              }
                             };
-                            addObject(newObj);
-                            showToast(`Added "${asset.name}" to scene`);
-                          } else if (asset.type === 'image') {
-                            handleApplyARTexture({
-                              id: asset.id,
-                              name: asset.name,
-                              previewUrl: asset.url,
-                              category: 'Uploads',
-                              recommendedScale: [1, 1],
-                            });
-                          }
-                        }}
-                      />
-                    ))}
+
+                            const isLikelyScene = asset.type === 'model' && (asset.name.toLowerCase().includes('scene') || asset.name.toLowerCase().includes('environment'));
+                            if (isLikelyScene) {
+                              setPendingSceneAction(() => performAdd);
+                              setPendingSceneAsset({ ...asset, isScene: true });
+                            } else {
+                              performAdd();
+                            }
+                          }}
+                        />
+                      ))}
                   </div>
                 )}
               </div>
@@ -2569,6 +3018,49 @@ export function AssetBrowser() {
                   className="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-lg"
                 >
                   Import Anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scene Import Modal */}
+        {pendingSceneAsset && (
+          <div className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-[#181820] border border-amber-500/40 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden text-center">
+              <div className="p-6 pb-2">
+                <div className="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle size={28} />
+                </div>
+                <h3 className="text-base font-bold text-white mb-2">Importing a 3D Scene</h3>
+                <p className="text-sm text-gray-300">
+                  You are about to add <strong>"{pendingSceneAsset.name}"</strong>, which is classified as a full 3D Scene.
+                </p>
+                <p className="text-xs text-gray-400 mt-3">
+                  By default, importing a scene will replace all existing objects in your current workspace to provide a clean environment.
+                </p>
+              </div>
+              <div className="p-6 pt-4 flex flex-col gap-2">
+                <button
+                  onClick={() => executeSceneAction(true)}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Replace All Existing Objects (Default)
+                </button>
+                <button
+                  onClick={() => executeSceneAction(false)}
+                  className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  Add Alongside Existing Objects
+                </button>
+                <button
+                  onClick={() => {
+                    setPendingSceneAsset(null);
+                    setPendingSceneAction(null);
+                  }}
+                  className="w-full py-2 bg-transparent text-gray-400 hover:text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer mt-1"
+                >
+                  Cancel Import
                 </button>
               </div>
             </div>

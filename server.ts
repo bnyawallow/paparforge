@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs/promises";
 import { createServer as createViteServer } from "vite";
 import { authRoutes } from "./src/server/authRoutes.js";
+import { projectRoutes } from "./src/server/projectRoutes.js";
 
 async function startServer() {
   const app = express();
@@ -30,6 +31,9 @@ async function startServer() {
   
   // Mount auth routes
   app.use("/api/auth", authRoutes);
+  
+  // Mount project routes
+  app.use("/api/projects", projectRoutes);
 
   // Publish endpoint to write the HTML file directly to the papar directory
   app.post("/api/publish", async (req, res) => {

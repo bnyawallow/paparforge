@@ -25,6 +25,18 @@ db.exec(`
     is_active INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    name TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
 `);
 
 // Create default admin if not exists
@@ -37,7 +49,7 @@ if (!adminExists) {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
   
-  const adminId = crypto.randomUUID();
+  const adminId = '7b5e7048-706f-43d7-a05e-054b52815b36';
   const salt = bcrypt.genSaltSync(10);
   const hash = bcrypt.hashSync('TRIDent2017!@#', salt);
   

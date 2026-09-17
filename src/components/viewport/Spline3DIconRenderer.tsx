@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { SceneObject } from '../../types';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -9,6 +10,8 @@ export interface SplineIconMetadata {
   name: string;
   category: 'Tech & Gadgets' | 'Finance & Crypto' | 'Social & Messaging' | 'Creative & Design' | 'Gaming & VFX' | 'System & UI' | 'Nature & Weather' | 'E-Commerce';
   previewEmoji: string;
+  previewImage?: string;
+  modelUrl?: string;
   defaultColor: string;
   secondaryColor: string;
   description: string;
@@ -1764,21 +1767,63 @@ export function Spline3DIconRenderer({ obj, isPreviewMode, onInteract }: { obj: 
     />
   );
 
+  const modelUrl = (obj.properties?.modelUrl as string) || `/models/icons/${iconType}.glb`;
+
   return (
     <group ref={groupRef}>
-      <React.Suspense fallback={fallbackShape}>
-        <IconModel url={`/models/icons/${iconType}.glb`} fallback={fallbackShape} />
-      </React.Suspense>
+      <ModelErrorBoundary fallback={fallbackShape}>
+        <React.Suspense fallback={fallbackShape}>
+          <IconModel url={modelUrl} fallback={fallbackShape} />
+        </React.Suspense>
+      </ModelErrorBoundary>
     </group>
   );
 }
 
-import { useGLTF } from '@react-three/drei';
+class ModelErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: any) {
+    console.warn('3D Icon Model load failed, gracefully using procedural fallback:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
 function IconModel({ url, fallback }: { url: string; fallback: React.ReactNode }) {
   try {
     const { scene } = useGLTF(url);
-    return <primitive object={scene.clone()} scale={1.5} />;
-  } catch (e) {
+    const normalized = React.useMemo(() => {
+      if (!scene) return null;
+      const clone = scene.clone(true);
+      const box = new THREE.Box3().setFromObject(clone);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const targetScale = maxDim > 0.001 ? 1.6 / maxDim : 1;
+      clone.scale.setScalar(targetScale);
+
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      clone.position.sub(center.clone().multiplyScalar(targetScale));
+      return clone;
+    }, [scene]);
+
+    if (!normalized) return <>{fallback}</>;
+    return <primitive object={normalized} />;
+  } catch {
     return <>{fallback}</>;
   }
 }

@@ -140,7 +140,7 @@ export interface EventData {
 export interface SceneObject {
   id: string;
   name: string;
-  type: 'group' | 'empty' | 'box' | 'plane' | 'circle' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'camera' | 'web3dScene' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
+  type: 'group' | 'empty' | 'box' | 'plane' | 'circle' | 'ring' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'pyramid' | 'tetrahedron' | 'capsule' | 'dodecahedron' | 'octahedron' | 'icosahedron' | 'knot' | 'tube' | 'prism' | 'helix' | 'star' | 'dome' | 'model' | 'text' | 'button' | 'youtube' | 'imageTarget' | 'image' | 'video' | 'audio' | 'light' | 'camera' | 'web3dScene' | 'hudCanvas' | 'hudText' | 'hudButton' | 'hudImage' | 'hudEmbed' | 'hotspot' | 'icon' | 'icon2d';
   position: Vector3Data;
   rotation: Vector3Data; // Euler angles in degrees
   scale: Vector3Data;
@@ -243,11 +243,43 @@ export type TemplateType =
   | 'business_card' 
   | 'educational';
 
+export interface TransformCalloutState {
+  active: boolean;
+  objectId: string;
+  objectName: string;
+  mode: 'translate' | 'rotate' | 'scale';
+  axis?: string;
+  selectedCount?: number;
+  x: number;
+  y: number;
+  z: number;
+  deltaX?: number;
+  deltaY?: number;
+  deltaZ?: number;
+  unit: string;
+  isSnapped?: boolean;
+  snapLabel?: string;
+  timestamp?: number;
+}
+
+export interface GlobalLoadingState {
+  active: boolean;
+  title?: string;
+  detail?: string;
+  progress?: number;
+  type?: 'project' | 'asset' | 'sync' | 'template';
+  canDismiss?: boolean;
+}
+
 export interface EditorState {
   objects: Record<string, SceneObject>;
   rootObjects: string[];
   selectedObjectId: string | null;
   selectedObjectIds: string[];
+  isMultiSelectMode: boolean;
+  setMultiSelectMode: (enabled: boolean) => void;
+  toggleMultiSelectMode: () => void;
+  deleteSelection: () => void;
   lastSelectedTargetId?: string | null;
   setLastSelectedTargetId?: (id: string | null) => void;
   selectedObjectRef: any | null;
@@ -255,6 +287,10 @@ export interface EditorState {
   transformMode: 'translate' | 'rotate' | 'scale';
   transformSpace: 'local' | 'world';
   transformGizmoEnabled: boolean;
+  lockedAxes: { x: boolean; y: boolean; z: boolean };
+  toggleLockAxis: (axis: 'x' | 'y' | 'z') => void;
+  setLockAxis: (axis: 'x' | 'y' | 'z', locked: boolean) => void;
+  unlockAllAxes: () => void;
   transformApplyMode: 'all' | 'activeStateOnly';
   setTransformApplyMode: (mode: 'all' | 'activeStateOnly') => void;
 
@@ -289,10 +325,16 @@ export interface EditorState {
   gridSnapIncrement: number; // in meters (units)
   rotationSnapEnabled: boolean;
   rotationSnapIncrement: number; // in degrees
+  scaleSnapEnabled: boolean;
+  scaleSnapIncrement: number; // multiplier increment
+  scaleGridVisualEnabled: boolean;
   setGridSnapEnabled: (enabled: boolean) => void;
   setGridSnapIncrement: (increment: number) => void;
   setRotationSnapEnabled: (enabled: boolean) => void;
   setRotationSnapIncrement: (increment: number) => void;
+  setScaleSnapEnabled: (enabled: boolean) => void;
+  setScaleSnapIncrement: (increment: number) => void;
+  setScaleGridVisualEnabled: (enabled: boolean) => void;
   snapSelectedToGround: () => void;
   snapSelectedToGrid: () => void;
   centerSelectedOnTarget: () => void;
@@ -344,14 +386,55 @@ export interface EditorState {
   setDeviceSimulationPreset: (preset: string | null) => void;
   isUIOptimizerOpen: boolean;
   setIsUIOptimizerOpen: (open: boolean) => void;
+
+  // Global Loading State for Projects & Assets
+  globalLoading: GlobalLoadingState | null;
+  setGlobalLoading: (loading: GlobalLoadingState | null) => void;
   
   // Multiple Scenes state
   activeSceneId: string;
-  scenes: Record<string, { id: string; name: string; objects: Record<string, SceneObject>; rootObjects: string[] }>;
+  scenes: Record<string, { 
+    id: string; 
+    name: string; 
+    objects: Record<string, SceneObject>; 
+    rootObjects: string[];
+    cameraPosition?: [number, number, number];
+    cameraTarget?: [number, number, number];
+  }>;
+  updateSceneCamera: (sceneId: string, position: [number, number, number], target: [number, number, number]) => void;
   createScene: (name: string, targetMode?: 'single' | 'multi', physicalWidth?: number) => void;
   loadScene: (sceneId: string) => void;
+  clearScene: () => void;
   deleteScene: (sceneId: string) => void;
   renameScene: (sceneId: string, newName: string) => void;
+  sceneModalState: {
+    type: 'create' | 'rename' | 'delete' | null;
+    value?: string;
+    sceneId?: string;
+    targetMode?: 'single' | 'multi';
+    physicalWidth?: number;
+  };
+  setSceneModalState: (state: {
+    type: 'create' | 'rename' | 'delete' | null;
+    value?: string;
+    sceneId?: string;
+    targetMode?: 'single' | 'multi';
+    physicalWidth?: number;
+  }) => void;
+  openCreateSceneModal: () => void;
+  openRenameSceneModal: (sceneId: string, currentName: string) => void;
+  openDeleteSceneModal: (sceneId: string) => void;
+  closeSceneModal: () => void;
+
+  // Mobile AR Live Test & QR Code modal state
+  isQRCodeModalOpen: boolean;
+  qrCodeModalProject: { id: string; name: string } | null;
+  openQRCodeModal: (project?: { id: string; name: string }) => void;
+  closeQRCodeModal: () => void;
+
+  // Active transform callout feedback for 3D & mobile HUD
+  activeTransformCallout: TransformCalloutState | null;
+  setActiveTransformCallout: (callout: TransformCalloutState | null) => void;
 
   // Multi-project state
   currentProjectId: string;
@@ -383,11 +466,13 @@ export interface EditorState {
   renameProject: (projectId: string, newName: string) => void;
   togglePublishStatus: (projectId: string, enabled: boolean) => Promise<boolean>;
   importProject: (projectJson: string) => string | null;
+  syncProjectsWithServer: () => Promise<void>;
 
   addObject: (obj: SceneObject, parentId?: string) => void;
   removeObject: (id: string) => void;
   updateObject: (id: string, updates: Partial<SceneObject>) => void;
   selectObject: (id: string | null, multi?: boolean) => void;
+  selectObjects: (ids: string[]) => void;
   groupSelection: () => void;
   ungroupObject: (id: string) => void;
   updateSettings: (updates: Partial<ProjectSettings>) => void;

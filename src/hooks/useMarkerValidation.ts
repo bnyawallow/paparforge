@@ -19,18 +19,17 @@ export function useMarkerValidation() {
     return validateMarkersSync(objects, settings);
   }, [objects, settings]);
 
-  const [report, setReport] = useState<MarkerValidationReport>(syncReport);
+  const [perceptualReport, setPerceptualReport] = useState<MarkerValidationReport | null>(null);
 
   // Background perceptual comparison
   useEffect(() => {
     let isMounted = true;
-    setReport(syncReport);
 
     const timer = setTimeout(async () => {
       try {
         const fullReport = await validateMarkersPerceptual(objects, settings);
         if (isMounted) {
-          setReport(fullReport);
+          setPerceptualReport(fullReport);
         }
       } catch (err) {
         console.warn('Perceptual marker validation warning:', err);
@@ -41,7 +40,9 @@ export function useMarkerValidation() {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [objects, settings, syncReport]);
+  }, [objects, settings]);
+
+  const report = perceptualReport || syncReport;
 
   // Helper to auto-resolve identical/conflicting target texture by assigning an unused preset
   const resolveTargetTexture = useCallback((targetId: string) => {

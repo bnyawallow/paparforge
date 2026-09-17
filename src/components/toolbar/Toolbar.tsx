@@ -14,6 +14,7 @@ import { MarkerManagerModal } from './MarkerManagerModal';
 import { TemplatesLibraryModal } from '../templates/TemplatesLibraryModal';
 import { TrackingModeModal } from './TrackingModeModal';
 import { UIOptimizerModal } from './UIOptimizerModal';
+import { ProjectQRCodeModal } from '../qrcode/ProjectQRCodeModal';
 import { useTheme } from '../../lib/theme';
 import { useNavigate } from 'react-router-dom';
 
@@ -40,7 +41,11 @@ export function Toolbar() {
     editorTheme,
     toggleEditorTheme,
     isUIOptimizerOpen,
-    setIsUIOptimizerOpen
+    setIsUIOptimizerOpen,
+    isQRCodeModalOpen,
+    qrCodeModalProject,
+    openQRCodeModal,
+    closeQRCodeModal
   } = useEditorStore();
   
   const { user, logout } = useAuthStore();
@@ -79,12 +84,16 @@ export function Toolbar() {
       } else if ((document.documentElement as any).webkitRequestFullscreen) {
         (document.documentElement as any).webkitRequestFullscreen();
       }
+      localStorage.setItem('ar_editor_fullscreen_user_pref', 'enabled');
+      addToast('Full Screen enabled (saved)');
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       } else if ((document as any).webkitExitFullscreen) {
         (document as any).webkitExitFullscreen();
       }
+      localStorage.setItem('ar_editor_fullscreen_user_pref', 'disabled');
+      addToast('Full Screen disabled (saved)');
     }
   };
 
@@ -373,6 +382,20 @@ export function Toolbar() {
             </button>
           </div>
 
+          {/* Mobile AR Test & Dynamic QR Code Trigger */}
+          <button 
+            onClick={() => openQRCodeModal()}
+            className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg border text-xs font-extrabold transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0 shadow-sm ${
+              t.isLight 
+                ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 shadow-purple-500/10' 
+                : 'bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 border-purple-500/30 shadow-purple-500/15'
+            }`}
+            title="Scan Dynamic QR Code for Instant Mobile WebAR Testing"
+          >
+            <QrCode size={13} className="text-purple-400" />
+            <span className="text-[11px] whitespace-nowrap hidden sm:inline">Mobile AR</span>
+          </button>
+
           {/* Manual Save Button */}
           <button 
             onClick={() => {
@@ -417,6 +440,12 @@ export function Toolbar() {
       {showTrackingMode && <TrackingModeModal onClose={() => setShowTrackingMode(false)} />}
       {isUIOptimizerOpen && <UIOptimizerModal onClose={() => setIsUIOptimizerOpen(false)} />}
       <VersionHistoryModal isOpen={showVersions} onClose={() => setShowVersions(false)} />
+      <ProjectQRCodeModal 
+        isOpen={isQRCodeModalOpen} 
+        onClose={closeQRCodeModal}
+        projectId={qrCodeModalProject?.id}
+        projectName={qrCodeModalProject?.name}
+      />
     </>
   );
 }

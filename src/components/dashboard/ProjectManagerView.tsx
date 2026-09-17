@@ -3,13 +3,16 @@ import {
   Folder, Plus, Upload, Trash2, Copy, FileDown, Search, ArrowRight, Sparkles, 
   Layers, User as UserIcon, ShoppingBag, GraduationCap, Check, AlertTriangle, 
   Sun, Moon, LogOut, Box, Clock, Edit2, Tv, Car, Utensils, Crown, Building2,
-  Globe, X, Download, ExternalLink, Lock, LayoutTemplate, BookmarkPlus, Smile, Image as ImageIcon, Target
+  Globe, X, Download, ExternalLink, Lock, LayoutTemplate, BookmarkPlus, Smile, Image as ImageIcon, Target,
+  QrCode, Smartphone
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useTheme } from '../../lib/theme';
 import { motion, AnimatePresence } from 'motion/react';
 import { TemplateType } from '../../types';
+import { ProjectQRCodeModal } from '../qrcode/ProjectQRCodeModal';
+import QRCode from 'qrcode';
 
 export function ProjectManagerView() {
   const t = useTheme();
@@ -23,7 +26,11 @@ export function ProjectManagerView() {
     renameProject,
     addToast,
     editorTheme,
-    toggleEditorTheme
+    toggleEditorTheme,
+    isQRCodeModalOpen,
+    qrCodeModalProject,
+    openQRCodeModal,
+    closeQRCodeModal
   } = useEditorStore();
 
   const { user, logout } = useAuthStore();
@@ -337,18 +344,18 @@ export function ProjectManagerView() {
 
   const handleDownloadQRCode = async (url: string, projectName: string) => {
     try {
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&color=000000&bgcolor=ffffff&data=${encodeURIComponent(url)}`;
-      const response = await fetch(qrApiUrl);
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 600,
+        margin: 2,
+        errorCorrectionLevel: 'H'
+      });
       const a = document.createElement('a');
-      a.href = downloadUrl;
+      a.href = dataUrl;
       a.download = `${projectName.toLowerCase().replace(/\s+/g, '_')}_qrcode.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
-      addToast('Downloaded QR Code image!');
+      addToast('Downloaded high-res QR Code image!');
     } catch (err) {
       addToast('Failed to download QR code image');
     }
@@ -814,6 +821,15 @@ export function ProjectManagerView() {
                             )}
                           </button>
 
+                          {/* Mobile AR QR Test */}
+                          <button
+                            onClick={() => openQRCodeModal({ id: proj.id, name: proj.name })}
+                            className="p-1.5 rounded-lg hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                            title="Scan Dynamic QR Code for Mobile AR Live Test"
+                          >
+                            <QrCode size={13} />
+                          </button>
+
                           {/* Rename */}
                           <button
                             onClick={() => {
@@ -1257,6 +1273,14 @@ export function ProjectManagerView() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Dynamic QR Code Live AR Test Modal */}
+      <ProjectQRCodeModal 
+        isOpen={isQRCodeModalOpen} 
+        onClose={closeQRCodeModal}
+        projectId={qrCodeModalProject?.id}
+        projectName={qrCodeModalProject?.name}
+      />
     </div>
   );
 }

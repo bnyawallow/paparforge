@@ -134,11 +134,11 @@ export const CANVA_DOCK_CATEGORIES: DockCategory[] = [
   },
   {
     id: 'sketchfab',
-    label: 'Sketchfab',
-    iconName: 'Search',
+    label: '3D Models',
+    iconName: 'Box',
     accentColor: '#3b82f6',
     gradient: 'from-blue-500 to-cyan-600',
-    group: 'library',
+    group: 'primary',
   },
   {
     id: 'uploads',
@@ -182,18 +182,18 @@ export function CanvaDock({ activeTab, onSelectTab, counts = {} }: CanvaDockProp
   };
 
   return (
-    <div className="w-[72px] bg-[#0E0E12] border-r border-white/10 flex flex-col items-center py-3 shrink-0 select-none z-20 overflow-y-auto scrollbar-none">
-      {/* Mini App Branding */}
-      <div className="mb-3 px-2 flex flex-col items-center">
+    <div className="w-full md:w-[72px] bg-[#0E0E12] border-b md:border-b-0 md:border-r border-white/10 flex flex-row md:flex-col items-center py-1.5 md:py-3 px-2 md:px-0 shrink-0 select-none z-20 overflow-x-auto md:overflow-y-auto overflow-y-hidden md:overflow-x-hidden scrollbar-none gap-1 md:gap-0">
+      {/* Mini App Branding - Hidden on small mobile screens to maximize category horizontal space */}
+      <div className="hidden md:flex mb-3 px-2 flex-col items-center shrink-0">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 border border-white/20">
           <Sparkles size={18} className="animate-pulse" />
         </div>
       </div>
 
-      <div className="w-8 h-px bg-white/10 mb-2" />
+      <div className="hidden md:block w-8 h-px bg-white/10 mb-2 shrink-0" />
 
       {/* Dock navigation icon buttons */}
-      <div className="flex flex-col gap-1.5 w-full px-1.5">
+      <div className="flex flex-row md:flex-col gap-1 md:gap-1.5 w-auto md:w-full px-0 md:px-1.5 items-center">
         {CANVA_DOCK_CATEGORIES.map((cat) => {
           const isActive = activeTab === cat.id;
           const count = counts[cat.id];
@@ -202,31 +202,37 @@ export function CanvaDock({ activeTab, onSelectTab, counts = {} }: CanvaDockProp
             <button
               key={cat.id}
               onClick={() => onSelectTab(cat.id)}
-              className={`relative group w-full py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-200 cursor-pointer ${
+              className={`relative group shrink-0 min-w-[56px] md:w-full py-1.5 md:py-2 px-2 md:px-1 rounded-xl flex flex-col items-center justify-center transition-all duration-200 cursor-pointer ${
                 isActive
                   ? 'bg-white/10 text-white shadow-md'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
               title={cat.label}
             >
-              {/* Active Indicator Bar on Left */}
+              {/* Active Indicator Bar - Left on desktop, Bottom on mobile */}
               {isActive && (
-                <div 
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full"
-                  style={{ backgroundColor: cat.accentColor }}
-                />
+                <>
+                  <div 
+                    className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full"
+                    style={{ backgroundColor: cat.accentColor }}
+                  />
+                  <div 
+                    className="md:hidden absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-5 rounded-t-full"
+                    style={{ backgroundColor: cat.accentColor }}
+                  />
+                </>
               )}
 
               {/* Icon */}
               <div 
-                className="p-1 rounded-lg transition-transform duration-200 group-hover:scale-110"
+                className="p-0.5 md:p-1 rounded-lg transition-transform duration-200 group-hover:scale-110"
                 style={{ color: isActive ? cat.accentColor : undefined }}
               >
-                {renderIcon(cat.iconName, 18, isActive ? 'stroke-[2.2]' : 'stroke-[1.8]')}
+                {renderIcon(cat.iconName, 17, isActive ? 'stroke-[2.2]' : 'stroke-[1.8]')}
               </div>
 
               {/* Label */}
-              <span className={`text-[10px] font-medium tracking-tight mt-0.5 transition-colors ${
+              <span className={`text-[9px] md:text-[10px] font-medium tracking-tight mt-0.5 transition-colors whitespace-nowrap ${
                 isActive ? 'text-white font-semibold' : 'text-gray-400 group-hover:text-gray-200'
               }`}>
                 {cat.label}
@@ -234,7 +240,7 @@ export function CanvaDock({ activeTab, onSelectTab, counts = {} }: CanvaDockProp
 
               {/* Badge count if available */}
               {count !== undefined && count > 0 && (
-                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-1 bg-white/10 border border-white/10 text-gray-300 text-[8px] font-mono rounded-full flex items-center justify-center">
+                <span className="absolute top-0.5 right-0.5 min-w-[13px] h-[13px] px-1 bg-white/10 border border-white/10 text-gray-300 text-[7.5px] font-mono rounded-full flex items-center justify-center">
                   {count > 99 ? '99+' : count}
                 </span>
               )}

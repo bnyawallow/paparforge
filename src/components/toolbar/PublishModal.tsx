@@ -1,14 +1,15 @@
 import { generateAFrameScene } from '../../lib/aframeGenerator';
 import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '../../store/useEditorStore';
-import { X, Copy, Check, Download, Globe, Code, Cpu, Sparkles, AlertCircle, Play, ExternalLink, QrCode, Box, PackageCheck, FileCode } from 'lucide-react';
+import { X, Copy, Check, Download, Globe, Code, Cpu, Sparkles, AlertCircle, Play, ExternalLink, QrCode, Box, PackageCheck, FileCode, Smartphone } from 'lucide-react';
 import { SceneObject } from '../../types';
 import { exportSceneToGLB, exportSceneAsZapparPackage } from '../../lib/arExporter';
+import QRCode from 'qrcode';
 
 import { GlassModal } from '../ui/HudComponents';
 
 export function PublishModal({ onClose }: { onClose: () => void }) {
-  const { objects, rootObjects, settings, updateSettings, isPreviewMode, assets, scenes, activeSceneId } = useEditorStore();
+  const { objects, rootObjects, settings, updateSettings, isPreviewMode, assets, scenes, activeSceneId, openQRCodeModal } = useEditorStore();
   const [activeTab, setActiveTab] = useState<'cloud' | 'exports' | 'developer'>('cloud');
   const [copied, setCopied] = useState(false);
   const [publishStep, setPublishStep] = useState<'idle' | 'validating' | 'packaging' | 'optimizing' | 'deploying' | 'success'>(
@@ -16,11 +17,15 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
   );
   const [publishProgress, setPublishProgress] = useState(settings.publishedProjectUrl ? 100 : 0);
   const [publishedUrl, setPublishedUrl] = useState(settings.publishedProjectUrl || '');
-  const [qrCodeUrl, setQrCodeUrl] = useState(
-    settings.publishedProjectUrl
-      ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=10-10-10&bgcolor=ffffff&data=${encodeURIComponent(settings.publishedProjectUrl)}`
-      : ''
-  );
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+
+  useEffect(() => {
+    if (publishedUrl) {
+      QRCode.toDataURL(publishedUrl, { width: 360, margin: 1, errorCorrectionLevel: 'H' })
+        .then(url => setQrCodeUrl(url))
+        .catch(err => console.error('PublishModal QR error:', err));
+    }
+  }, [publishedUrl]);
   const [isExportingGLB, setIsExportingGLB] = useState(false);
   const [isExportingZappar, setIsExportingZappar] = useState(false);
   
@@ -99,17 +104,17 @@ export function PublishModal({ onClose }: { onClose: () => void }) {
   const handleDownloadQR = async () => {
     if (!publishedUrl) return;
     try {
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&color=000000&bgcolor=ffffff&data=${encodeURIComponent(publishedUrl)}`;
-      const response = await fetch(qrApiUrl);
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
+      const highResDataUrl = await QRCode.toDataURL(publishedUrl, {
+        width: 600,
+        margin: 2,
+        errorCorrectionLevel: 'H'
+      });
       const a = document.createElement('a');
-      a.href = downloadUrl;
+      a.href = highResDataUrl;
       a.download = `${projectSlug}-ar-qr.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
       useEditorStore.getState().addToast('Downloaded high-res QR code image (.png)');
     } catch {
       useEditorStore.getState().addToast('Failed to download QR image');

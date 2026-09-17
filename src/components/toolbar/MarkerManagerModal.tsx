@@ -3,12 +3,15 @@ import { X, Upload, CheckCircle, AlertTriangle, Image as ImageIcon, Download, Qr
 import { useEditorStore } from '../../store/useEditorStore';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
+import { useScrollMemory } from '../../lib/scrollMemory';
 
 export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
   const { objects, updateObject, settings, updateSettings } = useEditorStore();
   const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
   
   const [activeTab, setActiveTab] = useState<'generator' | 'analyzer'>('generator');
+  const generatorScroll = useScrollMemory<HTMLDivElement>('marker_manager_generator_scroll');
+  const analyzerScroll = useScrollMemory<HTMLDivElement>('marker_manager_analyzer_scroll');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(imageTarget?.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE);
   const [analyzing, setAnalyzing] = useState(false);
@@ -354,7 +357,11 @@ export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
         {activeTab === 'generator' && (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* Left Controls Column */}
-            <div className="w-full md:w-80 bg-white/[0.02] border-r border-white/10 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 scrollbar-thin">
+            <div 
+              ref={generatorScroll.ref}
+              onScroll={generatorScroll.onScroll}
+              className="w-full md:w-80 bg-white/[0.02] border-r border-white/10 p-5 flex flex-col gap-4 overflow-y-auto shrink-0 scrollbar-thin"
+            >
               <span className="text-xs font-bold uppercase tracking-wider text-blue-400 font-mono flex items-center gap-1.5">
                 <Sliders size={14} /> Campaign Marker Customizer
               </span>
@@ -503,7 +510,11 @@ export function MarkerManagerModal({ onClose }: { onClose: () => void }) {
 
         {/* Tab 2: AR Marker Analyzer */}
         {activeTab === 'analyzer' && (
-          <div className="p-6 flex flex-col md:flex-row gap-6 overflow-y-auto">
+          <div 
+            ref={analyzerScroll.ref}
+            onScroll={analyzerScroll.onScroll}
+            className="p-6 flex flex-col md:flex-row gap-6 overflow-y-auto"
+          >
             <div className="flex-1 flex flex-col gap-4">
               <div 
                 className={`aspect-[3/4] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-4 relative overflow-hidden transition-colors ${previewUrl ? 'border-[#333] bg-black' : 'border-[#333] hover:border-blue-500 bg-[#0A0A0A] cursor-pointer'}`}

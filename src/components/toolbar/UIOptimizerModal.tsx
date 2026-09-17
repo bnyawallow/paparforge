@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   Monitor, Smartphone, Tablet, Glasses, Cpu, Gauge, Zap, CheckCircle2, 
   RotateCcw, Sliders, Maximize, ShieldCheck, Sparkles, Layers, RefreshCw,
-  Eye, Check, Info, Box, Compass
+  Eye, Check, Info, Box, Compass, Activity
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
+import { OptimizationProposalsScreen } from './OptimizationProposalsScreen';
 
 interface DevicePreset {
   id: string;
@@ -172,7 +173,7 @@ export function UIOptimizerModal({ onClose }: UIOptimizerModalProps) {
     addToast
   } = useEditorStore();
 
-  const [activeTab, setActiveTab] = useState<'resolution' | 'presets' | 'performance'>('resolution');
+  const [activeTab, setActiveTab] = useState<'proposals' | 'resolution' | 'presets' | 'performance'>('proposals');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'phone' | 'tablet' | 'desktop' | 'spatial'>('all');
 
   // Live viewport metrics
@@ -247,42 +248,27 @@ export function UIOptimizerModal({ onClose }: UIOptimizerModalProps) {
     <GlassModal
       isOpen={true}
       onClose={onClose}
-      title="UI Optimizer & Viewport Resolution Manager"
-      maxWidth="max-w-4xl"
+      title="Spine3D Performance & Optimisation Studio"
+      maxWidth="max-w-5xl"
     >
       <div className="space-y-6 text-sm">
-        {/* Top Header Banner & Live Status */}
-        <div className="bg-gradient-to-r from-blue-900/30 via-purple-900/20 to-cyan-900/30 border border-blue-500/20 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400">
-              <Gauge size={24} className="animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-white text-base tracking-tight">Active Viewport & Device Engine</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                  Active
-                </span>
-              </div>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Real-time viewport resolution analysis, pixel density scaling & device simulation bounds
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={handleAutoOptimize}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 transition-all cursor-pointer active:scale-95 shrink-0"
-            title="Automatically tune graphics and UI layout for this specific device"
-          >
-            <Sparkles size={14} />
-            <span>Auto-Optimize for My Device</span>
-          </button>
-        </div>
-
         {/* Navigation Tabs */}
         <div className="flex border-b border-[#26262B] gap-2 pb-1 overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setActiveTab('proposals')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer relative ${
+              activeTab === 'proposals'
+                ? 'bg-gradient-to-r from-blue-600/30 to-indigo-600/30 text-white border border-blue-500/40 shadow-md'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Sparkles size={15} className="text-amber-400 animate-pulse" />
+            <span>⚡ Optimisation Proposals</span>
+            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-mono border border-amber-500/30">
+              Spine3D
+            </span>
+          </button>
+
           <button
             onClick={() => setActiveTab('resolution')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -319,6 +305,11 @@ export function UIOptimizerModal({ onClose }: UIOptimizerModalProps) {
             <span>Rendering & UI Tuning</span>
           </button>
         </div>
+
+        {/* Tab 0: Optimization Proposals Screen inspired by Spine3D */}
+        {activeTab === 'proposals' && (
+          <OptimizationProposalsScreen onClose={onClose} />
+        )}
 
         {/* Tab 1: Viewport & Resolution Analysis */}
         {activeTab === 'resolution' && (

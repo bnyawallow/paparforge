@@ -1,7 +1,9 @@
 import React, { HTMLAttributes, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useScrollMemory } from '../../lib/scrollMemory';
 
 export interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'dark' | 'light' | 'primary' | 'accent';
@@ -67,50 +69,103 @@ export interface GlassModalProps {
   className?: string;
   maxWidth?: string;
   hideHeader?: boolean;
+  scrollKey?: string;
 }
 
-export function GlassModal({ isOpen, onClose, title, children, className, maxWidth = "max-w-lg", hideHeader = false }: GlassModalProps) {
-  return (
+export function GlassModal({ isOpen, onClose, title, children, className, maxWidth = "max-w-lg", hideHeader = false, scrollKey }: GlassModalProps) {
+  const openTimeRef = React.useRef<number>(0);
+  const pointerDownOnBackdropRef = React.useRef<boolean>(false);
+
+  const derivedKey = scrollKey || (typeof title === 'string' ? `modal_${title}` : (className ? `modal_${className}` : 'glass_modal'));
+  const scrollMem = useScrollMemory<HTMLDivElement>(derivedKey, isOpen);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      openTimeRef.current = Date.now();
+      pointerDownOnBackdropRef.current = false;
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  const handleBackdropPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      pointerDownOnBackdropRef.current = true;
+    } else {
+      pointerDownOnBackdropRef.current = false;
+    }
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only close if pointer explicitly went down on the backdrop AND clicked on the backdrop directly,
+    // and at least 350ms have elapsed since modal opened (prevents mobile touch-tap leak).
+    if (e.target === e.currentTarget && pointerDownOnBackdropRef.current && Date.now() - openTimeRef.current > 350) {
+      onClose();
+    }
+    pointerDownOnBackdropRef.current = false;
+  };
+
+  if (!isOpen && typeof document === 'undefined') return null;
+
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
-        <>
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-            onClick={onClose}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={cn("pointer-events-auto w-full", maxWidth)}
-            >
-              <GlassCard variant="dark" className={cn("overflow-hidden border-t-white/20", className)}>
-                {!hideHeader && (
-                  <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/20">
-                    <h3 className="font-bold text-lg text-white/90">{title}</h3>
-                    <button 
-                      onClick={onClose}
-                      className="p-1.5 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                )}
-                <div className={hideHeader ? "" : "p-6"}>
-                  {children}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto pointer-events-auto"
+          onPointerDown={handleBackdropPointerDown}
+          onClick={handleBackdropClick}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1, y: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className={cn("pointer-events-auto w-full max-h-[90vh] flex flex-col my-auto", maxWidth)}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              pointerDownOnBackdropRef.current = false;
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GlassCard variant="dark" className={cn("overflow-hidden border-t-white/20 flex flex-col rounded-2xl shadow-2xl", className)}>
+              {!hideHeader && (
+                <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 bg-black/20 shrink-0">
+                  <h3 className="font-bold text-base sm:text-lg text-white/90">{title}</h3>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClose();
+                    }}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-              </GlassCard>
-            </motion.div>
-          </div>
-        </>
+              )}
+              <div 
+                ref={scrollMem.ref}
+                onScroll={scrollMem.onScroll}
+                className={cn("flex-1 overflow-y-auto", hideHeader ? "" : "p-3.5 sm:p-6")}
+              >
+                {children}
+              </div>
+            </GlassCard>
+          </motion.div>
+        </motion.div>
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 }
 
 export interface FloatingActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

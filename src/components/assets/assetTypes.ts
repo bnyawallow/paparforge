@@ -43,6 +43,7 @@ export interface UniversalAssetItem {
   tags?: string[];
   color?: string;
   badgeText?: string;
+  isScene?: boolean;
   meta?: any;
   onAdd: () => void;
 }

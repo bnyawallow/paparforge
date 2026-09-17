@@ -73,6 +73,16 @@ export function AssetCard({
               alt={name}
               className="w-full h-full object-contain pointer-events-none transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent && !parent.querySelector('.asset-fallback-text')) {
+                  const fallback = document.createElement('span');
+                  fallback.className = 'asset-fallback-text text-3xl font-bold text-white/80';
+                  fallback.innerText = name.charAt(0);
+                  parent.appendChild(fallback);
+                }
+              }}
             />
           ) : (
             <span className="text-4xl transition-transform duration-300 group-hover:scale-110">

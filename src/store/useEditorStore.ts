@@ -2,7 +2,7 @@ import { useAuthStore } from './useAuthStore';
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import * as THREE from 'three';
-import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType, Asset } from '../types';
+import { EditorState, SceneObject, HistorySnapshot, ProjectVersion, StateData, TemplateType, Asset, GlobalLoadingState } from '../types';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../lib/arTargetTexture';
 import { DirtyNodeTracker } from '../lib/dirtyNodeTracker';
 
@@ -1189,10 +1189,14 @@ const normalizeSceneHierarchyAndLockImageTarget = (objects: Record<string, Scene
         obj.parentId = defaultHudCanvas ? defaultHudCanvas.id : null;
       }
     } else {
-      // Non-HUD / 3D element: check if current parent is valid (not null, not hudCanvas, and exists)
-      const currentParent = obj.parentId ? updatedObjects[obj.parentId] : null;
-      if (!currentParent || currentParent.type === 'hudCanvas' || currentParent.id === obj.id) {
-        obj.parentId = imageTarget!.id;
+      // Non-HUD / 3D element:
+      // If obj.parentId is null, it is placed at the root in the world scene.
+      // If obj.parentId is set but doesn't exist or is invalid (e.g. hudCanvas or self), fallback to imageTarget if present
+      if (obj.parentId) {
+        const currentParent = updatedObjects[obj.parentId];
+        if (!currentParent || currentParent.type === 'hudCanvas' || currentParent.id === obj.id) {
+          obj.parentId = imageTarget ? imageTarget.id : null;
+        }
       }
     }
   });
@@ -1555,11 +1559,8 @@ const cloneObjectSubtree = (
   const newId = uuidv4();
   const clonedProps = JSON.parse(JSON.stringify(original.properties));
 
-  let position = [...original.position] as [number, number, number];
-  if (isRoot) {
-    position[0] += 0.25; // Slightly offset X
-    position[2] += 0.25; // Slightly offset Z
-  }
+  // Duplicated objects must preserve exact original transforms without unintended offsets
+  const position = [...original.position] as [number, number, number];
 
   const clonedObj: SceneObject = {
     ...original,
@@ -1590,7 +1591,88 @@ const cloneObjectSubtree = (
 export const useEditorStore = create<EditorState>((set, get) => ({
   objects: initialObjects,
   rootObjects: initialRootObjects,
-  selectedObjectId: null, selectedObjectIds: [],
+  selectedObjectId: null, 
+  selectedObjectIds: [],
+  isMultiSelectMode: false,
+  setMultiSelectMode: (enabled) => set({ isMultiSelectMode: enabled }),
+  toggleMultiSelectMode: () => set((state) => ({ isMultiSelectMode: !state.isMultiSelectMode })),
+  deleteSelection: () => set((state) => {
+    const idsToDelete = state.selectedObjectIds.length > 0
+      ? state.selectedObjectIds
+      : (state.selectedObjectId ? [state.selectedObjectId] : []);
+
+    if (idsToDelete.length === 0) return state;
+
+    // Filter out image targets if deleting them would leave zero targets
+    const remainingTargets = Object.values(state.objects).filter(o => o.type === 'imageTarget');
+    const validIds = idsToDelete.filter(id => {
+      const obj = state.objects[id];
+      if (!obj) return false;
+      if (obj.type === 'imageTarget' && remainingTargets.length <= 1) {
+        return false;
+      }
+      return true;
+    });
+
+    if (validIds.length === 0) {
+      state.addToast('Scene must contain at least one AR Target');
+      return state;
+    }
+
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) newPast = newPast.slice(1);
+
+    lastEditedObjectId = null;
+    lastSnapshotTime = 0;
+
+    const newObjects = { ...state.objects };
+
+    // Get topmost selected IDs to avoid redundant recursive deletions
+    const topIds = validIds.filter(id => {
+      let curr = state.objects[id];
+      if (!curr) return false;
+      while (curr.parentId) {
+        if (validIds.includes(curr.parentId)) return false;
+        curr = state.objects[curr.parentId];
+      }
+      return true;
+    });
+
+    const removeRecursive = (targetId: string) => {
+      const target = newObjects[targetId];
+      if (target) {
+        target.children.forEach(removeRecursive);
+        delete newObjects[targetId];
+      }
+    };
+
+    topIds.forEach(id => {
+      const obj = newObjects[id];
+      if (!obj) return;
+      if (obj.parentId && newObjects[obj.parentId]) {
+        newObjects[obj.parentId] = {
+          ...newObjects[obj.parentId],
+          children: newObjects[obj.parentId].children.filter(cId => cId !== id)
+        };
+      }
+      removeRecursive(id);
+    });
+
+    const newRootObjects = state.rootObjects.filter(rId => !topIds.includes(rId));
+    state.addToast(`Deleted ${topIds.length} object${topIds.length > 1 ? 's' : ''}`);
+
+    return {
+      objects: newObjects,
+      rootObjects: newRootObjects,
+      selectedObjectId: null,
+      selectedObjectIds: [],
+      selectedObjectRef: null,
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true
+    };
+  }),
   lastSelectedTargetId: null,
   setLastSelectedTargetId: (id) => set({ lastSelectedTargetId: id }),
   selectedObjectRef: null,
@@ -1598,6 +1680,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   transformMode: 'translate',
   transformSpace: 'world',
   transformGizmoEnabled: true,
+  lockedAxes: { x: false, y: false, z: false },
+  toggleLockAxis: (axis) => set((state) => ({
+    lockedAxes: { ...state.lockedAxes, [axis]: !state.lockedAxes[axis] }
+  })),
+  setLockAxis: (axis, locked) => set((state) => ({
+    lockedAxes: { ...state.lockedAxes, [axis]: locked }
+  })),
+  unlockAllAxes: () => set({
+    lockedAxes: { x: false, y: false, z: false }
+  }),
   transformApplyMode: 'activeStateOnly',
   setTransformApplyMode: (mode) => set({ transformApplyMode: mode }),
   assets: initialAssets,
@@ -1617,13 +1709,72 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   projectsList: initialProjectsList,
   versions: loadVersionsForProject(initialCurrentProjectId),
   openProject: (projectId: string) => {
+    const proj = get().projectsList.find(p => p.id === projectId);
+    const projName = proj?.name || 'Project';
+    get().setGlobalLoading({
+      active: true,
+      title: 'Loading Project...',
+      detail: `Opening "${projName}" and preparing spatial scene...`,
+      progress: 25,
+      type: 'project'
+    });
     get().loadProject(projectId);
     set({ isProjectOpen: true });
+    setTimeout(() => {
+      get().setGlobalLoading({
+        active: true,
+        title: 'Finalizing Scene...',
+        detail: 'Setting up viewport layers and shaders...',
+        progress: 85,
+        type: 'project'
+      });
+      setTimeout(() => {
+        get().setGlobalLoading(null);
+      }, 350);
+    }, 200);
   },
   closeProject: () => set({ isProjectOpen: false }),
 
   activeSceneId: initialActiveSceneId,
   scenes: initialScenes,
+  updateSceneCamera: (sceneId: string, position: [number, number, number], target: [number, number, number]) => set((state) => {
+    const currentScene = state.scenes[sceneId];
+    if (!currentScene) return state;
+
+    if (
+      currentScene.cameraPosition &&
+      currentScene.cameraTarget &&
+      Math.abs(currentScene.cameraPosition[0] - position[0]) < 0.005 &&
+      Math.abs(currentScene.cameraPosition[1] - position[1]) < 0.005 &&
+      Math.abs(currentScene.cameraPosition[2] - position[2]) < 0.005 &&
+      Math.abs(currentScene.cameraTarget[0] - target[0]) < 0.005 &&
+      Math.abs(currentScene.cameraTarget[1] - target[1]) < 0.005 &&
+      Math.abs(currentScene.cameraTarget[2] - target[2]) < 0.005
+    ) {
+      return state;
+    }
+
+    const updatedScenes = {
+      ...state.scenes,
+      [sceneId]: {
+        ...currentScene,
+        cameraPosition: position,
+        cameraTarget: target
+      }
+    };
+
+    try {
+      const storageKey = getStorageKey(`ar_forge_project_${state.currentProjectId}`);
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        parsed.scenes = updatedScenes;
+        localStorage.setItem(storageKey, JSON.stringify(parsed));
+      }
+    } catch (e) {}
+
+    return { scenes: updatedScenes };
+  }),
   createScene: (name, targetMode = 'single', physicalWidth?: number) => set((state) => {
     const newSceneId = `scene_${Date.now()}`;
     const initialObjects = JSON.parse(JSON.stringify(defaultScene));
@@ -1647,6 +1798,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     
     const updatedScenes = { ...currentScenes, [newSceneId]: newScene };
+    const updatedSettings = { ...state.settings, targetMode };
 
     // Auto-persist scene updates directly to storage
     const projectData = {
@@ -1654,7 +1806,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       name: state.settings.projectName,
       objects: newScene.objects,
       rootObjects: newScene.rootObjects,
-      settings: state.settings,
+      settings: updatedSettings,
       assets: state.assets,
       scenes: updatedScenes,
       activeSceneId: newSceneId,
@@ -1668,11 +1820,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     return {
       scenes: updatedScenes,
+      settings: updatedSettings,
       activeSceneId: newSceneId,
       objects: newScene.objects,
       rootObjects: newScene.rootObjects,
       selectedObjectId: null,
       selectedObjectIds: [],
+      isMultiSelectMode: false,
       past: [],
       future: [],
       lastSavedTime: Date.now(),
@@ -1809,11 +1963,68 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
   }),
 
+  // Scene modal dialog management
+  sceneModalState: { type: null },
+  setSceneModalState: (sceneModalState) => set({ sceneModalState }),
+  openCreateSceneModal: () => set((state) => {
+    const existingScenes = Object.values(state.scenes || {});
+    let nextIndex = existingScenes.length + 1;
+    const existingNames = new Set(existingScenes.map((s: any) => s.name?.trim().toLowerCase()));
+    while (existingNames.has(`scene ${nextIndex}`) || existingNames.has(`new scene ${nextIndex}`)) {
+      nextIndex++;
+    }
+    const sequentialName = `Scene ${nextIndex}`;
+
+    return {
+      sceneModalState: {
+        type: 'create',
+        value: sequentialName,
+        targetMode: 'single',
+        physicalWidth: 0.127
+      }
+    };
+  }),
+  openRenameSceneModal: (sceneId: string, currentName: string) => set({
+    sceneModalState: {
+      type: 'rename',
+      sceneId,
+      value: currentName
+    }
+  }),
+  openDeleteSceneModal: (sceneId: string) => set({
+    sceneModalState: {
+      type: 'delete',
+      sceneId
+    }
+  }),
+  closeSceneModal: () => set({
+    sceneModalState: { type: null }
+  }),
+
+  // Mobile AR Live Test & QR Code modal management
+  isQRCodeModalOpen: false,
+  qrCodeModalProject: null,
+  openQRCodeModal: (project) => set({
+    isQRCodeModalOpen: true,
+    qrCodeModalProject: project || null
+  }),
+  closeQRCodeModal: () => set({
+    isQRCodeModalOpen: false,
+    qrCodeModalProject: null
+  }),
+
+  // Active transform callout feedback
+  activeTransformCallout: null,
+  setActiveTransformCallout: (callout) => set({ activeTransformCallout: callout }),
+
   // Snapping defaults
   gridSnapEnabled: false,
   gridSnapIncrement: 0.1,
   rotationSnapEnabled: false,
   rotationSnapIncrement: 15,
+  scaleSnapEnabled: true,
+  scaleSnapIncrement: 0.1,
+  scaleGridVisualEnabled: true,
   
   isAssetBrowserOpen: false,
   assetBrowserTab: 'templates',
@@ -2021,6 +2232,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   uiDensityMode: 'balanced',
   deviceSimulationPreset: null,
   isUIOptimizerOpen: false,
+  globalLoading: null,
   
   // History state
   past: [],
@@ -2090,22 +2302,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }
     } else if (targetObj.type !== 'imageTarget') {
-      // For general 3D assets, auto-resolve parent target if not explicitly passed
-      if (!resolvedParentId) {
+      // For general 3D assets:
+      // Priority 1: child of selected object (if valid 3D container/parent)
+      // Priority 2: otherwise child of tracker
+      // Priority 3: otherwise root in world scene (null)
+      if (resolvedParentId === undefined) {
         if (state.selectedObjectId && newObjects[state.selectedObjectId]) {
           const selObj = newObjects[state.selectedObjectId];
-          if (selObj.type === 'imageTarget') {
+          if (selObj.type !== 'hudCanvas' && !['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(selObj.type)) {
             resolvedParentId = selObj.id;
-          } else if (selObj.parentId && newObjects[selObj.parentId]?.type === 'imageTarget') {
-            resolvedParentId = selObj.parentId;
+          }
+        }
+        if (!resolvedParentId) {
+          const activeTracker = (state.lastSelectedTargetId && newObjects[state.lastSelectedTargetId]?.type === 'imageTarget')
+            ? state.lastSelectedTargetId
+            : Object.values(newObjects).find(o => o.type === 'imageTarget')?.id;
+          if (activeTracker) {
+            resolvedParentId = activeTracker;
+          } else {
+            resolvedParentId = null; // Root in world scene
           }
         }
       }
-      if (!resolvedParentId) {
-        const firstTarget = Object.values(newObjects).find(o => o.type === 'imageTarget');
-        if (firstTarget) {
-          resolvedParentId = firstTarget.id;
-        }
+
+      // Ensure new 3D object defaults to [0, 0, 0] so it snaps by bottom center to parent/scene origin
+      if (!targetObj.position) {
+        targetObj.position = [0, 0, 0];
       }
 
       // Check if parent target is a Face Target
@@ -2127,7 +2349,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           const activeAnchor = state.settings.faceAnchor || 'head';
           const offset = faceAnchorMap[activeAnchor] || faceAnchorMap.head;
           
-          if (!targetObj.position || (targetObj.position[0] === 0 && targetObj.position[1] === 0 && targetObj.position[2] === 0)) {
+          if (targetObj.position[0] === 0 && targetObj.position[1] === 0 && targetObj.position[2] === 0) {
             targetObj.position = [...offset];
           }
         }
@@ -2183,6 +2405,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
   }),
 
+  clearScene: () => set((state) => {
+    const snapshot = createSnapshot(state);
+    let newPast = [...state.past, snapshot];
+    if (newPast.length > 50) {
+      newPast = newPast.slice(1);
+    }
+    
+    // Find imageTarget
+    const imageTarget = Object.values(state.objects).find(o => o.type === 'imageTarget');
+    if (!imageTarget) return state;
+
+    const newImageTarget = { ...imageTarget, children: [] };
+    const newObjects: Record<string, SceneObject> = {
+      [imageTarget.id]: newImageTarget
+    };
+
+    return {
+      objects: newObjects,
+      rootObjects: [imageTarget.id],
+      selectedObjectId: null,
+      selectedObjectIds: [],
+      past: newPast,
+      future: [],
+      hasUnsavedChanges: true,
+      lastSelectedTargetId: imageTarget.id
+    };
+  }),
+
   removeObject: (id) => set((state) => {
     // Save snapshot of current state before mutation
     const snapshot = createSnapshot(state);
@@ -2231,14 +2481,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ? state.lastSelectedTargetId
       : (remainingTargets[0]?.id || null);
 
-    // If deleted object had a parent tracker or if selection was deleted, auto-select parent tracker
-    let autoSelectedId = isSelectedDeleted ? null : state.selectedObjectId;
-    if (isSelectedDeleted) {
-      if (objToRemove.parentId && newObjects[objToRemove.parentId]) {
-        autoSelectedId = objToRemove.parentId;
-      } else if (newLastSelectedTargetId && newObjects[newLastSelectedTargetId]) {
-        autoSelectedId = newLastSelectedTargetId;
-      }
+    // If an object is deleted, the parent object should be selected
+    let autoSelectedId: string | null = null;
+    if (objToRemove.parentId && newObjects[objToRemove.parentId]) {
+      autoSelectedId = objToRemove.parentId;
+    } else if (state.selectedObjectId && newObjects[state.selectedObjectId] && state.selectedObjectId !== id) {
+      autoSelectedId = state.selectedObjectId;
+    } else if (newLastSelectedTargetId && newObjects[newLastSelectedTargetId]) {
+      autoSelectedId = newLastSelectedTargetId;
     }
 
     return {
@@ -2368,7 +2618,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedObjectId: newSelectedIds.length > 0 ? newSelectedIds[newSelectedIds.length - 1] : null,
         selectedObjectIds: newSelectedIds,
         selectedObjectRef: null,
-        lastSelectedTargetId: newLastSelectedTargetId
+        lastSelectedTargetId: newLastSelectedTargetId,
+        isMultiSelectMode: newSelectedIds.length > 0
       };
     }
 
@@ -2377,7 +2628,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedObjectIds: id ? [id] : [],
       selectedObjectRef: state.selectedObjectId === id ? state.selectedObjectRef : null,
       activeStateId: state.selectedObjectId === id ? state.activeStateId : null,
-      lastSelectedTargetId: newLastSelectedTargetId
+      lastSelectedTargetId: newLastSelectedTargetId,
+      isMultiSelectMode: false
+    };
+  }),
+
+  selectObjects: (ids) => set((state) => {
+    return {
+      selectedObjectId: ids.length > 0 ? ids[ids.length - 1] : null,
+      selectedObjectIds: ids,
+      selectedObjectRef: null
     };
   }),
 
@@ -4007,6 +4267,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const updatedList = state.projectsList.filter((p) => p.id !== projectId);
       localStorage.setItem(getStorageKey('ar_forge_project_list'), JSON.stringify(updatedList));
 
+      // Delete from SQLite server backend in the background if logged in
+      import('../services/projectService').then(({ ProjectService }) => {
+        if (ProjectService.isUserLoggedIn()) {
+          ProjectService.deleteProject(projectId)
+            .then(() => console.log('Successfully deleted project from SQLite backend server.'))
+            .catch((err) => console.warn('Could not delete project from server:', err));
+        }
+      });
+
       if (state.currentProjectId === projectId) {
         // If the deleted project was active, find another or create a default
         if (updatedList.length > 0) {
@@ -4246,6 +4515,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       localStorage.setItem(getStorageKey(`ar_forge_project_${state.currentProjectId}`), JSON.stringify(projectData));
 
+      // Save to SQLite server backend in the background if logged in
+      import('../services/projectService').then(({ ProjectService }) => {
+        if (ProjectService.isUserLoggedIn()) {
+          ProjectService.saveProject(state.currentProjectId, state.settings.projectName, projectData)
+            .then(() => console.log('Successfully saved project to the SQLite backend server.'))
+            .catch((err) => console.warn('Could not save project to the server:', err));
+        }
+      });
+
       // If already published, sync the configuration to Supabase in the background
       if (state.settings.publishedProjectId) {
         import('../services/supabaseService').then(({ SupabaseService }) => {
@@ -4468,10 +4746,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  syncProjectsWithServer: async () => {
+    try {
+      const { ProjectService } = await import('../services/projectService');
+      if (ProjectService.isUserLoggedIn()) {
+        await ProjectService.syncLocalAndServerProjects();
+        
+        // Reload saved state to update UI
+        const savedData = loadSavedState();
+        set({
+          projectsList: savedData.projectsList,
+          scenes: savedData.scenes || { 'default': { id: 'default', name: 'Main Scene', objects: savedData.objects, rootObjects: savedData.rootObjects } },
+          activeSceneId: savedData.activeSceneId || 'default',
+          objects: savedData.objects,
+          rootObjects: savedData.rootObjects,
+          settings: savedData.settings,
+          assets: savedData.assets,
+          currentProjectId: savedData.currentProjectId
+        });
+      }
+    } catch (e) {
+      console.error('Failed to sync projects with server:', e);
+    }
+  },
+
   setGridSnapEnabled: (enabled) => set({ gridSnapEnabled: enabled }),
   setGridSnapIncrement: (increment) => set({ gridSnapIncrement: increment }),
   setRotationSnapEnabled: (enabled) => set({ rotationSnapEnabled: enabled }),
   setRotationSnapIncrement: (increment) => set({ rotationSnapIncrement: increment }),
+  setScaleSnapEnabled: (enabled) => set({ scaleSnapEnabled: enabled }),
+  setScaleSnapIncrement: (increment) => set({ scaleSnapIncrement: increment }),
+  setScaleGridVisualEnabled: (enabled) => set({ scaleGridVisualEnabled: enabled }),
 
   snapObjectToGround: (id: string) => set((state) => {
     const obj = state.objects[id];
@@ -4750,6 +5055,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setUiDensityMode: (mode) => set({ uiDensityMode: mode }),
   setDeviceSimulationPreset: (preset) => set({ deviceSimulationPreset: preset }),
   setIsUIOptimizerOpen: (open) => set({ isUIOptimizerOpen: open }),
+  setGlobalLoading: (loading) => set({ globalLoading: loading }),
 
   createVersionSnapshot: (customName?: string) => set((state) => {
     const versionId = `ver_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;

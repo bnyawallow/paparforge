@@ -7,6 +7,7 @@ import { AssetBrowser } from '../assets/AssetBrowser';
 import { ScriptEditorPanel } from './ScriptEditorPanel';
 import { PublishModal } from '../toolbar/PublishModal';
 import { UIOptimizerModal } from '../toolbar/UIOptimizerModal';
+import { SceneManagerModal } from '../scenes/SceneManagerModal';
 import { useEditorStore } from '../../store/useEditorStore';
 import { 
   Layers, 
@@ -30,7 +31,13 @@ import {
   Gauge,
   Globe,
   Maximize,
-  Minimize
+  Minimize,
+  Plus,
+  CheckSquare,
+  Copy,
+  Trash2,
+  FolderPlus,
+  Film
 } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
 import { motion, AnimatePresence } from 'motion/react';
@@ -54,6 +61,17 @@ export function EditorLayout() {
   const gridSnapEnabled = useEditorStore(state => state.gridSnapEnabled);
   const setGridSnapEnabled = useEditorStore(state => state.setGridSnapEnabled);
   const setRotationSnapEnabled = useEditorStore(state => state.setRotationSnapEnabled);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const selectObject = useEditorStore(state => state.selectObject);
+  const isMultiSelectMode = useEditorStore(state => state.isMultiSelectMode);
+  const toggleMultiSelectMode = useEditorStore(state => state.toggleMultiSelectMode);
+  const deleteSelection = useEditorStore(state => state.deleteSelection);
+  const groupSelection = useEditorStore(state => state.groupSelection);
+  const duplicateSelection = useEditorStore(state => state.duplicateSelection);
+  const scenes = useEditorStore(state => state.scenes);
+  const activeSceneId = useEditorStore(state => state.activeSceneId);
+  const openCreateSceneModal = useEditorStore(state => state.openCreateSceneModal);
+  const activeSceneName = scenes[activeSceneId]?.name || 'Scene 1';
 
   const [bottomHeight, setBottomHeight] = useState(224); // default 224px (h-56)
   const [leftWidth, setLeftWidth] = useState(240); // default 240px
@@ -67,6 +85,13 @@ export function EditorLayout() {
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenPref, setFullscreenPref] = useState<'enabled' | 'disabled' | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ar_editor_fullscreen_user_pref');
+      if (saved === 'enabled' || saved === 'disabled') return saved;
+    }
+    return null;
+  });
 
   // Mobile active drawer state: 'none' | 'hierarchy' | 'inspector'
   const [mobileDrawer, setMobileDrawer] = useState<'none' | 'hierarchy' | 'inspector'>('none');
@@ -90,12 +115,18 @@ export function EditorLayout() {
       } else if ((document.documentElement as any).webkitRequestFullscreen) {
         (document.documentElement as any).webkitRequestFullscreen();
       }
+      localStorage.setItem('ar_editor_fullscreen_user_pref', 'enabled');
+      setFullscreenPref('enabled');
+      useEditorStore.getState().addToast('Full Screen enabled (saved)');
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       } else if ((document as any).webkitExitFullscreen) {
         (document as any).webkitExitFullscreen();
       }
+      localStorage.setItem('ar_editor_fullscreen_user_pref', 'disabled');
+      setFullscreenPref('disabled');
+      useEditorStore.getState().addToast('Full Screen disabled (saved)');
     }
   };
 
@@ -113,9 +144,24 @@ export function EditorLayout() {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const isMobile = width < 768 || (width < 960 && height < 550);
-      const isLandscape = width > height && (width < 1024 || height < 600);
-      const isPortrait = !isLandscape && isMobile;
-      setScreenMetrics({ width, height, isMobile, isLandscape, isPortrait });
+      
+      const isInputActive = typeof document !== 'undefined' && 
+        ['input', 'textarea', 'select'].includes(document.activeElement?.tagName.toLowerCase() || '');
+
+      setScreenMetrics(prev => {
+        // Prefer physical screen orientation API over window inner dimensions (which collapse when soft keyboard opens)
+        let isLandscape = prev.isLandscape;
+        if (typeof screen !== 'undefined' && (screen as any).orientation && (screen as any).orientation.type) {
+          isLandscape = (screen as any).orientation.type.includes('landscape');
+        } else if (typeof window !== 'undefined' && typeof window.orientation !== 'undefined') {
+          isLandscape = Math.abs(Number(window.orientation)) === 90;
+        } else if (!isInputActive) {
+          isLandscape = width > height && (width < 1024 || height < 600);
+        }
+
+        const isPortrait = !isLandscape && isMobile;
+        return { width, height, isMobile, isLandscape, isPortrait };
+      });
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -127,6 +173,51 @@ export function EditorLayout() {
   }, []);
 
   const { isMobile, isLandscape, isPortrait } = screenMetrics;
+
+  // Ensure that full screen mode selection is strictly preserved across device orientation changes
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const currentPref = localStorage.getItem('ar_editor_fullscreen_user_pref');
+      
+      // If user explicitly enabled full screen mode, preserve full screen state on orientation change
+      if (currentPref === 'enabled') {
+        if (!document.fullscreenElement) {
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else if ((document.documentElement as any).webkitRequestFullscreen) {
+            (document.documentElement as any).webkitRequestFullscreen();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('orientationchange', syncFullscreenState);
+    return () => {
+      window.removeEventListener('orientationchange', syncFullscreenState);
+    };
+  }, [fullscreenPref]);
+
+  // Touch gesture listener to restore full screen on touch if browser blocked initial request when pref is 'enabled'
+  useEffect(() => {
+    const handleTouchRestore = () => {
+      const pref = localStorage.getItem('ar_editor_fullscreen_user_pref');
+      if (pref === 'enabled' && !document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else if ((document.documentElement as any).webkitRequestFullscreen) {
+          (document.documentElement as any).webkitRequestFullscreen();
+        }
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchRestore, { passive: true });
+    window.addEventListener('click', handleTouchRestore, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchRestore);
+      window.removeEventListener('click', handleTouchRestore);
+    };
+  }, [fullscreenPref]);
 
   const startResizeBottom = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -340,43 +431,118 @@ export function EditorLayout() {
               </button>
             )}
 
-            {/* Mobile/Tablet Quick Floating Edge Toggles (Portrait and Landscape) */}
+            {/* Redesigned Mobile Top Bar & Multi-Select Action Island */}
             {isMobile && !isPreviewMode && (
               <>
-                {/* Floating Left Trigger: Scene Objects */}
-                <button
-                  onClick={() => setMobileDrawer(d => d === 'hierarchy' ? 'none' : 'hierarchy')}
-                  className={cn(
-                    "absolute left-2.5 top-3 z-40 px-2.5 py-1.5 rounded-xl border backdrop-blur-xl shadow-2xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95",
-                    mobileDrawer === 'hierarchy'
-                      ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
-                      : "bg-[#141418]/90 text-gray-200 hover:text-white border-[#2A2A30] hover:border-blue-500/50"
-                  )}
-                  title="Toggle Scene Hierarchy"
-                >
-                  <Layers size={14} className={mobileDrawer === 'hierarchy' ? "text-white" : "text-blue-400"} />
-                  <span className="hidden xs:inline">Scene</span>
-                  <span className="text-[10px] px-1 py-0.2 rounded-full bg-white/10 font-mono">
-                    {totalObjectCount}
-                  </span>
-                </button>
+                <div className="absolute top-2 inset-x-2 z-40 flex items-center justify-between pointer-events-none gap-1">
+                  {/* Left Controls: Scene Hierarchy Trigger & Scene Switcher */}
+                  <div className="flex items-center gap-1.5 pointer-events-auto">
+                    <button
+                      onClick={() => setMobileDrawer(d => d === 'hierarchy' ? 'none' : 'hierarchy')}
+                      className={cn(
+                        "h-9 px-2.5 rounded-xl border backdrop-blur-xl shadow-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95",
+                        mobileDrawer === 'hierarchy'
+                          ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
+                          : "bg-[#141418]/90 text-gray-200 hover:text-white border-[#2A2A30] hover:border-blue-500/50"
+                      )}
+                      title="Scene Objects & Hierarchy"
+                    >
+                      <Layers size={14} className={mobileDrawer === 'hierarchy' ? "text-white" : "text-blue-400"} />
+                      <span>Scene</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/15 font-mono font-bold">
+                        {totalObjectCount}
+                      </span>
+                    </button>
 
-                {/* Floating Right Trigger: Properties / Inspector */}
-                <button
-                  onClick={() => setMobileDrawer(d => d === 'inspector' ? 'none' : 'inspector')}
-                  className={cn(
-                    "absolute right-2.5 top-3 z-40 px-2.5 py-1.5 rounded-xl border backdrop-blur-xl shadow-2xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95",
-                    mobileDrawer === 'inspector'
-                      ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
-                      : "bg-[#141418]/90 text-gray-200 hover:text-white border-[#2A2A30] hover:border-blue-500/50"
-                  )}
-                  title="Toggle Properties Inspector"
-                >
-                  <span className="hidden xs:inline truncate max-w-[90px]">
-                    {selectedObject ? selectedObject.name : 'Inspect'}
-                  </span>
-                  <Sliders size={14} className={mobileDrawer === 'inspector' ? "text-white" : "text-blue-400"} />
-                </button>
+                    {/* Active Scene Pill with Add Scene shortcut */}
+                    <button
+                      onClick={() => openCreateSceneModal()}
+                      className="h-9 px-2.5 rounded-xl border border-white/10 bg-[#141418]/90 hover:bg-[#1f1f26] text-gray-300 hover:text-white backdrop-blur-xl shadow-xl flex items-center gap-1.5 text-xs font-semibold cursor-pointer active:scale-95 transition-all max-w-[130px]"
+                      title={`Current Scene: "${activeSceneName}". Tap to add or manage scenes.`}
+                    >
+                      <Film size={12} className="text-purple-400 shrink-0" />
+                      <span className="truncate">{activeSceneName}</span>
+                      <Plus size={11} className="text-gray-400 shrink-0 stroke-[3]" />
+                    </button>
+                  </div>
+
+                  {/* Right Controls: Add Asset & Inspector */}
+                  <div className="flex items-center gap-1.5 pointer-events-auto">
+                    <button
+                      onClick={() => {
+                        openAssetBrowser('architecture');
+                        setMobileDrawer('none');
+                      }}
+                      className="h-9 px-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white border border-emerald-400/40 shadow-lg shadow-emerald-600/20 flex items-center gap-1 text-xs font-bold active:scale-95 transition-all cursor-pointer"
+                      title="Add 3D Model / Asset"
+                    >
+                      <Plus size={13} className="stroke-[3]" />
+                      <span>Asset</span>
+                    </button>
+
+                    <button
+                      onClick={() => setMobileDrawer(d => d === 'inspector' ? 'none' : 'inspector')}
+                      className={cn(
+                        "h-9 px-2.5 rounded-xl border backdrop-blur-xl shadow-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95 max-w-[105px]",
+                        mobileDrawer === 'inspector'
+                          ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
+                          : "bg-[#141418]/90 text-gray-200 hover:text-white border-[#2A2A30] hover:border-blue-500/50"
+                      )}
+                      title="Toggle Properties Inspector"
+                    >
+                      <Sliders size={13} className={mobileDrawer === 'inspector' ? "text-white" : "text-blue-400"} />
+                      <span className="truncate">
+                        {selectedObject ? selectedObject.name : 'Inspect'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Floating Multi-Selection Action Island (Visible when 2+ objects selected) */}
+                {selectedObjectIds.length >= 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-[#17171C]/95 border border-[#33333C] backdrop-blur-xl shadow-2xl rounded-2xl p-1.5 flex items-center gap-1.5 max-w-[94vw]"
+                  >
+                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold">
+                      <CheckSquare size={13} />
+                      <span>{selectedObjectIds.length}</span>
+                    </div>
+                    <button
+                      onClick={() => groupSelection()}
+                      className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/10 cursor-pointer active:scale-95 transition-all"
+                      title="Group Selected Objects"
+                    >
+                      <FolderPlus size={13} className="text-amber-400" />
+                      <span>Group</span>
+                    </button>
+                    <button
+                      onClick={() => duplicateSelection()}
+                      className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/10 cursor-pointer active:scale-95 transition-all"
+                      title="Duplicate Selected Objects"
+                    >
+                      <Copy size={13} className="text-cyan-400" />
+                      <span>Clone</span>
+                    </button>
+                    <button
+                      onClick={() => deleteSelection()}
+                      className="px-2 py-1 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer active:scale-95 transition-all"
+                      title="Delete Selected Objects"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete</span>
+                    </button>
+                    <button
+                      onClick={() => selectObject(null)}
+                      className="p-1 rounded-xl text-gray-400 hover:text-white cursor-pointer active:scale-95"
+                      title="Clear Selection"
+                    >
+                      <X size={14} />
+                    </button>
+                  </motion.div>
+                )}
               </>
             )}
 
@@ -473,23 +639,37 @@ export function EditorLayout() {
         <nav 
           aria-label="Mobile Navigation Dock"
           className={cn(
-            "bg-[#111114]/95 backdrop-blur-xl border-t border-[#26262B] flex items-center overflow-x-auto overflow-y-hidden no-scrollbar px-2 gap-1 z-40 shrink-0 safe-area-inset-bottom scroll-smooth",
-            isLandscape ? "h-12 justify-around" : "h-16 justify-start sm:justify-around"
+            "bg-[#111114]/95 backdrop-blur-xl border-t border-[#26262B] flex items-center justify-around overflow-x-auto overflow-y-hidden no-scrollbar px-2 gap-1 z-40 shrink-0 safe-area-inset-bottom scroll-smooth",
+            isLandscape ? "h-12" : "h-14"
           )}
         >
-          {/* Scene Hierarchy Drawer Trigger */}
+          {/* Multi-Object Selection Mode Toggle */}
           <button
-            onClick={() => setMobileDrawer(d => d === 'hierarchy' ? 'none' : 'hierarchy')}
+            onClick={() => {
+              toggleMultiSelectMode();
+              useEditorStore.getState().addToast(
+                !isMultiSelectMode ? 'Multi-select ON: Tap objects in viewport or list' : 'Multi-select OFF'
+              );
+            }}
             className={cn(
-              "flex flex-col items-center justify-center min-w-[50px] min-h-[44px] py-1 px-2 rounded-xl transition-all cursor-pointer shrink-0 select-none active:scale-95",
-              mobileDrawer === 'hierarchy' 
-                ? "bg-blue-600/25 text-blue-400 font-bold border border-blue-500/40" 
+              "flex flex-col items-center justify-center min-w-[50px] min-h-[44px] py-1 px-2 rounded-xl transition-all cursor-pointer shrink-0 select-none active:scale-95 relative",
+              isMultiSelectMode 
+                ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-500/30 border border-blue-400" 
                 : "text-gray-400 hover:text-white"
             )}
-            title="Scene Objects & Hierarchy"
+            title="Toggle Multi-Selection Mode"
           >
-            <Layers size={isLandscape ? 15 : 18} />
-            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Scene</span>
+            <div className="relative">
+              <CheckSquare size={isLandscape ? 15 : 18} />
+              {selectedObjectIds.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 px-1 py-0.2 min-w-[14px] h-[14px] rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center shadow-xs">
+                  {selectedObjectIds.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap font-medium">
+              {isMultiSelectMode ? 'Multi (ON)' : 'Multi'}
+            </span>
           </button>
 
           {/* Transform Mode: Translate */}
@@ -557,29 +737,20 @@ export function EditorLayout() {
             <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Snap</span>
           </button>
 
-          {/* Inspector Properties Drawer Trigger */}
+          {/* Prominent Asset Browser / Add Asset Trigger */}
           <button
-            onClick={() => setMobileDrawer(d => d === 'inspector' ? 'none' : 'inspector')}
-            className={cn(
-              "flex flex-col items-center justify-center min-w-[50px] min-h-[44px] py-1 px-2 rounded-xl transition-all cursor-pointer shrink-0 select-none active:scale-95",
-              mobileDrawer === 'inspector' 
-                ? "bg-blue-600/25 text-blue-400 font-bold border border-blue-500/40" 
-                : "text-gray-400 hover:text-white"
-            )}
-            title="Properties & Transforms"
+            onClick={() => {
+              openAssetBrowser('architecture');
+              setMobileDrawer('none');
+            }}
+            className="flex flex-col items-center justify-center min-w-[54px] min-h-[44px] py-1 px-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-bold shadow-lg shadow-emerald-500/25 border border-emerald-400/40 transition-all cursor-pointer shrink-0 select-none active:scale-95 ring-1 ring-emerald-400/30"
+            title="Add 3D Assets & Media"
           >
-            <Sliders size={isLandscape ? 15 : 18} />
-            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Inspect</span>
-          </button>
-
-          {/* Asset Browser Trigger */}
-          <button
-            onClick={() => openAssetBrowser('architecture')}
-            className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] py-1 px-2 rounded-xl text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer shrink-0 select-none active:scale-95"
-            title="Open Asset Browser"
-          >
-            <FolderOpen size={isLandscape ? 15 : 18} />
-            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Assets</span>
+            <div className="flex items-center gap-0.5">
+              <Plus size={isLandscape ? 11 : 13} className="stroke-[3]" />
+              <FolderOpen size={isLandscape ? 13 : 15} />
+            </div>
+            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap font-bold tracking-wide">Add Asset</span>
           </button>
 
           {/* Full Screen Toggle */}
@@ -646,7 +817,11 @@ export function EditorLayout() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-                onClick={() => setMobileDrawer('none')}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setMobileDrawer('none');
+                  }
+                }}
               />
 
               {/* Landscape Side Panel or Portrait Bottom Sheet */}
@@ -659,7 +834,7 @@ export function EditorLayout() {
                   exit={{ x: mobileDrawer === 'hierarchy' ? '-100%' : '100%' }}
                   transition={{ type: 'spring', damping: 28, stiffness: 300 }}
                   className={cn(
-                    "fixed inset-y-0 z-50 w-80 sm:w-96 bg-[#121215] border-[#2A2A30] shadow-2xl flex flex-col overflow-hidden",
+                    "fixed inset-y-0 z-50 w-80 sm:w-96 bg-[#121215] border-[#2A2A30] shadow-2xl flex flex-col overflow-hidden ui-panel no-pointer-miss",
                     mobileDrawer === 'hierarchy' ? "left-0 border-r" : "right-0 border-l"
                   )}
                 >
@@ -670,6 +845,9 @@ export function EditorLayout() {
                         <>
                           <Layers size={15} className="text-blue-400" />
                           <span className="text-xs font-bold text-white uppercase tracking-wider">Scene Objects</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold">
+                            {totalObjectCount}
+                          </span>
                         </>
                       ) : (
                         <>
@@ -688,8 +866,8 @@ export function EditorLayout() {
                   </div>
 
                   {/* Panel Content */}
-                  <div className="flex-1 overflow-y-auto">
-                    {mobileDrawer === 'hierarchy' && <HierarchyPanel onClose={() => setMobileDrawer('none')} />}
+                  <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+                    {mobileDrawer === 'hierarchy' && <HierarchyPanel hideHeader={true} onClose={() => setMobileDrawer('none')} />}
                     {mobileDrawer === 'inspector' && <InspectorPanel onClose={() => setMobileDrawer('none')} />}
                   </div>
                 </motion.div>
@@ -701,17 +879,20 @@ export function EditorLayout() {
                   animate={{ y: 0 }}
                   exit={{ y: '100%' }}
                   transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                  className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] h-[75vh] bg-[#121215] border-t border-[#2A2A30] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
+                  className="fixed inset-x-0 bottom-0 z-50 max-h-[88vh] h-[78vh] bg-[#121215] border-t border-[#2A2A30] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden ui-panel no-pointer-miss"
                 >
                   {/* Drag Handle & Header */}
                   <div className="flex flex-col items-center px-4 pt-2.5 pb-2 bg-[#17171C] border-b border-[#25252B] shrink-0">
-                    <div className="w-10 h-1 rounded-full bg-gray-600/70 mb-2" />
+                    <div className="w-10 h-1.5 rounded-full bg-gray-500/50 mb-2" />
                     <div className="w-full flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {mobileDrawer === 'hierarchy' ? (
                           <>
                             <Layers size={15} className="text-blue-400" />
-                            <span className="text-xs font-bold text-white uppercase tracking-wider">Scene Hierarchy</span>
+                            <span className="text-xs font-bold text-white uppercase tracking-wider">Scene Objects</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold">
+                              {totalObjectCount}
+                            </span>
                           </>
                         ) : (
                           <>
@@ -720,19 +901,34 @@ export function EditorLayout() {
                           </>
                         )}
                       </div>
-                      <button
-                        onClick={() => setMobileDrawer('none')}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Close drawer"
-                      >
-                        <X size={15} />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {mobileDrawer === 'hierarchy' && (
+                          <button
+                            onClick={() => {
+                              openAssetBrowser('architecture');
+                              setMobileDrawer('none');
+                            }}
+                            className="px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1 cursor-pointer active:scale-95"
+                            title="Add Asset"
+                          >
+                            <Plus size={12} className="stroke-[3]" />
+                            <span>Add Asset</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setMobileDrawer('none')}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                          title="Close drawer"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                   {/* Drawer Content */}
-                  <div className="flex-1 overflow-y-auto">
-                    {mobileDrawer === 'hierarchy' && <HierarchyPanel onClose={() => setMobileDrawer('none')} />}
+                  <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+                    {mobileDrawer === 'hierarchy' && <HierarchyPanel hideHeader={true} onClose={() => setMobileDrawer('none')} />}
                     {mobileDrawer === 'inspector' && <InspectorPanel onClose={() => setMobileDrawer('none')} />}
                   </div>
                 </motion.div>
@@ -744,6 +940,9 @@ export function EditorLayout() {
 
       {/* Publish Modal for Mobile Dock Trigger */}
       {showPublishModal && <PublishModal onClose={() => setShowPublishModal(false)} />}
+
+      {/* Centralized Scene Manager Modal (Create, Rename, Delete) */}
+      <SceneManagerModal />
 
       {/* Global Toast Notifications Banner */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm">

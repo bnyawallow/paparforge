@@ -30,20 +30,22 @@ export function TextureOptimizerPanel({ obj, handlePropertyChange }: TextureOpti
   const { addToast } = useEditorStore();
   const [textureStats, setTextureStats] = useState<Record<string, { info: TextureInfo | null; error: string | null; loading: boolean }>>({});
   const [optimizing, setOptimizing] = useState<Record<string, boolean>>({});
+  const loadedUrlsRef = React.useRef<Record<string, string>>({});
 
   // Detect active textures
   const activeTextures = TEXTURE_CHANNELS.filter(channel => obj.properties && obj.properties[channel.key]);
 
   // Load stats for active textures
   useEffect(() => {
-    activeTextures.forEach(channel => {
-      const url = obj.properties[channel.key];
+    TEXTURE_CHANNELS.forEach(channel => {
+      const url = obj.properties?.[channel.key];
       if (!url) return;
 
       // If we already have stats for this specific URL, don't reload
-      if (textureStats[channel.key] && textureStats[channel.key].info?.src === url) {
+      if (loadedUrlsRef.current[channel.key] === url) {
         return;
       }
+      loadedUrlsRef.current[channel.key] = url;
 
       setTextureStats(prev => ({
         ...prev,
@@ -65,7 +67,13 @@ export function TextureOptimizerPanel({ obj, handlePropertyChange }: TextureOpti
           }));
         });
     });
-  }, [obj.properties, activeTextures.length]);
+  }, [
+    obj.properties?.textureUrl,
+    obj.properties?.normalMapUrl,
+    obj.properties?.roughnessMapUrl,
+    obj.properties?.metalnessMapUrl,
+    obj.properties?.displacementMapUrl
+  ]);
 
   const handleOptimize = async (channelKey: string, channelLabel: string, targetSize: number) => {
     const url = obj.properties[channelKey];

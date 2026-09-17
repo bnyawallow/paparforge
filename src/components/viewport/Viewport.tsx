@@ -18,9 +18,14 @@ import { BloomEffect } from './BloomEffect';
 import { Spline3DIconRenderer } from './Spline3DIconRenderer';
 import { Spline2DIconRenderer } from './Spline2DIconRenderer';
 import { MarkerConflictBanner } from '../toolbar/MarkerConflictBanner';
+import { SelectionMarquee } from './SelectionMarquee';
+import { TransformGizmoCallout3D, MobileTransformHUD, TransformHUDCallout } from './TransformPropertyCallout';
+import { computeComprehensiveSnapPosition, getObjectBoundingBox, computeGizmoScaleSnap } from '../../utils/snapping';
 import { 
   Maximize, 
+  Maximize2,
   RotateCw, 
+  RotateCcw,
   Move, 
   MousePointer,
   Camera, 
@@ -40,6 +45,8 @@ import {
   Globe,
   Gauge,
   Zap,
+  Lock,
+  Unlock,
   Info,
   HelpCircle,
   Tag,
@@ -728,18 +735,6 @@ function YoutubePoster3DMesh({
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       </group>
-
-      {/* Subtle Dimension/Aspect Ratio Tag in Bottom Corner */}
-      <Html
-        position={[planeWidth / 2 - 0.03, -planeHeight / 2 + 0.03, 0.003]}
-        center
-        distanceFactor={2.5}
-        style={{ pointerEvents: 'none' }}
-      >
-        <div className="px-1.5 py-0.5 rounded bg-black/70 text-[8px] font-mono font-bold text-gray-300 border border-white/10 select-none uppercase shadow">
-          {aspectRatio}
-        </div>
-      </Html>
     </group>
   );
 }
@@ -778,6 +773,24 @@ function buildSubObjectTree(node: any, indexPath: string = '0'): any {
     materialName,
     children: children.length > 0 ? children : undefined
   };
+}
+
+// Helper function to find index path of a target THREE.Mesh/Object3D relative to root scene
+function findIndexPathForObject(root: THREE.Object3D, target: THREE.Object3D): string | null {
+  const traverse = (current: THREE.Object3D, path: string): string | null => {
+    if (current === target) return path;
+    if (current.children && current.children.length > 0) {
+      for (let i = 0; i < current.children.length; i++) {
+        const child = current.children[i];
+        if ((child as any).isMesh || (child as any).isGroup || child.type === 'Object3D') {
+          const res = traverse(child, `${path}-${i}`);
+          if (res) return res;
+        }
+      }
+    }
+    return null;
+  };
+  return traverse(root, '0');
 }
 
 // Robust GLTF / GLB 3D Model with Full Animation Clip Mixer support
@@ -863,6 +876,62 @@ function PrimitiveModelRenderer({ url, properties }: { url: string; properties: 
           <TexturedMaterial properties={properties} defaultColor="#06b6d4" />
         </mesh>
       );
+    case 'circle':
+      return (
+        <mesh castShadow receiveShadow>
+          <circleGeometry args={[0.5, 64]} />
+          <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#06b6d4" />
+        </mesh>
+      );
+    case 'ring':
+      return (
+        <mesh castShadow receiveShadow>
+          <ringGeometry args={[0.3, 0.6, 64]} />
+          <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#38bdf8" />
+        </mesh>
+      );
+    case 'tube':
+      return (
+        <mesh castShadow receiveShadow>
+          <cylinderGeometry args={[0.5, 0.5, 1, 32, 1, true]} />
+          <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#64748b" />
+        </mesh>
+      );
+    case 'prism':
+      return (
+        <mesh castShadow receiveShadow>
+          <cylinderGeometry args={[0.6, 0.6, 1, 3]} />
+          <TexturedMaterial properties={properties} defaultColor="#f97316" />
+        </mesh>
+      );
+    case 'helix':
+      return (
+        <mesh castShadow receiveShadow>
+          <torusKnotGeometry args={[0.35, 0.08, 100, 16, 2, 5]} />
+          <TexturedMaterial properties={properties} defaultColor="#06b6d4" />
+        </mesh>
+      );
+    case 'star':
+      return (
+        <mesh castShadow receiveShadow>
+          <octahedronGeometry args={[0.6, 0]} />
+          <TexturedMaterial properties={properties} defaultColor="#eab308" />
+        </mesh>
+      );
+    case 'dome':
+      return (
+        <mesh castShadow receiveShadow>
+          <sphereGeometry args={[0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#38bdf8" />
+        </mesh>
+      );
+    case 'tetrahedron':
+      return (
+        <mesh castShadow receiveShadow>
+          <tetrahedronGeometry args={[0.6]} />
+          <TexturedMaterial properties={properties} defaultColor="#eab308" />
+        </mesh>
+      );
     case 'knot':
       return (
         <mesh castShadow receiveShadow>
@@ -904,17 +973,29 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     bbox.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z);
 
-    // Standard normalized target size inside image target frame (~20 units)
-    const TARGET_FRAME_SIZE = 20.0;
+    // Compute AR target width to ensure 3D models are scaled proportionally relative to other assets in the same category (max 50% relative to AR target)
+    const allObjects = useEditorStore.getState().objects;
+    const targetObj = Object.values(allObjects).find(o => o.type === 'imageTarget');
+    let arTargetWidth = 5.0; // standard default target width
+    if (targetObj) {
+      const rawW = targetObj.properties?.physicalWidth || 0.1;
+      arTargetWidth = rawW <= 1 ? rawW * 50 : rawW;
+    }
+
+    // Architectural assets & 3D models occupy at most 50% of the AR target width, scaled proportionally by category factor
+    const maxPlacementPercent = properties?.maxPlacementPercent ?? 50; // default 50% max relative to AR target
+    const categoryFactor = properties?.categoryProportionFactor ?? 1.0;
+    const TARGET_FRAME_SIZE = (arTargetWidth * (maxPlacementPercent / 100)) * categoryFactor;
     let factor = 1.0;
     if (maxDim > 0 && Number.isFinite(maxDim)) {
       factor = TARGET_FRAME_SIZE / maxDim;
     }
 
-    // Offset center so the model's geometric center sits exactly at the pivot origin (0, 0, 0)
+    // Offset center so the model's bottom center sits exactly at the pivot origin (0, 0, 0)
     const center = new THREE.Vector3();
     bbox.getCenter(center);
-    const offset = center.clone().multiplyScalar(-1);
+    // In local model coordinates (Y-up), bbox.min.y is the base/bottom of the model
+    const offset = new THREE.Vector3(-center.x, -bbox.min.y, -center.z);
 
     return { scaleFactor: factor, offsetVector: offset };
   }, [clonedScene]);
@@ -1219,6 +1300,7 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   }, [clonedScene, properties.subObjectOverrides]);
 
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const selectObject = useEditorStore(state => state.selectObject);
   const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
   const animationPlaying = properties.animationPlaying !== false;
@@ -1278,9 +1360,34 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     }
   }, [actions, activeAnimation, actualAnimationPlaying, animationSpeed, loopAnimation]);
 
+  const handleSubMeshClick = (e: any) => {
+    if (!isPreviewMode) {
+      e.stopPropagation();
+      selectObject(id);
+      if (e.object && clonedScene) {
+        const path = findIndexPathForObject(clonedScene, e.object);
+        if (path) {
+          useEditorStore.getState().updateObject(id, {
+            properties: {
+              ...useEditorStore.getState().objects[id]?.properties,
+              selectedSubObjectPath: path
+            }
+          });
+        }
+      }
+    }
+  };
+
   return (
     <group scale={[scaleFactor, scaleFactor, scaleFactor]}>
-      <primitive ref={group} object={clonedScene} position={[offsetVector.x, offsetVector.y, offsetVector.z]} />
+      <group rotation={[Math.PI / 2, 0, 0]}>
+        <primitive 
+          ref={group} 
+          object={clonedScene} 
+          position={[offsetVector.x, offsetVector.y, offsetVector.z]} 
+          onClick={handleSubMeshClick}
+        />
+      </group>
     </group>
   );
 }
@@ -2632,9 +2739,11 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
     }
   };
 
+  const needsPivotNormalization = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'circle', 'pyramid', 'capsule', 'dodecahedron', 'octahedron', 'icosahedron', 'knot', 'model'].includes(obj.type);
+
   return (
     <group>
-      <PivotNormalizer enabled={obj.type !== 'empty' && obj.type !== 'light' && obj.type !== 'audio' && obj.type !== 'imageTarget'}>
+      <PivotNormalizer enabled={needsPivotNormalization}>
         <mesh>
           {renderColliderGeom()}
           <meshBasicMaterial 
@@ -2657,15 +2766,6 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
           />
         </mesh>
       </PivotNormalizer>
-      
-      <Html distanceFactor={4} position={[0, 0.7, 0]} center>
-        <div className="bg-black/85 border border-[#333] text-[9px] text-white px-2 py-0.5 rounded font-mono flex items-center gap-1.5 whitespace-nowrap shadow-xl">
-          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-cyan-400 animate-ping" : "bg-orange-500 animate-pulse"}`}></span>
-          <span className="text-[#999]">{obj.name.slice(0, 10)}:</span>
-          <span className="text-gray-200 font-bold">{label}</span>
-          <span className="text-[7px] text-[#555] font-normal">| AR READY</span>
-        </div>
-      </Html>
     </group>
   );
 }
@@ -2736,22 +2836,6 @@ function getEasingValue(type: string, t: number): number {
 function PivotNormalizer({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
 
-  useEffect(() => {
-    if (!enabled) return;
-    const group = groupRef.current;
-    if (!group) return;
-
-    // Normalize immediately for synchronous primitives
-    PivotNormalizationService.normalizePivot(group);
-
-    // Also normalize after a short delay to account for asynchronous GLTF/FBX model loading/mounting
-    const timer = setTimeout(() => {
-      PivotNormalizationService.normalizePivot(group);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [children, enabled]);
-
   return (
     <group ref={groupRef}>
       {children}
@@ -2769,21 +2853,50 @@ function ObjectRenderer({ id }: { id: string }) {
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
   const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
   const isInteractiveActive = isPreviewMode || liveInteractionsInDesign;
+  const transformGizmoEnabled = useEditorStore(state => state.transformGizmoEnabled);
   const collisionDebuggerEnabled = useEditorStore(state => state.collisionDebuggerEnabled);
   const meshRef = useRef<THREE.Group>(null);
 
   const { camera, gl } = useThree();
   const controls = useThree((state) => state.controls as any);
 
-  // Check parent object for live behavior inheritance if child doesn't specify one
-  const parentObj = obj.parentId ? useEditorStore.getState().objects[obj.parentId] : null;
-  const effectiveBehavior = obj.properties.behavior || (parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : undefined);
+  // Children do not directly inherit parent behaviors (they follow transform changes hierarchically)
+  const effectiveBehavior = obj.properties.behavior;
+
+  const getLatestEffectiveBehavior = () => {
+    const currentObj = useEditorStore.getState().objects[id];
+    if (!currentObj) return undefined;
+    return currentObj.properties.behavior;
+  };
 
   // Draggable interaction state and refs
   const isDraggingRef = useRef(false);
   const dragPlaneRef = useRef(new THREE.Plane());
   const dragOffsetRef = useRef(new THREE.Vector3());
+  const dragStartPosRef = useRef(new THREE.Vector3());
   const hasDraggedRef = useRef(false);
+
+  // Long-press detection for multi-object selection
+  const longPressTimerRef = useRef<any>(null);
+  const isLongPressTriggeredRef = useRef(false);
+  const pointerDownScreenPosRef = useRef({ x: 0, y: 0 });
+
+  // Snapping helper: snaps target position by bounding-box to nearest surfaces and scene objects
+  const computeSnappedPosition = useCallback((targetLocal: THREE.Vector3, isShiftHeld: boolean) => {
+    const allObjects = useEditorStore.getState().objects;
+    const isSnappingOn = useEditorStore.getState().gridSnapEnabled;
+    const snapIncrement = isSnappingOn ? useEditorStore.getState().gridSnapIncrement : 0;
+    return computeComprehensiveSnapPosition(
+      targetLocal,
+      id,
+      allObjects,
+      snapIncrement,
+      {
+        isShiftHeld,
+        dragStartPos: dragStartPosRef.current
+      }
+    );
+  }, [id]);
 
   // Global window pointer listeners for drag-and-drop resilience
   useEffect(() => {
@@ -2800,11 +2913,25 @@ function ObjectRenderer({ id }: { id: string }) {
       raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
       const intersection = new THREE.Vector3();
       if (raycaster.ray.intersectPlane(dragPlaneRef.current, intersection)) {
-        const targetWorld = intersection.add(dragOffsetRef.current);
+        const targetWorld = intersection.clone().add(dragOffsetRef.current);
+        const targetLocal = targetWorld.clone();
         if (meshRef.current.parent) {
-          meshRef.current.parent.worldToLocal(targetWorld);
+          meshRef.current.parent.worldToLocal(targetLocal);
         }
-        meshRef.current.position.copy(targetWorld);
+        const snapped = computeSnappedPosition(targetLocal, evt.shiftKey);
+        meshRef.current.position.copy(snapped.position);
+        useEditorStore.getState().setActiveTransformCallout({
+          active: true,
+          objectId: id,
+          objectName: obj?.name || 'Object',
+          mode: 'translate',
+          x: Number(snapped.position.x.toFixed(3)),
+          y: Number(snapped.position.y.toFixed(3)),
+          z: Number(snapped.position.z.toFixed(3)),
+          unit: 'm',
+          isSnapped: snapped.isSnapped,
+          snapLabel: snapped.snapLabel || (useEditorStore.getState().gridSnapEnabled ? `Snap ${useEditorStore.getState().gridSnapIncrement}m` : undefined)
+        });
       }
     };
 
@@ -2823,6 +2950,11 @@ function ObjectRenderer({ id }: { id: string }) {
             Number(meshRef.current.position.z.toFixed(3)),
           ];
           updateObject(id, { position: finalPos });
+          setTimeout(() => {
+            useEditorStore.getState().setActiveTransformCallout(null);
+          }, 1600);
+        } else {
+          useEditorStore.getState().setActiveTransformCallout(null);
         }
       }
     };
@@ -2835,7 +2967,7 @@ function ObjectRenderer({ id }: { id: string }) {
       window.removeEventListener('pointerup', onGlobalPointerUp);
       window.removeEventListener('pointercancel', onGlobalPointerUp);
     };
-  }, [id, camera, gl, controls, updateObject]);
+  }, [id, camera, gl, controls, updateObject, computeSnappedPosition]);
 
   // Local state/refs for scripts & proximity triggers
   const wasProximityActiveRef = useRef<Record<string, boolean>>({});
@@ -2854,17 +2986,6 @@ function ObjectRenderer({ id }: { id: string }) {
     rx: Number.NaN, ry: Number.NaN, rz: Number.NaN,
     sx: Number.NaN, sy: Number.NaN, sz: Number.NaN
   });
-
-  useEffect(() => {
-    if (isSelected && meshRef.current) {
-      useEditorStore.setState({ selectedObjectRef: meshRef.current });
-    }
-    return () => {
-      if (isSelected) {
-        useEditorStore.setState({ selectedObjectRef: null });
-      }
-    };
-  }, [isSelected, id]);
 
   // Global pivot normalization for newly instantiated primitives and groups
   useEffect(() => {
@@ -3369,21 +3490,25 @@ function ObjectRenderer({ id }: { id: string }) {
   }, [isPreviewMode, id, handleInteract, (obj?.events || [])]);
 
   // Handle behavior animations dynamically with full R3F clock support
-  useFrame((state) => {
-    if (!meshRef.current || !obj) return;
+  useFrame((state, delta) => {
+    if (!meshRef.current) return;
+
+    // Retrieve freshest state of current object and its parent from the store inside the frame loop to prevent stale closures
+    const currentObj = useEditorStore.getState().objects[id];
+    if (!currentObj) return;
 
     // Skip updating position/rotation/scale when actively transforming or dragging this object
     if (isSelected && isTransformDragging) return;
     if (isDraggingRef.current) return;
 
     const curActiveStateId = useEditorStore.getState().activeStateId;
-    const activeStateObj = (!isPreviewMode && isSelected && curActiveStateId && curActiveStateId !== 'base' && obj.states)
-      ? obj.states.find((s: any) => s.id === curActiveStateId)
+    const activeStateObj = (!isPreviewMode && isSelected && curActiveStateId && curActiveStateId !== 'base' && currentObj.states)
+      ? currentObj.states.find((s: any) => s.id === curActiveStateId)
       : null;
 
-    let targetPos = activeStateObj?.position || obj.position;
-    let targetRot = activeStateObj?.rotation || obj.rotation;
-    let targetScl = activeStateObj?.scale || obj.scale;
+    let targetPos = activeStateObj?.position || currentObj.position;
+    let targetRot = activeStateObj?.rotation || currentObj.rotation;
+    let targetScl = activeStateObj?.scale || currentObj.scale;
 
     const activeTransitions = useEditorStore.getState().activeTransitions || {};
     const activeTransition = activeTransitions[id];
@@ -3396,12 +3521,12 @@ function ObjectRenderer({ id }: { id: string }) {
 
       // Look up transition target state properties
       const targetStateId = activeTransition.targetStateId;
-      let finalTargetPos = [...obj.position];
-      let finalTargetRot = [...obj.rotation];
-      let finalTargetScl = [...obj.scale];
+      let finalTargetPos = [...currentObj.position];
+      let finalTargetRot = [...currentObj.rotation];
+      let finalTargetScl = [...currentObj.scale];
 
-      if (targetStateId && targetStateId !== 'base' && obj.states) {
-        const stateObj = obj.states.find((s: any) => s.id === targetStateId);
+      if (targetStateId && targetStateId !== 'base' && currentObj.states) {
+        const stateObj = currentObj.states.find((s: any) => s.id === targetStateId);
         if (stateObj) {
           finalTargetPos = [...stateObj.position];
           finalTargetRot = [...stateObj.rotation];
@@ -3441,23 +3566,30 @@ function ObjectRenderer({ id }: { id: string }) {
     meshRef.current.scale.set(targetScl[0], targetScl[1], targetScl[2]);
     meshRef.current.position.set(targetPos[0], targetPos[1], targetPos[2]);
 
-    const isBillboard = !!(obj.properties?.billboard || obj.properties?.lookAtCamera);
+    const isBillboard = !!(currentObj.properties?.billboard || currentObj.properties?.lookAtCamera);
     if (isBillboard) {
       meshRef.current.lookAt(state.camera.position);
     }
 
-    // Don't display interactive behavior animations if interaction is not active
-    if (!isInteractiveActive) return;
+    // Children execute their own behaviors directly (and follow parent transform changes naturally)
+    const behavior = currentObj.properties.behavior;
+    const hasBehavior = !!(behavior && behavior !== 'none');
 
-    const behavior = effectiveBehavior;
+    // Run behaviors only if live interaction is active (Preview mode or Play in Design View enabled)
+    if (!isInteractiveActive || !hasBehavior) return;
+
+    // Do not fight user interaction while actively dragging with gizmo or direct drag
+    if (isDraggingRef.current) return;
+    if (isTransformDragging && isSelected) return;
+
     const t = state.clock.getElapsedTime();
-    const dt = state.clock.getDelta();
-    const speed = typeof obj.properties.behaviorSpeed === 'number' 
-      ? obj.properties.behaviorSpeed 
-      : (parentObj && typeof parentObj.properties?.behaviorSpeed === 'number' ? parentObj.properties.behaviorSpeed : 1.0);
-    const intensity = typeof obj.properties.behaviorIntensity === 'number' 
-      ? obj.properties.behaviorIntensity 
-      : (parentObj && typeof parentObj.properties?.behaviorIntensity === 'number' ? parentObj.properties.behaviorIntensity : 1.0);
+    const dt = delta;
+    const speed = typeof currentObj.properties.behaviorSpeed === 'number' 
+      ? currentObj.properties.behaviorSpeed 
+      : 1.0;
+    const intensity = typeof currentObj.properties.behaviorIntensity === 'number' 
+      ? currentObj.properties.behaviorIntensity 
+      : 1.0;
     const effectiveT = t * speed;
 
     if (behavior === 'hover' || behavior === 'float') {
@@ -3473,18 +3605,18 @@ function ObjectRenderer({ id }: { id: string }) {
       meshRef.current.position.y += Math.sin(effectiveT) * radius;
     }
 
-    const spinAxis = obj.properties.spinAxis || (parentObj ? parentObj.properties?.spinAxis : 'z') || 'z';
+    const spinAxis = currentObj.properties.spinAxis || 'z';
     const localAxis = new THREE.Vector3();
     if (spinAxis === 'x') localAxis.set(1, 0, 0);
     else if (spinAxis === 'y') localAxis.set(0, 1, 0);
     else localAxis.set(0, 0, 1);
 
     if (behavior === 'spin') {
-      meshRef.current.rotateOnAxis(localAxis, dt * 2.0 * speed);
+      meshRef.current.rotateOnAxis(localAxis, effectiveT * 2.0 * intensity);
     } else if (behavior === 'spin-fast') {
-      meshRef.current.rotateOnAxis(localAxis, dt * 6.0 * speed);
+      meshRef.current.rotateOnAxis(localAxis, effectiveT * 6.0 * intensity);
     } else if (behavior === 'pendulum') {
-      meshRef.current.rotateOnAxis(localAxis, Math.sin(effectiveT * 2) * 0.05 * intensity);
+      meshRef.current.rotateOnAxis(localAxis, Math.sin(effectiveT * 2) * 0.4 * intensity);
     } else if (behavior === 'look-at-camera') {
       meshRef.current.lookAt(state.camera.position);
     }
@@ -3514,9 +3646,9 @@ function ObjectRenderer({ id }: { id: string }) {
     }
 
     // Run Custom Script update callback loop
-    if (isInteractiveActive && scriptCallbacksRef.current.onUpdate && (obj.properties.scriptEnabled ?? true)) {
+    if (isInteractiveActive && scriptCallbacksRef.current.onUpdate && (currentObj.properties.scriptEnabled ?? true)) {
       try {
-        scriptCallbacksRef.current.onUpdate(t, state.clock.getDelta());
+        scriptCallbacksRef.current.onUpdate(t, dt);
       } catch (err) {
         console.error("onUpdate execution error:", err);
       }
@@ -3620,22 +3752,27 @@ function ObjectRenderer({ id }: { id: string }) {
   ];
 
   function handleInteract(e?: any) {
+    if (isLongPressTriggeredRef.current) {
+      isLongPressTriggeredRef.current = false;
+      return;
+    }
     if (hasDraggedRef.current) {
       hasDraggedRef.current = false;
       return;
     }
     if (!isInteractiveActive && obj.locked) return; // Prevent selection or clicks on locked items in 3D viewport
-    if (obj.type === 'imageTarget' && obj.properties?.targetType !== 'face') return; // Disable interaction with image trackers, allow face trackers
+    if (obj.type === 'imageTarget') return; // Image targets are completely non-selectable
     if (e && e.stopPropagation) e.stopPropagation();
     
     console.log(`[Debug Log] Screen tapped on object: ${obj.name} (ID: ${id})`);
     if (!isPreviewMode) {
-      const isMulti = e ? (e.shiftKey || e.ctrlKey || e.metaKey) : false;
+      const isMulti = useEditorStore.getState().isMultiSelectMode;
       selectObject(id, isMulti);
     }
     
     // Play sound ONLY if object has a live interaction 'play-sound' or 'click-sound' behavior, or via event actions
-    if (isInteractiveActive && (effectiveBehavior === 'play-sound' || effectiveBehavior === 'click-sound')) {
+    const currentBehavior = getLatestEffectiveBehavior();
+    if (isInteractiveActive && (currentBehavior === 'play-sound' || currentBehavior === 'click-sound')) {
       const sUrl = obj.properties.interactionSoundUrl || obj.properties.soundUrl || '/sounds/ui/click_soft.wav';
       const sVol = obj.properties.interactionSoundVolume ?? 0.5;
       playCachedAudio(sUrl, false, sVol);
@@ -3880,15 +4017,17 @@ function ObjectRenderer({ id }: { id: string }) {
       rotation-order="YXZ"
       scale={obj.scale}
       visible={obj.visible ?? true}
+      userData={{ isSceneObject: true }}
       onClick={handleInteract}
       onPointerOver={(e) => {
+        const canDrag = !transformGizmoEnabled || (isInteractiveActive && (getLatestEffectiveBehavior() === 'draggable' || getLatestEffectiveBehavior() === 'drag'));
+        if (canDrag && !obj.locked) {
+          document.body.style.cursor = isDraggingRef.current ? 'grabbing' : 'grab';
+        } else if (isInteractiveActive && obj.properties.cursor && !obj.properties.ignoreClicks) {
+          document.body.style.cursor = obj.properties.cursor;
+        }
         if (isInteractiveActive) {
           e.stopPropagation();
-          if (effectiveBehavior === 'draggable') {
-            document.body.style.cursor = isDraggingRef.current ? 'grabbing' : 'grab';
-          } else if (obj.properties.cursor && !obj.properties.ignoreClicks) {
-            document.body.style.cursor = obj.properties.cursor;
-          }
           const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
             if (b.trigger === 'onHoverEnter') {
@@ -3898,12 +4037,17 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerOut={(e) => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        const canDrag = !transformGizmoEnabled || (isInteractiveActive && (getLatestEffectiveBehavior() === 'draggable' || getLatestEffectiveBehavior() === 'drag'));
+        if (canDrag && !isDraggingRef.current) {
+          document.body.style.cursor = 'auto';
+        } else if (isInteractiveActive && obj.properties.cursor && !obj.properties.ignoreClicks) {
+          document.body.style.cursor = 'auto';
+        }
         if (isInteractiveActive) {
-          if (effectiveBehavior === 'draggable') {
-            if (!isDraggingRef.current) document.body.style.cursor = 'auto';
-          } else if (obj.properties.cursor && !obj.properties.ignoreClicks) {
-            document.body.style.cursor = 'auto';
-          }
           const behaviors = (obj.events || []) || [];
           behaviors.forEach((b: any) => {
             if (b.trigger === 'onHoverExit') {
@@ -3913,8 +4057,34 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerDown={(e) => {
-        if (isInteractiveActive && effectiveBehavior === 'draggable') {
+        if (obj.type === 'imageTarget') return; // Image targets are non-selectable
+        // Start long-press detection to toggle/activate multi-object selection
+        if (!isPreviewMode && !obj.locked) {
+          if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+          const clientX = (e as any).clientX ?? 0;
+          const clientY = (e as any).clientY ?? 0;
+          pointerDownScreenPosRef.current = { x: clientX, y: clientY };
+          longPressTimerRef.current = setTimeout(() => {
+            isLongPressTriggeredRef.current = true;
+            const editor = useEditorStore.getState();
+            editor.setMultiSelectMode(true);
+            editor.selectObject(id, true);
+            editor.addToast(`Multi-selection active: added ${obj.name}`);
+            try {
+              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                navigator.vibrate([40, 30, 40]);
+              }
+            } catch (_) {}
+          }, 450);
+        }
+
+        const canDrag = !transformGizmoEnabled || (isInteractiveActive && (getLatestEffectiveBehavior() === 'draggable' || getLatestEffectiveBehavior() === 'drag'));
+        if (canDrag && !obj.locked) {
           e.stopPropagation();
+          if (!isSelected) {
+            const isMulti = useEditorStore.getState().isMultiSelectMode;
+            selectObject(id, isMulti);
+          }
           isDraggingRef.current = true;
           hasDraggedRef.current = false;
           useEditorStore.getState().setIsDraggableDragging(true);
@@ -3923,12 +4093,22 @@ function ObjectRenderer({ id }: { id: string }) {
             controls.enabled = false;
           }
 
+          if (meshRef.current) {
+            dragStartPosRef.current.copy(meshRef.current.position);
+          }
+
           const worldPos = new THREE.Vector3();
           meshRef.current?.getWorldPosition(worldPos);
 
           const camDir = new THREE.Vector3();
-          camera.getWorldDirection(camDir).negate();
-          dragPlaneRef.current.setFromNormalAndCoplanarPoint(camDir, worldPos);
+          camera.getWorldDirection(camDir);
+          const dotZ = Math.abs(camDir.z);
+          // If viewing surface from an angle or above, drag on XY plane (normal Z); otherwise camera-facing plane
+          if (dotZ > 0.35) {
+            dragPlaneRef.current.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), worldPos);
+          } else {
+            dragPlaneRef.current.setFromNormalAndCoplanarPoint(camDir.clone().negate(), worldPos);
+          }
 
           const intersection = new THREE.Vector3();
           if (e.ray && e.ray.intersectPlane(dragPlaneRef.current, intersection)) {
@@ -3951,11 +4131,16 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerUp={(e) => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
         if (isDraggingRef.current) {
           e.stopPropagation();
           isDraggingRef.current = false;
           useEditorStore.getState().setIsDraggableDragging(false);
-          document.body.style.cursor = 'grab';
+          const canDrag = !transformGizmoEnabled || (isInteractiveActive && (getLatestEffectiveBehavior() === 'draggable' || getLatestEffectiveBehavior() === 'drag'));
+          document.body.style.cursor = canDrag ? 'grab' : 'auto';
 
           if (controls) {
             controls.enabled = true;
@@ -3982,16 +4167,42 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       }}
       onPointerMove={(e) => {
-        if (isDraggingRef.current && isInteractiveActive && effectiveBehavior === 'draggable') {
+        if (longPressTimerRef.current) {
+          const clientX = (e as any).clientX ?? 0;
+          const clientY = (e as any).clientY ?? 0;
+          const dx = Math.abs(clientX - pointerDownScreenPosRef.current.x);
+          const dy = Math.abs(clientY - pointerDownScreenPosRef.current.y);
+          if (dx > 10 || dy > 10) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+        const canDrag = !transformGizmoEnabled || (isInteractiveActive && (getLatestEffectiveBehavior() === 'draggable' || getLatestEffectiveBehavior() === 'drag'));
+        if (isDraggingRef.current && canDrag) {
           e.stopPropagation();
           hasDraggedRef.current = true;
           const intersection = new THREE.Vector3();
           if (e.ray && e.ray.intersectPlane(dragPlaneRef.current, intersection)) {
-            const targetWorld = intersection.add(dragOffsetRef.current);
+            const targetWorld = intersection.clone().add(dragOffsetRef.current);
+            const targetLocal = targetWorld.clone();
             if (meshRef.current?.parent) {
-              meshRef.current.parent.worldToLocal(targetWorld);
+              meshRef.current.parent.worldToLocal(targetLocal);
             }
-            meshRef.current?.position.copy(targetWorld);
+            const isShift = (e.nativeEvent as PointerEvent)?.shiftKey ?? false;
+            const snapped = computeSnappedPosition(targetLocal, isShift);
+            meshRef.current?.position.copy(snapped.position);
+            useEditorStore.getState().setActiveTransformCallout({
+              active: true,
+              objectId: id,
+              objectName: obj?.name || 'Object',
+              mode: 'translate',
+              x: Number(snapped.position.x.toFixed(3)),
+              y: Number(snapped.position.y.toFixed(3)),
+              z: Number(snapped.position.z.toFixed(3)),
+              unit: 'm',
+              isSnapped: snapped.isSnapped,
+              snapLabel: snapped.snapLabel || (useEditorStore.getState().gridSnapEnabled ? `Snap ${useEditorStore.getState().gridSnapIncrement}m` : undefined)
+            });
           }
         }
 
@@ -4014,18 +4225,20 @@ function ObjectRenderer({ id }: { id: string }) {
           });
         }
       }}
-      raycast={obj.properties.ignoreClicks ? () => null : undefined}
+      raycast={obj.properties.ignoreClicks || obj.type === 'imageTarget' ? () => null : undefined}
     >
       {/* Pivot-offset group */}
       <group position={[-px, -py, -pz]}>
-        <PivotNormalizer enabled={obj.type !== 'empty' && obj.type !== 'light' && obj.type !== 'audio' && obj.type !== 'imageTarget'}>
+        <PivotNormalizer enabled={['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'circle', 'pyramid', 'capsule', 'dodecahedron', 'octahedron', 'icosahedron', 'knot', 'model'].includes(obj.type)}>
           {renderGeometry()}
         </PivotNormalizer>
         {collisionDebuggerEnabled && <CollisionDebuggerOverlay obj={obj} />}
-        {obj.children.map(childId => (
-          <MemoizedObjectRenderer key={childId} id={childId} />
-        ))}
       </group>
+
+      {/* Render child scene objects directly under the main parent group */}
+      {obj.children.map(childId => (
+        <MemoizedObjectRenderer key={childId} id={childId} />
+      ))}
     </group>
   );
 }
@@ -4095,54 +4308,242 @@ function ThumbnailCapturer() {
   return null;
 }
 
+// Helper function to snap transform gizmo position to ground surface, object surfaces, and alignments
+function computeGizmoSnapPosition(
+  pos: THREE.Vector3,
+  objectId: string,
+  objects: Record<string, SceneObject>,
+  gridSnapIncrement: number = 0.1
+) {
+  return computeComprehensiveSnapPosition(pos, objectId, objects, gridSnapIncrement);
+}
+
 function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.RefObject<any> }) {
   const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
-  const selectedObjectRef = useEditorStore(state => state.selectedObjectRef);
-  const target = (selectedObjectRef as THREE.Object3D) || (selectedObjectId ? scene.getObjectByName(selectedObjectId) : null);
   const objects = useEditorStore(state => state.objects);
   const transformMode = useEditorStore(state => state.transformMode);
   const transformSpace = useEditorStore(state => state.transformSpace);
   const transformGizmoEnabled = useEditorStore(state => state.transformGizmoEnabled);
   const updateObject = useEditorStore(state => state.updateObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
-  const activeStateId = useEditorStore(state => state.activeStateId);
   const controlsRef = useRef<any>(null);
 
   const gridSnapEnabled = useEditorStore(state => state.gridSnapEnabled);
   const gridSnapIncrement = useEditorStore(state => state.gridSnapIncrement);
   const rotationSnapEnabled = useEditorStore(state => state.rotationSnapEnabled);
   const rotationSnapIncrement = useEditorStore(state => state.rotationSnapIncrement);
-  const transformApplyMode = useEditorStore(state => state.transformApplyMode);
-  const setTransformApplyMode = useEditorStore(state => state.setTransformApplyMode);
+  const scaleSnapEnabled = useEditorStore(state => (state as any).scaleSnapEnabled ?? true);
+  const scaleSnapIncrement = useEditorStore(state => (state as any).scaleSnapIncrement ?? 0.1);
+  const lockedAxes = useEditorStore(state => state.lockedAxes);
+
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const isMultiSelecting = selectedObjectIds && selectedObjectIds.length > 1;
+
+  const multiPivotGroupRef = useRef<THREE.Group | null>(null);
+  if (!multiPivotGroupRef.current) {
+    multiPivotGroupRef.current = new THREE.Group();
+    multiPivotGroupRef.current.name = '__multi_selection_pivot__';
+  }
+
+  useEffect(() => {
+    const grp = multiPivotGroupRef.current;
+    if (grp) {
+      scene.add(grp);
+    }
+    return () => {
+      if (grp) {
+        scene.remove(grp);
+      }
+    };
+  }, [scene]);
+
+  // Compute selection center vector for multi-selection
+  const selectionCenterPos = useMemo(() => {
+    if (!isMultiSelecting || !selectedObjectIds) return null;
+    let sumX = 0, sumY = 0, sumZ = 0, count = 0;
+    selectedObjectIds.forEach(id => {
+      const o = objects[id];
+      if (o && o.visible && !o.locked && o.type !== 'imageTarget') {
+        sumX += o.position[0];
+        sumY += o.position[1];
+        sumZ += o.position[2];
+        count++;
+      }
+    });
+    if (count === 0) return null;
+    return new THREE.Vector3(sumX / count, sumY / count, sumZ / count);
+  }, [isMultiSelecting, selectedObjectIds, objects]);
+
+  // Keep pivot group centered when not actively dragging
+  useEffect(() => {
+    if (isMultiSelecting && selectionCenterPos && multiPivotGroupRef.current && !isTransformDragging) {
+      multiPivotGroupRef.current.position.copy(selectionCenterPos);
+      multiPivotGroupRef.current.rotation.set(0, 0, 0);
+      multiPivotGroupRef.current.scale.set(1, 1, 1);
+      multiPivotGroupRef.current.updateMatrixWorld(true);
+    }
+  }, [isMultiSelecting, selectionCenterPos]);
 
   const obj = selectedObjectId ? objects[selectedObjectId] : null;
 
-  const handleTransform = () => {
-    if (!target || !selectedObjectId) return;
-    updateObject(selectedObjectId, {
-      position: [
-        Number(target.position.x.toFixed(3)),
-        Number(target.position.y.toFixed(3)),
-        Number(target.position.z.toFixed(3))
-      ],
-      rotation: [
-        Number(THREE.MathUtils.radToDeg(target.rotation.x).toFixed(2)),
-        Number(THREE.MathUtils.radToDeg(target.rotation.y).toFixed(2)),
-        Number(THREE.MathUtils.radToDeg(target.rotation.z).toFixed(2))
-      ],
-      scale: [
-        Number(target.scale.x.toFixed(3)),
-        Number(target.scale.y.toFixed(3)),
-        Number(target.scale.z.toFixed(3))
-      ]
-    });
-  };
+  const isTransformable = Boolean(
+    transformGizmoEnabled &&
+    !isPreviewMode &&
+    (selectedObjectId || isMultiSelecting) &&
+    obj &&
+    obj.visible &&
+    !obj.locked &&
+    obj.type !== 'imageTarget' &&
+    !['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) &&
+    !(obj.type === 'youtube' && obj.properties?.displayMode === '2d')
+  );
 
-  // Ensure gizmo controls are always rendered on top of 3D models without depth clipping and stay attached on property updates
+  // Resolve target directly from the scene graph with useMemo
+  const target = useMemo<THREE.Object3D | null>(() => {
+    if (!isTransformable) return null;
+    if (isMultiSelecting && selectionCenterPos && multiPivotGroupRef.current) {
+      return multiPivotGroupRef.current;
+    }
+    if (!selectedObjectId) return null;
+    const found = scene.getObjectByName(selectedObjectId);
+    if (found && found.parent && isObjectInScene(found, scene)) {
+      return found;
+    }
+    return null;
+  }, [isTransformable, isMultiSelecting, selectionCenterPos, selectedObjectId, scene, objects]);
+
+  // Safe ref binder that patches updateMatrixWorld to prevent three-stdlib error
+  const bindControls = useCallback((controls: any) => {
+    if (!controls) {
+      if (controlsRef.current) {
+        try {
+          controlsRef.current.detach();
+        } catch (e) {}
+      }
+      controlsRef.current = null;
+      return;
+    }
+    controlsRef.current = controls;
+
+    if (!controls.__safePatched) {
+      controls.__safePatched = true;
+      const originalUpdateMatrixWorld = controls.updateMatrixWorld.bind(controls);
+      controls.updateMatrixWorld = function (force?: boolean) {
+        if (this.object) {
+          if (!this.object.parent || (this.object.parent as any) === null || !isObjectInScene(this.object, scene)) {
+            try {
+              this.detach();
+            } catch (e) {}
+            return;
+          }
+        }
+        return originalUpdateMatrixWorld(force);
+      };
+    }
+  }, [scene]);
+
+  useEffect(() => {
+    return () => {
+      if (controlsRef.current) {
+        try {
+          controlsRef.current.detach();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!target && controlsRef.current && controlsRef.current.object) {
+      try {
+        controlsRef.current.detach();
+      } catch (e) {}
+    }
+  }, [target]);
+
+  const multiInitialTransformsRef = useRef<Map<string, {
+    pos: THREE.Vector3;
+    rot: THREE.Euler;
+    scl: THREE.Vector3;
+  }>>(new Map());
+
+  const handleTransform = useCallback(() => {
+    if (!target || !selectedObjectId) return;
+    const state = useEditorStore.getState();
+    const allTargetIds = (state.selectedObjectIds && state.selectedObjectIds.length > 0)
+      ? state.selectedObjectIds
+      : [selectedObjectId];
+
+    let finalPos = target.position.clone();
+    if (gridSnapEnabled && transformMode === 'translate') {
+      const snapResult = computeGizmoSnapPosition(finalPos, selectedObjectId, state.objects, gridSnapIncrement);
+      finalPos = snapResult.position;
+      target.position.copy(finalPos);
+    }
+
+    const initPrimary = initialTransformRef.current;
+    const deltaPos = initPrimary ? finalPos.clone().sub(initPrimary.pos) : new THREE.Vector3();
+    const deltaRotX = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.x - initPrimary.rot.x) : 0;
+    const deltaRotY = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.y - initPrimary.rot.y) : 0;
+    const deltaRotZ = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.z - initPrimary.rot.z) : 0;
+    const ratioX = (initPrimary && initPrimary.scl.x !== 0) ? target.scale.x / initPrimary.scl.x : 1;
+    const ratioY = (initPrimary && initPrimary.scl.y !== 0) ? target.scale.y / initPrimary.scl.y : 1;
+    const ratioZ = (initPrimary && initPrimary.scl.z !== 0) ? target.scale.z / initPrimary.scl.z : 1;
+
+    allTargetIds.forEach((id) => {
+      if (id === selectedObjectId) {
+        updateObject(id, {
+          position: [
+            Number(finalPos.x.toFixed(3)),
+            Number(finalPos.y.toFixed(3)),
+            Number(finalPos.z.toFixed(3))
+          ],
+          rotation: [
+            Number(THREE.MathUtils.radToDeg(target.rotation.x).toFixed(2)),
+            Number(THREE.MathUtils.radToDeg(target.rotation.y).toFixed(2)),
+            Number(THREE.MathUtils.radToDeg(target.rotation.z).toFixed(2))
+          ],
+          scale: [
+            Number(target.scale.x.toFixed(3)),
+            Number(target.scale.y.toFixed(3)),
+            Number(target.scale.z.toFixed(3))
+          ]
+        });
+      } else {
+        const init = multiInitialTransformsRef.current.get(id);
+        if (init) {
+          updateObject(id, {
+            position: [
+              Number((init.pos.x + deltaPos.x).toFixed(3)),
+              Number((init.pos.y + deltaPos.y).toFixed(3)),
+              Number((init.pos.z + deltaPos.z).toFixed(3))
+            ],
+            rotation: [
+              Number((THREE.MathUtils.radToDeg(init.rot.x) + deltaRotX).toFixed(2)),
+              Number((THREE.MathUtils.radToDeg(init.rot.y) + deltaRotY).toFixed(2)),
+              Number((THREE.MathUtils.radToDeg(init.rot.z) + deltaRotZ).toFixed(2))
+            ],
+            scale: [
+              Number((init.scl.x * ratioX).toFixed(3)),
+              Number((init.scl.y * ratioY).toFixed(3)),
+              Number((init.scl.z * ratioZ).toFixed(3))
+            ]
+          });
+        }
+      }
+    });
+  }, [target, selectedObjectId, updateObject, gridSnapEnabled, transformMode, gridSnapIncrement]);
+
+  // Ensure gizmo controls are always rendered on top of 3D models without depth clipping
   useFrame(() => {
     const controls = controlsRef.current;
     if (controls) {
+      if (controls.object && (!controls.object.parent || !isObjectInScene(controls.object, scene))) {
+        try {
+          controls.detach();
+        } catch (e) {}
+      }
+
       const helper = controls.getHelper ? controls.getHelper() : (controls as any)._gizmo;
       if (helper) {
         helper.traverse((child: any) => {
@@ -4160,16 +4561,104 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     }
   });
 
-  useEffect(() => {
-    const controls = controlsRef.current;
-    if (controls && target) {
-      try {
-        controls.attach(target);
-      } catch (e) {
-        // ignore
-      }
+  const initialTransformRef = useRef<{
+    pos: THREE.Vector3;
+    rot: THREE.Euler;
+    scl: THREE.Vector3;
+  } | null>(null);
+  const calloutTimeoutRef = useRef<any>(null);
+
+  const updateCallout = useCallback((
+    tgt: THREE.Object3D,
+    active: boolean,
+    isSnapped = false,
+    snapText?: string,
+    axisOverride?: string
+  ) => {
+    if (!selectedObjectId) return;
+    const state = useEditorStore.getState();
+    const currentObj = state.objects[selectedObjectId];
+    const name = currentObj?.name || 'Object';
+    const init = initialTransformRef.current;
+    const allTargetIds = (state.selectedObjectIds && state.selectedObjectIds.length > 0)
+      ? state.selectedObjectIds
+      : [selectedObjectId];
+    const selectedCount = allTargetIds.length;
+
+    const detectedAxis = axisOverride || (controlsRef.current as any)?.axis || undefined;
+
+    if (transformMode === 'translate') {
+      const x = Number(tgt.position.x.toFixed(3));
+      const y = Number(tgt.position.y.toFixed(3));
+      const z = Number(tgt.position.z.toFixed(3));
+      const deltaX = init ? Number((tgt.position.x - init.pos.x).toFixed(3)) : 0;
+      const deltaY = init ? Number((tgt.position.y - init.pos.y).toFixed(3)) : 0;
+      const deltaZ = init ? Number((tgt.position.z - init.pos.z).toFixed(3)) : 0;
+      state.setActiveTransformCallout({
+        active,
+        objectId: selectedObjectId,
+        objectName: name,
+        mode: 'translate',
+        axis: detectedAxis,
+        selectedCount,
+        x,
+        y,
+        z,
+        deltaX,
+        deltaY,
+        deltaZ,
+        unit: 'm',
+        isSnapped: isSnapped || gridSnapEnabled,
+        snapLabel: snapText || (gridSnapEnabled ? `Snap ${gridSnapIncrement}m` : undefined)
+      });
+    } else if (transformMode === 'rotate') {
+      const degX = Number(THREE.MathUtils.radToDeg(tgt.rotation.x).toFixed(1));
+      const degY = Number(THREE.MathUtils.radToDeg(tgt.rotation.y).toFixed(1));
+      const degZ = Number(THREE.MathUtils.radToDeg(tgt.rotation.z).toFixed(1));
+      const deltaX = init ? Number((THREE.MathUtils.radToDeg(tgt.rotation.x - init.rot.x)).toFixed(1)) : 0;
+      const deltaY = init ? Number((THREE.MathUtils.radToDeg(tgt.rotation.y - init.rot.y)).toFixed(1)) : 0;
+      const deltaZ = init ? Number((THREE.MathUtils.radToDeg(tgt.rotation.z - init.rot.z)).toFixed(1)) : 0;
+      state.setActiveTransformCallout({
+        active,
+        objectId: selectedObjectId,
+        objectName: name,
+        mode: 'rotate',
+        axis: detectedAxis,
+        selectedCount,
+        x: degX,
+        y: degY,
+        z: degZ,
+        deltaX,
+        deltaY,
+        deltaZ,
+        unit: '°',
+        isSnapped: rotationSnapEnabled,
+        snapLabel: rotationSnapEnabled ? `${rotationSnapIncrement}°` : undefined
+      });
+    } else if (transformMode === 'scale') {
+      const sx = Number(tgt.scale.x.toFixed(2));
+      const sy = Number(tgt.scale.y.toFixed(2));
+      const sz = Number(tgt.scale.z.toFixed(2));
+      const deltaX = init ? Number((tgt.scale.x - init.scl.x).toFixed(2)) : 0;
+      const deltaY = init ? Number((tgt.scale.y - init.scl.y).toFixed(2)) : 0;
+      const deltaZ = init ? Number((tgt.scale.z - init.scl.z).toFixed(2)) : 0;
+      state.setActiveTransformCallout({
+        active,
+        objectId: selectedObjectId,
+        objectName: name,
+        mode: 'scale',
+        axis: detectedAxis,
+        selectedCount,
+        x: sx,
+        y: sy,
+        z: sz,
+        deltaX,
+        deltaY,
+        deltaZ,
+        unit: 'x'
+      });
     }
-  }, [target, transformMode, transformSpace, selectedObjectId, obj?.properties?.displayMode, obj?.properties?.aspectRatio]);
+  }, [selectedObjectId, transformMode, gridSnapEnabled, gridSnapIncrement, rotationSnapEnabled, rotationSnapIncrement]);
 
   useEffect(() => {
     const controls = controlsRef.current;
@@ -4183,30 +4672,152 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
         orbitControlsRef.current.enabled = !isDragging;
       }
 
-      if (!isDragging) {
+      if (isDragging) {
+        if (calloutTimeoutRef.current) {
+          clearTimeout(calloutTimeoutRef.current);
+          calloutTimeoutRef.current = null;
+        }
+        if (target) {
+          initialTransformRef.current = {
+            pos: target.position.clone(),
+            rot: target.rotation.clone(),
+            scl: target.scale.clone()
+          };
+
+          const state = useEditorStore.getState();
+          const allTargetIds = (state.selectedObjectIds && state.selectedObjectIds.length > 0)
+            ? state.selectedObjectIds
+            : (selectedObjectId ? [selectedObjectId] : []);
+
+          multiInitialTransformsRef.current.clear();
+          allTargetIds.forEach((id) => {
+            const o = state.objects[id];
+            if (o) {
+              multiInitialTransformsRef.current.set(id, {
+                pos: new THREE.Vector3(...o.position),
+                rot: new THREE.Euler(
+                  THREE.MathUtils.degToRad(o.rotation[0]),
+                  THREE.MathUtils.degToRad(o.rotation[1]),
+                  THREE.MathUtils.degToRad(o.rotation[2])
+                ),
+                scl: new THREE.Vector3(...o.scale)
+              });
+            }
+          });
+
+          const activeAxis = (controls as any).axis || undefined;
+          updateCallout(target, true, false, undefined, activeAxis);
+        }
+      } else {
         handleTransform();
+        if (target) {
+          const activeAxis = (controls as any).axis || undefined;
+          updateCallout(target, true, false, undefined, activeAxis);
+          if (calloutTimeoutRef.current) clearTimeout(calloutTimeoutRef.current);
+          calloutTimeoutRef.current = setTimeout(() => {
+            useEditorStore.getState().setActiveTransformCallout(null);
+          }, 1600);
+        } else {
+          useEditorStore.getState().setActiveTransformCallout(null);
+        }
       }
     };
 
     const changeCallback = () => {
       if (isTransformDragging && target && selectedObjectId) {
-        useEditorStore.getState().updateObject(selectedObjectId, {
-          position: [
-            Number(target.position.x.toFixed(3)),
-            Number(target.position.y.toFixed(3)),
-            Number(target.position.z.toFixed(3))
-          ],
-          rotation: [
-            Number(THREE.MathUtils.radToDeg(target.rotation.x).toFixed(2)),
-            Number(THREE.MathUtils.radToDeg(target.rotation.y).toFixed(2)),
-            Number(THREE.MathUtils.radToDeg(target.rotation.z).toFixed(2))
-          ],
-          scale: [
-            Number(target.scale.x.toFixed(3)),
-            Number(target.scale.y.toFixed(3)),
-            Number(target.scale.z.toFixed(3))
-          ]
+        let currentPos = target.position.clone();
+        let wasSnapped = false;
+        let snapLabel = '';
+        if (gridSnapEnabled && transformMode === 'translate') {
+          const snapResult = computeGizmoSnapPosition(currentPos, selectedObjectId, useEditorStore.getState().objects, gridSnapIncrement);
+          wasSnapped = snapResult.isSnapped;
+          snapLabel = snapResult.snapLabel || (gridSnapIncrement ? `Snap ${gridSnapIncrement}m` : undefined) || '';
+          target.position.copy(snapResult.position);
+          currentPos = snapResult.position;
+        }
+
+        const state = useEditorStore.getState();
+        const initPrimary = initialTransformRef.current;
+        const currentLocks = state.lockedAxes;
+
+        if (initPrimary && currentLocks) {
+          if (currentLocks.x) {
+            target.position.x = initPrimary.pos.x;
+            target.rotation.x = initPrimary.rot.x;
+            target.scale.x = initPrimary.scl.x;
+            currentPos.x = initPrimary.pos.x;
+          }
+          if (currentLocks.y) {
+            target.position.y = initPrimary.pos.y;
+            target.rotation.y = initPrimary.rot.y;
+            target.scale.y = initPrimary.scl.y;
+            currentPos.y = initPrimary.pos.y;
+          }
+          if (currentLocks.z) {
+            target.position.z = initPrimary.pos.z;
+            target.rotation.z = initPrimary.rot.z;
+            target.scale.z = initPrimary.scl.z;
+            currentPos.z = initPrimary.pos.z;
+          }
+        }
+
+        const deltaPos = initPrimary ? currentPos.clone().sub(initPrimary.pos) : new THREE.Vector3();
+        const deltaRotX = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.x - initPrimary.rot.x) : 0;
+        const deltaRotY = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.y - initPrimary.rot.y) : 0;
+        const deltaRotZ = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.z - initPrimary.rot.z) : 0;
+        const ratioX = (initPrimary && initPrimary.scl.x !== 0) ? target.scale.x / initPrimary.scl.x : 1;
+        const ratioY = (initPrimary && initPrimary.scl.y !== 0) ? target.scale.y / initPrimary.scl.y : 1;
+        const ratioZ = (initPrimary && initPrimary.scl.z !== 0) ? target.scale.z / initPrimary.scl.z : 1;
+
+        const allTargetIds = (state.selectedObjectIds && state.selectedObjectIds.length > 0)
+          ? state.selectedObjectIds
+          : [selectedObjectId];
+
+        allTargetIds.forEach((id) => {
+          if (id === selectedObjectId) {
+            state.updateObject(id, {
+              position: [
+                Number(currentPos.x.toFixed(3)),
+                Number(currentPos.y.toFixed(3)),
+                Number(currentPos.z.toFixed(3))
+              ],
+              rotation: [
+                Number(THREE.MathUtils.radToDeg(target.rotation.x).toFixed(2)),
+                Number(THREE.MathUtils.radToDeg(target.rotation.y).toFixed(2)),
+                Number(THREE.MathUtils.radToDeg(target.rotation.z).toFixed(2))
+              ],
+              scale: [
+                Number(target.scale.x.toFixed(3)),
+                Number(target.scale.y.toFixed(3)),
+                Number(target.scale.z.toFixed(3))
+              ]
+            });
+          } else {
+            const init = multiInitialTransformsRef.current.get(id);
+            if (init) {
+              state.updateObject(id, {
+                position: [
+                  Number((init.pos.x + deltaPos.x).toFixed(3)),
+                  Number((init.pos.y + deltaPos.y).toFixed(3)),
+                  Number((init.pos.z + deltaPos.z).toFixed(3))
+                ],
+                rotation: [
+                  Number((THREE.MathUtils.radToDeg(init.rot.x) + deltaRotX).toFixed(2)),
+                  Number((THREE.MathUtils.radToDeg(init.rot.y) + deltaRotY).toFixed(2)),
+                  Number((THREE.MathUtils.radToDeg(init.rot.z) + deltaRotZ).toFixed(2))
+                ],
+                scale: [
+                  Number((init.scl.x * ratioX).toFixed(3)),
+                  Number((init.scl.y * ratioY).toFixed(3)),
+                  Number((init.scl.z * ratioZ).toFixed(3))
+                ]
+              });
+            }
+          }
         });
+
+        const activeAxis = (controls as any).axis || undefined;
+        updateCallout(target, true, wasSnapped, snapLabel, activeAxis);
       }
     };
 
@@ -4216,39 +4827,33 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
       controls.removeEventListener('dragging-changed', draggingCallback);
       controls.removeEventListener('change', changeCallback);
       isTransformDragging = false;
+      if (calloutTimeoutRef.current) {
+        clearTimeout(calloutTimeoutRef.current);
+      }
+      useEditorStore.getState().setActiveTransformCallout(null);
       if (orbitControlsRef && orbitControlsRef.current) {
         orbitControlsRef.current.enabled = true;
       }
     };
-  }, [target, selectedObjectId, orbitControlsRef]);
+  }, [target, selectedObjectId, orbitControlsRef, handleTransform, gridSnapEnabled, transformMode, gridSnapIncrement, updateCallout]);
 
-  if (
-    !transformGizmoEnabled ||
-    !target ||
-    !target.parent ||
-    !selectedObjectId ||
-    isPreviewMode ||
-    !obj ||
-    !obj.visible ||
-    obj.locked ||
-    (obj.type === 'imageTarget' && obj.properties?.targetType !== 'face') ||
-    ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) ||
-    (obj.type === 'youtube' && obj.properties?.displayMode === '2d') ||
-    !isObjectInScene(target, scene)
-  ) {
+  if (!isTransformable || !target) {
     return null;
   }
 
   return (
     <TransformControls
-      key={`${selectedObjectId}-${activeStateId || 'base'}-${obj?.properties?.displayMode || '3d'}-${obj?.properties?.aspectRatio || '16:9'}`}
-      ref={controlsRef}
-      object={target as THREE.Object3D}
+      key={selectedObjectId}
+      ref={bindControls}
+      object={target}
       mode={transformMode}
       space={transformSpace}
-      onMouseUp={handleTransform}
+      showX={!lockedAxes?.x}
+      showY={!lockedAxes?.y}
+      showZ={!lockedAxes?.z}
       translationSnap={gridSnapEnabled ? gridSnapIncrement : null}
       rotationSnap={rotationSnapEnabled ? (rotationSnapIncrement * Math.PI) / 180 : null}
+      scaleSnap={scaleSnapEnabled ? scaleSnapIncrement : null}
     />
   );
 }
@@ -4570,18 +5175,62 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
   );
 }
 
+function ScaleSnapGridVisualizer() {
+  const selectedObjectId = useEditorStore((state) => state.selectedObjectId);
+  const transformMode = useEditorStore((state) => state.transformMode);
+  const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
+  const scaleSnapEnabled = useEditorStore((state) => (state as any).scaleSnapEnabled ?? true);
+  const scaleSnapIncrement = useEditorStore((state) => (state as any).scaleSnapIncrement ?? 0.1);
+  const scaleGridVisualEnabled = useEditorStore((state) => (state as any).scaleGridVisualEnabled ?? true);
+  const objects = useEditorStore((state) => state.objects);
+
+  if (isPreviewMode || !selectedObjectId || !scaleGridVisualEnabled) return null;
+
+  const targetObj = objects[selectedObjectId];
+  if (!targetObj || targetObj.type === 'imageTarget' || targetObj.locked || targetObj.type.startsWith('hud')) return null;
+
+  // Render visual snap grid only when actively in scale mode
+  if (transformMode !== 'scale') return null;
+
+  const bbox = getObjectBoundingBox(targetObj);
+  const pos = bbox.center;
+  const size = bbox.size;
+
+  const currentScale = new THREE.Vector3(...(targetObj.scale || [1, 1, 1]));
+  const snapResult = computeGizmoScaleSnap(currentScale, selectedObjectId, objects, scaleSnapIncrement);
+
+  const w = Math.max(0.06, size.x);
+  const h = Math.max(0.06, size.y);
+  const d = Math.max(0.06, size.z);
+
+  return (
+    <group position={[pos.x, pos.y, pos.z]}>
+      {/* Clean Bounding Box Scale Wireframe without obstructing text callouts */}
+      <lineSegments>
+        <edgesGeometry args={[new THREE.BoxGeometry(w, h, d)]} />
+        <lineBasicMaterial 
+          color={snapResult.isSnapped ? "#c084fc" : "#38bdf8"} 
+          linewidth={2} 
+          transparent 
+          opacity={snapResult.isSnapped ? 0.95 : 0.65} 
+        />
+      </lineSegments>
+    </group>
+  );
+}
+
 function ZUpAxisHead({
   position,
   label,
   color,
   labelColor = '#ffffff',
-  onTween,
+  onSelect,
 }: {
   position: [number, number, number];
   label?: string;
   color: string;
   labelColor?: string;
-  onTween: (pos: [number, number, number]) => void;
+  onSelect: (pos: [number, number, number]) => void;
 }) {
   const gl = useThree((state) => state.gl);
   const [active, setActive] = useState(false);
@@ -4593,20 +5242,25 @@ function ZUpAxisHead({
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.beginPath();
-      ctx.arc(32, 32, 16, 0, 2 * Math.PI);
+      ctx.arc(32, 32, 22, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
       if (label) {
-        ctx.font = 'bold 20px Inter, sans-serif';
+        ctx.font = 'bold 22px Inter, sans-serif';
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.fillStyle = labelColor;
-        ctx.fillText(label, 32, 39);
+        ctx.fillText(label, 32, 32);
       }
     }
     return new THREE.CanvasTexture(canvas);
   }, [color, label, labelColor]);
 
-  const scale = (label ? 1 : 0.75) * (active ? 1.25 : 1);
+  const scale = (label ? 1.05 : 0.8) * (active ? 1.3 : 1);
 
   return (
     <sprite
@@ -4622,14 +5276,14 @@ function ZUpAxisHead({
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
-        onTween(position);
+        onSelect(position);
       }}
     >
       <spriteMaterial
         map={texture}
         map-anisotropy={gl.capabilities.getMaxAnisotropy() || 1}
-        alphaTest={0.3}
-        opacity={label ? 1 : 0.75}
+        alphaTest={0.1}
+        opacity={label ? 1 : 0.85}
         toneMapped={false}
       />
     </sprite>
@@ -4639,8 +5293,8 @@ function ZUpAxisHead({
 function ZUpAxis({ color, rotation }: { color: string; rotation: [number, number, number] }) {
   return (
     <group rotation={rotation}>
-      <mesh position={[0.4, 0, 0]}>
-        <boxGeometry args={[0.8, 0.05, 0.05]} />
+      <mesh position={[0.45, 0, 0]}>
+        <boxGeometry args={[0.9, 0.06, 0.06]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
     </group>
@@ -4652,48 +5306,62 @@ function ZUpGizmoViewport({
   onSelectAxisView,
 }: {
   axisColors?: [string, string, string];
-  onSelectAxisView?: (axis: 'X' | 'Y' | 'Z' | '3D') => void;
+  onSelectAxisView?: (axis: string) => void;
 }) {
-  const { tweenCamera } = useGizmoContext();
+  const [centerHover, setCenterHover] = useState(false);
 
-  const handleTween = (pos: [number, number, number]) => {
-    let [x, y, z] = pos;
-    if (Math.abs(z) > 0.9 && Math.abs(x) < 0.1 && Math.abs(y) < 0.1) {
-      // Offset Y slightly for top/bottom view to prevent collinear singularity with up=[0,0,1]
-      y = z > 0 ? -0.0001 : 0.0001;
-    }
-    const targetVec = new THREE.Vector3(x, y, z).normalize();
-    tweenCamera(targetVec);
-
-    if (onSelectAxisView) {
-      if (Math.abs(pos[0]) > 0.9) onSelectAxisView('X');
-      else if (Math.abs(pos[1]) > 0.9) onSelectAxisView('Y');
-      else if (Math.abs(pos[2]) > 0.9) onSelectAxisView('Z');
-    }
+  const handleSelectAxis = (pos: [number, number, number]) => {
+    if (!onSelectAxisView) return;
+    const [x, y, z] = pos;
+    if (x > 0.5) onSelectAxisView('X');
+    else if (x < -0.5) onSelectAxisView('-X');
+    else if (y > 0.5) onSelectAxisView('Y');
+    else if (y < -0.5) onSelectAxisView('-Y');
+    else if (z > 0.5) onSelectAxisView('Z');
+    else if (z < -0.5) onSelectAxisView('-Z');
   };
 
   const [colorX, colorY, colorZ] = axisColors;
 
   return (
-    <group 
-      scale={40}
-      onPointerDown={() => {
-        if (onSelectAxisView) {
-          onSelectAxisView('3D');
-        }
-      }}
-    >
+    <group scale={40}>
+      {/* Clickable Center Origin Core: Resets to 3D View */}
+      <mesh
+        position={[0, 0, 0]}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setCenterHover(true);
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+          setCenterHover(false);
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onSelectAxisView?.('3D');
+        }}
+      >
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshBasicMaterial 
+          color={centerHover ? "#38bdf8" : "#cbd5e1"} 
+          toneMapped={false} 
+        />
+      </mesh>
+
+      {/* Axis Lines */}
       <ZUpAxis color={colorX} rotation={[0, 0, 0]} />
       <ZUpAxis color={colorY} rotation={[0, 0, Math.PI / 2]} />
       <ZUpAxis color={colorZ} rotation={[0, -Math.PI / 2, 0]} />
 
-      <ZUpAxisHead position={[1, 0, 0]} label="X" color={colorX} onTween={handleTween} />
-      <ZUpAxisHead position={[0, 1, 0]} label="Y" color={colorY} onTween={handleTween} />
-      <ZUpAxisHead position={[0, 0, 1]} label="Z" color={colorZ} onTween={handleTween} />
+      {/* Positive Axis Heads */}
+      <ZUpAxisHead position={[1.2, 0, 0]} label="X" color={colorX} onSelect={handleSelectAxis} />
+      <ZUpAxisHead position={[0, 1.2, 0]} label="Y" color={colorY} onSelect={handleSelectAxis} />
+      <ZUpAxisHead position={[0, 0, 1.2]} label="Z" color={colorZ} onSelect={handleSelectAxis} />
 
-      <ZUpAxisHead position={[-1, 0, 0]} color={colorX} onTween={handleTween} />
-      <ZUpAxisHead position={[0, -1, 0]} color={colorY} onTween={handleTween} />
-      <ZUpAxisHead position={[0, 0, -1]} color={colorZ} onTween={handleTween} />
+      {/* Negative Axis Heads */}
+      <ZUpAxisHead position={[-1.2, 0, 0]} color="#991b1b" onSelect={handleSelectAxis} />
+      <ZUpAxisHead position={[0, -1.2, 0]} color="#065f46" onSelect={handleSelectAxis} />
+      <ZUpAxisHead position={[0, 0, -1.2]} color="#1e40af" onSelect={handleSelectAxis} />
     </group>
   );
 }
@@ -4780,11 +5448,18 @@ function AutoSceneLightingEngine() {
 export function Viewport() {
   const [debugLogs, setDebugLogs] = useState<{ id: number, message: string }[]>([]);
   const orbitControlsRef = useRef<any>(null);
+  const previewOrbitControlsRef = useRef<any>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const [isPublicationModalOpen, setIsPublicationModalOpen] = useState(false);
   const [axisUpdateId, setAxisUpdateId] = useState(0);
-  const [activeAxisView, setActiveAxisView] = useState<'X' | 'Y' | 'Z' | '3D'>('3D');
+  const [activeAxisView, setActiveAxisView] = useState<string>('3D');
   const [isAxisMenuOpen, setIsAxisMenuOpen] = useState(false);
+
+  const handleSelectAxisView = useCallback((axis: string) => {
+    setActiveAxisView(axis);
+    setAxisUpdateId((n) => n + 1);
+    setIsAxisMenuOpen(false);
+  }, []);
 
   const { 
     addObject, 
@@ -5001,10 +5676,54 @@ export function Viewport() {
   const setTransformMode = useEditorStore(state => state.setTransformMode);
   const transformSpace = useEditorStore(state => state.transformSpace);
   const setTransformSpace = useEditorStore(state => state.setTransformSpace);
+  const lockedAxes = useEditorStore(state => state.lockedAxes);
+  const toggleLockAxis = useEditorStore(state => state.toggleLockAxis);
+  const scaleSnapEnabled = useEditorStore(state => (state as any).scaleSnapEnabled ?? true);
+  const setScaleSnapEnabled = useEditorStore(state => (state as any).setScaleSnapEnabled);
   const toasts = useEditorStore(state => state.toasts);
   const arVideoPlaying = useEditorStore(state => state.arVideoPlaying);
+  const selectedObjectId = useEditorStore(state => state.selectedObjectId);
   const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
   const addToast = useEditorStore(state => state.addToast);
+
+  const handleToggleAxisLock = useCallback((axis: 'x' | 'y' | 'z') => {
+    playCachedAudio('/sounds/click.wav', false, 0.4);
+    toggleLockAxis(axis);
+    const willBeLocked = !lockedAxes?.[axis];
+    const axisUpper = axis.toUpperCase();
+    addToast(
+      willBeLocked 
+        ? `🔒 ${axisUpper}-Axis transform locked` 
+        : `🔓 ${axisUpper}-Axis transform unlocked`
+    );
+  }, [toggleLockAxis, lockedAxes, addToast]);
+
+  const handlePointerMissed = (e: any) => {
+    const target = e?.target as HTMLElement;
+    if (target) {
+      if (
+        target.closest('.ui-panel') ||
+        target.closest('button') ||
+        target.closest('select') ||
+        target.closest('input') ||
+        target.closest('textarea') ||
+        target.closest('[role="dialog"]') ||
+        target.closest('.no-pointer-miss') ||
+        target.closest('.panel') ||
+        target.closest('[class*="panel"]') ||
+        target.closest('.lucide') ||
+        target.closest('svg')
+      ) {
+        return;
+      }
+      const canvasElement = document.querySelector('canvas');
+      if (canvasElement && !canvasElement.contains(target)) {
+        return;
+      }
+    }
+    console.log('[Debug Log] Screen tapped (no object tapped)');
+    selectObject(null);
+  };
 
   const [showBezel, setShowBezel] = useState(true);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -5115,6 +5834,18 @@ export function Viewport() {
       if (e.key.toLowerCase() === 'r' || e.key.toLowerCase() === 's') {
         e.preventDefault();
         setTransformMode('scale');
+      }
+
+      // F: Focus / Frame Selected Object or Recenter Scene
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('trigger-frame-selected'));
+      }
+
+      // Home: Reset Camera Orbit
+      if (e.key === 'Home') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('trigger-reset-camera'));
       }
 
       // Delete or Backspace: Remove selected object
@@ -5481,13 +6212,13 @@ export function Viewport() {
             >
               <Canvas 
                 camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
-                onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
+                onPointerMissed={handlePointerMissed}
               >
                 
                 <AutoSceneLightingEngine />
-                <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
+                <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={previewOrbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
                 <Grid 
-                  position={[0, 0, 0]} 
+                  position={[0, 0, -0.01]} 
                   args={[100, 100]} 
                   cellSize={1} 
                   cellThickness={1} 
@@ -5505,7 +6236,7 @@ export function Viewport() {
                   <MemoizedObjectRenderer key={id} id={id} />
                 ))}
 
-                <OrbitControls ref={orbitControlsRef} enabled={!isDraggableDragging} enableRotate={!isDraggableDragging && (activeAxisView === '3D')} makeDefault />
+                <OrbitControls ref={previewOrbitControlsRef} enabled={!isDraggableDragging} enableRotate={!isDraggableDragging} makeDefault />
                 <BloomEffect />
                 <PerformanceTracker />
               </Canvas>
@@ -5735,13 +6466,14 @@ export function Viewport() {
       >
         <Canvas 
           camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
-          onPointerMissed={() => { console.log('[Debug Log] Screen tapped (no object tapped)'); selectObject(null); }}
+          onPointerMissed={handlePointerMissed}
         >
+          <SelectionMarquee orbitControlsRef={orbitControlsRef} />
           <SceneRefCapturer sceneRef={sceneRef} />
           <AutoSceneLightingEngine />
           <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
           <Grid 
-            position={[0, 0, 0]} 
+            position={[0, 0, -0.01]} 
             args={[100, 100]} 
             cellSize={1} 
             cellThickness={1} 
@@ -5760,14 +6492,20 @@ export function Viewport() {
 
           <TransformController orbitControlsRef={orbitControlsRef} />
           <SelectionHighlight3D />
+          <ScaleSnapGridVisualizer />
           <ProjectedPositionsUpdater />
           <ThumbnailCapturer />
 
           <GizmoHelper alignment="top-right" margin={[70, 70]}>
-            <ZUpGizmoViewport onSelectAxisView={(axis) => { setActiveAxisView(axis); setAxisUpdateId(n => n + 1); }} />
+            <ZUpGizmoViewport onSelectAxisView={handleSelectAxisView} />
           </GizmoHelper>
 
-          <OrbitControls ref={orbitControlsRef} enabled={!isDraggableDragging} enableRotate={!isDraggableDragging && (activeAxisView === '3D')} makeDefault />
+          <OrbitControls 
+            ref={orbitControlsRef} 
+            enabled={!isDraggableDragging} 
+            enableRotate={!isDraggableDragging} 
+            makeDefault 
+          />
           <BloomEffect />
           <PerformanceTracker />
         </Canvas>
@@ -5896,12 +6634,79 @@ export function Viewport() {
 
             <div className="w-px h-6 bg-white/10 mx-0.5" />
 
+            {/* Axis Lock Controls */}
+            <div className="flex items-center gap-1.5 bg-[#181822]/90 backdrop-blur-md p-1 rounded-xl border border-white/10 shadow-lg" title="Lock transform axis (Translate, Rotate, Scale)">
+              <span className="text-[10px] font-mono font-extrabold text-gray-400 px-1 uppercase flex items-center gap-1 select-none">
+                <Lock size={11} className="text-amber-400 animate-pulse" />
+                <span className="hidden sm:inline">Axis:</span>
+              </span>
+
+              {/* X Axis Button */}
+              <button
+                onClick={() => handleToggleAxisLock('x')}
+                className={`h-7 sm:h-8 px-2.5 rounded-lg text-xs font-mono font-extrabold transition-all duration-150 ease-out cursor-pointer flex items-center gap-1.5 border select-none active:scale-90 ${
+                  lockedAxes?.x
+                    ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white border-red-400 shadow-md shadow-red-500/40 scale-105 ring-2 ring-red-400/30 font-black'
+                    : 'bg-red-950/30 text-red-400 border-red-500/30 hover:bg-red-500/20 hover:text-red-300'
+                }`}
+                title="Toggle Lock X Axis (Red)"
+              >
+                <span className={`w-2 h-2 rounded-full ${lockedAxes?.x ? 'bg-white shadow-sm shadow-white/80' : 'bg-red-500 shadow-sm shadow-red-500/50'}`} />
+                <span>X</span>
+                {lockedAxes?.x ? (
+                  <Lock size={10} className="text-white drop-shadow" />
+                ) : (
+                  <Unlock size={10} className="opacity-40" />
+                )}
+              </button>
+
+              {/* Y Axis Button */}
+              <button
+                onClick={() => handleToggleAxisLock('y')}
+                className={`h-7 sm:h-8 px-2.5 rounded-lg text-xs font-mono font-extrabold transition-all duration-150 ease-out cursor-pointer flex items-center gap-1.5 border select-none active:scale-90 ${
+                  lockedAxes?.y
+                    ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white border-emerald-400 shadow-md shadow-emerald-500/40 scale-105 ring-2 ring-emerald-400/30 font-black'
+                    : 'bg-emerald-950/30 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20 hover:text-emerald-300'
+                }`}
+                title="Toggle Lock Y Axis (Green)"
+              >
+                <span className={`w-2 h-2 rounded-full ${lockedAxes?.y ? 'bg-white shadow-sm shadow-white/80' : 'bg-emerald-500 shadow-sm shadow-emerald-500/50'}`} />
+                <span>Y</span>
+                {lockedAxes?.y ? (
+                  <Lock size={10} className="text-white drop-shadow" />
+                ) : (
+                  <Unlock size={10} className="opacity-40" />
+                )}
+              </button>
+
+              {/* Z Axis Button */}
+              <button
+                onClick={() => handleToggleAxisLock('z')}
+                className={`h-7 sm:h-8 px-2.5 rounded-lg text-xs font-mono font-extrabold transition-all duration-150 ease-out cursor-pointer flex items-center gap-1.5 border select-none active:scale-90 ${
+                  lockedAxes?.z
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-blue-400 shadow-md shadow-blue-500/40 scale-105 ring-2 ring-blue-400/30 font-black'
+                    : 'bg-blue-950/30 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 hover:text-blue-300'
+                }`}
+                title="Toggle Lock Z Axis (Blue)"
+              >
+                <span className={`w-2 h-2 rounded-full ${lockedAxes?.z ? 'bg-white shadow-sm shadow-white/80' : 'bg-blue-500 shadow-sm shadow-blue-500/50'}`} />
+                <span>Z</span>
+                {lockedAxes?.z ? (
+                  <Lock size={10} className="text-white drop-shadow" />
+                ) : (
+                  <Unlock size={10} className="opacity-40" />
+                )}
+              </button>
+            </div>
+
+            <div className="w-px h-6 bg-white/10 mx-0.5" />
+
             {/* Camera Controls Group: Frame Selected (F), Reset Camera Orbit (Home), Axis Presets, Projection Toggle */}
             <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('trigger-frame-selected'))}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
-                title="Focus / Frame Selected Object [F]"
+                title={selectedObjectId ? "Focus / Frame Selected Object [F]" : "Focus / Recenter Scene [F]"}
               >
                 <Crosshair size={14} className="text-cyan-400" />
               </button>
@@ -5919,7 +6724,7 @@ export function Viewport() {
                 <button
                   onClick={() => setIsAxisMenuOpen(!isAxisMenuOpen)}
                   className="h-8 px-2.5 rounded-lg flex items-center gap-1 bg-[#121217] border border-white/10 text-gray-300 hover:text-white hover:bg-[#25252e] hover:border-blue-500/50 transition-all cursor-pointer select-none"
-                  title="Select Camera Axis Preset (Z, Y, X, 3D)"
+                  title="Select Camera Axis Preset (3D, Top, Front, Right, etc.)"
                 >
                   <span className="font-mono font-bold text-[10px] tracking-wide">{activeAxisView}</span>
                   <ChevronDown size={10} className={`text-gray-500 transition-transform duration-200 ${isAxisMenuOpen ? 'rotate-180' : ''}`} />
@@ -5931,33 +6736,64 @@ export function Viewport() {
                       className="fixed inset-0 z-40" 
                       onClick={() => setIsAxisMenuOpen(false)} 
                     />
-                    <div className="absolute bottom-full mb-1.5 left-0 z-50 bg-[#121217]/95 border border-white/10 rounded-lg p-1 shadow-2xl min-w-[48px] flex flex-col gap-0.5 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="absolute bottom-full mb-1.5 left-0 z-50 bg-[#121217]/95 border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[130px] flex flex-col gap-1 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      <div className="px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-gray-500 border-b border-white/5">
+                        Camera Views
+                      </div>
                       <button
-                        onClick={() => { setActiveAxisView('Z'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
-                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'Z' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20' : 'text-gray-300'}`}
+                        onClick={() => handleSelectAxisView('3D')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === '3D' ? 'bg-purple-600/20 text-purple-400 border border-purple-500/20' : 'text-gray-300'}`}
                       >
-                        Z
+                        <span>3D Orbit</span>
+                        <span className="font-mono text-[9px] px-1 bg-white/5 rounded text-purple-300">ISO</span>
                       </button>
 
                       <button
-                        onClick={() => { setActiveAxisView('Y'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
-                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'Y' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20' : 'text-gray-300'}`}
+                        onClick={() => handleSelectAxisView('Z')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'Z' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20' : 'text-gray-300'}`}
                       >
-                        Y
+                        <span>Top (+Z)</span>
+                        <span className="font-mono text-[9px] px-1 bg-blue-500/20 rounded text-blue-400 font-bold">Z</span>
                       </button>
 
                       <button
-                        onClick={() => { setActiveAxisView('X'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
-                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'X' ? 'bg-red-600/20 text-red-400 border border-red-500/20' : 'text-gray-300'}`}
+                        onClick={() => handleSelectAxisView('Y')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'Y' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20' : 'text-gray-300'}`}
                       >
-                        X
+                        <span>Front (+Y)</span>
+                        <span className="font-mono text-[9px] px-1 bg-emerald-500/20 rounded text-emerald-400 font-bold">Y</span>
                       </button>
 
                       <button
-                        onClick={() => { setActiveAxisView('3D'); setAxisUpdateId(n => n + 1); setIsAxisMenuOpen(false); }}
-                        className={`h-7 px-2 rounded flex items-center justify-center text-[10px] font-mono font-bold transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === '3D' ? 'bg-purple-600/20 text-purple-400 border border-purple-500/20' : 'text-gray-300'}`}
+                        onClick={() => handleSelectAxisView('X')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === 'X' ? 'bg-red-600/20 text-red-400 border border-red-500/20' : 'text-gray-300'}`}
                       >
-                        3D
+                        <span>Right (+X)</span>
+                        <span className="font-mono text-[9px] px-1 bg-red-500/20 rounded text-red-400 font-bold">X</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleSelectAxisView('-X')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === '-X' ? 'bg-red-900/30 text-red-300 border border-red-500/20' : 'text-gray-400'}`}
+                      >
+                        <span>Left (-X)</span>
+                        <span className="font-mono text-[9px] px-1 bg-white/5 rounded text-gray-400">-X</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleSelectAxisView('-Y')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === '-Y' ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-500/20' : 'text-gray-400'}`}
+                      >
+                        <span>Back (-Y)</span>
+                        <span className="font-mono text-[9px] px-1 bg-white/5 rounded text-gray-400">-Y</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleSelectAxisView('-Z')}
+                        className={`h-7 px-2 rounded-lg flex items-center justify-between text-[11px] font-sans font-medium transition-all cursor-pointer select-none w-full hover:bg-white/5 ${activeAxisView === '-Z' ? 'bg-blue-900/30 text-blue-300 border border-blue-500/20' : 'text-gray-400'}`}
+                      >
+                        <span>Bottom (-Z)</span>
+                        <span className="font-mono text-[9px] px-1 bg-white/5 rounded text-gray-400">-Z</span>
                       </button>
                     </div>
                   </>
@@ -5996,6 +6832,16 @@ export function Viewport() {
                 title="Toggle Rotation Snap"
               >
                 <RotateCw size={14} />
+              </button>
+
+              <button
+                onClick={() => setScaleSnapEnabled && setScaleSnapEnabled(!scaleSnapEnabled)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  scaleSnapEnabled ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Toggle Scale Snap-to-Grid (Print Advertising Alignment Grid)"
+              >
+                <Maximize2 size={14} />
               </button>
 
               <button
@@ -6053,6 +6899,9 @@ export function Viewport() {
           </div>
         </div>
       )}
+
+      {/* Transparent, Non-Distracting Transform HUD Callout */}
+      <TransformHUDCallout />
 
       {/* AR Snapshot Preview & Share Modal */}
       <SnapshotShareModal

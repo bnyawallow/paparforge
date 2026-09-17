@@ -1,4 +1,5 @@
 import React from 'react';
+import { PrimitiveThumbnail } from './PrimitiveThumbnail';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -30,12 +31,14 @@ import { AssetCard } from './AssetCard';
 import { SPLINE_3D_ICONS, SplineIconMetadata } from '../viewport/Spline3DIconRenderer';
 import { UI_KIT_PRESETS, UIKitPreset } from '../../lib/uiKits';
 import { TEXT_STYLE_PRESETS, TextStylePreset } from '../../lib/textStylesCollection';
+import { UNIFIED_TEXT_PRESETS, UnifiedTextPreset } from '../../lib/typographySystem';
 import { SPLINE_MATERIAL_PRESETS, SplineMaterialPreset } from '../../lib/splineMaterials';
 import { SPLINE_SOUND_PRESETS, SplineSoundPreset } from '../../lib/splineSoundEngine';
 import { BUTTON_TEMPLATES, ButtonTemplate } from '../../lib/buttonTemplates';
 import { PRIMITIVE_TEMPLATES, PrimitiveTemplate } from '../../lib/primitiveTemplates';
 import { MEDIA_WIDGET_TEMPLATES, MediaWidgetTemplate } from '../../lib/mediaTemplates';
 import { getSplineThumbnailStyle } from './AssetBrowser';
+import { useScrollMemory } from '../../lib/scrollMemory';
 
 interface DiscoverViewProps {
   onNavigateTab: (tab: CategoryTab) => void;
@@ -168,25 +171,7 @@ export function renderButtonPreview(btn: ButtonTemplate) {
 }
 
 export function renderPrimitivePreview(prim: PrimitiveTemplate) {
-  return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-3 relative overflow-hidden">
-      <div 
-        className={`w-13 h-13 shadow-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 relative ${
-          prim.type === 'circle' || prim.type === 'sphere' ? 'rounded-full' :
-          prim.type === 'cylinder' || prim.type === 'capsule' ? 'rounded-2xl' :
-          prim.type === 'torus' ? 'rounded-full border-4 border-white/40' :
-          prim.type === 'pyramid' ? 'rotate-45 rounded-sm' : 'rounded-xl'
-        }`}
-        style={{
-          background: prim.previewGradient || prim.previewColor,
-          boxShadow: prim.properties.emissiveColor ? `0 0 18px ${prim.properties.emissiveColor}` : '0 6px 20px rgba(0,0,0,0.5)',
-          border: '1px solid rgba(255,255,255,0.2)',
-        }}
-      >
-        <span className="text-xl drop-shadow-md select-none">{prim.icon}</span>
-      </div>
-    </div>
-  );
+  return <PrimitiveThumbnail prim={prim} />;
 }
 
 export function DiscoverView({
@@ -204,8 +189,14 @@ export function DiscoverView({
   playingSoundId,
   onPlaySoundToggle,
 }: DiscoverViewProps) {
+  const discoverScroll = useScrollMemory<HTMLDivElement>('asset_browser_discover_scroll');
+
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin">
+    <div 
+      ref={discoverScroll.ref}
+      onScroll={discoverScroll.onScroll}
+      className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin"
+    >
       {/* Canva Style Hero Banner */}
       <div className="relative rounded-2xl bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-purple-900/40 border border-white/10 p-6 overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -503,35 +494,40 @@ export function DiscoverView({
             onClick={() => onNavigateTab('text-styles')}
             className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
           >
-            <span>See all ({TEXT_STYLE_PRESETS.length})</span>
+            <span>See all ({UNIFIED_TEXT_PRESETS.length})</span>
             <ArrowRight size={13} />
           </button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {TEXT_STYLE_PRESETS.slice(0, 4).map((style) => (
+          {UNIFIED_TEXT_PRESETS.slice(0, 4).map((preset) => (
             <AssetCard
-              key={style.id}
-              id={style.id}
-              name={style.name}
-              badge="FONT STYLE"
+              key={preset.id}
+              id={preset.id}
+              name={preset.name}
+              badge={preset.badge}
               badgeColor="bg-amber-500/20 text-amber-300 border-amber-500/30"
               thumbnail={
-                <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-black/40 rounded-lg">
+                <div 
+                  className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-black/50 rounded-lg overflow-hidden border border-white/5"
+                  style={{
+                    background: (preset.style as any).backgroundColor || (preset.style as any).background ? 'transparent' : 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.6) 100%)'
+                  }}
+                >
                   <span
-                    className="text-base font-black tracking-wider uppercase leading-tight truncate w-full"
+                    className="text-base font-bold tracking-wider leading-tight truncate w-full"
                     style={{
-                      color: style.previewStyle?.color || '#ffffff',
-                      textShadow: style.previewStyle?.textShadow || '0 0 10px rgba(245,158,11,0.5)',
+                      ...preset.style,
+                      fontSize: '15px'
                     }}
                   >
-                    {style.sampleText || style.name}
+                    {preset.sampleText}
                   </span>
-                  <span className="text-[9px] text-gray-400 mt-1 font-mono">{style.category}</span>
+                  <span className="text-[8px] text-gray-400 mt-1.5 font-mono uppercase">{preset.category}</span>
                 </div>
               }
-              description={style.description}
-              onSelect={() => onAddTextStyle(style)}
+              description={preset.description}
+              onSelect={() => onAddTextStyle(preset as any)}
             />
           ))}
         </div>

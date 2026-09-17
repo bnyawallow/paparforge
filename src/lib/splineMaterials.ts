@@ -48,7 +48,7 @@ export interface SplineMaterialPreset {
 export interface GeneratedARTexture {
   id: string;
   name: string;
-  category: 'Marble' | 'Pattern' | 'Metal' | 'Wood' | 'Fabric' | 'Grid' | 'Noise';
+  category: 'Marble' | 'Pattern' | 'Metal' | 'Wood' | 'Fabric' | 'Grid' | 'Noise' | 'Concrete' | 'Sci-Fi' | 'Nature';
   description: string;
   previewUrl: string; // Albedo map
   normalMapUrl: string; // Normal map
@@ -63,55 +63,28 @@ export function generateARTexture(
   name: string,
   category: GeneratedARTexture['category'],
   description: string,
-  drawPattern: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
-  drawNormal?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
-  drawRoughness?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
+  drawPattern: string | ((ctx: CanvasRenderingContext2D, width: number, height: number) => void),
+  drawNormal?: string | ((ctx: CanvasRenderingContext2D, width: number, height: number) => void),
+  drawRoughness?: string | ((ctx: CanvasRenderingContext2D, width: number, height: number) => void),
   repeatScale: [number, number] = [2, 2]
 ): GeneratedARTexture {
   if (textureCache[id]) return textureCache[id];
 
-  const size = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
+  let previewUrl = typeof drawPattern === 'string' ? drawPattern : '';
+  let normalMapUrl = typeof drawNormal === 'string' ? drawNormal : '';
+  let roughnessMapUrl = typeof drawRoughness === 'string' ? drawRoughness : '';
 
-  if (!ctx) {
-    return {
-      id,
-      name,
-      category,
-      description,
-      previewUrl: '',
-      normalMapUrl: '',
-      roughnessMapUrl: '',
-      recommendedScale: repeatScale,
-    };
+  if (!previewUrl && typeof drawPattern === 'function') {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      drawPattern(ctx, size, size);
+      previewUrl = canvas.toDataURL('image/png');
+    }
   }
-
-  // Draw Albedo (Color Map)
-  drawPattern(ctx, size, size);
-  const previewUrl = canvas.toDataURL('image/png');
-
-  // Draw Normal Map (default bluish neutral normal map if unspecified)
-  ctx.clearRect(0, 0, size, size);
-  if (drawNormal) {
-    drawNormal(ctx, size, size);
-  } else {
-    ctx.fillStyle = 'rgb(128, 128, 255)'; // Neutral tangent-space normal (0.5, 0.5, 1.0)
-    ctx.fillRect(0, 0, size, size);
-  }
-  const normalMapUrl = canvas.toDataURL('image/png');
-
-  // Draw Roughness Map (default gray if unspecified)
-  ctx.clearRect(0, 0, size, size);
-  if (drawRoughness) {
-    drawRoughness(ctx, size, size);
-  } else {
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, size, size);
-  }
-  const roughnessMapUrl = canvas.toDataURL('image/png');
 
   const tex: GeneratedARTexture = {
     id,
@@ -128,15 +101,51 @@ export function generateARTexture(
   return tex;
 }
 
-// Pre-built Procedural AR Texture Collection
+// Pre-built Procedural & Photographic AR Texture Collection
 export function getOptimizedARTextures(): GeneratedARTexture[] {
   return [
-    // 1. Terrazzo Marble
+    // 1. Carrara White Marble
+    generateARTexture(
+      'carrara_marble',
+      'Carrara White Marble',
+      'Marble',
+      'Polished Italian Carrara white marble slab with subtle charcoal veining',
+      'https://images.unsplash.com/photo-1590725140246-20acdee442be?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 2. Nero Marquina Gold Marble
+    generateARTexture(
+      'nero_marquina_marble',
+      'Nero Gold Marble',
+      'Marble',
+      'Deep black Spanish marble with gold and white quartz veins',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 3. Emerald Imperial Jade
+    generateARTexture(
+      'emerald_jade',
+      'Emerald Jade Stone',
+      'Marble',
+      'Luxurious deep green imperial jade with translucent mineral swirls',
+      'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 4. Terrazzo Quartz Marble
     generateARTexture(
       'terrazzo_marble',
-      'Terrazzo Marble',
+      'Terrazzo Quartz',
       'Marble',
-      'Classic white stone terrazzo with speckled coral, teal, and slate flakes',
+      'Modern white terrazzo stone with coral, teal, and slate flakes',
       (ctx, w, h) => {
         ctx.fillStyle = '#f8fafc';
         ctx.fillRect(0, 0, w, h);
@@ -151,69 +160,204 @@ export function getOptimizedARTextures(): GeneratedARTexture[] {
           ctx.fill();
         }
       },
-      (ctx, w, h) => {
-        ctx.fillStyle = 'rgb(128, 128, 255)';
-        ctx.fillRect(0, 0, w, h);
-        for (let i = 0; i < 400; i++) {
-          const x = (Math.sin(i * 12.3) * 0.5 + 0.5) * w;
-          const y = (Math.sin(i * 45.6) * 0.5 + 0.5) * h;
-          const r = 2 + (Math.sin(i * 7.8) * 0.5 + 0.5) * 8;
-          ctx.fillStyle = 'rgb(160, 100, 240)';
-          ctx.beginPath();
-          ctx.ellipse(x, y, r + 1, (r + 1) * 0.6, i * 0.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(0, 0, w, h);
-      },
+      '',
+      '',
       [3, 3]
     ),
 
-    // 2. Carbon Fiber Hex Grid
+    // 5. Dark Walnut Hardwood
     generateARTexture(
-      'carbon_fiber',
-      'Carbon Fiber Weave',
-      'Pattern',
-      'High-tech diagonal carbon fiber weave texture for racing & sci-fi assets',
-      (ctx, w, h) => {
-        ctx.fillStyle = '#111827';
-        ctx.fillRect(0, 0, w, h);
-        const tileSize = 32;
-        for (let y = 0; y < h; y += tileSize) {
-          for (let x = 0; x < w; x += tileSize) {
-            const isAlt = ((x / tileSize) + (y / tileSize)) % 2 === 0;
-            ctx.fillStyle = isAlt ? '#1f2937' : '#374151';
-            ctx.fillRect(x, y, tileSize, tileSize);
-            ctx.fillStyle = isAlt ? '#374151' : '#111827';
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + tileSize, y + tileSize);
-            ctx.lineTo(x, y + tileSize);
-            ctx.fill();
-          }
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = 'rgb(128, 128, 255)';
-        ctx.fillRect(0, 0, w, h);
-        const tileSize = 32;
-        for (let y = 0; y < h; y += tileSize) {
-          for (let x = 0; x < w; x += tileSize) {
-            ctx.fillStyle = ((x / tileSize) + (y / tileSize)) % 2 === 0 ? 'rgb(140, 110, 255)' : 'rgb(110, 140, 255)';
-            ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
-          }
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = '#444444';
-        ctx.fillRect(0, 0, w, h);
-      },
+      'dark_walnut_wood',
+      'Dark Walnut Hardwood',
+      'Wood',
+      'Rich dark American walnut wood grain planks with satin finish',
+      'https://images.unsplash.com/photo-1546484475-7f7bd55792da?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [3, 3]
+    ),
+
+    // 6. Oak Parquet Herringbone
+    generateARTexture(
+      'oak_herringbone',
+      'Oak Parquet Pattern',
+      'Wood',
+      'Warm natural oak wood in classic French herringbone parquet layout',
+      'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
       [4, 4]
     ),
 
-    // 3. Cyber Grid Lines
+    // 7. Charred Shou Sugi Ban Wood
+    generateARTexture(
+      'shou_sugi_ban',
+      'Charred Shou Sugi Ban',
+      'Wood',
+      'Traditional Japanese burnt cedar wood with iridescent black carbon grain',
+      'https://images.unsplash.com/photo-1516962215378-7fa2e137ae93?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 8. Brushed Anodized Aluminum
+    generateARTexture(
+      'brushed_aluminum',
+      'Brushed Aluminum',
+      'Metal',
+      'Architectural brushed silver aluminum metal surface with linear anisotropy',
+      'https://images.unsplash.com/photo-1535813547-99c456a41d4a?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [3, 3]
+    ),
+
+    // 9. 24k Gold Foil Leaf
+    generateARTexture(
+      'gold_foil',
+      '24k Gold Foil Leaf',
+      'Metal',
+      'Precious hammered 24k metallic yellow gold foil leaf texture',
+      'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 10. Carbon Fiber Weave
+    generateARTexture(
+      'carbon_fiber',
+      'Carbon Fiber Weave',
+      'Metal',
+      'High-tech diagonal carbon fiber weave texture for racing & sci-fi assets',
+      'https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [4, 4]
+    ),
+
+    // 11. Copper Rust Patina
+    generateARTexture(
+      'copper_patina',
+      'Antique Copper Patina',
+      'Metal',
+      'Weathered copper plate with green verdigris rust patina reflections',
+      'https://images.unsplash.com/photo-1508615039623-a25605d2b022?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 12. Vintage Italian Saddle Leather
+    generateARTexture(
+      'vintage_leather',
+      'Vintage Saddle Leather',
+      'Fabric',
+      'Full-grain tan Italian saddle leather with natural pore texture',
+      'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [3, 3]
+    ),
+
+    // 13. Indigo Raw Denim
+    generateARTexture(
+      'raw_denim',
+      'Indigo Raw Denim',
+      'Fabric',
+      'Heavyweight 14oz indigo blue cotton denim weave',
+      'https://images.unsplash.com/photo-1542272604-780c36856d67?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [4, 4]
+    ),
+
+    // 14. Architectural Smooth Concrete
+    generateARTexture(
+      'smooth_concrete',
+      'Poured Concrete',
+      'Concrete',
+      'Modern minimal raw grey architectural concrete wall surface',
+      'https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 15. Heritage Red Clay Brick
+    generateARTexture(
+      'red_brick',
+      'Heritage Red Brick',
+      'Concrete',
+      'Rustic fired red clay brick masonry with mortar joints',
+      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [3, 3]
+    ),
+
+    // 16. Hexagonal Ceramic Mosaic Tiles
+    generateARTexture(
+      'hex_tiles',
+      'Hex Ceramic Mosaic',
+      'Concrete',
+      'Clean white ceramic hexagonal floor tiles with dark grout lines',
+      'https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [4, 4]
+    ),
+
+    // 17. Neon Holographic Hex Grid (Spline3D style)
+    generateARTexture(
+      'spline_neon_grid',
+      'Neon Cyber Grid (Spline3D)',
+      'Sci-Fi',
+      'Glowing cyan and violet hexagonal cyber grid from Spline3D materials',
+      'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [3, 3]
+    ),
+
+    // 18. Sci-Fi Metallic Hull Panel
+    generateARTexture(
+      'scifi_hull_panel',
+      'Sci-Fi Armor Panel',
+      'Sci-Fi',
+      'Futuristic titanium hull plating with mechanical panel seams',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 19. Volcanic Cracked Lava
+    generateARTexture(
+      'volcanic_lava',
+      'Volcanic Lava Magma',
+      'Nature',
+      'Molten glowing red basalt lava flow with cooled crust fissures',
+      'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [2, 2]
+    ),
+
+    // 20. Crystal Pool Rippling Water
+    generateARTexture(
+      'pool_water',
+      'Aqua Water Ripples',
+      'Nature',
+      'Sunlit turquoise pool water surface with caustics ripples',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80',
+      '',
+      '',
+      [3, 3]
+    ),
+
+    // 21. Neon Cyber Grid (Spline3D)
     generateARTexture(
       'cyber_grid',
       'Neon Cyber Grid',
@@ -241,133 +385,6 @@ export function getOptimizedARTextures(): GeneratedARTexture[] {
       undefined,
       (ctx, w, h) => {
         ctx.fillStyle = '#222222';
-        ctx.fillRect(0, 0, w, h);
-      },
-      [2, 2]
-    ),
-
-    // 4. Wood Grain Timber
-    generateARTexture(
-      'wood_grain',
-      'Scandinavian Timber',
-      'Wood',
-      'Warm natural wooden planks with organic grain lines',
-      (ctx, w, h) => {
-        ctx.fillStyle = '#d97706';
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#b45309';
-        for (let y = 0; y < h; y += 4) {
-          const wave = Math.sin(y * 0.05) * 15;
-          ctx.fillRect(0, y + wave, w, 2);
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = 'rgb(128, 128, 255)';
-        ctx.fillRect(0, 0, w, h);
-        for (let y = 0; y < h; y += 4) {
-          const wave = Math.sin(y * 0.05) * 15;
-          ctx.fillStyle = 'rgb(150, 128, 240)';
-          ctx.fillRect(0, y + wave, w, 2);
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = '#888888';
-        ctx.fillRect(0, 0, w, h);
-      },
-      [2, 2]
-    ),
-
-    // 5. Brushed Metal Lines
-    generateARTexture(
-      'brushed_metal',
-      'Brushed Titanium Steel',
-      'Metal',
-      'Fine micro-directional brushed streaks for industrial metallic finishes',
-      (ctx, w, h) => {
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(0, 0, w, h);
-        for (let y = 0; y < h; y += 2) {
-          const noise = Math.sin(y * 85.3) * 20;
-          ctx.fillStyle = noise > 0 ? '#cbd5e1' : '#64748b';
-          ctx.fillRect(0, y, w, 1);
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = 'rgb(128, 128, 255)';
-        ctx.fillRect(0, 0, w, h);
-        for (let y = 0; y < h; y += 2) {
-          ctx.fillStyle = y % 4 === 0 ? 'rgb(145, 128, 255)' : 'rgb(110, 128, 255)';
-          ctx.fillRect(0, y, w, 1);
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(0, 0, w, h);
-      },
-      [3, 3]
-    ),
-
-    // 6. Dot Matrix Perforated
-    generateARTexture(
-      'dot_matrix',
-      'Dot Matrix Speaker Mesh',
-      'Pattern',
-      'Perforated audio speaker grille mesh pattern',
-      (ctx, w, h) => {
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#0f172a';
-        const r = 6;
-        const step = 24;
-        for (let y = step / 2; y < h; y += step) {
-          for (let x = step / 2; x < w; x += step) {
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = 'rgb(128, 128, 255)';
-        ctx.fillRect(0, 0, w, h);
-        const r = 6;
-        const step = 24;
-        for (let y = step / 2; y < h; y += step) {
-          for (let x = step / 2; x < w; x += step) {
-            ctx.fillStyle = 'rgb(100, 100, 200)';
-            ctx.beginPath();
-            ctx.arc(x, y, r + 1, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-      },
-      (ctx, w, h) => {
-        ctx.fillStyle = '#666666';
-        ctx.fillRect(0, 0, w, h);
-      },
-      [3, 3]
-    ),
-
-    // 7. Organic Linen Fabric
-    generateARTexture(
-      'linen_fabric',
-      'Organic Linen Weave',
-      'Fabric',
-      'Natural cross-woven fabric fibers for warm interior assets',
-      (ctx, w, h) => {
-        ctx.fillStyle = '#e2e8f0';
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#cbd5e1';
-        for (let i = 0; i < w; i += 4) {
-          ctx.fillRect(i, 0, 2, h);
-        }
-        for (let j = 0; j < h; j += 4) {
-          ctx.fillRect(0, j, w, 2);
-        }
-      },
-      undefined,
-      (ctx, w, h) => {
-        ctx.fillStyle = '#cccccc';
         ctx.fillRect(0, 0, w, h);
       },
       [2, 2]

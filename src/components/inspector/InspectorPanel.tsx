@@ -4,11 +4,13 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE, SAMPLE_TARGET_TEXTURES } from '../../lib/arTargetTexture';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
-import { Upload, Layers, Printer, Link, Unlink, RotateCcw, Move, Maximize2 } from 'lucide-react';
+import { Upload, Layers, Printer, Link, Unlink, RotateCcw, Move, Maximize2, Globe } from 'lucide-react';
 import { TextureOptimizerPanel } from './TextureOptimizerPanel';
 import { ModelMaterialEditor } from './ModelMaterialEditor';
+import { MaterialColorPicker } from './MaterialColorPicker';
 import { MarkerManagerModal } from '../toolbar/MarkerManagerModal';
 import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
+import { useScrollMemory } from '../../lib/scrollMemory';
 
 function cubicBezier(t: number, x1: number, y1: number, x2: number, y2: number): number {
   let low = 0;
@@ -377,6 +379,102 @@ function LocalUrlInput({ value, onChange, placeholder = "https://wikipedia.org" 
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
       className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-mono"
+    />
+  );
+}
+
+interface BufferedTextInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  value: string;
+  onChange: (val: string) => void;
+}
+
+function BufferedTextInput({ value, onChange, className, onFocus, ...props }: BufferedTextInputProps) {
+  const [localVal, setLocalVal] = useState(value);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setLocalVal(newVal);
+    onChange(newVal);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+  };
+
+  const handleFocusInternal = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (e.target && typeof e.target.scrollIntoView === 'function') {
+      try {
+        e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } catch (err) {}
+    }
+    if (onFocus) onFocus(e);
+  };
+
+  return (
+    <input
+      {...props}
+      value={localVal}
+      onChange={handleChange}
+      onPointerDown={handlePointerDown}
+      onTouchStart={handleTouchStart}
+      onFocus={handleFocusInternal}
+      className={className}
+    />
+  );
+}
+
+interface BufferedTextAreaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> {
+  value: string;
+  onChange: (val: string) => void;
+}
+
+function BufferedTextArea({ value, onChange, className, onFocus, ...props }: BufferedTextAreaProps) {
+  const [localVal, setLocalVal] = useState(value);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newVal = e.target.value;
+    setLocalVal(newVal);
+    onChange(newVal);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
+  };
+
+  const handleFocusInternal = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    if (e.target && typeof e.target.scrollIntoView === 'function') {
+      try {
+        e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } catch (err) {}
+    }
+    if (onFocus) onFocus(e);
+  };
+
+  return (
+    <textarea
+      {...props}
+      value={localVal}
+      onChange={handleChange}
+      onPointerDown={handlePointerDown}
+      onTouchStart={handleTouchStart}
+      onFocus={handleFocusInternal}
+      className={className}
     />
   );
 }
@@ -750,21 +848,30 @@ import { Vector3Data } from '../../types';
 
 export const FONT_LIBRARY = [
   { name: 'Default (Inter)', url: '' },
+  { name: 'Poppins', url: 'https://unpkg.com/@fontsource/poppins/files/poppins-latin-400-normal.woff' },
+  { name: 'Plus Jakarta Sans', url: 'https://unpkg.com/@fontsource/plus-jakarta-sans/files/plus-jakarta-sans-latin-400-normal.woff' },
+  { name: 'Outfit', url: 'https://unpkg.com/@fontsource/outfit/files/outfit-latin-400-normal.woff' },
+  { name: 'Montserrat', url: 'https://unpkg.com/@fontsource/montserrat/files/montserrat-latin-400-normal.woff' },
   { name: 'Roboto', url: 'https://unpkg.com/@fontsource/roboto/files/roboto-latin-400-normal.woff' },
   { name: 'Open Sans', url: 'https://unpkg.com/@fontsource/open-sans/files/open-sans-latin-400-normal.woff' },
-  { name: 'Montserrat', url: 'https://unpkg.com/@fontsource/montserrat/files/montserrat-latin-400-normal.woff' },
   { name: 'Playfair Display', url: 'https://unpkg.com/@fontsource/playfair-display/files/playfair-display-latin-400-normal.woff' },
+  { name: 'Cinzel', url: 'https://unpkg.com/@fontsource/cinzel/files/cinzel-latin-400-normal.woff' },
+  { name: 'Lora', url: 'https://unpkg.com/@fontsource/lora/files/lora-latin-400-normal.woff' },
+  { name: 'Abril Fatface', url: 'https://unpkg.com/@fontsource/abril-fatface/files/abril-fatface-latin-400-normal.woff' },
   { name: 'Oswald', url: 'https://unpkg.com/@fontsource/oswald/files/oswald-latin-400-normal.woff' },
+  { name: 'Bebas Neue', url: 'https://unpkg.com/@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.woff' },
+  { name: 'Anton', url: 'https://unpkg.com/@fontsource/anton/files/anton-latin-400-normal.woff' },
+  { name: 'Syne', url: 'https://unpkg.com/@fontsource/syne/files/syne-latin-700-normal.woff' },
   { name: 'Space Grotesk', url: 'https://unpkg.com/@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff' },
+  { name: 'Orbitron', url: 'https://unpkg.com/@fontsource/orbitron/files/orbitron-latin-400-normal.woff' },
+  { name: 'Righteous', url: 'https://unpkg.com/@fontsource/righteous/files/righteous-latin-400-normal.woff' },
   { name: 'JetBrains Mono', url: 'https://unpkg.com/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff' },
   { name: 'Caveat', url: 'https://unpkg.com/@fontsource/caveat/files/caveat-latin-400-normal.woff' },
+  { name: 'Dancing Script', url: 'https://unpkg.com/@fontsource/dancing-script/files/dancing-script-latin-400-normal.woff' },
   { name: 'Pacifico', url: 'https://unpkg.com/@fontsource/pacifico/files/pacifico-latin-400-normal.woff' },
-  { name: 'Bebas Neue', url: 'https://unpkg.com/@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.woff' },
-  { name: 'Cinzel', url: 'https://unpkg.com/@fontsource/cinzel/files/cinzel-latin-400-normal.woff' },
-  { name: 'Orbitron', url: 'https://unpkg.com/@fontsource/orbitron/files/orbitron-latin-400-normal.woff' },
-  { name: 'Bangers', url: 'https://unpkg.com/@fontsource/bangers/files/bangers-latin-400-normal.woff' },
-  { name: 'Righteous', url: 'https://unpkg.com/@fontsource/righteous/files/righteous-latin-400-normal.woff' },
+  { name: 'Great Vibes', url: 'https://unpkg.com/@fontsource/great-vibes/files/great-vibes-latin-400-normal.woff' },
   { name: 'Lobster', url: 'https://unpkg.com/@fontsource/lobster/files/lobster-latin-400-normal.woff' },
+  { name: 'Bangers', url: 'https://unpkg.com/@fontsource/bangers/files/bangers-latin-400-normal.woff' },
 ];
 
 // Helper predicates for context-aware property visibility
@@ -1327,6 +1434,108 @@ const BEHAVIOR_OPTIONS = [
   { value: 'look-at-camera', label: '👁️ Look At Camera' }
 ];
 
+export const QUICK_INTERACTIONS_PRESETS = [
+  {
+    id: 'spin',
+    name: 'Continuous Spin',
+    shortName: 'Spin',
+    icon: '🔄',
+    description: 'Smooth rotation around 3D axis',
+    badge: 'Loop',
+    color: 'hover:border-blue-500/50 hover:bg-blue-500/10 text-blue-400',
+    activeBg: 'bg-blue-500/20 border-blue-500 text-blue-300 font-semibold shadow-[0_0_12px_rgba(59,130,246,0.2)]',
+    props: { behavior: 'spin', spinAxis: 'z', behaviorSpeed: 1.0, behaviorIntensity: 1.0 }
+  },
+  {
+    id: 'hover',
+    name: 'Gentle Float',
+    shortName: 'Float',
+    icon: '🎈',
+    description: 'Oscillating floating hover animation',
+    badge: 'Loop',
+    color: 'hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400',
+    activeBg: 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-semibold shadow-[0_0_12px_rgba(16,185,129,0.2)]',
+    props: { behavior: 'hover', behaviorSpeed: 1.0, behaviorIntensity: 1.0 }
+  },
+  {
+    id: 'pulse',
+    name: 'Rhythmic Pulse',
+    shortName: 'Pulse',
+    icon: '💓',
+    description: 'Smooth rhythmic scaling pulse',
+    badge: 'Loop',
+    color: 'hover:border-purple-500/50 hover:bg-purple-500/10 text-purple-400',
+    activeBg: 'bg-purple-500/20 border-purple-500 text-purple-300 font-semibold shadow-[0_0_12px_rgba(168,85,247,0.2)]',
+    props: { behavior: 'pulse', behaviorSpeed: 1.0, behaviorIntensity: 1.0 }
+  },
+  {
+    id: 'bounce',
+    name: 'Bounce Animation',
+    shortName: 'Bounce',
+    icon: '🏀',
+    description: 'Dynamic spring bouncing movement',
+    badge: 'Loop',
+    color: 'hover:border-amber-500/50 hover:bg-amber-500/10 text-amber-400',
+    activeBg: 'bg-amber-500/20 border-amber-500 text-amber-300 font-semibold shadow-[0_0_12px_rgba(245,158,11,0.2)]',
+    props: { behavior: 'bounce', behaviorSpeed: 1.0, behaviorIntensity: 1.0 }
+  },
+  {
+    id: 'play-sound',
+    name: 'On Tap Sound SFX',
+    shortName: 'Tap Sound',
+    icon: '🔊',
+    description: 'Plays audio effect when tapped',
+    badge: 'On Tap',
+    color: 'hover:border-pink-500/50 hover:bg-pink-500/10 text-pink-400',
+    activeBg: 'bg-pink-500/20 border-pink-500 text-pink-300 font-semibold shadow-[0_0_12px_rgba(236,72,153,0.2)]',
+    props: { behavior: 'play-sound', interactionSoundUrl: '/sounds/ui/click_soft.wav', interactionSoundVolume: 0.5 }
+  },
+  {
+    id: 'draggable',
+    name: 'Draggable in AR',
+    shortName: 'Draggable',
+    icon: '🖐️',
+    description: 'Drag & reposition freely in 3D AR space',
+    badge: 'Touch',
+    color: 'hover:border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-400',
+    activeBg: 'bg-cyan-500/20 border-cyan-500 text-cyan-300 font-semibold shadow-[0_0_12px_rgba(6,182,212,0.2)]',
+    props: { behavior: 'draggable' }
+  },
+  {
+    id: 'look-at-camera',
+    name: 'Look At Camera',
+    shortName: 'Billboard',
+    icon: '👁️',
+    description: 'Always billboard-faces the camera',
+    badge: 'Orientation',
+    color: 'hover:border-indigo-500/50 hover:bg-indigo-500/10 text-indigo-400',
+    activeBg: 'bg-indigo-500/20 border-indigo-500 text-indigo-300 font-semibold shadow-[0_0_12px_rgba(99,102,241,0.2)]',
+    props: { behavior: 'look-at-camera' }
+  },
+  {
+    id: 'shake',
+    name: 'Shake Vibration',
+    shortName: 'Shake',
+    icon: '📳',
+    description: 'High-frequency tremor animation',
+    badge: 'Loop',
+    color: 'hover:border-red-500/50 hover:bg-red-500/10 text-red-400',
+    activeBg: 'bg-red-500/20 border-red-500 text-red-300 font-semibold shadow-[0_0_12px_rgba(239,68,68,0.2)]',
+    props: { behavior: 'shake', behaviorSpeed: 1.5, behaviorIntensity: 0.8 }
+  },
+  {
+    id: 'orbit',
+    name: 'Orbit Revolution',
+    shortName: 'Orbit',
+    icon: '🌍',
+    description: 'Continuous circular orbit motion',
+    badge: 'Loop',
+    color: 'hover:border-teal-500/50 hover:bg-teal-500/10 text-teal-400',
+    activeBg: 'bg-teal-500/20 border-teal-500 text-teal-300 font-semibold shadow-[0_0_12px_rgba(20,184,166,0.2)]',
+    props: { behavior: 'orbit', behaviorSpeed: 1.0, behaviorIntensity: 1.0 }
+  }
+];
+
 const SOUND_OPTIONS = [
   { value: '', label: 'No sound attached' },
   { value: '/sounds/cyber_click.wav', label: '🎵 Cyber Click' },
@@ -1464,6 +1673,15 @@ const LIGHTING_PRESETS = {
   }
 } as const;
 
+function isDescendant(potentialDescendantId: string, ancestorId: string, objects: Record<string, any>): boolean {
+  let current = objects[potentialDescendantId];
+  while (current) {
+    if (current.parentId === ancestorId) return true;
+    current = current.parentId ? objects[current.parentId] : null;
+  }
+  return false;
+}
+
 export function InspectorPanel({ width, onClose }: { width?: number; onClose?: () => void }) {
   const t = useTheme();
   const { 
@@ -1506,6 +1724,10 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
   } = useEditorStore();
 
   const [activeFlyout, setActiveFlyout] = useState<'none' | 'lighting' | 'typography' | 'theme'>('none');
+
+  const inspectorScrollKey = selectedObjectId ? `inspector_obj_${selectedObjectId}` : 'inspector_workspace';
+  const mainInspectorScroll = useScrollMemory<HTMLDivElement>(inspectorScrollKey);
+  const flyoutScroll = useScrollMemory<HTMLDivElement>(activeFlyout !== 'none' ? `inspector_flyout_${activeFlyout}` : null);
 
   // Close flyout on Escape key press
   useEffect(() => {
@@ -1779,12 +2001,21 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
   };
 
   const handleResetTransform = () => {
-    if (!obj) return;
-    updateObject(obj.id, {
-      position: [0, 0, 0],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1]
-    });
+    if (selectedObjectIds && selectedObjectIds.length > 0) {
+      selectedObjectIds.forEach(id => {
+        updateObject(id, {
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1]
+        });
+      });
+    } else if (obj) {
+      updateObject(obj.id, {
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      });
+    }
   };
 
   const handlePropertyChange = (key: string, value: any) => {
@@ -1836,13 +2067,34 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
     audio.play().catch(err => console.log('Audio playback preview failed', err));
   };
 
+  const applyQuickInteraction = (presetId: string) => {
+    if (!obj) return;
+    const preset = QUICK_INTERACTIONS_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    
+    // If this preset is already active, clicking it clears it back to static
+    if (obj.properties.behavior === preset.props.behavior) {
+      handleMultiplePropertiesChange({
+        behavior: '',
+        interactionSoundUrl: undefined,
+        interactionSoundVolume: undefined,
+      });
+    } else {
+      // Apply full preset atomically in a single state update
+      const updates: Record<string, any> = { ...preset.props };
+      if (preset.id === 'play-sound' && obj.properties.interactionSoundUrl) {
+        updates.interactionSoundUrl = obj.properties.interactionSoundUrl;
+        updates.interactionSoundVolume = obj.properties.interactionSoundVolume ?? 0.5;
+      }
+      handleMultiplePropertiesChange(updates);
+    }
+  };
+
   const addInteractiveTrait = (type: 'behavior' | 'sound') => {
     if (type === 'behavior') {
-      handlePropertyChange('behavior', 'spin');
+      applyQuickInteraction('spin');
     } else if (type === 'sound') {
-      handlePropertyChange('behavior', 'play-sound');
-      handlePropertyChange('interactionSoundUrl', '/sounds/ui/click_soft.wav');
-      handlePropertyChange('interactionSoundVolume', 0.5);
+      applyQuickInteraction('play-sound');
     }
   };
 
@@ -3060,7 +3312,11 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
             </div>
 
             {/* Flyout Content Area */}
-            <div className="flex-1 overflow-y-auto">
+            <div 
+              ref={flyoutScroll.ref}
+              onScroll={flyoutScroll.onScroll}
+              className="flex-1 overflow-y-auto"
+            >
               {activeFlyout === 'lighting' && renderLightingPanel()}
               {activeFlyout === 'typography' && renderTypographyPanel()}
               {activeFlyout === 'theme' && renderThemePanel()}
@@ -3150,7 +3406,11 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div 
+        ref={mainInspectorScroll.ref}
+        onScroll={mainInspectorScroll.onScroll}
+        className="flex-1 overflow-y-auto"
+      >
         {!selectedObjectId || !objects[selectedObjectId] ? (
             <div className="p-4 flex flex-col gap-6">
               {/* Project Details section */}
@@ -3613,10 +3873,10 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
               {obj.type === 'imageTarget' ? '🖼️' : obj.type === 'model' ? '📦' : obj.type === 'group' ? <Folder size={18} /> : '◈'}
             </div>
             <div className="flex-1 min-w-0">
-              <input 
+              <BufferedTextInput 
                 type="text" 
-                value={obj.name}
-                onChange={(e) => updateObject(selectedObjectId, { name: e.target.value })}
+                value={obj.name || ''}
+                onChange={(val) => updateObject(selectedObjectId, { name: val })}
                 className="bg-transparent text-xs font-bold text-white border-b border-transparent hover:border-[#333] focus:border-blue-500 outline-none w-full py-0.5"
               />
               <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
@@ -3645,6 +3905,48 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
             </button>
           )}
         </div>
+
+        {/* Dynamic Parenting Control */}
+        {obj.type !== 'imageTarget' && (
+          <div className="bg-[#1A1A1A] p-3 rounded-xl border border-[#2A2A2A] flex flex-col gap-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
+              <Link size={11} className="text-cyan-400" />
+              <span>Dynamic Parenting</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <select
+                value={obj.parentId || 'root'}
+                onChange={(e) => {
+                  const newParentId = e.target.value === 'root' ? 'root' : e.target.value;
+                  useEditorStore.getState().moveObject(obj.id, newParentId);
+                  useEditorStore.getState().addToast(`Parented ${obj.name} to ${newParentId === 'root' ? 'Root AR Target' : (objects[newParentId]?.name || 'new parent')}`);
+                }}
+                className="flex-1 bg-black/40 text-[11px] text-white border border-[#2A2A2A] hover:border-gray-700 rounded-lg p-2 focus:border-cyan-500 outline-none cursor-pointer"
+              >
+                <option value="root">Root AR Target (No parent)</option>
+                {Object.values(objects)
+                  .filter((o: any) => {
+                    if (o.id === obj.id) return false;
+                    // Don't list imageTarget as option, as we have 'root' representing the base Target
+                    if (o.type === 'imageTarget') return false;
+                    // Prevent circular parenting (cannot parent to its own descendants)
+                    if (isDescendant(o.id, obj.id, objects)) return false;
+                    // Don't mix HUD and 3D parenting
+                    const isHudType = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(o.type);
+                    const isSelfHud = ['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type);
+                    if (isHudType !== isSelfHud) return false;
+                    return true;
+                  })
+                  .map((o: any) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name} ({o.type})
+                    </option>
+                  ))
+                }
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Transform Component (Moved to the very top under Object Name / Title) */}
         {(() => {
@@ -3841,11 +4143,11 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
         {/* Context-Aware Interaction & Camera Facing */}
         {isVisual3DObject(obj.type) && (
           <div className="flex flex-col gap-2">
-            {/* Always Face Camera Toggle Panel (Only relevant for 3D visual objects, not 2D screen HUD or abstract nodes) */}
+            {/* Billboard Toggle Panel */}
             <div className="flex items-center justify-between bg-[#1A1A1A]/50 p-2.5 px-3 rounded border border-[#2A2A2A] text-xs">
-              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Keep this 3D object dynamically rotated toward the active camera (Billboard mode)">
+              <span className="text-[#888] font-medium flex items-center gap-1.5 select-none" title="Keep this 3D object dynamically rotated toward the active camera (Billboard)">
                 <Camera size={12} className={obj.properties.billboard ? "text-cyan-400" : "text-[#555]"} />
-                <span className="text-[11px] font-semibold text-gray-200">Always Face Camera</span>
+                <span className="text-[11px] font-semibold text-gray-200">Billboard</span>
               </span>
               <button
                 onClick={() => handlePropertyChange('billboard', !obj.properties.billboard)}
@@ -3853,7 +4155,7 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                   "w-8 h-4 rounded-full transition-colors relative cursor-pointer",
                   obj.properties.billboard ? "bg-cyan-600" : "bg-[#333]"
                 )}
-                title="Toggle Billboard mode (always face screen camera)"
+                title="Toggle Billboard mode (face active camera in 3D scene)"
               >
                 <div className={cn(
                   "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all",
@@ -3918,20 +4220,10 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                   <Sparkles size={11} className="text-orange-400 animate-pulse" />
                   Live Behaviors & Interactivity
                 </span>
-                {obj.properties.behavior ? (
+                {obj.properties.behavior && (
                   <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 uppercase font-semibold">
                     {obj.properties.behavior}
                   </span>
-                ) : (
-                  (() => {
-                    const parentObj = obj.parentId ? objects[obj.parentId] : null;
-                    const parentBeh = parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : null;
-                    return parentBeh ? (
-                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase flex items-center gap-1 font-semibold">
-                        <GitFork size={8} className="rotate-180" /> {parentBeh} (Inherited)
-                      </span>
-                    ) : null;
-                  })()
                 )}
               </div>
             }
@@ -3958,31 +4250,6 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                 />
               </div>
 
-              {/* Inherited Parent Behavior Notice */}
-              {(() => {
-                const parentObj = obj.parentId ? objects[obj.parentId] : null;
-                const parentBeh = parentObj && parentObj.type !== 'imageTarget' ? parentObj.properties?.behavior : null;
-                if (!obj.properties.behavior && parentBeh) {
-                  return (
-                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-2.5 flex flex-col gap-1.5 text-[10px]">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                          <GitFork size={12} className="rotate-180 text-amber-400" />
-                          Inherited Motion Active
-                        </span>
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 uppercase font-bold">
-                          {parentBeh}
-                        </span>
-                      </div>
-                      <p className="text-[9px] text-gray-300 leading-relaxed">
-                        This object automatically inherits <b>{parentBeh}</b> live behavior from parent group <b>&ldquo;{parentObj?.name}&rdquo;</b>. Select a rule below to override it.
-                      </p>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-
               {/* Children Cascading Notice */}
               {Boolean(obj.properties.behavior && obj.children && obj.children.length > 0) && (
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 flex items-center gap-2 text-[9px] text-blue-300">
@@ -3991,22 +4258,57 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                 </div>
               )}
 
-              {/* 1. Behavior Dropdown */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-[#666] font-medium flex items-center justify-between">
+              {/* 1. Quick Preset Action Buttons */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-[#888] font-medium flex items-center justify-between">
                   <span className="flex items-center gap-1">
                     <Zap size={10} className="text-orange-400" />
-                    Live Behavior Rule
+                    Quick Interactions & Motion
                   </span>
                   {obj.properties.behavior && (
                     <button
                       onClick={() => handlePropertyChange('behavior', '')}
-                      className="text-[9px] text-gray-400 hover:text-red-400 transition-colors"
-                      title="Clear behavior"
+                      className="text-[9px] text-gray-400 hover:text-red-400 transition-colors cursor-pointer"
+                      title="Clear behavior to static"
                     >
                       Reset to Static
                     </button>
                   )}
+                </label>
+                
+                <div className="grid grid-cols-3 gap-1.5">
+                  {QUICK_INTERACTIONS_PRESETS.map((preset) => {
+                    const isActive = obj.properties.behavior === preset.props.behavior;
+                    return (
+                      <button
+                        key={preset.id}
+                        onClick={() => applyQuickInteraction(preset.id)}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-center gap-0.5 cursor-pointer relative overflow-hidden",
+                          isActive 
+                            ? preset.activeBg
+                            : cn("bg-[#121212] border-[#222] text-gray-300", preset.color)
+                        )}
+                        title={preset.description}
+                      >
+                        <span className="text-base leading-none mb-0.5">{preset.icon}</span>
+                        <span className="text-[9px] font-medium truncate w-full">{preset.shortName}</span>
+                        {isActive && (
+                          <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Detailed Behavior Dropdown */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#666] font-medium flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Sliders size={10} className="text-blue-400" />
+                    Custom Behavior Mode
+                  </span>
                 </label>
                 <select
                   value={obj.properties.behavior || ''}
@@ -5454,23 +5756,12 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     </div>
 
                     {/* Base Color */}
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[9px] text-[#888] font-bold uppercase tracking-wider">Base Color</label>
-                      <div className="flex items-center gap-2">
-                        <input 
-                          type="color" 
-                          value={obj.properties.color || '#ffffff'}
-                          onChange={(e) => handlePropertyChange('color', e.target.value)}
-                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 outline-none animate-none"
-                        />
-                        <input 
-                          type="text" 
-                          value={obj.properties.color || '#ffffff'}
-                          onChange={(e) => handlePropertyChange('color', e.target.value)}
-                          className="bg-[#0A0A0A] text-[10px] p-2 rounded flex-1 border border-[#222] outline-none font-mono text-white focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
+                    <MaterialColorPicker 
+                      value={obj.properties.color || '#ffffff'}
+                      onChange={(newHex) => handlePropertyChange('color', newHex)}
+                      label="Base Color"
+                      defaultExpanded={false}
+                    />
 
                     {/* Opacity */}
                     <div className="flex flex-col gap-1">
@@ -5874,9 +6165,9 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#666] font-medium">Text Content</label>
-                  <textarea 
+                  <BufferedTextArea 
                     value={obj.properties.text || ''}
-                    onChange={(e) => handlePropertyChange('text', e.target.value)}
+                    onChange={(val) => handlePropertyChange('text', val)}
                     className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-blue-500 outline-none h-16 resize-none"
                   />
                 </div>
@@ -6786,10 +7077,10 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                 {/* Button Label Text */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] text-[#888] font-medium">Button Label Text</label>
-                  <input 
+                  <BufferedTextInput 
                     type="text" 
                     value={obj.properties.text || ''}
-                    onChange={(e) => handlePropertyChange('text', e.target.value)}
+                    onChange={(val) => handlePropertyChange('text', val)}
                     placeholder="e.g. Explore AR Experience"
                     className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none font-medium"
                   />
@@ -7972,17 +8263,13 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                               </span>
                               
                               {/* Submesh color picker */}
-                              <div className="flex items-center justify-between">
-                                <span className="text-[#666] text-[10px]">Override Color</span>
-                                <div className="flex items-center gap-1.5">
-                                  <input 
-                                    type="color" 
-                                    value={subColor}
-                                    onChange={(e) => handleSubMaterialChange('color', e.target.value)}
-                                    className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
-                                  />
-                                  <span className="text-[9px] text-gray-400 font-mono uppercase">{subColor}</span>
-                                </div>
+                              <div className="pt-1">
+                                <MaterialColorPicker 
+                                  value={subColor}
+                                  onChange={(newHex) => handleSubMaterialChange('color', newHex)}
+                                  label="Override Color"
+                                  defaultExpanded={false}
+                                />
                               </div>
 
                               {/* Roughness Slider */}
@@ -8905,9 +9192,9 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     <>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Text</label>
-                        <textarea
+                        <BufferedTextArea
                           value={obj.properties.text || ''}
-                          onChange={(e) => handlePropertyChange('text', e.target.value)}
+                          onChange={(val) => handlePropertyChange('text', val)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none resize-none h-16"
                         />
                       </div>
@@ -9132,10 +9419,10 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     <>
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-[#666] font-medium">Label</label>
-                        <input
+                        <BufferedTextInput
                           type="text"
                           value={obj.properties.text || ''}
-                          onChange={(e) => handlePropertyChange('text', e.target.value)}
+                          onChange={(val) => handlePropertyChange('text', val)}
                           className="bg-[#0A0A0A] text-[10px] p-2 rounded w-full border border-[#222] text-white focus:border-cyan-500 outline-none"
                         />
                       </div>
@@ -9866,25 +10153,61 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
       </div>
 
         {/* Quick Add Interactions section */}
-        {obj.type !== 'imageTarget' && !obj.properties.behavior && (
+        {obj.type !== 'imageTarget' && (
           <div className="flex flex-col gap-2.5 border-t border-[#222] pt-4 p-4">
-            <span className="text-[9px] font-bold text-[#555] uppercase tracking-wider">Quick Interactions</span>
-            <div className="flex flex-col gap-1.5">
-              <button
-                onClick={() => addInteractiveTrait('behavior')}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[10px] font-medium text-[#AAA] hover:text-white transition-colors"
-              >
-                <PlusCircle size={12} className="text-blue-400" />
-                Add Spin Animation Behavior
-              </button>
-              <button
-                onClick={() => addInteractiveTrait('sound')}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-[#1F1F1F] hover:bg-[#252525] border border-[#2A2A2A] rounded text-[10px] font-medium text-[#AAA] hover:text-white transition-colors"
-              >
-                <PlusCircle size={12} className="text-pink-400" />
-                Add On Tap Sound Interaction
-              </button>
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold text-[#888] uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles size={11} className="text-orange-400" />
+                Quick Interactions Palette
+              </span>
+              {obj.properties.behavior && (
+                <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold uppercase">
+                  {obj.properties.behavior} Active
+                </span>
+              )}
             </div>
+            
+            <div className="grid grid-cols-3 gap-1.5">
+              {QUICK_INTERACTIONS_PRESETS.map((preset) => {
+                const isActive = obj.properties.behavior === preset.props.behavior;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => applyQuickInteraction(preset.id)}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-2 rounded-lg border transition-all text-center gap-1 cursor-pointer",
+                      isActive 
+                        ? preset.activeBg
+                        : cn("bg-[#1A1A1A] border-[#2A2A2A] text-gray-300", preset.color)
+                    )}
+                    title={preset.description}
+                  >
+                    <span className="text-lg leading-none">{preset.icon}</span>
+                    <span className="text-[9px] font-bold truncate w-full">{preset.shortName}</span>
+                    <span className="text-[7px] text-[#666] uppercase">{preset.badge}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {obj.properties.behavior === 'play-sound' && (
+              <div className="mt-1 bg-pink-950/20 border border-pink-900/30 rounded-lg p-2.5 flex flex-col gap-1.5 text-[9px]">
+                <div className="flex items-center justify-between text-pink-300 font-bold">
+                  <span className="flex items-center gap-1">
+                    <Volume2 size={11} /> Tap Sound Active
+                  </span>
+                  <button
+                    onClick={() => playPreviewSound(obj.properties.interactionSoundUrl || '/sounds/ui/click_soft.wav')}
+                    className="flex items-center gap-1 px-1.5 py-0.5 bg-pink-600/20 hover:bg-pink-600/40 text-pink-300 rounded border border-pink-500/30 font-bold"
+                  >
+                    <Play size={8} /> Test Sound
+                  </button>
+                </div>
+                <span className="text-[8px] text-gray-400 truncate">
+                  {obj.properties.interactionSoundUrl || '/sounds/ui/click_soft.wav'}
+                </span>
+              </div>
+            )}
           </div>
         )}
 

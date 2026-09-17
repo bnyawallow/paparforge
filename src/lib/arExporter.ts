@@ -50,7 +50,32 @@ export async function exportSceneToGLB(
           side: obj.properties.doubleSided ? THREE.DoubleSide : THREE.FrontSide
         });
 
-        switch (obj.type as string) {
+        if (obj.type === 'model' && obj.properties.url && obj.properties.url.startsWith('primitive:')) {
+          const prim = obj.properties.url.replace('primitive:', '').toLowerCase();
+          switch (prim) {
+            case 'sphere': node = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), material); break;
+            case 'cube': case 'box': node = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material); break;
+            case 'cylinder': node = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), material); break;
+            case 'plane': node = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); break;
+            case 'torus': node = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.12, 16, 64), material); break;
+            case 'cone': node = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 32), material); break;
+            case 'pyramid': node = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1, 4), material); break;
+            case 'capsule': node = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.6, 16, 32), material); break;
+            case 'dodecahedron': node = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5), material); break;
+            case 'octahedron': node = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), material); break;
+            case 'icosahedron': node = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5), material); break;
+            case 'circle': node = new THREE.Mesh(new THREE.CircleGeometry(0.5, 64), material); break;
+            case 'ring': node = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.6, 64), material); break;
+            case 'tube': node = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1, 32, 1, true), material); break;
+            case 'prism': node = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1, 3), material); break;
+            case 'helix': case 'knot': node = new THREE.Mesh(new THREE.TorusKnotGeometry(0.35, 0.08, 100, 16), material); break;
+            case 'star': node = new THREE.Mesh(new THREE.OctahedronGeometry(0.6, 0), material); break;
+            case 'dome': node = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), material); break;
+            case 'tetrahedron': node = new THREE.Mesh(new THREE.TetrahedronGeometry(0.6), material); break;
+            default: node = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), material); break;
+          }
+        } else {
+          switch (obj.type as string) {
           case 'box':
             node = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
             break;
@@ -97,6 +122,7 @@ export async function exportSceneToGLB(
           default:
             node = new THREE.Group();
             break;
+        }
         }
 
         node.name = obj.name || obj.type;

@@ -94,8 +94,10 @@ router.get('/me', (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     
-    const stmt = db.prepare('SELECT id, username, email, role, is_active FROM users WHERE id = ?');
-    const user = stmt.get(decoded.id) as any;
+    let user = decoded.id ? db.prepare('SELECT id, username, email, role, is_active FROM users WHERE id = ?').get(decoded.id) as any : null;
+    if (!user && decoded.username) {
+      user = db.prepare('SELECT id, username, email, role, is_active FROM users WHERE username = ?').get(decoded.username) as any;
+    }
     
     if (!user || user.is_active === 0) {
       return res.status(401).json({ error: 'Unauthorized or account inactive' });
@@ -118,11 +120,20 @@ const requireAdmin = (req: any, res: any, next: any) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     
-    if (decoded.role !== 'admin') {
+    let user = decoded.id ? db.prepare('SELECT id, username, role, is_active FROM users WHERE id = ?').get(decoded.id) as any : null;
+    if (!user && decoded.username) {
+      user = db.prepare('SELECT id, username, role, is_active FROM users WHERE username = ?').get(decoded.username) as any;
+    }
+
+    if (!user || user.is_active === 0) {
+      return res.status(401).json({ error: 'Unauthorized or account inactive' });
+    }
+
+    if (user.role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden: Admins only' });
     }
     
-    req.user = decoded;
+    req.user = { ...decoded, id: user.id, username: user.username, role: user.role };
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });

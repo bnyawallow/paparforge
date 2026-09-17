@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { SceneObject } from '../../types';
 import { MediaAssetPicker } from './InspectorPanel';
+import { MaterialColorPicker } from './MaterialColorPicker';
 import { useEditorStore } from '../../store/useEditorStore';
 import { downsampleTexture } from '../../lib/textureOptimizer';
 import { useTheme } from '../../lib/theme';
@@ -310,13 +311,15 @@ const SPLINE_MATERIAL_PRESETS: MaterialPreset[] = [
   }
 ];
 
+const EMPTY_MATERIALS_ARRAY: string[] = [];
+
 export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultiplePropertiesChange }: ModelMaterialEditorProps) {
   const t = useTheme();
   const { addToast } = useEditorStore();
   
   // Model state variables
   const isModel = obj.type === 'model';
-  const discoveredMaterials: string[] = obj.properties.discoveredMaterials || [];
+  const discoveredMaterials: string[] = obj.properties.discoveredMaterials || EMPTY_MATERIALS_ARRAY;
   const materialOverrides = obj.properties.materialOverrides || {};
   
   // Selection state (model only)
@@ -362,10 +365,12 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
       };
       const subNode = findSubObjectByPath(obj.properties.discoveredSubObjects, obj.properties.selectedSubObjectPath);
       if (subNode && subNode.materialName && discoveredMaterials.includes(subNode.materialName)) {
-        setSelectedMaterial(subNode.materialName);
+        if (selectedMaterial !== subNode.materialName) {
+          setSelectedMaterial(subNode.materialName);
+        }
       }
     }
-  }, [obj.properties?.selectedSubObjectPath, obj.properties?.discoveredSubObjects, discoveredMaterials, isModel]);
+  }, [obj.properties?.selectedSubObjectPath, obj.properties?.discoveredSubObjects, discoveredMaterials, isModel, selectedMaterial]);
 
   // Read field helper that abstracts Models (overrides) vs Primitives (direct properties)
   const getFieldValue = (key: string, defaultValue: any) => {
@@ -982,23 +987,14 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
                   </div>
                 </div>
 
-                {/* Diffuse color picker */}
-                <div className="flex flex-col gap-1.5 border-t border-white/5 pt-3">
-                  <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono">Solid Diffuse Base Color</label>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="color" 
-                      value={color}
-                      onChange={(e) => handleUpdateField('color', e.target.value)}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 outline-none p-0"
-                    />
-                    <input 
-                      type="text" 
-                      value={color.toUpperCase()}
-                      onChange={(e) => handleUpdateField('color', e.target.value)}
-                      className="bg-black/40 text-[11px] font-mono p-2 rounded-md flex-1 border border-white/5 text-white outline-none focus:border-blue-500"
-                    />
-                  </div>
+                {/* Upgraded Solid Diffuse Base Color Picker */}
+                <div className="border-t border-white/5 pt-3">
+                  <MaterialColorPicker 
+                    value={color}
+                    onChange={(newHex) => handleUpdateField('color', newHex)}
+                    label="Solid Diffuse Base Color"
+                    defaultExpanded={false}
+                  />
                 </div>
 
                 {/* Opacity slider */}
@@ -1222,23 +1218,12 @@ export function ModelMaterialEditor({ obj, handlePropertyChange, handleMultipleP
             {activeFlyout === 'emissive' && (
               <div className="flex flex-col gap-4">
                 {/* Glow Color */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono">Glow (Emissive) Tint Color</label>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="color" 
-                      value={emissiveColor}
-                      onChange={(e) => handleUpdateField('emissiveColor', e.target.value)}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 outline-none p-0"
-                    />
-                    <input 
-                      type="text" 
-                      value={emissiveColor.toUpperCase()}
-                      onChange={(e) => handleUpdateField('emissiveColor', e.target.value)}
-                      className="bg-black/40 text-[11px] font-mono p-2 rounded-md flex-1 border border-white/5 text-white outline-none focus:border-orange-500"
-                    />
-                  </div>
-                </div>
+                <MaterialColorPicker 
+                  value={emissiveColor}
+                  onChange={(newHex) => handleUpdateField('emissiveColor', newHex)}
+                  label="Glow (Emissive) Tint Color"
+                  defaultExpanded={false}
+                />
 
                 {/* Glow Intensity */}
                 <div className="flex flex-col gap-1.5 border-t border-white/5 pt-3">

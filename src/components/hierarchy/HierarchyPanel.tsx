@@ -43,6 +43,7 @@ import {
   Radio,
   Maximize,
   AlignCenter,
+  Check,
   AlignLeft,
   Search,
   X
@@ -51,17 +52,22 @@ import { cn } from '../../lib/utils';
 import { SceneObject } from '../../types';
 import { PREBUILT_TEMPLATES, instantiateTemplate } from '../../utils/prebuiltTemplates';
 import { useTheme } from '../../lib/theme';
-import { GlassModal } from '../ui/HudComponents';
-import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
+import { useScrollMemory } from '../../lib/scrollMemory';
 
-export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: () => void }) {
+export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?: number; onClose?: () => void; hideHeader?: boolean }) {
   const t = useTheme();
+  const hierarchyScroll = useScrollMemory<HTMLDivElement>('hierarchy_tree_scroll');
   const { 
     objects, 
     rootObjects, 
     selectedObjectId, selectedObjectIds, 
     selectObject, 
+    isMultiSelectMode,
+    setMultiSelectMode,
+    toggleMultiSelectMode,
+    deleteSelection,
     groupSelection,
+    duplicateSelection,
     ungroupObject,
     moveObject, 
     updateObject,
@@ -74,12 +80,52 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
     scenes,
     activeSceneId,
     loadScene,
-    createScene,
-    deleteScene,
-    renameScene
+    openCreateSceneModal,
+    openRenameSceneModal,
+    openDeleteSceneModal
   } = useEditorStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressTriggeredRef = useRef<boolean>(false);
+  const pointerStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent, targetId: string) => {
+    if (objects[targetId]?.type === 'imageTarget') return; // Image targets are non-selectable
+    isLongPressTriggeredRef.current = false;
+    pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      setMultiSelectMode(true);
+      selectObject(targetId, true);
+      useEditorStore.getState().addToast('Multi-select mode activated');
+      try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate([40, 30, 40]);
+        }
+      } catch (_) {}
+    }, 450);
+  };
+
+  const handlePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (longPressTimerRef.current) {
+      const dx = Math.abs(e.clientX - pointerStartPosRef.current.x);
+      const dy = Math.abs(e.clientY - pointerStartPosRef.current.y);
+      if (dx > 10 || dy > 10) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  };
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [activeTab, setActiveTab] = useState<'hierarchy' | 'library'>('hierarchy');
@@ -113,13 +159,6 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
     useEditorStore.getState().addToast(`Added AR Target (${isFace ? 'Face' : 'Image'}) to scene`);
   };
   const { conflictedTargetIds, switchToMultiTargetMode } = useMarkerValidation();
-  const [sceneModal, setSceneModal] = useState<{
-    type: 'create' | 'rename' | 'delete' | null;
-    value?: string;
-    sceneId?: string;
-    targetMode?: 'single' | 'multi';
-    physicalWidth?: number;
-  }>({ type: null });
   const [isSceneDropdownOpen, setIsSceneDropdownOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -460,22 +499,22 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
           )}
 
           {/* Visibility Toggle */}
-          <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+          <div className="flex items-center shrink-0 max-md:opacity-100 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
             <button
               onClick={toggleSubVisibility}
               className={cn(
-                "p-0.5 rounded hover:bg-[#2A2A2A] transition-colors",
-                overridenVisibility === false ? "text-orange-400" : "text-[#555] hover:text-white"
+                "p-1 md:p-0.5 rounded hover:bg-[#2A2A2A] transition-colors",
+                overridenVisibility === false ? "text-orange-400" : "text-gray-400 md:text-[#555] hover:text-white"
               )}
               title={overridenVisibility !== false ? "Hide sub-object" : "Show sub-object"}
             >
-              {overridenVisibility !== false ? <EyeOff size={10} /> : <Eye size={10} />}
+              {overridenVisibility !== false ? <EyeOff size={11} /> : <Eye size={11} />}
             </button>
           </div>
 
-          {/* Static indicator if hidden */}
+          {/* Static indicator if hidden on desktop */}
           {overridenVisibility === false && (
-            <div className="shrink-0 group-hover:hidden ml-auto">
+            <div className="hidden md:block shrink-0 group-hover:hidden ml-auto">
               <EyeOff size={9} className="text-orange-400/80 mr-0.5" />
             </div>
           )}
@@ -599,8 +638,8 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
     const isDragOver = dragOverId === id;
     const hasChildren = obj.children.length > 0;
     const isCollapsed = searchQuery ? false : (settings.collapsedHierarchyIds 
-      ? (settings.collapsedHierarchyIds[id] ?? (obj.type === 'imageTarget' ? false : true))
-      : (obj.type === 'imageTarget' ? false : true));
+      ? (settings.collapsedHierarchyIds[id] ?? false)
+      : false);
 
     const isFaceTarget = obj.type === 'imageTarget' && (obj.properties?.targetType === 'face' || (settings.trackingMode === 'face' && !obj.properties?.targetType));
 
@@ -619,7 +658,7 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
     const toggleCollapse = (e: React.MouseEvent) => {
       e.stopPropagation();
       const currentCollapsed = settings.collapsedHierarchyIds || {};
-      const nextCollapsedState = !(currentCollapsed[id] ?? true);
+      const nextCollapsedState = !(currentCollapsed[id] ?? false);
       updateSettings({
         collapsedHierarchyIds: {
           ...currentCollapsed,
@@ -632,7 +671,7 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
       <div key={id}>
         <div 
           className={cn(
-            "flex items-center gap-1.5 p-1.5 cursor-pointer text-[11px] font-mono select-none border-l-2 group",
+            "flex items-center gap-1.5 p-1.5 min-h-[34px] cursor-pointer text-[11px] font-mono select-none border-l-2 group transition-colors",
             isSelected 
               ? (t.isLight ? "bg-blue-50 border-blue-500 text-blue-600 font-bold" : "bg-blue-900/30 border-blue-500 text-white font-medium")
               : `border-transparent ${t.isLight ? 'text-gray-600 hover:bg-gray-100 hover:text-black' : 'text-[#999] hover:bg-[#1A1A1A] hover:text-[#CCC]'}`,
@@ -640,9 +679,17 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
           )}
           style={{ paddingLeft: `${depth * 10 + 6}px` }}
           onClick={(e) => {
-            const isMulti = isMultiSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
+            if (isLongPressTriggeredRef.current) {
+              isLongPressTriggeredRef.current = false;
+              return;
+            }
+            if (obj.type === 'imageTarget') return;
+            const isMulti = isMultiSelectMode;
             selectObject(id, isMulti);
           }}
+          onPointerDown={(e) => handlePointerDown(e, id)}
+          onPointerUp={handlePointerUp}
+          onPointerMove={handlePointerMove}
           onDoubleClick={() => startEditing(id, obj.name)}
           draggable={obj.type !== 'imageTarget'}
           onDragStart={(e) => handleDragStart(e, id)}
@@ -665,9 +712,23 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
             }
           }}
         >
+          {/* Multi-Select Checkbox Indicator */}
+          {isMultiSelectMode && (
+            <div 
+              className={cn(
+                "w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border transition-all mr-0.5",
+                isSelected 
+                  ? "bg-blue-600 border-blue-500 text-white shadow-xs" 
+                  : (t.isLight ? "border-gray-300 bg-white" : "border-white/20 bg-black/40")
+              )}
+            >
+              {isSelected && <Check size={10} strokeWidth={3} />}
+            </div>
+          )}
+
           {/* Chevron Collapse Arrow */}
           <div 
-            className="w-4 h-4 flex items-center justify-center hover:bg-[#2A2A2A] rounded transition-colors text-[#555] hover:text-[#AAA]"
+            className="w-4 h-4 flex items-center justify-center hover:bg-[#2A2A2A] rounded transition-colors text-[#555] hover:text-[#AAA] shrink-0"
             onClick={toggleCollapse}
           >
             {hasChildren && (isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />)}
@@ -762,8 +823,8 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
             </div>
           )}
 
-          {/* Action Overlay: Lock & Eye */}
-          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-auto">
+          {/* Action Overlay: Lock & Eye & Operations */}
+          <div className="flex items-center gap-0.5 md:gap-1 shrink-0 max-md:opacity-100 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-auto">
             {/* Lock Action Button */}
             <button
               onClick={(e) => {
@@ -771,12 +832,14 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
                 toggleLockRecursive(id, !obj.locked);
               }}
               className={cn(
-                "p-1 rounded hover:bg-[#2A2A2A] transition-colors",
-                obj.locked ? "text-red-400 opacity-100" : "text-[#555] hover:text-white"
+                "p-1.5 md:p-1 rounded-md active:scale-90 transition-all flex items-center justify-center cursor-pointer",
+                obj.locked 
+                  ? "text-red-400 bg-red-950/40 md:bg-transparent" 
+                  : "text-gray-400 md:text-[#666] hover:text-white"
               )}
               title={obj.locked ? "Unlock object transforms and children" : "Lock object transforms and children"}
             >
-              {obj.locked ? <Lock size={11} /> : <Unlock size={11} />}
+              {obj.locked ? <Lock size={12} className="md:w-3 md:h-3" /> : <Unlock size={12} className="md:w-3 md:h-3" />}
             </button>
 
             {/* Visibility Action Button */}
@@ -786,12 +849,14 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
                 toggleVisibilityRecursive(id, !obj.visible);
               }}
               className={cn(
-                "p-1 rounded hover:bg-[#2A2A2A] transition-colors",
-                !obj.visible ? "text-orange-400 opacity-100" : "text-[#555] hover:text-white"
+                "p-1.5 md:p-1 rounded-md active:scale-90 transition-all flex items-center justify-center cursor-pointer",
+                !obj.visible 
+                  ? "text-orange-400 bg-orange-950/40 md:bg-transparent" 
+                  : "text-gray-400 md:text-[#666] hover:text-white"
               )}
               title={obj.visible ? "Hide object and children" : "Show object and children"}
             >
-              {obj.visible ? <EyeOff size={11} /> : <Eye size={11} />}
+              {obj.visible ? <EyeOff size={12} className="md:w-3 md:h-3" /> : <Eye size={12} className="md:w-3 md:h-3" />}
             </button>
 
             {/* Duplicate Action Button */}
@@ -801,10 +866,10 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
                   e.stopPropagation();
                   duplicateObject(id);
                 }}
-                className="p-1 rounded hover:bg-[#2A2A2A] transition-colors text-[#555] hover:text-white"
+                className="p-1.5 md:p-1 rounded-md active:scale-90 transition-all text-gray-400 md:text-[#666] hover:text-white flex items-center justify-center cursor-pointer"
                 title="Duplicate object"
               >
-                <Copy size={11} />
+                <Copy size={12} className="md:w-3 md:h-3" />
               </button>
             )}
 
@@ -815,10 +880,10 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
                   e.stopPropagation();
                   removeObject(id);
                 }}
-                className="p-1 rounded hover:bg-[#2A2A2A] transition-colors text-[#555] hover:text-red-400"
+                className="p-1.5 md:p-1 rounded-md active:scale-90 transition-all text-gray-400 md:text-[#666] hover:text-red-400 flex items-center justify-center cursor-pointer"
                 title="Delete object"
               >
-                <Trash2 size={11} />
+                <Trash2 size={12} className="md:w-3 md:h-3" />
               </button>
             ) : (
               <button
@@ -826,16 +891,16 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
                   e.stopPropagation();
                   useEditorStore.getState().addToast('Scene must contain at least one AR Target');
                 }}
-                className="p-1 rounded transition-colors text-[#333] hover:text-amber-400 cursor-not-allowed"
+                className="p-1.5 md:p-1 rounded-md transition-all text-[#333] hover:text-amber-400 cursor-not-allowed flex items-center justify-center"
                 title="Scene must contain at least one AR Target"
               >
-                <Trash2 size={11} />
+                <Trash2 size={12} className="md:w-3 md:h-3" />
               </button>
             )}
           </div>
 
-          {/* Static state icons when not hovered but active (locked or hidden) */}
-          <div className="flex items-center gap-1 shrink-0 group-hover:hidden ml-auto">
+          {/* Static state icons when not hovered on desktop */}
+          <div className="hidden md:flex items-center gap-1 shrink-0 group-hover:hidden ml-auto">
             {obj.locked && <Lock size={10} className="text-red-400/80 mr-0.5" />}
             {!obj.visible && <EyeOff size={10} className="text-orange-400/80 mr-0.5" />}
           </div>
@@ -854,34 +919,46 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
             {/* Always visible Add Asset button as child of AR Target */}
             <div 
               style={{ paddingLeft: `${(depth + 1) * 12 + 16}px` }}
-              className="pr-2 my-1"
+              className="pr-2 my-1.5"
             >
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   selectObject(id);
                   useEditorStore.getState().openAssetBrowser();
+                  if (onClose) onClose();
                 }}
                 className={cn(
-                  "w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded-md border border-dashed transition-all cursor-pointer font-bold text-[10px]",
+                  "w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg border border-dashed transition-all cursor-pointer font-bold text-[11px] active:scale-98 shadow-sm",
                   t.isLight 
-                    ? "bg-blue-50/80 hover:bg-blue-100/90 border-blue-300 text-blue-600" 
-                    : "bg-blue-950/30 hover:bg-blue-900/40 border-blue-500/40 hover:border-blue-400 text-blue-400 hover:text-blue-300 shadow-sm"
+                    ? "bg-blue-50/90 hover:bg-blue-100 border-blue-400 text-blue-700" 
+                    : "bg-blue-950/40 hover:bg-blue-900/50 border-blue-500/60 hover:border-blue-400 text-blue-300 hover:text-white shadow-blue-950/30"
                 )}
                 title="Add 3D model, image, video, text or UI asset to this AR Target"
               >
-                <Plus size={11} className="shrink-0 stroke-[2.5]" />
-                <span>Add Asset</span>
+                <Plus size={13} className="shrink-0 stroke-[3]" />
+                <span>+ Add Asset to Target</span>
               </button>
             </div>
           </div>
         )}
 
-        {obj.type === 'model' && obj.properties?.discoveredSubObjects && !isCollapsed && (
+        {/* Render sub-meshes for all 3D objects including imported models */}
+        {['model', 'box', 'plane', 'circle', 'sphere', 'cylinder', 'cone', 'torus', 'pyramid', 'capsule', 'dodecahedron', 'octahedron', 'icosahedron', 'knot', 'button', 'youtube', 'web3dScene', 'image', 'video'].includes(obj.type) && !isCollapsed && (
           <div className="flex flex-col border-l border-neutral-800/40 ml-3.5 my-0.5">
-            {obj.properties.discoveredSubObjects.children?.map((child: any) => 
-              renderSubObjectNode(id, child, depth + 1)
-            )}
+            {(() => {
+              const subTree = obj.properties?.discoveredSubObjects || {
+                id: '0',
+                name: `${obj.name} Mesh`,
+                type: 'Mesh',
+                visible: obj.visible !== false,
+                materialName: obj.properties?.materialName || `${obj.name} Material`
+              };
+              if (subTree.children && subTree.children.length > 0) {
+                return subTree.children.map((child: any) => renderSubObjectNode(id, child, depth + 1));
+              }
+              return renderSubObjectNode(id, subTree, depth + 1);
+            })()}
           </div>
         )}
       </div>
@@ -916,55 +993,92 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
     >
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Hierarchy Toolbar (Header) */}
-        <div className={cn("p-3 border-b flex justify-between items-center shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
-          <span className={cn("text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5", t.textHeading)}>
-            <Layers size={11} className="text-blue-400" />
-            <span>Scene Hierarchy</span>
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button 
-              onClick={() => {
-                setIsMultiSelectMode(!isMultiSelectMode);
-                if (isMultiSelectMode) {
-                  selectObject(selectedObjectId);
-                }
-              }}
-              className={cn(
-                "p-1 rounded text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer",
-                isMultiSelectMode 
-                  ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 px-1.5" 
-                  : cn(t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black px-1.5" : "hover:bg-[#222] text-[#666] hover:text-white px-1.5")
-              )}
-              title="Toggle multi-selection mode (select multiple without holding Shift)"
-            >
-              <MousePointer size={10} />
-              <span>Multi</span>
-            </button>
-            <button 
-              onClick={handleCollapseAll}
-              className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
-              title="Collapse All Nodes"
-            >
-              <FolderMinus size={13} />
-            </button>
-            <button 
-              onClick={handleExpandAll}
-              className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
-              title="Expand All Nodes"
-            >
-              <FolderPlus size={13} />
-            </button>
-            {onClose && (
+        {!hideHeader ? (
+          <div className={cn("p-3 border-b flex justify-between items-center shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
+            <span className={cn("text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5", t.textHeading)}>
+              <Layers size={11} className="text-blue-400" />
+              <span>Scene Hierarchy</span>
+            </span>
+            <div className="flex items-center gap-1.5">
               <button 
-                onClick={onClose}
-                className={cn("p-1 rounded transition-colors ml-0.5", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
-                title="Close / Collapse Panel"
+                onClick={() => {
+                  toggleMultiSelectMode();
+                }}
+                className={cn(
+                  "p-1 rounded text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer",
+                  isMultiSelectMode 
+                    ? "bg-blue-600/25 text-blue-400 border border-blue-500/40 px-1.5 ring-1 ring-blue-500/30" 
+                    : cn(t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black px-1.5" : "hover:bg-[#222] text-[#666] hover:text-white px-1.5")
+                )}
+                title="Toggle multi-selection mode (select multiple without holding Shift)"
               >
-                <X size={13} />
+                <MousePointer size={10} />
+                <span>{isMultiSelectMode ? 'Multi (ON)' : 'Multi'}</span>
               </button>
-            )}
+              <button 
+                onClick={handleCollapseAll}
+                className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
+                title="Collapse All Nodes"
+              >
+                <FolderMinus size={13} />
+              </button>
+              <button 
+                onClick={handleExpandAll}
+                className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
+                title="Expand All Nodes"
+              >
+                <FolderPlus size={13} />
+              </button>
+              {onClose && (
+                <button 
+                  onClick={onClose}
+                  className={cn("p-1 rounded transition-colors ml-0.5", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
+                  title="Close / Collapse Panel"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Compact toolbar for mobile drawer */
+          <div className={cn("px-3 py-1.5 border-b flex justify-between items-center shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
+            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono">
+              <span>{rootObjects.length} root target{rootObjects.length > 1 ? 's' : ''}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button 
+                onClick={() => {
+                  toggleMultiSelectMode();
+                }}
+                className={cn(
+                  "p-1 rounded text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer",
+                  isMultiSelectMode 
+                    ? "bg-blue-600/25 text-blue-400 border border-blue-500/40 px-1.5 ring-1 ring-blue-500/30" 
+                    : cn(t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black px-1.5" : "hover:bg-[#222] text-[#666] hover:text-white px-1.5")
+                )}
+                title="Toggle multi-selection mode"
+              >
+                <MousePointer size={10} />
+                <span>{isMultiSelectMode ? 'Multi (ON)' : 'Multi'}</span>
+              </button>
+              <button 
+                onClick={handleCollapseAll}
+                className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
+                title="Collapse All Nodes"
+              >
+                <FolderMinus size={13} />
+              </button>
+              <button 
+                onClick={handleExpandAll}
+                className={cn("p-1 rounded transition-colors", t.isLight ? "hover:bg-gray-200 text-gray-500 hover:text-black" : "hover:bg-[#222] text-[#666] hover:text-white")}
+                title="Expand All Nodes"
+              >
+                <FolderPlus size={13} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Scene Selector */}
         <div className={cn("px-2 py-1.5 border-b flex items-center justify-between gap-1.5 shrink-0 transition-colors duration-200", t.bgPanelHeader, t.border)}>
@@ -1026,40 +1140,49 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
           
           <div className="flex items-center gap-1 shrink-0">
             <button
-              onClick={() => {
-                setSceneModal({ type: 'create', value: 'New Scene' });
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                openCreateSceneModal();
               }}
-              className={cn("p-1 rounded transition-colors cursor-pointer border outline-none", t.bgInput, "hover:opacity-90")}
+              className={cn("p-1.5 md:p-1 rounded-md transition-all cursor-pointer border outline-none active:scale-95 flex items-center justify-center", t.bgInput, "hover:opacity-90")}
               title="Create New Scene"
             >
-              <Plus size={11} />
+              <Plus size={13} className="md:w-3 md:h-3" />
             </button>
             {activeSceneId && scenes && Object.keys(scenes).length > 0 && (
               <>
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
                     const currentName = scenes[activeSceneId]?.name || 'Scene';
-                    setSceneModal({ type: 'rename', value: currentName, sceneId: activeSceneId });
+                    openRenameSceneModal(activeSceneId, currentName);
                   }}
-                  className={cn("p-1 rounded transition-colors cursor-pointer border outline-none", t.bgInput, "hover:opacity-90")}
+                  className={cn("p-1.5 md:p-1 rounded-md transition-all cursor-pointer border outline-none active:scale-95 flex items-center justify-center", t.bgInput, "hover:opacity-90")}
                   title="Rename Scene"
                 >
-                  <Type size={11} />
+                  <Type size={13} className="md:w-3 md:h-3" />
                 </button>
                 {Object.keys(scenes).length > 1 && (
                   <button
-                    onClick={() => {
-                      setSceneModal({ type: 'delete', sceneId: activeSceneId });
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      openDeleteSceneModal(activeSceneId);
                     }}
                     className={cn(
-                      "p-1 rounded transition-colors cursor-pointer border outline-none",
+                      "p-1.5 md:p-1 rounded-md transition-all cursor-pointer border outline-none active:scale-95 flex items-center justify-center",
                       t.isLight 
                         ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100" 
                         : "bg-red-950/20 text-red-400 border-red-900/30 hover:bg-red-950/40"
                     )}
                     title="Delete Scene"
                   >
-                    <Trash2 size={11} />
+                    <Trash2 size={13} className="md:w-3 md:h-3" />
                   </button>
                 )}
               </>
@@ -1101,6 +1224,24 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
             </>
           )}
         </div>
+
+        {/* Prominent Quick Add Asset Button */}
+        {!isPreviewMode && (
+          <div className={cn("p-2 border-b flex gap-1.5 shrink-0 transition-colors duration-200", t.isLight ? "bg-blue-50/60 border-blue-100" : "bg-[#141418] border-[#222228]")}>
+            <button
+              onClick={() => {
+                useEditorStore.getState().openAssetBrowser();
+                if (onClose) onClose();
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 active:scale-98 transition-all cursor-pointer border border-blue-400/30"
+              title="Open 3D Asset, Media & UI Library"
+            >
+              <Plus size={15} className="stroke-[3]" />
+              <span>+ Add Asset to Scene</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/20 font-mono uppercase tracking-wider ml-auto font-semibold">Library</span>
+            </button>
+          </div>
+        )}
 
         {/* Selection context actions (Group / Ungroup) */}
         {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas')))) && (
@@ -1181,7 +1322,11 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
         })()}
 
         {/* Hierarchy List */}
-        <div className="flex-1 overflow-y-auto min-h-0 py-1">
+        <div 
+          ref={hierarchyScroll.ref}
+          onScroll={hierarchyScroll.onScroll}
+          className="flex-1 overflow-y-auto min-h-0 py-1"
+        >
           {rootObjects.length === 0 ? (
             <div className="p-4 text-center text-gray-500 text-[10px] italic">
               No objects in scene
@@ -1203,19 +1348,47 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
           )}
         </div>
 
-        {/* Multi-Select Action Presets (No-Code Behavior & Animations) */}
+        {/* Multi-Select Action Presets & Batch Operations */}
         {selectedObjectIds.length > 1 && (
-          <div className="p-3 border-t border-[#2A2A2A] bg-[#111] flex flex-col gap-2 shrink-0 max-h-48 overflow-y-auto animate-in slide-in-from-bottom-2 duration-150">
-            <div className="flex items-center justify-between border-b border-white/5 pb-1 mb-1">
+          <div className="p-2.5 border-t border-[#2A2A2A] bg-[#111114] flex flex-col gap-2 shrink-0 max-h-56 overflow-y-auto animate-in slide-in-from-bottom-2 duration-150">
+            <div className="flex items-center justify-between border-b border-white/5 pb-1 mb-0.5">
               <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
                 <Sparkles size={11} />
-                <span>Apply No-Code Presets ({selectedObjectIds.length})</span>
+                <span>Selected ({selectedObjectIds.length})</span>
               </span>
               <button 
                 onClick={() => selectObject(null)}
-                className="text-[9px] text-[#555] hover:text-white uppercase font-bold"
+                className="text-[9px] text-gray-400 hover:text-white uppercase font-bold px-1 py-0.5 rounded cursor-pointer"
               >
                 Clear
+              </button>
+            </div>
+
+            {/* Quick Batch Actions: Group, Clone, Delete */}
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                onClick={() => groupSelection()}
+                className="flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-[10px] font-semibold border border-white/10 transition-all cursor-pointer active:scale-95"
+                title="Group Selected Objects"
+              >
+                <FolderPlus size={11} className="text-amber-400" />
+                <span>Group</span>
+              </button>
+              <button
+                onClick={() => duplicateSelection()}
+                className="flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-[10px] font-semibold border border-white/10 transition-all cursor-pointer active:scale-95"
+                title="Duplicate Selected Objects"
+              >
+                <Copy size={11} className="text-cyan-400" />
+                <span>Clone</span>
+              </button>
+              <button
+                onClick={() => deleteSelection()}
+                className="flex items-center justify-center gap-1 py-1 px-1.5 rounded-lg bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 text-[10px] font-semibold border border-red-500/30 transition-all cursor-pointer active:scale-95"
+                title="Delete Selected Objects"
+              >
+                <Trash2 size={11} />
+                <span>Delete</span>
               </button>
             </div>
 
@@ -1563,201 +1736,6 @@ export function HierarchyPanel({ width, onClose }: { width?: number; onClose?: (
           </button>
         </div>
       )}
-
-      <GlassModal
-        isOpen={sceneModal.type !== null}
-        onClose={() => setSceneModal({ type: null })}
-        title={
-          sceneModal.type === 'create' ? 'Create New Scene' :
-          sceneModal.type === 'rename' ? 'Rename Scene' :
-          'Delete Scene'
-        }
-        maxWidth="max-w-md"
-      >
-        {sceneModal.type === 'delete' ? (
-          <div className="flex flex-col gap-4">
-            <p className={cn("text-xs leading-relaxed", t.isLight ? "text-gray-600" : "text-gray-300")}>
-              Are you sure you want to delete the scene <strong className={t.isLight ? "text-gray-900" : "text-white"}>"{scenes[sceneModal.sceneId || '']?.name}"</strong>? This action cannot be undone and will delete all objects inside this scene.
-            </p>
-            <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setSceneModal({ type: null })}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border",
-                  t.isLight 
-                    ? "bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700" 
-                    : "bg-[#1f1f22] hover:bg-[#28282b] border-[#2A2A2B] text-gray-300 hover:text-white"
-                )}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (sceneModal.sceneId) {
-                    deleteScene(sceneModal.sceneId);
-                    useEditorStore.getState().saveCurrentProject();
-                    useEditorStore.getState().addToast('Scene deleted successfully');
-                  }
-                  setSceneModal({ type: null });
-                }}
-                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition-colors cursor-pointer shadow-lg shadow-red-600/15"
-              >
-                Delete Scene
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className={cn("text-[10px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>Scene Name</label>
-              <input
-                type="text"
-                autoFocus
-                value={sceneModal.value || ''}
-                onChange={(e) => setSceneModal(prev => ({ ...prev, value: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && sceneModal.value?.trim()) {
-                    const trimmed = sceneModal.value.trim();
-                    if (sceneModal.type === 'create') {
-                      createScene(trimmed, sceneModal.targetMode || 'single', sceneModal.physicalWidth || 0.127);
-                      useEditorStore.getState().saveCurrentProject();
-                      useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
-                    } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
-                      renameScene(sceneModal.sceneId, trimmed);
-                      useEditorStore.getState().saveCurrentProject();
-                      useEditorStore.getState().addToast(`Renamed scene to "${trimmed}"`);
-                    }
-                    setSceneModal({ type: null });
-                  } else if (e.key === 'Escape') {
-                    setSceneModal({ type: null });
-                  }
-                }}
-                className={cn(
-                  "w-full rounded-lg px-3 py-2 text-sm outline-none border transition-all font-sans",
-                  t.isLight 
-                    ? "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-500 focus:bg-white" 
-                    : "bg-[#18181A] border-[#2D2D2D] text-gray-100 focus:border-blue-500/50 focus:bg-[#1a1a1c]"
-                )}
-                placeholder="e.g. Gallery Scene"
-              />
-            </div>
-
-            {sceneModal.type === 'create' && (
-              <>
-                <div className="flex flex-col gap-2">
-                  <label className={cn("text-[10px] font-bold uppercase tracking-wider", t.isLight ? "text-gray-400" : "text-gray-500")}>
-                    AR Tracking Target Mode
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'single' }))}
-                      className={cn(
-                        "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
-                        (sceneModal.targetMode || 'single') === 'single'
-                          ? "bg-blue-600/15 border-blue-500 text-white shadow-sm"
-                          : t.isLight
-                            ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                            : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-blue-400">Single Marker</span>
-                        {(sceneModal.targetMode || 'single') === 'single' && (
-                          <span className="w-2 h-2 rounded-full bg-blue-400" />
-                        )}
-                      </div>
-                      <span className="text-[10px] text-gray-400 leading-tight">
-                        Single anchor marker. High tracking stability & FPS.
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSceneModal(prev => ({ ...prev, targetMode: 'multi' }))}
-                      className={cn(
-                        "flex flex-col gap-1 p-2.5 rounded-xl border text-left transition-all cursor-pointer",
-                        sceneModal.targetMode === 'multi'
-                          ? "bg-purple-600/15 border-purple-500 text-white shadow-sm"
-                          : t.isLight
-                            ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                            : "bg-[#161618] border-[#2A2A2D] text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-purple-400">Multi-Target</span>
-                        {sceneModal.targetMode === 'multi' && (
-                          <span className="w-2 h-2 rounded-full bg-purple-400" />
-                        )}
-                      </div>
-                      <span className="text-[10px] text-gray-400 leading-tight">
-                        Simultaneous multi-marker tracking & dynamic registration.
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className={cn("text-[10px] font-bold uppercase tracking-wider flex items-center justify-between", t.isLight ? "text-gray-400" : "text-gray-500")}>
-                    <span className="flex items-center gap-1.5">
-                      <Layers size={11} className="text-blue-400" />
-                      Print Media & Marker Size Preset
-                    </span>
-                    <span className="text-blue-400 font-mono font-bold">
-                      {((sceneModal.physicalWidth || 0.127) * 100).toFixed(1)} cm
-                    </span>
-                  </label>
-                  <PrintMediaPresetPicker 
-                    value={sceneModal.physicalWidth || 0.127}
-                    onChange={(w) => setSceneModal(prev => ({ ...prev, physicalWidth: w }))}
-                    compact={true}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setSceneModal({ type: null })}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border",
-                  t.isLight 
-                    ? "bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700" 
-                    : "bg-[#1f1f22] hover:bg-[#28282b] border-[#2A2A2B] text-gray-300 hover:text-white"
-                )}
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!sceneModal.value?.trim()}
-                onClick={() => {
-                  if (sceneModal.value?.trim()) {
-                    const trimmed = sceneModal.value.trim();
-                    if (sceneModal.type === 'create') {
-                      createScene(trimmed, sceneModal.targetMode || 'single', sceneModal.physicalWidth || 0.127);
-                      useEditorStore.getState().saveCurrentProject();
-                      useEditorStore.getState().addToast(`Created scene "${trimmed}"`);
-                    } else if (sceneModal.type === 'rename' && sceneModal.sceneId) {
-                      renameScene(sceneModal.sceneId, trimmed);
-                      useEditorStore.getState().saveCurrentProject();
-                      useEditorStore.getState().addToast(`Renamed scene to "${trimmed}"`);
-                    }
-                    setSceneModal({ type: null });
-                  }
-                }}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-all cursor-pointer shadow-md",
-                  sceneModal.value?.trim() 
-                    ? "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-600/15" 
-                    : "bg-blue-600/40 opacity-50 cursor-not-allowed"
-                )}
-              >
-                {sceneModal.type === 'create' ? 'Create' : 'Save'}
-              </button>
-            </div>
-          </div>
-        )}
-      </GlassModal>
     </aside>
   );
 }

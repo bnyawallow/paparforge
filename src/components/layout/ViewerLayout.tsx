@@ -22,11 +22,27 @@ export function ViewerLayout() {
           try {
             projectData = await SupabaseService.loadProject(projectId);
           } catch (err) {
-            console.warn('Supabase fetch failed, falling back to local storage:', err);
+            console.warn('Supabase fetch failed, falling back to server API:', err);
           }
         }
 
-        // 2. Fallback to local storage if Supabase failed, returned null, or is not configured
+        // 2. Fetch from server SQLite database API (essential for mobile devices scanning QR codes)
+        if (!projectData) {
+          try {
+            const res = await fetch(`/api/projects/view/${projectId}`);
+            if (res.ok) {
+              const serverJson = await res.json();
+              if (serverJson && serverJson.data) {
+                projectData = serverJson.data;
+                console.log('Successfully loaded project from server API:', projectId);
+              }
+            }
+          } catch (serverErr) {
+            console.warn('Server API fetch failed, falling back to local storage:', serverErr);
+          }
+        }
+
+        // 3. Fallback to local storage
         if (!projectData) {
           try {
             const localKey = `ar_forge_project_${projectId}`;
@@ -82,6 +98,15 @@ export function ViewerLayout() {
               try {
                 projectData = await SupabaseService.loadProject(projectId);
               } catch (err) {}
+            }
+            if (!projectData) {
+              try {
+                const res = await fetch(`/api/projects/view/${projectId}`);
+                if (res.ok) {
+                  const serverJson = await res.json();
+                  if (serverJson && serverJson.data) projectData = serverJson.data;
+                }
+              } catch {}
             }
             if (!projectData) {
               const localDataStr = localStorage.getItem(`ar_forge_project_${projectId}`);

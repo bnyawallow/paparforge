@@ -17,6 +17,15 @@ if (THREE.WebGLRenderer && THREE.WebGLRenderer.prototype) {
   });
 }
 
+// Suppress transient TransformControls unmounting error from three-stdlib
+const originalConsoleError = console.error;
+console.error = function (...args: any[]) {
+  if (typeof args[0] === 'string' && args[0].includes('TransformControls: The attached 3D object must be a part of the scene graph')) {
+    return;
+  }
+  return originalConsoleError.apply(console, args);
+};
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

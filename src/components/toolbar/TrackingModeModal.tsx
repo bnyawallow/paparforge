@@ -18,7 +18,7 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
     addToast
   } = useEditorStore();
 
-  const [activeMode, setActiveMode] = useState<'image' | 'face'>(settings.trackingMode || 'image');
+  const [activeMode, setActiveMode] = useState<'image' | 'face'>(settings.trackingMode === 'face' ? 'face' : 'image');
   const [faceAnchor, setFaceAnchor] = useState<string>(settings.faceAnchor || 'head');
   const [showFaceMesh, setShowFaceMesh] = useState<boolean>(settings.showFaceMesh || false);
   const [showFaceOccluder, setShowFaceOccluder] = useState<boolean>(settings.showFaceOccluder ?? true);

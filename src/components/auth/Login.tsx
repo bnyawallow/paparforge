@@ -46,6 +46,7 @@ export function Login() {
       } else {
         useEditorStore.getState().closeProject();
         setAuth(data.token, data.user);
+        useEditorStore.getState().syncProjectsWithServer();
         navigate('/');
       }
     } catch (err: any) {
