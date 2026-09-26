@@ -4,7 +4,8 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE, SAMPLE_TARGET_TEXTURES } from '../../lib/arTargetTexture';
 import { fileToDataUrl } from '../../lib/fileUtils';
 import { SupabaseService } from '../../services/supabaseService';
-import { Upload, Layers, Printer, Link, Unlink, RotateCcw, Move, Maximize2, Globe } from 'lucide-react';
+import { Upload, Layers, Printer, Link, Unlink, RotateCcw, Move, Maximize2, Globe, Car, Shield, Scan } from 'lucide-react';
+import { PhysicsCollisionSection } from './PhysicsCollisionSection';
 import { TextureOptimizerPanel } from './TextureOptimizerPanel';
 import { ModelMaterialEditor } from './ModelMaterialEditor';
 import { MaterialColorPicker } from './MaterialColorPicker';
@@ -153,9 +154,9 @@ const MEDIA_PRESETS: Record<string, Array<{ name: string; url: string }>> = {
     { name: 'Astronaut 🚀', url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb' },
     { name: 'Toy Retro Car 🚗', url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb' },
     { name: 'Expressive Robot 🤖', url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb' },
-    { name: 'Bronze Vase 🏺', url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb' },
+    { name: 'Cyber Helmet 🪖', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb' },
     { name: 'Vintage Lantern 🏮', url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb' },
-    { name: 'E-Comm Sneaker 👟', url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb' },
+    { name: 'E-Comm Sneaker 👟', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb' },
   ],
   image: [
     { name: 'Magazine Cover 📖', url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=600&auto=format&fit=crop' },
@@ -1720,7 +1721,11 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
     setReplaceTargetObjectId,
     addToast,
     liveInteractionsInDesign,
-    setLiveInteractionsInDesign
+    setLiveInteractionsInDesign,
+    transformSpace,
+    setTransformSpace,
+    lockedAxes,
+    toggleLockAxis
   } = useEditorStore();
 
   const [activeFlyout, setActiveFlyout] = useState<'none' | 'lighting' | 'typography' | 'theme'>('none');
@@ -2009,12 +2014,14 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
           scale: [1, 1, 1]
         });
       });
+      addToast(`↺ Reset Transform for ${selectedObjectIds.length} object(s): Pos (0,0,0), Rot (0,0,0), Scale (1,1,1)`);
     } else if (obj) {
       updateObject(obj.id, {
         position: [0, 0, 0],
         rotation: [0, 0, 0],
         scale: [1, 1, 1]
       });
+      addToast(`↺ Reset Transform for ${obj.name || 'Object'}: Pos (0,0,0), Rot (0,0,0), Scale (1,1,1)`);
     }
   };
 
@@ -3437,11 +3444,11 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Spatial Tracking Mode</span>
                   </div>
                   <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase font-bold">
-                    {(settings.trackingMode === 'face') ? 'MindAR Face Mesh' : 'MindAR Image'}
+                    {(settings.trackingMode === 'face') ? 'MindAR Face Mesh' : (settings.trackingMode === 'surface') ? 'WebXR Surface Hit-Test' : 'MindAR Image'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   {/* Image Tracking Mode Button */}
                   <button
                     type="button"
@@ -3450,7 +3457,7 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       Object.values(objects).forEach(obj => {
                         if (obj.type === 'imageTarget') {
                           updateObject(obj.id, {
-                            name: obj.name === 'Face Target' ? 'AR Target' : obj.name,
+                            name: obj.name === 'Face Target' || obj.name === 'Surface Target' ? 'AR Target' : obj.name,
                             properties: { ...obj.properties, targetType: 'image' }
                           });
                         }
@@ -3458,23 +3465,23 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       useEditorStore.getState().addToast("Switched scene to Image Target Tracking Mode");
                     }}
                     className={cn(
-                      "p-2.5 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
+                      "p-2 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
                       (settings.trackingMode || 'image') === 'image'
                         ? "bg-blue-600/15 border-blue-500/50 text-white ring-1 ring-blue-500/30"
                         : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:border-gray-600 hover:text-white"
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-1.5 font-bold text-[11px]">
-                        <ImageIcon size={13} className="text-blue-400" />
-                        <span>Image Tracking</span>
+                      <div className="flex items-center gap-1 font-bold text-[10px]">
+                        <ImageIcon size={12} className="text-blue-400" />
+                        <span>Image</span>
                       </div>
                       {(settings.trackingMode || 'image') === 'image' && (
-                        <Check size={12} className="text-blue-400 stroke-[3]" />
+                        <Check size={11} className="text-blue-400 stroke-[3]" />
                       )}
                     </div>
-                    <span className="text-[9px] text-gray-400 leading-tight">
-                      2D posters, cards & prints
+                    <span className="text-[8px] text-gray-400 leading-tight">
+                      2D prints
                     </span>
                   </button>
 
@@ -3494,23 +3501,69 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       useEditorStore.getState().addToast("Switched scene to Face Mesh Tracking Mode (Single Target)");
                     }}
                     className={cn(
-                      "p-2.5 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
+                      "p-2 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
                       settings.trackingMode === 'face'
                         ? "bg-purple-600/15 border-purple-500/50 text-white ring-1 ring-purple-500/30"
                         : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:border-gray-600 hover:text-white"
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-1.5 font-bold text-[11px]">
-                        <Smile size={13} className="text-purple-400" />
-                        <span>Face Tracking</span>
+                      <div className="flex items-center gap-1 font-bold text-[10px]">
+                        <Smile size={12} className="text-purple-400" />
+                        <span>Face</span>
                       </div>
                       {settings.trackingMode === 'face' && (
-                        <Check size={12} className="text-purple-400 stroke-[3]" />
+                        <Check size={11} className="text-purple-400 stroke-[3]" />
                       )}
                     </div>
-                    <span className="text-[9px] text-gray-400 leading-tight">
-                      3D Face mesh landmarks
+                    <span className="text-[8px] text-gray-400 leading-tight">
+                      3D mesh
+                    </span>
+                  </button>
+
+                  {/* Surface Tracking Mode Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateSettings({ trackingMode: 'surface' });
+                      Object.values(objects).forEach(obj => {
+                        if (obj.type === 'imageTarget') {
+                          updateObject(obj.id, {
+                            name: 'Surface Target',
+                            properties: { 
+                              ...obj.properties, 
+                              targetType: 'surface',
+                              surfaceOrientation: obj.properties.surfaceOrientation || 'horizontal',
+                              surfaceType: obj.properties.surfaceType || 'floor',
+                              placementMethod: obj.properties.placementMethod || 'tap',
+                              showReticle: obj.properties.showReticle ?? true,
+                              reticleStyle: obj.properties.reticleStyle || 'modern_ring',
+                              surfaceGridSize: obj.properties.surfaceGridSize || 2,
+                              showGrid: obj.properties.showGrid ?? true
+                            }
+                          });
+                        }
+                      });
+                      useEditorStore.getState().addToast("Switched scene to WebXR Surface Tracking Mode (Floor & Wall)");
+                    }}
+                    className={cn(
+                      "p-2 rounded-lg border flex flex-col gap-1 text-left transition-all cursor-pointer",
+                      settings.trackingMode === 'surface'
+                        ? "bg-emerald-600/15 border-emerald-500/50 text-white ring-1 ring-emerald-500/30"
+                        : "bg-[#18181B] border-[#2A2A2E] text-gray-400 hover:border-gray-600 hover:text-white"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-1 font-bold text-[10px]">
+                        <Scan size={12} className="text-emerald-400" />
+                        <span>Surface</span>
+                      </div>
+                      {settings.trackingMode === 'surface' && (
+                        <Check size={11} className="text-emerald-400 stroke-[3]" />
+                      )}
+                    </div>
+                    <span className="text-[8px] text-gray-400 leading-tight">
+                      Floor & wall
                     </span>
                   </button>
                 </div>
@@ -3572,6 +3625,132 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                   <div className="p-2 rounded bg-purple-500/10 border border-purple-500/20 text-[9px] text-purple-300 flex items-center gap-1.5 mt-1">
                     <Smile size={12} className="text-purple-400 shrink-0" />
                     <span>Face tracking scenes support a single face target with landmark anchors.</span>
+                  </div>
+                )}
+
+                {settings.trackingMode === 'surface' && (
+                  <div className="flex flex-col gap-2.5 bg-[#141418] p-2.5 rounded-lg border border-emerald-500/20 mt-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                        <Scan size={12} />
+                        Surface Environment Tracking
+                      </span>
+                      <span className="font-mono text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                        WebXR Hit-Test
+                      </span>
+                    </div>
+
+                    {/* Orientation Selector */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[#888] font-medium">Surface Plane Orientation</label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { id: 'horizontal', label: 'Horizontal' },
+                          { id: 'vertical', label: 'Vertical' },
+                          { id: 'any', label: 'Any Plane' }
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => updateSettings({ surfaceOrientation: item.id as any })}
+                            className={cn(
+                              "py-1 px-1.5 rounded text-[9px] font-bold transition-all border text-center cursor-pointer",
+                              (settings.surfaceOrientation || 'horizontal') === item.id
+                                ? "bg-emerald-600/20 border-emerald-500/50 text-emerald-300"
+                                : "bg-[#1C1C20] border-[#2A2A30] text-gray-400 hover:text-white"
+                            )}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Placement Trigger */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[#888] font-medium">Placement Trigger</label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { id: 'tap', label: 'Tap Screen' },
+                          { id: 'reticle', label: 'Reticle Aim' },
+                          { id: 'instant', label: 'Auto Instant' }
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => updateSettings({ surfacePlacementMethod: item.id as any })}
+                            className={cn(
+                              "py-1 px-1.5 rounded text-[9px] font-bold transition-all border text-center cursor-pointer",
+                              (settings.surfacePlacementMethod || 'tap') === item.id
+                                ? "bg-emerald-600/20 border-emerald-500/50 text-emerald-300"
+                                : "bg-[#1C1C20] border-[#2A2A30] text-gray-400 hover:text-white"
+                            )}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Reticle Style */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] text-[#888] font-medium">Reticle Cursor Design</label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { id: 'modern_ring', label: 'Laser Ring' },
+                          { id: 'cyber_bracket', label: 'Cyber Box' },
+                          { id: 'minimal_dot', label: 'Minimal Dot' }
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => updateSettings({ surfaceReticleStyle: item.id as any })}
+                            className={cn(
+                              "py-1 px-1.5 rounded text-[9px] font-bold transition-all border text-center cursor-pointer",
+                              (settings.surfaceReticleStyle || 'modern_ring') === item.id
+                                ? "bg-emerald-600/20 border-emerald-500/50 text-emerald-300"
+                                : "bg-[#1C1C20] border-[#2A2A30] text-gray-400 hover:text-white"
+                            )}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Metric Grid & Visuals */}
+                    <div className="flex items-center justify-between pt-1 border-t border-[#222]">
+                      <span className="text-[9px] text-gray-300">Show Surface Plane Metric Grid</span>
+                      <button
+                        type="button"
+                        onClick={() => updateSettings({ surfaceShowGrid: !(settings.surfaceShowGrid ?? true) })}
+                        className={cn(
+                          "w-8 h-4 rounded-full transition-colors relative cursor-pointer",
+                          (settings.surfaceShowGrid ?? true) ? "bg-emerald-600" : "bg-gray-700"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform",
+                          (settings.surfaceShowGrid ?? true) ? "left-4.5" : "left-0.5"
+                        )} />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[9px]">
+                        <span className="text-gray-400">Surface Grid Dimensions</span>
+                        <span className="text-emerald-400 font-mono">{(settings.surfaceGridSize || 2).toFixed(1)}m x {(settings.surfaceGridSize || 2).toFixed(1)}m</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="8"
+                        step="0.5"
+                        value={settings.surfaceGridSize || 2}
+                        onChange={(e) => updateSettings({ surfaceGridSize: parseFloat(e.target.value) })}
+                        className="accent-emerald-500 w-full h-1 cursor-pointer"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -3882,6 +4061,17 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
               <div className="text-[9px] text-[#666] font-mono capitalize tracking-wider mt-0.5">{obj.type} Object</div>
             </div>
           </div>
+          {obj.type === 'imageTarget' && (
+            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-between text-blue-300 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Lock size={13} className="text-blue-400 shrink-0" />
+                <span className="text-[10px] font-bold">Fixed AR Anchor (Not Transformable)</span>
+              </div>
+              <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-400/20 text-blue-300 border border-blue-400/30 font-bold">
+                Anchor [0, 0, 0]
+              </span>
+            </div>
+          )}
           {obj.type !== 'imageTarget' && obj.type !== 'group' && obj.type !== 'hudCanvas' && (
             <button
               onClick={() => {
@@ -3960,10 +4150,44 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
             <InspectorSection 
               title={
                 <div className="flex items-center justify-between w-full pr-1">
-                  <span className="flex items-center gap-1.5 font-bold text-xs">
-                    <Move size={12} className="text-blue-400" />
-                    Transform
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 font-bold text-xs">
+                      <Move size={12} className="text-blue-400" />
+                      Transform
+                    </span>
+                    <div className="flex items-center bg-[#181822] p-0.5 rounded-lg border border-white/10" title="Transform Coordinate Space">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTransformSpace('local');
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 transition-all ${
+                          transformSpace === 'local'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                        title="Local Space"
+                      >
+                        <Box size={9} />
+                        Local
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTransformSpace('world');
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 transition-all ${
+                          transformSpace === 'world'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                        title="World Space"
+                      >
+                        <Globe size={9} />
+                        World
+                      </button>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
                     {activeStateObj && (
                       <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
@@ -3983,6 +4207,67 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
               rightElement={obj.locked && <span className="text-[9px] font-mono text-red-400/80 uppercase font-bold flex items-center gap-1"><Lock size={9} /> Locked</span>}
             >
               <div className="flex flex-col gap-2">
+                {/* Axis Lock Toggles Bar */}
+                <div className="flex items-center justify-between bg-[#121215] p-2 rounded-xl border border-[#222]/80 text-[10px]">
+                  <div className="flex items-center gap-1 font-bold text-gray-400 uppercase tracking-wider select-none">
+                    <Lock size={11} className="text-amber-400 animate-pulse" />
+                    <span>Axis Lock</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleLockAxis('x');
+                        addToast(!lockedAxes?.x ? 'X Axis Locked' : 'X Axis Unlocked');
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded font-mono font-extrabold text-[10px] transition-all border cursor-pointer active:scale-95 flex items-center gap-1 select-none",
+                        lockedAxes?.x
+                          ? "bg-red-600/40 text-white border-red-400 font-extrabold shadow-xs ring-1 ring-red-400/30"
+                          : "bg-red-950/20 text-red-400 border-red-500/30 hover:bg-red-500/20"
+                      )}
+                      title="Toggle Lock X Axis (Red)"
+                    >
+                      <span>X</span>
+                      {lockedAxes?.x ? <Lock size={9} className="text-white" /> : <Unlock size={9} className="opacity-40" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleLockAxis('y');
+                        addToast(!lockedAxes?.y ? 'Y Axis Locked' : 'Y Axis Unlocked');
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded font-mono font-extrabold text-[10px] transition-all border cursor-pointer active:scale-95 flex items-center gap-1 select-none",
+                        lockedAxes?.y
+                          ? "bg-emerald-600/40 text-white border-emerald-400 font-extrabold shadow-xs ring-1 ring-emerald-400/30"
+                          : "bg-emerald-950/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                      )}
+                      title="Toggle Lock Y Axis (Green)"
+                    >
+                      <span>Y</span>
+                      {lockedAxes?.y ? <Lock size={9} className="text-white" /> : <Unlock size={9} className="opacity-40" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleLockAxis('z');
+                        addToast(!lockedAxes?.z ? 'Z Axis Locked' : 'Z Axis Unlocked');
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded font-mono font-extrabold text-[10px] transition-all border cursor-pointer active:scale-95 flex items-center gap-1 select-none",
+                        lockedAxes?.z
+                          ? "bg-blue-600/40 text-white border-blue-400 font-extrabold shadow-xs ring-1 ring-blue-400/30"
+                          : "bg-blue-950/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/20"
+                      )}
+                      title="Toggle Lock Z Axis (Blue)"
+                    >
+                      <span>Z</span>
+                      {lockedAxes?.z ? <Lock size={9} className="text-white" /> : <Unlock size={9} className="opacity-40" />}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Position Row */}
                 <div className="flex flex-col gap-1 bg-[#121215] p-2 rounded-xl border border-[#222]/80">
                   <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
@@ -4115,6 +4400,18 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     </div>
                   </div>
                 )}
+
+                {/* Prominent Reset Transform Button */}
+                <button
+                  type="button"
+                  onClick={handleResetTransform}
+                  disabled={obj.locked}
+                  className="w-full py-2 px-3 bg-[#161722] hover:bg-[#202235] text-gray-300 hover:text-white border border-[#2d314d] rounded-xl text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 shadow-sm"
+                  title="Revert selected object position to (0,0,0), rotation to (0,0,0), and scale to (1,1,1) in a single click"
+                >
+                  <RotateCcw size={12} className="text-cyan-400" />
+                  <span>Reset Transform (Pos 0,0,0 • Rot 0,0,0 • Scl 1,1,1)</span>
+                </button>
               </div>
             </InspectorSection>
           ) : (
@@ -4209,6 +4506,32 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
               </div>
             )}
           </div>
+        )}
+
+        {/* Physics, Bounding Box Collision & Vehicle Driving Section */}
+        {obj.type !== 'imageTarget' && obj.type !== 'audio' && obj.type !== 'light' && (
+          <InspectorSection
+            title={
+              <div className="flex items-center justify-between w-full pr-1">
+                <span className="flex items-center gap-1.5">
+                  <Car size={11} className="text-cyan-400" />
+                  Physics & Vehicle Driving
+                </span>
+                {(obj.properties.isDrivable || obj.properties.physicsEnabled) && (
+                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 uppercase font-semibold">
+                    {obj.properties.isDrivable ? 'Drivable Rig' : 'Physics Rig'}
+                  </span>
+                )}
+              </div>
+            }
+            defaultOpen={Boolean(obj.properties.isDrivable || obj.properties.physicsEnabled || (obj.tags && obj.tags.includes('vehicle')) || /car|vehicle|truck|van|auto|bike|sedan|coupe|suv|rover/i.test(obj.name))}
+          >
+            <PhysicsCollisionSection
+              obj={obj}
+              onPropertyChange={handlePropertyChange}
+              onMultiplePropertiesChange={handleMultiplePropertiesChange}
+            />
+          </InspectorSection>
         )}
 
         {/* AR Properties / Interactivity Panel */}
@@ -4758,6 +5081,7 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                                   <option value="onMediaPlay">▶️ On Media / Video Play</option>
                                   <option value="onMediaPause">⏸️ On Media / Video Pause</option>
                                   <option value="onMediaEnd">🏁 On Media / Video End</option>
+                                  <option value="onAnimationStart">🎬 On Animation Start</option>
                                   <option value="onAnimationComplete">🎬 On Animation Complete</option>
                                   <option value="onVisible">👁️ On Object Visible</option>
                                   <option value="onHidden">🙈 On Object Hidden</option>
@@ -4892,6 +5216,9 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                                             <option value="playModelAnimation">🤖 Play Model Animation</option>
                                             <option value="pauseModelAnimation">🤖 Pause Model Animation</option>
                                             <option value="stopModelAnimation">🤖 Stop Model Animation</option>
+                                            <option value="seekModelAnimation">⏩ Seek / Scrub Model Time</option>
+                                            <option value="toggleAnimationPlayPause">⏯ Toggle Play / Pause Animation</option>
+                                            <option value="setAnimationSpeed">⚡ Set Animation Speed</option>
                                           </optgroup>
                                           <optgroup label="Visibility & Appearance">
                                             <option value="show">👁 Show Object</option>
@@ -5380,6 +5707,43 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                                                         </div>
                                                       </div>
                                                     )}
+
+                                         {action.type === 'seekModelAnimation' && (
+                                           <div className="flex flex-col gap-1 mt-1">
+                                             <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Seek Time (Seconds)</label>
+                                             <input
+                                               type="number"
+                                               step="0.05"
+                                               min="0"
+                                               value={action.seekTime ?? 0}
+                                               onChange={(e) => {
+                                                 const val = parseFloat(e.target.value) || 0;
+                                                 const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, seekTime: val } : a);
+                                                 handleUpdateEvent(evt.id, { actions: updatedActions });
+                                               }}
+                                               className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                             />
+                                           </div>
+                                         )}
+
+                                         {action.type === 'setAnimationSpeed' && (
+                                           <div className="flex flex-col gap-1 mt-1">
+                                             <label className="text-[8px] text-[#666] font-mono uppercase tracking-wider">Speed Multiplier (e.g. 0.5, 1.0, 2.0)</label>
+                                             <input
+                                               type="number"
+                                               step="0.1"
+                                               min="0.1"
+                                               max="5.0"
+                                               value={action.animationSpeedValue ?? 1.0}
+                                               onChange={(e) => {
+                                                 const val = parseFloat(e.target.value) || 1.0;
+                                                 const updatedActions = evt.actions.map((a: any) => a.id === action.id ? { ...a, animationSpeedValue: val } : a);
+                                                 handleUpdateEvent(evt.id, { actions: updatedActions });
+                                               }}
+                                               className="bg-black/50 text-[10px] text-white border border-[#2B2B2B] rounded p-1.5 focus:border-blue-500 outline-none font-mono"
+                                             />
+                                           </div>
+                                         )}
                                                   </div>
                                                 );
                                               })()}
@@ -7954,12 +8318,98 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       </select>
                     </div>
 
+                    {/* Timeline Scrubber & Timestamp Readout */}
+                    {(() => {
+                      const activeTrack = obj.properties.activeAnimation || obj.properties.discoveredAnimations[0] || 'default';
+                      const durations = obj.properties.animationClipDurations || {};
+                      const maxDuration = durations[activeTrack] || 1.0;
+                      const curTime = typeof obj.properties.animationTime === 'number' ? obj.properties.animationTime : 0;
+                      const pct = maxDuration > 0 ? Math.min(100, Math.max(0, (curTime / maxDuration) * 100)) : 0;
+
+                      return (
+                        <div className="flex flex-col gap-1.5 p-2 bg-[#0A0A0A] rounded-xl border border-[#222]">
+                          <div className="flex items-center justify-between text-[10px] font-mono">
+                            <span className="text-gray-400 font-semibold">Timeline Scrubber</span>
+                            <span className="text-blue-400 font-bold">
+                              {curTime.toFixed(2)}s / {maxDuration.toFixed(2)}s
+                            </span>
+                          </div>
+
+                          <div className="relative flex items-center group py-1">
+                            <div className="w-full h-1.5 rounded-full bg-[#1A1A1A] border border-[#2D2D2D] relative overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={maxDuration}
+                              step={0.01}
+                              value={curTime}
+                              onChange={(e) => {
+                                const newT = parseFloat(e.target.value);
+                                handlePropertyChange('animationTime', newT);
+                                handlePropertyChange('animationPlaying', false);
+                                handlePropertyChange('isScrubbing', true);
+                              }}
+                              onMouseUp={() => handlePropertyChange('isScrubbing', false)}
+                              onTouchEnd={() => handlePropertyChange('isScrubbing', false)}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <div 
+                              className="absolute w-3 h-3 rounded-full bg-cyan-400 border border-white shadow-md pointer-events-none transform -translate-x-1/2"
+                              style={{ left: `${pct}%` }}
+                            />
+                          </div>
+
+                          {/* Step Back & Step Forward Controls */}
+                          <div className="flex items-center justify-between gap-1 pt-1 text-[9px] font-mono">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nxt = Math.max(0, curTime - 0.1);
+                                handlePropertyChange('animationTime', Number(nxt.toFixed(2)));
+                                handlePropertyChange('animationPlaying', false);
+                              }}
+                              className="flex-1 py-1 rounded bg-[#161616] hover:bg-[#222] text-gray-300 border border-[#2A2A2A] transition-all cursor-pointer"
+                            >
+                              ⏮ -0.1s
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handlePropertyChange('animationTime', 0);
+                                handlePropertyChange('animationPlaying', false);
+                              }}
+                              className="flex-1 py-1 rounded bg-[#161616] hover:bg-[#222] text-gray-300 border border-[#2A2A2A] transition-all cursor-pointer"
+                            >
+                              0.0s Start
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nxt = Math.min(maxDuration, curTime + 0.1);
+                                handlePropertyChange('animationTime', Number(nxt.toFixed(2)));
+                                handlePropertyChange('animationPlaying', false);
+                              }}
+                              className="flex-1 py-1 rounded bg-[#161616] hover:bg-[#222] text-gray-300 border border-[#2A2A2A] transition-all cursor-pointer"
+                            >
+                              +0.1s ⏭
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Play / Pause / Stop Transport Control Bar */}
                     <div className="flex items-center gap-1.5 pt-1">
                       <button
                         type="button"
                         onClick={() => {
                           handlePropertyChange('animationPlaying', true);
+                          handlePropertyChange('isScrubbing', false);
                           useEditorStore.getState().addToast('Playing 3D Animation');
                         }}
                         className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
@@ -7974,6 +8424,7 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                         type="button"
                         onClick={() => {
                           handlePropertyChange('animationPlaying', false);
+                          handlePropertyChange('isScrubbing', false);
                           useEditorStore.getState().addToast('Paused 3D Animation');
                         }}
                         className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center justify-center gap-1 cursor-pointer ${
@@ -7988,7 +8439,9 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                         type="button"
                         onClick={() => {
                           handlePropertyChange('animationPlaying', false);
+                          handlePropertyChange('animationTime', 0);
                           handlePropertyChange('animationSpeed', 1.0);
+                          handlePropertyChange('isScrubbing', false);
                           useEditorStore.getState().addToast('Stopped 3D Animation');
                         }}
                         className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase bg-[#1D1D1D] text-gray-400 hover:text-white border border-[#2A2A2A] transition-all cursor-pointer"
@@ -8072,6 +8525,69 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     ))}
                   </div>
                 </div>
+
+                {/* Fade Duration (Crossfade Blend) Slider */}
+                {obj.properties.discoveredAnimations && obj.properties.discoveredAnimations.length > 0 && (
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-[#1C1C1C]">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-gray-400 flex items-center gap-1 font-semibold">
+                        <Sparkles size={10} className="text-cyan-400" />
+                        Fade Duration (Crossfade Blend)
+                      </span>
+                      <span className="text-cyan-400 font-mono font-bold bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-800/40">
+                        {((typeof obj.properties.fadeDuration === 'number' ? obj.properties.fadeDuration : (typeof obj.properties.animationFadeDuration === 'number' ? obj.properties.animationFadeDuration : 0.3)) > 0)
+                          ? `${(typeof obj.properties.fadeDuration === 'number' ? obj.properties.fadeDuration : (typeof obj.properties.animationFadeDuration === 'number' ? obj.properties.animationFadeDuration : 0.3)).toFixed(2)}s`
+                          : 'Instant (0s)'}
+                      </span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="3.0" 
+                      step="0.05" 
+                      value={typeof obj.properties.fadeDuration === 'number' ? obj.properties.fadeDuration : (typeof obj.properties.animationFadeDuration === 'number' ? obj.properties.animationFadeDuration : 0.3)} 
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        handlePropertyChange('fadeDuration', val);
+                        handlePropertyChange('animationFadeDuration', val);
+                      }}
+                      className="accent-cyan-400 w-full h-1 cursor-pointer bg-[#222] rounded-lg"
+                      title="Define smooth transition time when blending between different keyframe animation clips"
+                    />
+                    <div className="flex gap-1">
+                      {[
+                        { label: 'Instant', val: 0 },
+                        { label: '0.2s', val: 0.2 },
+                        { label: '0.3s', val: 0.3 },
+                        { label: '0.5s', val: 0.5 },
+                        { label: '1.0s', val: 1.0 },
+                        { label: '2.0s', val: 2.0 },
+                      ].map((preset) => {
+                        const curFade = typeof obj.properties.fadeDuration === 'number' ? obj.properties.fadeDuration : (typeof obj.properties.animationFadeDuration === 'number' ? obj.properties.animationFadeDuration : 0.3);
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              handlePropertyChange('fadeDuration', preset.val);
+                              handlePropertyChange('animationFadeDuration', preset.val);
+                            }}
+                            className={`flex-1 py-0.5 rounded text-[8px] font-mono font-bold transition-all cursor-pointer ${
+                              Math.abs(curFade - preset.val) < 0.04
+                                ? 'bg-cyan-600 text-white'
+                                : 'bg-[#181818] text-gray-400 hover:text-white border border-[#252525]'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-[8px] text-gray-500 font-mono">
+                      Smoothly blends bones & transforms across clip changes
+                    </span>
+                  </div>
+                )}
 
                 {/* Preview Animation in Design View Toggle */}
                 <div className="flex items-center justify-between text-[10px] pt-2 border-t border-[#1C1C1C]">
@@ -8432,7 +8948,7 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       Target Texture Preview
                     </span>
                     <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                      {(obj.properties.targetType || settings.trackingMode || 'image') === 'face' ? 'Face Mesh Landmark' : '2D Print Marker'}
+                      {(obj.properties.targetType || settings.trackingMode) === 'face' ? 'Face Mesh Landmark' : (obj.properties.targetType || settings.trackingMode) === 'surface' ? 'Surface Hit-Test Anchor' : '2D Print Marker'}
                     </span>
                   </div>
 
@@ -8440,7 +8956,7 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                   <div className="relative w-full h-32 rounded-lg bg-[#080808] border border-[#222] overflow-hidden flex items-center justify-center group shadow-inner">
                     <div className="absolute inset-0 bg-[radial-gradient(#222_1px,transparent_1px)] [background-size:12px_12px] opacity-40" />
                     
-                    {(obj.properties.targetType || settings.trackingMode || 'image') === 'face' ? (
+                    {(obj.properties.targetType || settings.trackingMode) === 'face' ? (
                       /* Face Landmark Target Visual */
                       <div className="relative flex flex-col items-center justify-center text-center p-2 z-10">
                         <div className="w-16 h-16 rounded-full bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 animate-pulse mb-1">
@@ -8448,6 +8964,20 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                         </div>
                         <span className="text-[9px] font-bold text-purple-300">Face Landmark Anchor</span>
                         <span className="text-[8px] text-gray-500 font-mono">Anchor: {settings.faceAnchor || 'head'}</span>
+                      </div>
+                    ) : (obj.properties.targetType || settings.trackingMode) === 'surface' ? (
+                      /* Surface Floor/Table/Wall Visual */
+                      <div className="relative w-full h-full flex flex-col items-center justify-center text-center p-2 z-10 select-none">
+                        <div className="relative w-20 h-16 flex items-center justify-center">
+                          <div className="w-20 h-12 rounded border border-emerald-500/50 bg-emerald-500/10 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                            <div className="w-8 h-8 rounded-full border border-dashed border-emerald-400 animate-spin" style={{ animationDuration: '8s' }} />
+                            <div className="absolute w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-300 mt-1">Surface Environment Anchor</span>
+                        <span className="text-[8px] text-gray-400 font-mono">
+                          {obj.properties.surfaceOrientation === 'vertical' ? 'Vertical Wall Plane' : 'Horizontal Ground Plane'} • {(obj.properties.surfaceGridSize || settings.surfaceGridSize || 2).toFixed(1)}m
+                        </span>
                       </div>
                     ) : (
                       /* Image Target Texture Image Preview */
@@ -8464,35 +8994,35 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                     )}
                   </div>
 
-                  {/* Editing Texture Options */}
-                  <div className="flex flex-col gap-2 pt-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
-                      Texture Options & Studio
-                    </label>
+                  {/* Editing Texture Options (Image targets only) */}
+                  {(obj.properties.targetType || settings.trackingMode || 'image') === 'image' && (
+                    <div className="flex flex-col gap-2 pt-1">
+                      <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                        Texture Options & Studio
+                      </label>
 
-                    <div className="flex flex-col gap-2.5">
-                      {/* Open AR Marker Studio */}
-                      <button
-                        type="button"
-                        onClick={() => setShowMarkerStudio(true)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 border border-blue-500/40 hover:border-blue-400 text-blue-300 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm"
-                        title="Open Printable AR Marker Studio & Quality Analyzer"
-                      >
-                        <Printer size={12} className="text-blue-400" />
-                        <span>Open Printable AR Marker Studio & Analyzer</span>
-                      </button>
+                      <div className="flex flex-col gap-2.5">
+                        {/* Open AR Marker Studio */}
+                        <button
+                          type="button"
+                          onClick={() => setShowMarkerStudio(true)}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 border border-blue-500/40 hover:border-blue-400 text-blue-300 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm"
+                          title="Open Printable AR Marker Studio & Quality Analyzer"
+                        >
+                          <Printer size={12} className="text-blue-400" />
+                          <span>Open Printable AR Marker Studio & Analyzer</span>
+                        </button>
 
-                      {/* Texture Thumbnail Grid */}
-                      {(obj.properties.targetType || settings.trackingMode || 'image') === 'image' && (
+                        {/* Texture Thumbnail Grid */}
                         <TextureThumbnailGrid
                           value={obj.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE}
                           onChange={(url) => handlePropertyChange('textureUrl', url)}
                           presets={SAMPLE_TARGET_TEXTURES}
                           label="Select Target Texture (Custom & Presets)"
                         />
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Target Type Switcher */}
@@ -8503,29 +9033,35 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       Target Type
                     </label>
                     <span className="text-[9px] font-mono text-[#777]">
-                      {(obj.properties.targetType || settings.trackingMode || 'image') === 'face' ? 'MindAR Face v1.2' : 'MindAR Image v1.2'}
+                      {(obj.properties.targetType || settings.trackingMode) === 'face' 
+                        ? 'MindAR Face v1.2' 
+                        : (obj.properties.targetType || settings.trackingMode) === 'surface'
+                          ? 'WebXR Surface v1.0'
+                          : (obj.properties.targetType || settings.trackingMode) === 'world'
+                            ? 'WebXR World 6DOF'
+                            : 'MindAR Image v1.2'}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#161616] rounded-lg border border-[#252525]">
+                  <div className="grid grid-cols-4 gap-1 p-1 bg-[#161616] rounded-lg border border-[#252525]">
                     <button
                       type="button"
                       onClick={() => {
                         handlePropertyChange('targetType', 'image');
                         updateSettings({ trackingMode: 'image' });
-                        if (obj.name === 'Face Target') {
+                        if (obj.name === 'Face Target' || obj.name === 'Surface Target' || obj.name === 'World Target') {
                           handlePropertyChange('name', 'Image Target');
                         }
                         useEditorStore.getState().addToast('Target switched to Image Target');
                       }}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[9px] font-bold transition-all cursor-pointer ${
                         (obj.properties.targetType || settings.trackingMode || 'image') === 'image'
                           ? 'bg-blue-600 text-white shadow-md'
                           : 'text-[#888] hover:text-white hover:bg-[#222]'
                       }`}
                     >
-                      <ImageIcon size={13} />
-                      <span>Image Target</span>
+                      <ImageIcon size={12} />
+                      <span>Image</span>
                     </button>
 
                     <button
@@ -8533,19 +9069,59 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                       onClick={() => {
                         handlePropertyChange('targetType', 'face');
                         updateSettings({ trackingMode: 'face' });
-                        if (obj.name === 'Image Target') {
+                        if (obj.name === 'Image Target' || obj.name === 'Surface Target' || obj.name === 'World Target') {
                           handlePropertyChange('name', 'Face Target');
                         }
                         useEditorStore.getState().addToast('Target switched to Face Target');
                       }}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[9px] font-bold transition-all cursor-pointer ${
                         (obj.properties.targetType || settings.trackingMode) === 'face'
                           ? 'bg-purple-600 text-white shadow-md'
                           : 'text-[#888] hover:text-white hover:bg-[#222]'
                       }`}
                     >
-                      <Smile size={13} />
-                      <span>Face Target</span>
+                      <Smile size={12} />
+                      <span>Face</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handlePropertyChange('targetType', 'surface');
+                        updateSettings({ trackingMode: 'surface' });
+                        if (obj.name === 'Image Target' || obj.name === 'Face Target' || obj.name === 'World Target' || obj.name === 'AR Target') {
+                          handlePropertyChange('name', 'Surface Target');
+                        }
+                        useEditorStore.getState().addToast('Target switched to Surface Target (WebXR Hit-Test)');
+                      }}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[9px] font-bold transition-all cursor-pointer ${
+                        (obj.properties.targetType || settings.trackingMode) === 'surface'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'text-[#888] hover:text-white hover:bg-[#222]'
+                      }`}
+                    >
+                      <Scan size={12} />
+                      <span>Surface</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handlePropertyChange('targetType', 'world');
+                        updateSettings({ trackingMode: 'world' });
+                        if (obj.name === 'Image Target' || obj.name === 'Face Target' || obj.name === 'Surface Target' || obj.name === 'AR Target') {
+                          handlePropertyChange('name', 'World Target');
+                        }
+                        useEditorStore.getState().addToast('Target switched to World Target (WebXR 6DOF)');
+                      }}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[9px] font-bold transition-all cursor-pointer ${
+                        (obj.properties.targetType || settings.trackingMode) === 'world'
+                          ? 'bg-amber-600 text-white shadow-md'
+                          : 'text-[#888] hover:text-white hover:bg-[#222]'
+                      }`}
+                    >
+                      <Compass size={12} />
+                      <span>World</span>
                     </button>
                   </div>
                 </div>
@@ -8607,6 +9183,261 @@ export function InspectorPanel({ width, onClose }: { width?: number; onClose?: (
                           />
                         </span>
                         <span className="text-[8px] text-[#777]">Overlays semi-transparent tracker image onto detected surface in 3D AR space.</span>
+                      </label>
+                    </div>
+                  </div>
+                ) : (obj.properties.targetType || settings.trackingMode) === 'surface' ? (
+                  /* SURFACE TARGET SPECIFIC CONTROLS */
+                  <div className="flex flex-col gap-3 pt-1">
+                    {/* Surface Plane Orientation */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] text-emerald-400 font-bold flex items-center gap-1.5">
+                        <Scan size={12} />
+                        Surface Plane Orientation
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'horizontal', name: 'Horizontal', desc: 'Floor, desk, table' },
+                          { id: 'vertical', name: 'Vertical', desc: 'Wall, door, easel' },
+                          { id: 'any', name: 'Any Surface', desc: 'Any detected plane' }
+                        ].map(sOption => {
+                          const activeOrientation = obj.properties.surfaceOrientation || settings.surfaceOrientation || 'horizontal';
+                          const isSelected = activeOrientation === sOption.id;
+                          return (
+                            <button
+                              key={sOption.id}
+                              type="button"
+                              onClick={() => {
+                                handlePropertyChange('surfaceOrientation', sOption.id);
+                                updateSettings({ surfaceOrientation: sOption.id as any });
+                                useEditorStore.getState().addToast(`Surface orientation set to ${sOption.name}`);
+                              }}
+                              className={`p-1.5 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-950/40 border-emerald-500 text-white font-bold'
+                                  : 'bg-[#121212] border-[#222] text-[#888] hover:text-white hover:border-[#333]'
+                              }`}
+                            >
+                              <span className="text-[10px]">{sOption.name}</span>
+                              <span className="text-[8px] text-gray-400 leading-tight">{sOption.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Placement Trigger Method */}
+                    <div className="flex flex-col gap-1.5 pt-2 border-t border-[#222]">
+                      <label className="text-[10px] text-emerald-400 font-bold flex items-center gap-1.5">
+                        <MousePointerClick size={12} />
+                        Placement Method
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'tap', name: 'Tap to Place', desc: 'User taps surface' },
+                          { id: 'reticle', name: 'Reticle Crosshair', desc: 'Aim & click place' },
+                          { id: 'instant', name: 'Auto Instant', desc: 'Anchors on start' }
+                        ].map(mOption => {
+                          const activeMethod = obj.properties.placementMethod || settings.surfacePlacementMethod || 'tap';
+                          const isSelected = activeMethod === mOption.id;
+                          return (
+                            <button
+                              key={mOption.id}
+                              type="button"
+                              onClick={() => {
+                                handlePropertyChange('placementMethod', mOption.id);
+                                updateSettings({ surfacePlacementMethod: mOption.id as any });
+                                useEditorStore.getState().addToast(`Placement method set to ${mOption.name}`);
+                              }}
+                              className={`p-1.5 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-950/40 border-emerald-500 text-white font-bold'
+                                  : 'bg-[#121212] border-[#222] text-[#888] hover:text-white hover:border-[#333]'
+                              }`}
+                            >
+                              <span className="text-[10px]">{mOption.name}</span>
+                              <span className="text-[8px] text-gray-400 leading-tight">{mOption.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Reticle Design Style */}
+                    <div className="flex flex-col gap-1.5 pt-2 border-t border-[#222]">
+                      <label className="text-[10px] text-[#888] font-medium flex items-center justify-between">
+                        <span>Placement Reticle Style</span>
+                        <span className="font-mono text-emerald-400 text-[9px]">
+                          {obj.properties.reticleStyle || settings.surfaceReticleStyle || 'modern_ring'}
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'modern_ring', name: 'Laser Ring' },
+                          { id: 'cyber_bracket', name: 'Cyber Box' },
+                          { id: 'minimal_dot', name: 'Minimal Dot' }
+                        ].map(rStyle => {
+                          const activeStyle = obj.properties.reticleStyle || settings.surfaceReticleStyle || 'modern_ring';
+                          const isSelected = activeStyle === rStyle.id;
+                          return (
+                            <button
+                              key={rStyle.id}
+                              type="button"
+                              onClick={() => {
+                                handlePropertyChange('reticleStyle', rStyle.id);
+                                updateSettings({ surfaceReticleStyle: rStyle.id as any });
+                              }}
+                              className={`py-1.5 px-2 rounded-lg border text-center text-[10px] font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-900/30 border-emerald-500 text-white'
+                                  : 'bg-[#141418] border-[#2A2A30] text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              {rStyle.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Metric Ground Grid Size */}
+                    <div className="flex flex-col gap-1.5 pt-2 border-t border-[#222]">
+                      <label className="text-[10px] text-[#888] font-medium flex items-center justify-between">
+                        <span>Environment Grid Size</span>
+                        <span className="font-mono text-emerald-400 font-bold">
+                          {(obj.properties.surfaceGridSize || settings.surfaceGridSize || 2).toFixed(1)}m
+                        </span>
+                      </label>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="8"
+                        step="0.5"
+                        value={obj.properties.surfaceGridSize || settings.surfaceGridSize || 2}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          handlePropertyChange('surfaceGridSize', val);
+                          updateSettings({ surfaceGridSize: val });
+                        }}
+                        className="accent-emerald-500 w-full h-1 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[8px] text-gray-500">
+                        <span>0.5m (Tabletop)</span>
+                        <span>2.0m (Room Floor)</span>
+                        <span>8.0m (Outdoor Ground)</span>
+                      </div>
+                    </div>
+
+                    {/* Show Grid & Shadow Toggles */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-[#222]">
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>Display Visual Grid on Surface</span>
+                          <input
+                            type="checkbox"
+                            checked={obj.properties.showGrid ?? settings.surfaceShowGrid ?? true}
+                            onChange={(e) => {
+                              handlePropertyChange('showGrid', e.target.checked);
+                              updateSettings({ surfaceShowGrid: e.target.checked });
+                            }}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-emerald-600 focus:ring-emerald-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#777]">Projects a calibrated metric grid onto the tracked physical surface.</span>
+                      </label>
+
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>Surface Shadow Receiver</span>
+                          <input
+                            type="checkbox"
+                            checked={obj.properties.receiveShadows ?? true}
+                            onChange={(e) => handlePropertyChange('receiveShadows', e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-emerald-600 focus:ring-emerald-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#777]">Virtual 3D objects cast realistic contact shadows onto physical floors and tables.</span>
+                      </label>
+                    </div>
+                  </div>
+                ) : (obj.properties.targetType || settings.trackingMode) === 'world' ? (
+                  /* WORLD TARGET SPECIFIC CONTROLS */
+                  <div className="flex flex-col gap-3 pt-1">
+                    {/* Elevation / Ground Height Offset */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] text-amber-400 font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Compass size={12} />
+                          Ground Elevation Offset
+                        </span>
+                        <span className="font-mono font-bold text-amber-300 text-[10px]">
+                          {(obj.properties.groundOffset || 0).toFixed(2)}m
+                        </span>
+                      </label>
+                      <input
+                        type="range"
+                        min="-3"
+                        max="5"
+                        step="0.05"
+                        value={obj.properties.groundOffset || 0}
+                        onChange={(e) => handlePropertyChange('groundOffset', parseFloat(e.target.value))}
+                        className="accent-amber-500 w-full h-1 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[8px] text-gray-500 font-mono">
+                        <span>-3m (Underground)</span>
+                        <span>0m (Eye Level)</span>
+                        <span>+5m (Aerial)</span>
+                      </div>
+                    </div>
+
+                    {/* WebXR Session Mode */}
+                    <div className="flex flex-col gap-1.5 pt-2 border-t border-[#222]">
+                      <label className="text-[10px] text-amber-400 font-bold flex items-center gap-1.5">
+                        <Layers size={12} />
+                        WebXR Session Mode
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'hit-test', name: 'Hit-Test Raycast', desc: 'Real-world plane raycasting' },
+                          { id: 'spatial-anchor', name: 'Spatial Anchor', desc: '6DOF persistent spatial mesh' }
+                        ].map(mode => {
+                          const activeMode = obj.properties.webxrMode || 'hit-test';
+                          const isSelected = activeMode === mode.id;
+                          return (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              onClick={() => {
+                                handlePropertyChange('webxrMode', mode.id);
+                                useEditorStore.getState().addToast(`WebXR mode set to ${mode.name}`);
+                              }}
+                              className={`p-1.5 rounded-lg border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-amber-950/40 border-amber-500 text-white font-bold'
+                                  : 'bg-[#121212] border-[#222] text-[#888] hover:text-white hover:border-[#333]'
+                              }`}
+                            >
+                              <span className="text-[10px]">{mode.name}</span>
+                              <span className="text-[8px] text-gray-400 leading-tight">{mode.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Light Estimation Match */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-[#222]">
+                      <label className="p-2 rounded-lg border border-[#222] bg-[#121212] hover:bg-[#181818] transition-colors cursor-pointer flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-white flex items-center justify-between">
+                          <span>Realtime Light Estimation</span>
+                          <input
+                            type="checkbox"
+                            checked={obj.properties.lightEstimation ?? true}
+                            onChange={(e) => handlePropertyChange('lightEstimation', e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-[#333] text-amber-600 focus:ring-amber-500 bg-[#222] cursor-pointer"
+                          />
+                        </span>
+                        <span className="text-[8px] text-[#777]">Matches physical room lighting into 3D scene shaders in real-time.</span>
                       </label>
                     </div>
                   </div>

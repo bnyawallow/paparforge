@@ -9,6 +9,7 @@ import { GlassModal } from '../ui/HudComponents';
 import { TemplateType } from '../../types';
 import { AnalyticsDashboardOverlay } from '../dashboard/AnalyticsDashboardOverlay';
 import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
+import { TemplateVisualBadge } from '../templates/TemplateVisualBadge';
 
 interface ProjectDashboardModalProps {
   onClose: () => void;
@@ -343,28 +344,27 @@ export function ProjectDashboardModal({ onClose }: ProjectDashboardModalProps) {
                 <label className="text-xs font-semibold text-[#888]">Choose a Scene Template</label>
                 <div className="grid grid-cols-1 gap-2.5">
                   {templates.map((tpl) => {
-                    const Icon = tpl.icon;
                     const isSelected = selectedTemplate === tpl.id;
                     return (
                       <button
                         type="button"
                         key={tpl.id}
                         onClick={() => setSelectedTemplate(tpl.id as any)}
-                        className={`text-left p-3 rounded-xl border transition-all flex gap-3 cursor-pointer ${
+                        className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all flex items-center gap-3 cursor-pointer ${
                           isSelected 
-                            ? 'bg-blue-600/10 border-blue-500/40' 
+                            ? 'bg-blue-600/10 border-blue-500/40 ring-1 ring-blue-500/20' 
                             : 'bg-[#181818] border-[#252525] hover:border-[#333333]'
                         }`}
                       >
-                        <div className={`p-2 rounded-lg border h-fit shrink-0 ${tpl.color}`}>
-                          <Icon size={16} />
+                        <div className="w-20 sm:w-24 shrink-0 rounded-lg overflow-hidden border border-white/10 shadow-sm">
+                          <TemplateVisualBadge templateId={tpl.id} size="sm" />
                         </div>
-                        <div className="space-y-0.5">
+                        <div className="space-y-0.5 min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <h4 className={`text-xs font-bold ${isSelected ? 'text-blue-400' : 'text-[#CCC]'}`}>{tpl.name}</h4>
-                            {isSelected && <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1 py-0.2 rounded uppercase font-bold">Selected</span>}
+                            <h4 className={`text-xs font-bold truncate ${isSelected ? 'text-blue-400' : 'text-[#CCC]'}`}>{tpl.name}</h4>
+                            {isSelected && <span className="text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.2 rounded uppercase font-bold font-mono shrink-0">Selected</span>}
                           </div>
-                          <p className="text-[10px] text-[#777] leading-relaxed">{tpl.description}</p>
+                          <p className="text-[10px] text-[#888] line-clamp-2 leading-relaxed">{tpl.description}</p>
                         </div>
                       </button>
                     );

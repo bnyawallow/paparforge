@@ -4,7 +4,7 @@ import {
   Layers, User as UserIcon, ShoppingBag, GraduationCap, Check, AlertTriangle, 
   Sun, Moon, LogOut, Box, Clock, Edit2, Tv, Car, Utensils, Crown, Building2,
   Globe, X, Download, ExternalLink, Lock, LayoutTemplate, BookmarkPlus, Smile, Image as ImageIcon, Target,
-  QrCode, Smartphone
+  QrCode, Smartphone, BookOpen, Eye
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -12,6 +12,10 @@ import { useTheme } from '../../lib/theme';
 import { motion, AnimatePresence } from 'motion/react';
 import { TemplateType } from '../../types';
 import { ProjectQRCodeModal } from '../qrcode/ProjectQRCodeModal';
+import { PapARForgeLogo } from '../common/PapARForgeLogo';
+import { TemplatesLibraryModal } from '../templates/TemplatesLibraryModal';
+import { TemplateVisualBadge } from '../templates/TemplateVisualBadge';
+import { OnboardingModal } from '../onboarding/OnboardingModal';
 import QRCode from 'qrcode';
 
 export function ProjectManagerView() {
@@ -30,14 +34,17 @@ export function ProjectManagerView() {
     isQRCodeModalOpen,
     qrCodeModalProject,
     openQRCodeModal,
-    closeQRCodeModal
+    closeQRCodeModal,
+    isOnboardingModalOpen,
+    setIsOnboardingModalOpen
   } = useEditorStore();
 
   const { user, logout } = useAuthStore();
 
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('empty');
-  const [selectedTrackingMode, setSelectedTrackingMode] = useState<'image' | 'face'>('image');
+  const [showTemplatesLibrary, setShowTemplatesLibrary] = useState(false);
+  const [selectedTrackingMode, setSelectedTrackingMode] = useState<'image' | 'face' | 'surface' | 'world'>('image');
   const [selectedTargetMode, setSelectedTargetMode] = useState<'single' | 'multi'>('single');
   const [searchQuery, setSearchQuery] = useState('');
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -446,18 +453,11 @@ export function ProjectManagerView() {
 
       {/* Top Header */}
       <header className={`h-16 border-b px-6 flex items-center justify-between shrink-0 ${t.isLight ? 'bg-white border-gray-200' : 'bg-[#121214] border-[#222226]'}`}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center font-black text-white shadow-lg shadow-blue-500/20 text-sm">
-            AF
-          </div>
-          <div>
-            <h1 className="font-extrabold text-base tracking-tight flex items-center gap-2">
-              AR Forge Workspace
-              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-bold border border-blue-500/20">
-                Projects Manager
-              </span>
-            </h1>
-          </div>
+        <div className="flex items-center gap-4">
+          <PapARForgeLogo size="md" showBadge={true} />
+          <span className="hidden sm:inline-block text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 font-bold border border-blue-500/20">
+            Projects Manager
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -470,6 +470,32 @@ export function ProjectManagerView() {
               )}
             </div>
           )}
+
+          <button 
+            onClick={() => setIsOnboardingModalOpen(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm ${
+              t.isLight 
+                ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-200' 
+                : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border-blue-500/30'
+            }`}
+            title="Open Interactive WebAR Onboarding Guide"
+          >
+            <BookOpen size={14} />
+            <span className="hidden sm:inline">Quick Guide</span>
+          </button>
+
+          <button 
+            onClick={() => setShowTemplatesLibrary(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm ${
+              t.isLight 
+                ? 'bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-200' 
+                : 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border-purple-500/30'
+            }`}
+            title="Browse Interactive 3D Templates Showcase & Previews"
+          >
+            <LayoutTemplate size={14} />
+            <span className="hidden sm:inline">Templates Showcase</span>
+          </button>
 
           <button 
             onClick={toggleEditorTheme}
@@ -547,10 +573,13 @@ export function ProjectManagerView() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Image Tracking Option */}
                 <div 
-                  onClick={() => setSelectedTrackingMode('image')}
+                  onClick={() => {
+                    setSelectedTrackingMode('image');
+                    setSelectedTargetMode('single');
+                  }}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
                     selectedTrackingMode === 'image'
                       ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/20 shadow-md shadow-blue-500/10'
@@ -618,40 +647,107 @@ export function ProjectManagerView() {
                     Track 3D face mesh landmarks, hats, glasses, masks, and face filters in real-time.
                   </p>
                 </div>
+
+                {/* Surface AR Tracking Option */}
+                <div 
+                  onClick={() => setSelectedTrackingMode('surface')}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                    selectedTrackingMode === 'surface'
+                      ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20 shadow-md shadow-emerald-500/10'
+                      : t.isLight ? 'bg-gray-50 border-gray-200 hover:border-gray-300' : 'bg-[#0A0A0C] border-[#222228] hover:border-[#33333D]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <Box size={16} className="text-emerald-400" />
+                      <span>Surface AR Tracking</span>
+                    </div>
+                    {selectedTrackingMode === 'surface' && <Check size={14} className="text-emerald-400 stroke-[3]" />}
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Place 3D models onto physical floor, desk, table, or wall surfaces using WebXR hit-test.
+                  </p>
+                </div>
+
+                {/* World AR Tracking Option */}
+                <div 
+                  onClick={() => setSelectedTrackingMode('world')}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                    selectedTrackingMode === 'world'
+                      ? 'border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-500/20 shadow-md shadow-cyan-500/10'
+                      : t.isLight ? 'bg-gray-50 border-gray-200 hover:border-gray-300' : 'bg-[#0A0A0C] border-[#222228] hover:border-[#33333D]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <Globe size={16} className="text-cyan-400" />
+                      <span>World AR Tracking</span>
+                    </div>
+                    {selectedTrackingMode === 'world' && <Check size={14} className="text-cyan-400 stroke-[3]" />}
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Place spatial 3D objects anywhere in physical world space with 6DOF spatial location.
+                  </p>
+                </div>
               </div>
             </div>
 
+            {/* Templates Selector Header & Previews Trigger */}
+            <div className="flex items-center justify-between pt-2">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider font-mono text-gray-400">
+                  Select Starting Template
+                </h4>
+                <p className="text-[11px] text-gray-500">
+                  Choose a scaffold or explore full interactive 3D scene previews with simulated interactions.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowTemplatesLibrary(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-500/20 transition-all cursor-pointer shrink-0"
+              >
+                <Eye size={13} />
+                <span>3D Previews Showcase</span>
+              </button>
+            </div>
+
             {/* Templates Selector */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Built-in Templates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {/* Built-in Templates with Rich Visual 3D Previews */}
               {builtinTemplates.map((tpl) => {
-                const Icon = tpl.icon;
                 const isSelected = selectedTemplate === tpl.id;
                 return (
                   <div
                     key={tpl.id}
                     onClick={() => setSelectedTemplate(tpl.id)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group ${
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group ${
                       isSelected 
-                        ? 'border-blue-500 shadow-xl shadow-blue-500/10 ring-2 ring-blue-500/20 bg-blue-500/5' 
-                        : t.isLight ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md' : 'bg-[#141418] border-[#24242C] hover:border-[#3A3A48]'
+                        ? 'border-blue-500 shadow-xl shadow-blue-500/15 ring-2 ring-blue-500/30 bg-blue-500/10' 
+                        : t.isLight ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-lg' : 'bg-[#141418] border-[#24242C] hover:border-[#3A3A48] hover:bg-[#181820]'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`p-2.5 rounded-xl border ${tpl.color}`}>
-                        <Icon size={18} />
-                      </div>
+                    {/* Visual 3D Content-Reflective Preview Badge */}
+                    <div className="relative mb-3 rounded-xl overflow-hidden shadow-md">
+                      <TemplateVisualBadge templateId={tpl.id} size="md" />
+                      
+                      {/* Selection Checkmark Indicator */}
                       {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs">
-                          <Check size={12} strokeWidth={3} />
+                        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg ring-2 ring-white/30 z-20 animate-in zoom-in-75 duration-150">
+                          <Check size={13} strokeWidth={3} />
                         </div>
                       )}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <h4 className="font-bold text-sm truncate">{tpl.name}</h4>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="font-bold text-sm text-white truncate">{tpl.name}</h4>
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10 shrink-0">
+                          {tpl.badge}
+                        </span>
                       </div>
-                      <p className={`text-xs leading-relaxed line-clamp-2 ${t.isLight ? 'text-gray-500' : 'text-[#888]'}`}>
+                      <p className={`text-xs leading-relaxed line-clamp-2 ${t.isLight ? 'text-gray-500' : 'text-gray-400'}`}>
                         {tpl.description}
                       </p>
                     </div>
@@ -666,41 +762,42 @@ export function ProjectManagerView() {
                   <div
                     key={ct.id}
                     onClick={() => setSelectedTemplate(ct.id)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group ${
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group ${
                       isSelected 
-                        ? 'border-purple-500 shadow-xl shadow-purple-500/10 ring-2 ring-purple-500/20 bg-purple-500/5' 
-                        : t.isLight ? 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-md' : 'bg-[#16141F] border-[#2A243A] hover:border-[#42365A]'
+                        ? 'border-purple-500 shadow-xl shadow-purple-500/15 ring-2 ring-purple-500/30 bg-purple-500/10' 
+                        : t.isLight ? 'bg-white border-purple-200 hover:border-purple-300 hover:shadow-lg' : 'bg-[#16141F] border-[#2A243A] hover:border-[#42365A] hover:bg-[#1C1828]'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`p-2.5 rounded-xl border ${ct.color || 'from-purple-600 to-indigo-800 text-purple-400 bg-purple-500/10 border-purple-500/20'}`}>
-                        <BookmarkPlus size={18} />
-                      </div>
-                      <div className="flex items-center gap-1.5">
+                    {/* Custom Template Visual Badge */}
+                    <div className="relative mb-3 rounded-xl overflow-hidden shadow-md">
+                      <TemplateVisualBadge templateId="custom" size="md" />
+                      
+                      <div className="absolute top-2 right-2 flex items-center gap-1 z-20">
                         {user?.role === 'admin' && (
                           <button
                             onClick={(e) => handleDeleteCustomTemplate(ct.id, ct.name, e)}
-                            className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            className="p-1 text-gray-400 hover:text-red-400 hover:bg-black/60 rounded-lg transition-colors cursor-pointer backdrop-blur-sm"
                             title="Delete custom template"
                           >
                             <Trash2 size={13} />
                           </button>
                         )}
                         {isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs">
-                            <Check size={12} strokeWidth={3} />
+                          <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg ring-2 ring-white/30 animate-in zoom-in-75 duration-150">
+                            <Check size={13} strokeWidth={3} />
                           </div>
                         )}
                       </div>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="font-bold text-sm text-white truncate">{ct.name}</h4>
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
                           {ct.badge || 'Custom'}
                         </span>
-                        <h4 className="font-bold text-sm truncate">{ct.name}</h4>
                       </div>
-                      <p className={`text-xs leading-relaxed line-clamp-2 ${t.isLight ? 'text-gray-500' : 'text-[#999]'}`}>
+                      <p className={`text-xs leading-relaxed line-clamp-2 ${t.isLight ? 'text-gray-500' : 'text-gray-400'}`}>
                         {ct.description}
                       </p>
                     </div>
@@ -870,6 +967,56 @@ export function ProjectManagerView() {
                           >
                             <Trash2 size={13} />
                           </button>
+                        </div>
+                      </div>
+
+                      {/* 2D Snapshot Thumbnail Image / Visual Scene Preview */}
+                      <div 
+                        onClick={() => handleOpenProject(proj.id)}
+                        className="relative w-full h-36 my-2.5 rounded-xl bg-[#08080B] border border-[#222228] overflow-hidden group/thumb cursor-pointer shadow-md flex items-center justify-center transition-all hover:border-blue-500/50"
+                      >
+                        {proj.thumbnail ? (
+                          <img 
+                            src={proj.thumbnail} 
+                            alt={proj.name} 
+                            className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300" 
+                          />
+                        ) : (
+                          <div className="relative w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#14141A] to-[#0A0A0E] text-center p-3 select-none">
+                            <div className="absolute inset-0 bg-[radial-gradient(#2E2E3A_1px,transparent_1px)] [background-size:12px_12px] opacity-40" />
+                            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-1.5 shadow-sm group-hover/thumb:scale-110 transition-transform">
+                              <Box size={20} />
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-300 z-10">3D AR Scene Canvas</span>
+                            <span className="text-[9px] text-gray-500 font-mono z-10">Open to view & render snapshot</span>
+                          </div>
+                        )}
+
+                        {/* Tracking Mode Badge Overlay */}
+                        <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider backdrop-blur-md border shadow-sm ${
+                            (proj as any).settings?.trackingMode === 'face'
+                              ? 'bg-purple-950/80 text-purple-300 border-purple-500/40'
+                              : (proj as any).settings?.trackingMode === 'surface'
+                                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                                : (proj as any).settings?.trackingMode === 'world'
+                                  ? 'bg-cyan-950/80 text-cyan-300 border-cyan-500/40'
+                                  : 'bg-blue-950/80 text-blue-300 border-blue-500/40'
+                          }`}>
+                            {(proj as any).settings?.trackingMode === 'face'
+                              ? '👤 Face AR'
+                              : (proj as any).settings?.trackingMode === 'surface'
+                                ? '📐 Surface AR'
+                                : (proj as any).settings?.trackingMode === 'world'
+                                  ? '🌐 World AR'
+                                  : '🎯 Image AR'}
+                          </span>
+                        </div>
+
+                        {/* Hover Quick Open Overlay */}
+                        <div className="absolute inset-0 bg-blue-600/20 backdrop-blur-[2px] opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-bold text-xs">
+                          <Eye size={16} />
+                          <span>Open Project Editor</span>
                         </div>
                       </div>
 
@@ -1280,6 +1427,18 @@ export function ProjectManagerView() {
         onClose={closeQRCodeModal}
         projectId={qrCodeModalProject?.id}
         projectName={qrCodeModalProject?.name}
+      />
+
+      {/* Rich 3D Template Showcase & Previews Modal */}
+      <TemplatesLibraryModal 
+        isOpen={showTemplatesLibrary} 
+        onClose={() => setShowTemplatesLibrary(false)} 
+      />
+
+      {/* Interactive Step-by-Step Onboarding Modal */}
+      <OnboardingModal 
+        isOpen={isOnboardingModalOpen} 
+        onClose={() => setIsOnboardingModalOpen(false)} 
       />
     </div>
   );

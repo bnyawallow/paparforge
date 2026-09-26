@@ -635,7 +635,7 @@ export function UIOptimizerModal({ onClose }: UIOptimizerModalProps) {
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-[#26262B]">
           <div className="text-[11px] text-gray-500">
-            ARForge UI Optimizer Pipeline • WebXR & GLTF Hardware Acceleration
+            papAR Forge UI Optimizer Pipeline • WebXR & GLTF Hardware Acceleration
           </div>
           <button
             onClick={onClose}

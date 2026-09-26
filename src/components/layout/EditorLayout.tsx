@@ -1,13 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Toolbar } from '../toolbar/Toolbar';
 import { HierarchyPanel } from '../hierarchy/HierarchyPanel';
 import { InspectorPanel } from '../inspector/InspectorPanel';
 import { Viewport } from '../viewport/Viewport';
 import { AssetBrowser } from '../assets/AssetBrowser';
 import { ScriptEditorPanel } from './ScriptEditorPanel';
+import { AnimationControllerPanel } from '../animation/AnimationControllerPanel';
 import { PublishModal } from '../toolbar/PublishModal';
 import { UIOptimizerModal } from '../toolbar/UIOptimizerModal';
 import { SceneManagerModal } from '../scenes/SceneManagerModal';
+import { KeyboardShortcutsModal } from '../ui/KeyboardShortcutsModal';
+import { SnapToGridMenu } from './SnapToGridMenu';
+import { AlignmentToolbar } from '../toolbar/AlignmentToolbar';
 import { useEditorStore } from '../../store/useEditorStore';
 import { 
   Layers, 
@@ -37,7 +41,9 @@ import {
   Copy,
   Trash2,
   FolderPlus,
-  Film
+  Film,
+  Box,
+  BookOpen
 } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
 import { motion, AnimatePresence } from 'motion/react';
@@ -174,6 +180,68 @@ export function EditorLayout() {
 
   const { isMobile, isLandscape, isPortrait } = screenMetrics;
 
+  // Mobile bottom dock drag-to-scroll support & scroll state
+  const bottomNavRef = useRef<HTMLElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const isDraggingNav = useRef(false);
+  const startXNav = useRef(0);
+  const startScrollLeftNav = useRef(0);
+
+  const checkNavScroll = useCallback(() => {
+    const el = bottomNavRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    const el = bottomNavRef.current;
+    if (!el) return;
+    checkNavScroll();
+    el.addEventListener('scroll', checkNavScroll, { passive: true });
+    window.addEventListener('resize', checkNavScroll);
+    const timer = setTimeout(checkNavScroll, 150);
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener('scroll', checkNavScroll);
+      window.removeEventListener('resize', checkNavScroll);
+    };
+  }, [checkNavScroll, isMobile, isPreviewMode]);
+
+  const scrollNav = (direction: 'left' | 'right') => {
+    const el = bottomNavRef.current;
+    if (!el) return;
+    const scrollAmount = direction === 'left' ? -220 : 220;
+    el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    setTimeout(checkNavScroll, 300);
+  };
+
+  const handleNavPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    // If it's a touch event, allow native browser touch pan-x scrolling
+    if (e.pointerType === 'touch') return;
+    const el = bottomNavRef.current;
+    if (!el) return;
+    isDraggingNav.current = true;
+    startXNav.current = e.clientX;
+    startScrollLeftNav.current = el.scrollLeft;
+  };
+
+  const handleNavPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (!isDraggingNav.current || e.pointerType === 'touch') return;
+    const el = bottomNavRef.current;
+    if (!el) return;
+    const deltaX = e.clientX - startXNav.current;
+    if (Math.abs(deltaX) > 4) {
+      el.scrollLeft = startScrollLeftNav.current - deltaX;
+      checkNavScroll();
+    }
+  };
+
+  const handleNavPointerUp = () => {
+    isDraggingNav.current = false;
+  };
+
   // Ensure that full screen mode selection is strictly preserved across device orientation changes
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -218,6 +286,32 @@ export function EditorLayout() {
       window.removeEventListener('click', handleTouchRestore);
     };
   }, [fullscreenPref]);
+
+  // Global Keyboard Shortcuts for Snap-to-Grid and Advertising Alignment
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === 'g' || e.key === 'G') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          useEditorStore.getState().snapSelectedToGrid();
+        } else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          const current = useEditorStore.getState().gridSnapEnabled;
+          useEditorStore.getState().setGridSnapEnabled(!current);
+          useEditorStore.getState().setRotationSnapEnabled(!current);
+          useEditorStore.getState().addToast(!current ? 'Snap to Grid: ON' : 'Snap to Grid: OFF');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const startResizeBottom = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -317,8 +411,26 @@ export function EditorLayout() {
             e.preventDefault();
             state.duplicateSelection();
           }
+        } else if (e.key.toLowerCase() === 'g') {
+          e.preventDefault();
+          const state = useEditorStore.getState();
+          if (e.shiftKey) {
+            state.ungroupSelection();
+          } else {
+            state.groupSelection();
+          }
+        }
+      } else if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key.toLowerCase() === 'm') {
+          e.preventDefault();
+          useEditorStore.getState().optimizeAllSceneMeshesForMobile();
         }
       } else if (!e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+          e.preventDefault();
+          useEditorStore.getState().setIsShortcutsModalOpen(true);
+          return;
+        }
         const lowerKey = e.key.toLowerCase();
         if (lowerKey === 'w' || lowerKey === 't') {
           e.preventDefault();
@@ -352,6 +464,7 @@ export function EditorLayout() {
     };
   }, [isPreviewMode]);
 
+  const [showAnimationController, setShowAnimationController] = useState(false);
   const toasts = useEditorStore(state => state.toasts);
   const removeToast = useEditorStore(state => state.removeToast);
 
@@ -434,85 +547,146 @@ export function EditorLayout() {
             {/* Redesigned Mobile Top Bar & Multi-Select Action Island */}
             {isMobile && !isPreviewMode && (
               <>
-                <div className="absolute top-2 inset-x-2 z-40 flex items-center justify-between pointer-events-none gap-1">
-                  {/* Left Controls: Scene Hierarchy Trigger & Scene Switcher */}
-                  <div className="flex items-center gap-1.5 pointer-events-auto">
+                <div 
+                  className="absolute top-2 inset-x-2 z-40 flex items-center gap-1.5 overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x pointer-events-auto select-none p-1.5 bg-[#101014]/92 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-xl shadow-black/50"
+                  style={{
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
+                  }}
+                  onWheel={(e) => {
+                    if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                      e.currentTarget.scrollLeft += e.deltaY;
+                    }
+                  }}
+                >
+                  {/* Integrated View Mode Toggle Pill (Editor / Preview) - Ergonomic position in Mobile Nav without overlapping */}
+                  <div className="flex items-center bg-[#1B1B22] p-0.5 rounded-xl border border-white/10 shrink-0 shadow-inner">
                     <button
-                      onClick={() => setMobileDrawer(d => d === 'hierarchy' ? 'none' : 'hierarchy')}
+                      id="mobile-top-editor-btn"
+                      onClick={() => setPreviewMode(false)}
                       className={cn(
-                        "h-9 px-2.5 rounded-xl border backdrop-blur-xl shadow-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95",
-                        mobileDrawer === 'hierarchy'
-                          ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
-                          : "bg-[#141418]/90 text-gray-200 hover:text-white border-[#2A2A30] hover:border-blue-500/50"
+                        "flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shrink-0",
+                        !isPreviewMode 
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 font-extrabold" 
+                          : "text-gray-400 hover:text-white"
                       )}
-                      title="Scene Objects & Hierarchy"
+                      title="Editor Mode"
                     >
-                      <Layers size={14} className={mobileDrawer === 'hierarchy' ? "text-white" : "text-blue-400"} />
-                      <span>Scene</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/15 font-mono font-bold">
-                        {totalObjectCount}
-                      </span>
+                      <Box size={12} />
+                      <span>Editor</span>
                     </button>
-
-                    {/* Active Scene Pill with Add Scene shortcut */}
                     <button
-                      onClick={() => openCreateSceneModal()}
-                      className="h-9 px-2.5 rounded-xl border border-white/10 bg-[#141418]/90 hover:bg-[#1f1f26] text-gray-300 hover:text-white backdrop-blur-xl shadow-xl flex items-center gap-1.5 text-xs font-semibold cursor-pointer active:scale-95 transition-all max-w-[130px]"
-                      title={`Current Scene: "${activeSceneName}". Tap to add or manage scenes.`}
+                      id="mobile-top-preview-btn"
+                      onClick={() => setPreviewMode(true)}
+                      className={cn(
+                        "flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shrink-0",
+                        isPreviewMode 
+                          ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/30 font-extrabold ring-1 ring-emerald-400/40" 
+                          : "text-gray-400 hover:text-white"
+                      )}
+                      title="Preview Mode"
                     >
-                      <Film size={12} className="text-purple-400 shrink-0" />
-                      <span className="truncate">{activeSceneName}</span>
-                      <Plus size={11} className="text-gray-400 shrink-0 stroke-[3]" />
+                      <Camera size={12} />
+                      <span>Preview</span>
                     </button>
                   </div>
 
-                  {/* Right Controls: Add Asset & Inspector */}
-                  <div className="flex items-center gap-1.5 pointer-events-auto">
-                    <button
-                      onClick={() => {
-                        openAssetBrowser('architecture');
-                        setMobileDrawer('none');
-                      }}
-                      className="h-9 px-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white border border-emerald-400/40 shadow-lg shadow-emerald-600/20 flex items-center gap-1 text-xs font-bold active:scale-95 transition-all cursor-pointer"
-                      title="Add 3D Model / Asset"
-                    >
-                      <Plus size={13} className="stroke-[3]" />
-                      <span>Asset</span>
-                    </button>
+                  <div className="h-5 w-px bg-white/10 shrink-0 mx-0.5" />
 
-                    <button
-                      onClick={() => setMobileDrawer(d => d === 'inspector' ? 'none' : 'inspector')}
-                      className={cn(
-                        "h-9 px-2.5 rounded-xl border backdrop-blur-xl shadow-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95 max-w-[105px]",
-                        mobileDrawer === 'inspector'
-                          ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
-                          : "bg-[#141418]/90 text-gray-200 hover:text-white border-[#2A2A30] hover:border-blue-500/50"
-                      )}
-                      title="Toggle Properties Inspector"
-                    >
-                      <Sliders size={13} className={mobileDrawer === 'inspector' ? "text-white" : "text-blue-400"} />
-                      <span className="truncate">
-                        {selectedObject ? selectedObject.name : 'Inspect'}
-                      </span>
-                    </button>
-                  </div>
+                  {/* Scene Hierarchy Trigger */}
+                  <button
+                    onClick={() => setMobileDrawer(d => d === 'hierarchy' ? 'none' : 'hierarchy')}
+                    className={cn(
+                      "h-8.5 px-2.5 rounded-xl border backdrop-blur-xl flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shrink-0",
+                      mobileDrawer === 'hierarchy'
+                        ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
+                        : "bg-white/5 text-gray-200 hover:text-white border-white/10 hover:border-blue-500/40"
+                    )}
+                    title="Scene Objects & Hierarchy"
+                  >
+                    <Layers size={13} className={mobileDrawer === 'hierarchy' ? "text-white" : "text-blue-400"} />
+                    <span>Scene</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/15 font-mono font-bold">
+                      {totalObjectCount}
+                    </span>
+                  </button>
+
+                  {/* Active Scene Pill with Add Scene shortcut */}
+                  <button
+                    onClick={() => openCreateSceneModal()}
+                    className="h-8.5 px-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white flex items-center gap-1.5 text-xs font-semibold cursor-pointer active:scale-95 transition-all shrink-0 max-w-[140px]"
+                    title={`Current Scene: "${activeSceneName}". Tap to add or manage scenes.`}
+                  >
+                    <Film size={12} className="text-purple-400 shrink-0" />
+                    <span className="truncate">{activeSceneName}</span>
+                    <Plus size={11} className="text-gray-400 shrink-0 stroke-[3]" />
+                  </button>
+
+                  {/* Animation Controller Toggle */}
+                  <button
+                    onClick={() => setShowAnimationController(v => !v)}
+                    className={cn(
+                      "h-8.5 px-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shrink-0",
+                      showAnimationController
+                        ? "bg-cyan-600 text-white border-cyan-400 shadow-cyan-500/30"
+                        : "bg-white/5 text-gray-200 hover:text-white border-white/10 hover:border-cyan-500/40"
+                    )}
+                    title="Toggle Keyframe Animation Controller Panel"
+                  >
+                    <Film size={12} className={showAnimationController ? "text-white" : "text-cyan-400"} />
+                    <span>Anim</span>
+                  </button>
+
+                  {/* Object Properties Inspector */}
+                  <button
+                    onClick={() => setMobileDrawer(d => d === 'inspector' ? 'none' : 'inspector')}
+                    className={cn(
+                      "h-8.5 px-2.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer select-none active:scale-95 shrink-0 max-w-[140px]",
+                      mobileDrawer === 'inspector'
+                        ? "bg-blue-600 text-white border-blue-400 shadow-blue-500/30"
+                        : "bg-white/5 text-gray-200 hover:text-white border-white/10 hover:border-blue-500/40"
+                    )}
+                    title="Toggle Object Properties Inspector"
+                  >
+                    <Sliders size={12} className={mobileDrawer === 'inspector' ? "text-white" : "text-blue-400"} />
+                    <span className="truncate">
+                      {selectedObject ? selectedObject.name : 'Properties'}
+                    </span>
+                  </button>
                 </div>
 
-                {/* Floating Multi-Selection Action Island (Visible when 2+ objects selected) */}
+                {/* Floating Multi-Selection Action Island (Visible when 2+ objects selected, scrollable) */}
                 {selectedObjectIds.length >= 2 && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-[#17171C]/95 border border-[#33333C] backdrop-blur-xl shadow-2xl rounded-2xl p-1.5 flex items-center gap-1.5 max-w-[94vw]"
+                    className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 bg-[#17171C]/95 border border-[#33333C] backdrop-blur-xl shadow-2xl rounded-2xl p-1.5 flex items-center justify-start gap-1.5 max-w-[96vw] overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x select-none"
+                    style={{
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none'
+                    }}
+                    onWheel={(e) => {
+                      if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                        e.currentTarget.scrollLeft += e.deltaY;
+                      }
+                    }}
                   >
-                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold">
+                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold shrink-0">
                       <CheckSquare size={13} />
                       <span>{selectedObjectIds.length}</span>
                     </div>
+
+                    {/* Integrated Alignment Controls */}
+                    <AlignmentToolbar compact showTitle={false} className="border-0 bg-transparent p-0 shadow-none shrink-0" />
+
+                    <div className="h-4 w-px bg-white/10 mx-0.5 shrink-0" />
+
                     <button
                       onClick={() => groupSelection()}
-                      className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/10 cursor-pointer active:scale-95 transition-all"
+                      className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/10 cursor-pointer active:scale-95 transition-all shrink-0"
                       title="Group Selected Objects"
                     >
                       <FolderPlus size={13} className="text-amber-400" />
@@ -520,7 +694,7 @@ export function EditorLayout() {
                     </button>
                     <button
                       onClick={() => duplicateSelection()}
-                      className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/10 cursor-pointer active:scale-95 transition-all"
+                      className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/10 cursor-pointer active:scale-95 transition-all shrink-0"
                       title="Duplicate Selected Objects"
                     >
                       <Copy size={13} className="text-cyan-400" />
@@ -528,7 +702,7 @@ export function EditorLayout() {
                     </button>
                     <button
                       onClick={() => deleteSelection()}
-                      className="px-2 py-1 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer active:scale-95 transition-all"
+                      className="px-2 py-1 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer active:scale-95 transition-all shrink-0"
                       title="Delete Selected Objects"
                     >
                       <Trash2 size={13} />
@@ -536,7 +710,7 @@ export function EditorLayout() {
                     </button>
                     <button
                       onClick={() => selectObject(null)}
-                      className="p-1 rounded-xl text-gray-400 hover:text-white cursor-pointer active:scale-95"
+                      className="p-1 rounded-xl text-gray-400 hover:text-white cursor-pointer active:scale-95 shrink-0"
                       title="Clear Selection"
                     >
                       <X size={14} />
@@ -554,7 +728,50 @@ export function EditorLayout() {
                   style={{ backgroundImage: 'radial-gradient(#666 1px, transparent 1px)', backgroundSize: '20px 20px' }}
                 ></div>
               )}
+
+              {/* View Mode Toggle: Editor vs Preview (Floating at Top Center of Viewport on Desktop ONLY - never overlaps mobile editor nav!) */}
+              <div 
+                id="view-mode-toggle-container"
+                className="hidden md:flex absolute top-3 left-1/2 -translate-x-1/2 z-40 items-center bg-[#131317]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1 shadow-2xl pointer-events-auto ring-1 ring-black/50"
+              >
+                <button
+                  id="view-mode-editor-btn"
+                  onClick={() => setPreviewMode(false)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none active:scale-95",
+                    !isPreviewMode
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-500/40"
+                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                  )}
+                  title="Editor Mode: Full workspace with transform gizmos, scene hierarchy, and inspector"
+                >
+                  <Edit3 size={13} />
+                  <span>Editor</span>
+                </button>
+                <button
+                  id="view-mode-preview-btn"
+                  onClick={() => setPreviewMode(true)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none active:scale-95",
+                    isPreviewMode
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/40 ring-1 ring-emerald-400/50"
+                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                  )}
+                  title="Preview Mode: Simulate how end users experience the AR scene without leaving the workspace"
+                >
+                  <Camera size={13} />
+                  <span>Preview</span>
+                </button>
+              </div>
+
               <Viewport />
+
+              {/* Floating Animation Controller Overlay */}
+              {!isPreviewMode && showAnimationController && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[94%] sm:w-full pointer-events-auto shadow-2xl">
+                  <AnimationControllerPanel onClose={() => setShowAnimationController(false)} />
+                </div>
+              )}
             </div>
 
             {/* Desktop Right Edge Uncollapse Button (When Right Panel is Collapsed) */}
@@ -634,15 +851,85 @@ export function EditorLayout() {
         </div>
       </div>
 
-      {/* Mobile Touch-Optimized Navigation Dock (Optimized for Portrait and Landscape) */}
+      {/* Mobile Touch-Optimized Navigation Dock (Scrollable with Horizontal Drag/Touch) */}
       {isMobile && !isPreviewMode && (
-        <nav 
-          aria-label="Mobile Navigation Dock"
-          className={cn(
-            "bg-[#111114]/95 backdrop-blur-xl border-t border-[#26262B] flex items-center justify-around overflow-x-auto overflow-y-hidden no-scrollbar px-2 gap-1 z-40 shrink-0 safe-area-inset-bottom scroll-smooth",
-            isLandscape ? "h-12" : "h-14"
+        <div className="relative w-full shrink-0 z-40 select-none">
+          {/* Scroll Left Chevron Hint Button */}
+          {canScrollLeft && (
+            <button
+              onClick={() => scrollNav('left')}
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-50 w-7 h-7 rounded-full bg-black/85 hover:bg-black text-white flex items-center justify-center border border-white/20 shadow-xl backdrop-blur-md cursor-pointer transition-all active:scale-90"
+              title="Scroll Left"
+            >
+              <ChevronLeft size={16} />
+            </button>
           )}
-        >
+
+          {/* Scroll Right Chevron Hint Button */}
+          {canScrollRight && (
+            <button
+              onClick={() => scrollNav('right')}
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-50 w-7 h-7 rounded-full bg-black/85 hover:bg-black text-white flex items-center justify-center border border-white/20 shadow-xl backdrop-blur-md cursor-pointer transition-all active:scale-90"
+              title="Scroll Right"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
+
+          <nav 
+            ref={bottomNavRef}
+            aria-label="Mobile Navigation Dock"
+            className={cn(
+              "bg-[#111114]/98 backdrop-blur-xl border-t border-[#26262B] flex items-center justify-start overflow-x-auto overflow-y-hidden px-3 gap-2 shrink-0 safe-area-inset-bottom touch-pan-x w-full select-none scrollbar-none",
+              isLandscape ? "h-12" : "h-15"
+            )}
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}
+            onPointerDown={handleNavPointerDown}
+            onPointerMove={handleNavPointerMove}
+            onPointerUp={handleNavPointerUp}
+            onPointerCancel={handleNavPointerUp}
+            onWheel={(e) => {
+              if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                e.currentTarget.scrollLeft += e.deltaY;
+              }
+            }}
+          >
+            {/* View Mode Toggle Pill (Editor / Preview) */}
+            <div className="flex items-center bg-[#1A1A22] p-0.5 rounded-xl border border-white/10 shrink-0 shadow-inner">
+              <button
+                id="mobile-nav-editor-toggle-btn"
+                onClick={() => setPreviewMode(false)}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95",
+                  !isPreviewMode 
+                    ? "bg-blue-600 text-white shadow font-extrabold" 
+                    : "text-gray-400 hover:text-white"
+                )}
+                title="Editor Mode: 3D scene editing and authoring"
+              >
+                <Box size={13} />
+                <span>Editor</span>
+              </button>
+              <button
+                id="mobile-nav-preview-toggle-btn"
+                onClick={() => setPreviewMode(true)}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95",
+                  isPreviewMode 
+                    ? "bg-emerald-600 text-white shadow font-extrabold" 
+                    : "text-gray-400 hover:text-white"
+                )}
+                title="Preview Mode: Live AR simulation as experienced by end users"
+              >
+                <Camera size={13} />
+                <span>Preview</span>
+              </button>
+            </div>
+            <div className="h-6 w-px bg-white/10 shrink-0" />
           {/* Multi-Object Selection Mode Toggle */}
           <button
             onClick={() => {
@@ -717,25 +1004,10 @@ export function EditorLayout() {
             <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Scale</span>
           </button>
 
-          {/* Snap Alignment Toggle */}
-          <button
-            onClick={() => {
-              const next = !gridSnapEnabled;
-              setGridSnapEnabled(next);
-              setRotationSnapEnabled(next);
-              useEditorStore.getState().addToast(next ? 'Snapping enabled' : 'Snapping disabled');
-            }}
-            className={cn(
-              "flex flex-col items-center justify-center min-w-[48px] min-h-[44px] py-1 px-2 rounded-xl transition-all cursor-pointer shrink-0 select-none active:scale-95",
-              gridSnapEnabled
-                ? "bg-cyan-600/25 text-cyan-400 font-bold border border-cyan-500/40"
-                : "text-gray-400 hover:text-white"
-            )}
-            title={gridSnapEnabled ? "Snapping is ON (tap to disable)" : "Snapping is OFF (tap to enable)"}
-          >
-            <Magnet size={isLandscape ? 15 : 18} />
-            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Snap</span>
-          </button>
+          {/* Snap Alignment & Advertising Grid Control */}
+          <div className="flex items-center shrink-0">
+            <SnapToGridMenu direction="up" compact={true} align="center" />
+          </div>
 
           {/* Prominent Asset Browser / Add Asset Trigger */}
           <button
@@ -773,6 +1045,16 @@ export function EditorLayout() {
             <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Optimize</span>
           </button>
 
+          {/* Onboarding Guide Trigger on Mobile */}
+          <button
+            onClick={() => useEditorStore.getState().setIsOnboardingModalOpen(true)}
+            className="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] py-1 px-2 rounded-xl text-amber-400 hover:text-amber-300 transition-all cursor-pointer shrink-0 select-none active:scale-95"
+            title="Interactive WebAR Guide & Onboarding (Turn On/Off)"
+          >
+            <BookOpen size={isLandscape ? 15 : 18} />
+            <span className="text-[9px] sm:text-[10px] mt-0.5 whitespace-nowrap">Guide</span>
+          </button>
+
           {/* Publish Trigger (Always visible and accessible on mobile) */}
           <button
             onClick={() => setShowPublishModal(true)}
@@ -803,6 +1085,29 @@ export function EditorLayout() {
             </button>
           </div>
         </nav>
+        </div>
+      )}
+
+      {/* Mobile Floating Preview Controller when in Preview Mode */}
+      {isMobile && isPreviewMode && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex items-center gap-2.5 bg-[#111114]/95 backdrop-blur-2xl border border-emerald-500/40 px-4 py-2 rounded-2xl shadow-2xl ring-1 ring-black/60 select-none animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>AR Preview Mode</span>
+          </div>
+          <div className="h-4 w-px bg-white/20" />
+          <button
+            id="mobile-exit-preview-btn"
+            onClick={() => setPreviewMode(false)}
+            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/30 cursor-pointer active:scale-95 transition-all"
+          >
+            <Edit3 size={13} />
+            <span>Return to Editor</span>
+          </button>
+        </div>
       )}
 
       {/* Mobile Drawer (Portrait: Bottom Sheet, Landscape: Side Overlay Sheet) */}
@@ -943,6 +1248,9 @@ export function EditorLayout() {
 
       {/* Centralized Scene Manager Modal (Create, Rename, Delete) */}
       <SceneManagerModal />
+
+      {/* Accessible Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal />
 
       {/* Global Toast Notifications Banner */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm">

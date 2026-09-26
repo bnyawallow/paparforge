@@ -29,13 +29,20 @@ export function GlassCard({ className, childrenClassName, variant = 'default', b
     accent: "bg-emerald-500/20 border-emerald-400/30 text-emerald-50 shadow-[0_8px_32px_0_rgba(16,185,129,0.2)]",
   };
 
+  const isFlexCol = className?.includes('flex-col');
   const hasFlex = className?.includes('flex') || className?.includes('inline-flex');
 
   return (
     <div className={cn(baseClasses, blurClasses[blur], variantClasses[variant], className)} {...props}>
       {/* Subtle top inner shadow/highlight effect typical of glassmorphism */}
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-2xl"></div>
-      <div className={cn("relative z-10", hasFlex && "flex items-center gap-2", childrenClassName)}>{children}</div>
+      <div className={cn(
+        "relative z-10 w-full h-full min-h-0",
+        hasFlex && (isFlexCol ? "flex flex-col flex-1" : "flex items-center gap-2"),
+        childrenClassName
+      )}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -128,7 +135,7 @@ export function GlassModal({ isOpen, onClose, title, children, className, maxWid
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 1, y: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className={cn("pointer-events-auto w-full max-h-[90vh] flex flex-col my-auto", maxWidth)}
+            className={cn("pointer-events-auto w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col min-h-0 my-auto overflow-hidden", maxWidth)}
             onPointerDown={(e) => {
               e.stopPropagation();
               pointerDownOnBackdropRef.current = false;

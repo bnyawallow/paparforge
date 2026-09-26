@@ -9,6 +9,7 @@ import {
   Box, 
   Image as ImageIcon, 
   Smile,
+  Scan,
   Link2, 
   Type, 
   Youtube,
@@ -69,6 +70,7 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
     groupSelection,
     duplicateSelection,
     ungroupObject,
+    ungroupSelection,
     moveObject, 
     updateObject,
     addObject,
@@ -132,13 +134,14 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
   const [filterType, setFilterType] = useState<'All' | '2D HUD' | '3D Scene'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
-  const handleAddTarget = (type: 'image' | 'face') => {
+  const handleAddTarget = (type: 'image' | 'face' | 'surface') => {
     if (isPreviewMode) return;
     const targetId = uuidv4();
     const isFace = type === 'face';
+    const isSurface = type === 'surface';
     const newTarget: SceneObject = {
       id: targetId,
-      name: 'AR Target',
+      name: isFace ? 'Face Target' : (isSurface ? 'Surface Target' : 'AR Target'),
       type: 'imageTarget',
       position: [0, 0, 0],
       rotation: [0, 0, 0],
@@ -149,14 +152,23 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
       parentId: null,
       properties: {
         targetType: type,
-        physicalWidth: isFace ? undefined : 0.1,
-        textureUrl: isFace ? undefined : DEFAULT_ART_POSTER_TEXTURE
+        physicalWidth: (isFace || isSurface) ? undefined : 0.1,
+        textureUrl: (isFace || isSurface) ? undefined : DEFAULT_ART_POSTER_TEXTURE,
+        ...(isSurface ? {
+          surfaceOrientation: 'horizontal',
+          surfaceType: 'floor',
+          placementMethod: 'tap',
+          showReticle: true,
+          reticleStyle: 'modern_ring',
+          surfaceGridSize: 2,
+          showGrid: true,
+        } : {})
       }
     };
     addObject(newTarget);
     updateSettings({ trackingMode: type });
     selectObject(targetId);
-    useEditorStore.getState().addToast(`Added AR Target (${isFace ? 'Face' : 'Image'}) to scene`);
+    useEditorStore.getState().addToast(`Added AR Target (${isFace ? 'Face' : (isSurface ? 'Surface' : 'Image')}) to scene`);
   };
   const { conflictedTargetIds, switchToMultiTargetMode } = useMarkerValidation();
   const [isSceneDropdownOpen, setIsSceneDropdownOpen] = useState(false);
@@ -642,9 +654,10 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
       : false);
 
     const isFaceTarget = obj.type === 'imageTarget' && (obj.properties?.targetType === 'face' || (settings.trackingMode === 'face' && !obj.properties?.targetType));
+    const isSurfaceTarget = obj.type === 'imageTarget' && (obj.properties?.targetType === 'surface' || (settings.trackingMode === 'surface' && !obj.properties?.targetType));
 
     let Icon = Box;
-    if (obj.type === 'imageTarget') Icon = isFaceTarget ? Smile : ImageIcon;
+    if (obj.type === 'imageTarget') Icon = isFaceTarget ? Smile : isSurfaceTarget ? Scan : ImageIcon;
     else if (obj.type === 'group') Icon = Folder;
     else if (obj.type === 'youtube') Icon = Youtube;
     else if (obj.type === 'button') Icon = Link2;
@@ -742,9 +755,11 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
                 ? "text-[#FFD93D]" 
                 : isFaceTarget 
                   ? "text-purple-400 font-bold" 
-                  : obj.type === 'imageTarget' 
-                    ? "text-blue-400 font-bold" 
-                    : "text-[#777] group-hover:text-white"
+                  : isSurfaceTarget
+                    ? "text-emerald-400 font-bold"
+                    : obj.type === 'imageTarget' 
+                      ? "text-blue-400 font-bold" 
+                      : "text-[#777] group-hover:text-white"
             )} 
           />
           
@@ -1244,26 +1259,31 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
         )}
 
         {/* Selection context actions (Group / Ungroup) */}
-        {(!isPreviewMode && (selectedObjectIds.length > 1 || (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas')))) && (
+        {(!isPreviewMode && (
+          selectedObjectIds.length > 1 || 
+          (selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas')) ||
+          selectedObjectIds.some(id => objects[id]?.type === 'group' || objects[id]?.type === 'hudCanvas')
+        )) && (
           <div className={cn("p-2 border-b flex gap-1.5 shrink-0 animate-in fade-in slide-in-from-top-1 duration-100 transition-colors duration-200", t.isLight ? 'bg-gray-100 border-gray-200' : 'bg-[#1a1a1a] border-[#2A2A2A]')}>
             {selectedObjectIds.length > 1 && (
               <button
                 onClick={() => groupSelection()}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-blue-600/25 hover:bg-blue-600/35 border border-blue-500/35 text-blue-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                title="Group selected elements together"
+                title="Group selected elements together into a single manageable entity (Ctrl+G / G)"
               >
                 <Folder size={11} className="shrink-0" />
-                <span>Group ({selectedObjectIds.length})</span>
+                <span>Group ({selectedObjectIds.length}) [G]</span>
               </button>
             )}
-            {selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas') && (
+            {((selectedObjectId && (objects[selectedObjectId]?.type === 'group' || objects[selectedObjectId]?.type === 'hudCanvas')) ||
+              selectedObjectIds.some(id => objects[id]?.type === 'group' || objects[id]?.type === 'hudCanvas')) && (
               <button
-                onClick={() => ungroupObject(selectedObjectId)}
+                onClick={() => ungroupSelection()}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-amber-600/25 hover:bg-amber-600/35 border border-amber-500/35 text-amber-300 rounded text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                title="Dissolve group back to individual entities"
+                title="Dissolve group container back to individual entities (Ctrl+Shift+G / Shift+G)"
               >
                 <FolderMinus size={11} className="shrink-0" />
-                <span>Ungroup</span>
+                <span>Ungroup [⇧G]</span>
               </button>
             )}
           </div>
@@ -1538,6 +1558,7 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
         {(() => {
           const currentTrackingMode = settings.trackingMode || 'image';
           const isFaceTracking = currentTrackingMode === 'face' || Object.values(objects).some((o: any) => o?.type === 'imageTarget' && o?.properties?.targetType === 'face');
+          const isSurfaceTracking = currentTrackingMode === 'surface' || Object.values(objects).some((o: any) => o?.type === 'imageTarget' && o?.properties?.targetType === 'surface');
           const isSingleTargetMode = (settings.targetMode || 'single') === 'single';
           const targetCount = Object.values(objects).filter((o: any) => o && o.type === 'imageTarget').length;
 
@@ -1550,6 +1571,11 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
               isAddTargetDisabled = true;
               disabledReason = 'Scenes with face tracking can only have a single face target.';
             }
+          } else if (isSurfaceTracking) {
+            if (targetCount >= 1) {
+              isAddTargetDisabled = true;
+              disabledReason = 'Scenes with surface tracking use a single environment anchor target.';
+            }
           } else {
             if (isSingleTargetMode && targetCount >= 1) {
               isAddTargetDisabled = true;
@@ -1560,7 +1586,7 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
           return (
             <div className="p-2 border-t border-[#2A2A2A] bg-[#181818] shrink-0 relative flex flex-col gap-1.5">
               {/* If in Multi-Target mode and image tracking, button directly adds Image Target */}
-              {!isFaceTracking && !isSingleTargetMode ? (
+              {!isFaceTracking && !isSurfaceTracking && !isSingleTargetMode ? (
                 <button
                   onClick={() => {
                     if (isPreviewMode) return;
@@ -1588,6 +1614,8 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
                     }
                     if (isFaceTracking) {
                       handleAddTarget('face');
+                    } else if (isSurfaceTracking) {
+                      handleAddTarget('surface');
                     } else {
                       handleAddTarget('image');
                     }
@@ -1597,7 +1625,9 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
                     "w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none",
                     isAddTargetDisabled
                       ? "bg-[#222224] border border-[#333336] text-gray-500 opacity-60 cursor-not-allowed"
-                      : "bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 border border-blue-500/40 hover:border-blue-400 text-white cursor-pointer shadow-sm"
+                      : isSurfaceTracking
+                        ? "bg-gradient-to-r from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 hover:to-teal-600/50 border border-emerald-500/40 hover:border-emerald-400 text-white cursor-pointer shadow-sm"
+                        : "bg-gradient-to-r from-blue-600/30 to-purple-600/30 hover:from-blue-600/50 hover:to-purple-600/50 border border-blue-500/40 hover:border-blue-400 text-white cursor-pointer shadow-sm"
                   )}
                   title={isAddTargetDisabled ? disabledReason : "Add target to scene"}
                 >
@@ -1605,12 +1635,12 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
                     {isAddTargetDisabled ? (
                       <Lock size={13} className="text-gray-500" />
                     ) : (
-                      <Plus size={14} className="text-blue-400 stroke-[3]" />
+                      <Plus size={14} className={isSurfaceTracking ? "text-emerald-400 stroke-[3]" : "text-blue-400 stroke-[3]"} />
                     )}
-                    <span>{isFaceTracking ? 'Add Face Target' : 'Add Image Target'}</span>
+                    <span>{isFaceTracking ? 'Add Face Target' : isSurfaceTracking ? 'Add Surface Target' : 'Add Image Target'}</span>
                   </div>
                   <span className="text-[9px] px-1.5 py-0.2 rounded bg-gray-800 text-gray-400 font-normal border border-white/5">
-                    {isFaceTracking ? 'Face (1/1 Max)' : 'Single (1/1)'}
+                    {isFaceTracking ? 'Face (1/1 Max)' : isSurfaceTracking ? 'Surface (1/1)' : 'Single (1/1)'}
                   </span>
                 </button>
               )}
@@ -1622,6 +1652,11 @@ export function HierarchyPanel({ width, onClose, hideHeader = false }: { width?:
                     <span className="flex items-center gap-1 text-purple-400/90 font-medium">
                       <Smile size={10} className="text-purple-400" />
                       <span>Face Tracking Scene (1 Target Max)</span>
+                    </span>
+                  ) : isSurfaceTracking ? (
+                    <span className="flex items-center gap-1 text-emerald-400/90 font-medium">
+                      <Scan size={10} className="text-emerald-400" />
+                      <span>Surface Tracking Scene (Floor/Wall)</span>
                     </span>
                   ) : isSingleTargetMode && targetCount >= 1 ? (
                     <>

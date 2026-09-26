@@ -140,9 +140,21 @@ export function CanvaHeader({
         </div>
       </div>
 
-      {/* Filter Chips Sub-Bar (If available for active category) */}
+      {/* Filter Chips Sub-Bar (If available for active category - Scrollable with touch and wheel) */}
       {filterChips.length > 0 && onSelectFilterChip && (
-        <div className="px-5 py-2 border-t border-white/5 bg-[#0F0F14] flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+        <div 
+          className="px-5 py-2 border-t border-white/5 bg-[#0F0F14] flex items-center gap-1.5 overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x select-none"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}
+          onWheel={(e) => {
+            if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+              e.currentTarget.scrollLeft += e.deltaY;
+            }
+          }}
+        >
           {filterChips.map((chip) => {
             const isSelected = activeFilterChip === chip;
             return (

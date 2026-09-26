@@ -151,7 +151,8 @@ export function CameraController({
         break;
       case 'X':
       case 'Right':
-        // Right view looking along +X
+      case 'Side':
+        // Right / Side view looking along +X
         destPos.set(currentTarget.x + dist, currentTarget.y, currentTarget.z);
         destUp.set(0, 0, 1);
         break;
@@ -161,11 +162,13 @@ export function CameraController({
         destPos.set(currentTarget.x - dist, currentTarget.y, currentTarget.z);
         destUp.set(0, 0, 1);
         break;
+      case 'Isometric':
+      case 'ISO':
       case '3D':
       default:
         // 3D Perspective Isometric view
-        const d = dist * 0.707;
-        destPos.set(currentTarget.x, currentTarget.y - d, currentTarget.z + d);
+        const d = dist * 0.577;
+        destPos.set(currentTarget.x + d, currentTarget.y - d, currentTarget.z + d);
         destUp.set(0, 0, 1);
         break;
     }
@@ -260,16 +263,17 @@ export function CameraController({
 
     const onStart = () => {
       isAnimatingRef.current = false;
-      if (activeAxisView !== '3D') {
-        onResetTo3D?.();
-      }
+      // Note: Do NOT call onResetTo3D() here. In Top, Front, Side, and other planar views,
+      // the camera is configured for 2D panning and zooming only (orbit rotation disabled).
+      // Panning or zooming within Top/Front/Side must maintain the planar orientation.
+      // Switching back to 3D Orbit is done deliberately via Isometric / 3D Orbit controls.
     };
 
     controls.addEventListener('start', onStart);
     return () => {
       controls.removeEventListener('start', onStart);
     };
-  }, [orbitControlsRef, activeAxisView, onResetTo3D]);
+  }, [orbitControlsRef]);
 
   // Per-frame smooth interpolation loop
   useFrame(() => {

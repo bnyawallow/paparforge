@@ -171,7 +171,7 @@ export function ViewerLayout() {
         src={blobUrl}
         className="w-full h-full border-none"
         title="AR Experience"
-        allow="camera; microphone; accelerometer; gyroscope; magnetometer; xr-spatial-tracking"
+        allow="camera; microphone; accelerometer; gyroscope; magnetometer; xr-spatial-tracking; xr; display-capture"
       />
     </div>
   );

@@ -375,7 +375,7 @@ OPTION B: ZapWorks CLI Deployment
    zapworks publish
 
 ====================================================================
-Built with ARForge WebAR Studio
+Built with papAR Forge WebAR Studio
 `;
 
   zip.file('index.html', zapparHtml);

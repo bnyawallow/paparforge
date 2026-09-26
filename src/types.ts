@@ -33,6 +33,9 @@ export interface ActionData {
     | 'playModelAnimation' 
     | 'pauseModelAnimation'
     | 'stopModelAnimation'
+    | 'seekModelAnimation'
+    | 'toggleAnimationPlayPause'
+    | 'setAnimationSpeed'
     | 'youtubePlay'
     | 'youtubePause'
     | 'youtubeTogglePlay'
@@ -106,6 +109,9 @@ export interface EventData {
     | 'onImageTargetLost'
     | 'onFaceTargetFound'
     | 'onFaceTargetLost'
+    | 'onSurfaceFound'
+    | 'onSurfaceLost'
+    | 'onSurfacePlaced'
     | 'onTargetFound'
     | 'onTargetLost'
     | 'onARSessionStart'
@@ -129,6 +135,7 @@ export interface EventData {
     | 'onMediaPlay'
     | 'onMediaPause'
     | 'onMediaEnd'
+    | 'onAnimationStart'
     | 'onAnimationComplete'
     | 'onVisible'
     | 'onHidden';
@@ -149,6 +156,7 @@ export interface SceneObject {
   locked?: boolean;
   children: string[]; // IDs of child objects
   parentId: string | null;
+  tags?: string[];
   properties: Record<string, any>;
   states?: StateData[];
   events?: EventData[];
@@ -161,13 +169,23 @@ export interface Asset {
   name: string;
   type: AssetType;
   url: string;
+  thumbnail?: string;
+  previewUrl?: string;
+  sourceUrl?: string;
 }
 
 export interface ProjectSettings {
   projectName: string;
   imageTargetName: string | null;
-  trackingMode?: 'image' | 'face' | 'world' | 'none';
+  trackingMode?: 'image' | 'face' | 'surface' | 'world' | 'none';
   targetMode?: 'single' | 'multi';
+  surfaceOrientation?: 'horizontal' | 'vertical' | 'any';
+  surfaceType?: 'floor' | 'table' | 'wall' | 'any';
+  surfacePlacementMethod?: 'tap' | 'reticle' | 'instant';
+  surfaceReticleStyle?: 'modern_ring' | 'cyber_brackets' | 'minimal_dot' | 'crosshair';
+  surfaceShowGrid?: boolean;
+  surfaceGridSize?: number;
+  surfaceAnchorHeight?: number;
   faceAnchor?: 'head' | 'nose' | 'forehead' | 'chin' | 'leftEye' | 'rightEye' | 'mouth';
   showFaceMesh?: boolean;
   showFaceOccluder?: boolean;
@@ -210,6 +228,8 @@ export interface ProjectSettings {
   hdrPreset?: 'studio' | 'apartment' | 'lobby' | 'city' | 'forest' | 'sunset' | 'warehouse' | 'park';
   hdrEnvironmentUrl?: string;
   hdrBackgroundEnabled?: boolean;
+  depthSensingEnabled?: boolean;
+  depthOcclusionMode?: 'auto' | 'webxr' | 'screenSpace';
   collapsedHierarchyIds?: Record<string, boolean>;
 }
 
@@ -241,13 +261,16 @@ export type TemplateType =
   | 'luxury_fashion' 
   | 'real_estate' 
   | 'business_card' 
-  | 'educational';
+  | 'educational'
+  | 'face_filter_mask'
+  | 'surface_placement';
 
 export interface TransformCalloutState {
   active: boolean;
   objectId: string;
   objectName: string;
   mode: 'translate' | 'rotate' | 'scale';
+  space?: 'local' | 'world';
   axis?: string;
   selectedCount?: number;
   x: number;
@@ -279,6 +302,9 @@ export interface EditorState {
   isMultiSelectMode: boolean;
   setMultiSelectMode: (enabled: boolean) => void;
   toggleMultiSelectMode: () => void;
+  isBoxSelectToolActive?: boolean;
+  setBoxSelectToolActive?: (enabled: boolean) => void;
+  toggleBoxSelectTool?: () => void;
   deleteSelection: () => void;
   lastSelectedTargetId?: string | null;
   setLastSelectedTargetId?: (id: string | null) => void;
@@ -287,6 +313,8 @@ export interface EditorState {
   transformMode: 'translate' | 'rotate' | 'scale';
   transformSpace: 'local' | 'world';
   transformGizmoEnabled: boolean;
+  activeTransformAxis: string | null;
+  setActiveTransformAxis: (axis: string | null) => void;
   lockedAxes: { x: boolean; y: boolean; z: boolean };
   toggleLockAxis: (axis: 'x' | 'y' | 'z') => void;
   setLockAxis: (axis: 'x' | 'y' | 'z', locked: boolean) => void;
@@ -321,6 +349,9 @@ export interface EditorState {
   deleteVersionSnapshot: (versionId: string) => void;
 
   // Grid and Transform Snapping
+  surfaceSnapEnabled: boolean;
+  setSurfaceSnapEnabled: (enabled: boolean) => void;
+  toggleSurfaceSnap: () => void;
   gridSnapEnabled: boolean;
   gridSnapIncrement: number; // in meters (units)
   rotationSnapEnabled: boolean;
@@ -368,10 +399,39 @@ export interface EditorState {
 
   cameraType: 'perspective' | 'orthographic';
   setCameraType: (type: 'perspective' | 'orthographic') => void;
+  cameraOrbitLocked: boolean;
+  setCameraOrbitLocked: (locked: boolean) => void;
+  toggleCameraOrbitLock: () => void;
   wireframeEnabled: boolean;
   setWireframeEnabled: (enabled: boolean) => void;
+  selectedModelWireframeEnabled: boolean;
+  setSelectedModelWireframeEnabled: (enabled: boolean) => void;
+  visualizationMode: 'standard' | 'selectedWireframe' | 'fullWireframe';
+  setVisualizationMode: (mode: 'standard' | 'selectedWireframe' | 'fullWireframe') => void;
   collisionDebuggerEnabled: boolean;
   setCollisionDebuggerEnabled: (enabled: boolean) => void;
+
+  // Vehicle Physics & Driving Simulation State
+  isDrivingActive: boolean;
+  activeDrivingVehicleId: string | null;
+  vehicleDrivingTelemetry: {
+    speed: number;
+    rpm: number;
+    gear: string;
+    isColliding: boolean;
+    headlights: boolean;
+    obstacleName?: string;
+  };
+  setDrivingActive: (active: boolean, vehicleId?: string | null) => void;
+  toggleDrivingActive: (vehicleId?: string | null) => void;
+  setVehicleDrivingTelemetry: (telemetry: Partial<{
+    speed: number;
+    rpm: number;
+    gear: string;
+    isColliding: boolean;
+    headlights: boolean;
+    obstacleName?: string;
+  }>) => void;
   editorTheme: 'dark' | 'light';
   toggleEditorTheme: () => void;
   
@@ -386,6 +446,8 @@ export interface EditorState {
   setDeviceSimulationPreset: (preset: string | null) => void;
   isUIOptimizerOpen: boolean;
   setIsUIOptimizerOpen: (open: boolean) => void;
+  isOnboardingModalOpen: boolean;
+  setIsOnboardingModalOpen: (open: boolean) => void;
 
   // Global Loading State for Projects & Assets
   globalLoading: GlobalLoadingState | null;
@@ -400,9 +462,10 @@ export interface EditorState {
     rootObjects: string[];
     cameraPosition?: [number, number, number];
     cameraTarget?: [number, number, number];
+    targetType?: 'image' | 'face' | 'surface' | 'world';
   }>;
   updateSceneCamera: (sceneId: string, position: [number, number, number], target: [number, number, number]) => void;
-  createScene: (name: string, targetMode?: 'single' | 'multi', physicalWidth?: number) => void;
+  createScene: (name: string, trackingMode?: 'image' | 'face' | 'surface' | 'world', targetMode?: 'single' | 'multi', physicalWidth?: number) => void;
   loadScene: (sceneId: string) => void;
   clearScene: () => void;
   deleteScene: (sceneId: string) => void;
@@ -411,6 +474,7 @@ export interface EditorState {
     type: 'create' | 'rename' | 'delete' | null;
     value?: string;
     sceneId?: string;
+    trackingMode?: 'image' | 'face' | 'surface' | 'world';
     targetMode?: 'single' | 'multi';
     physicalWidth?: number;
   };
@@ -475,6 +539,19 @@ export interface EditorState {
   selectObjects: (ids: string[]) => void;
   groupSelection: () => void;
   ungroupObject: (id: string) => void;
+  ungroupSelection: () => void;
+  mobileMeshOptimizationEnabled: boolean;
+  setMobileMeshOptimizationEnabled: (enabled: boolean) => void;
+  optimizeAllSceneMeshesForMobile: () => { count: number; drawCallsSaved: number; memorySavedMb: number };
+  batchConsolidateSceneForMobile: () => { 
+    consolidatedMaterials: number; 
+    optimizedMeshes: number; 
+    prunedObjects: number; 
+    memorySavedMb: number; 
+    drawCallsSaved: number 
+  };
+  isShortcutsModalOpen: boolean;
+  setIsShortcutsModalOpen: (open: boolean) => void;
   updateSettings: (updates: Partial<ProjectSettings>) => void;
   setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => void;
   setTransformSpace: (space: 'local' | 'world') => void;
@@ -509,6 +586,9 @@ export interface EditorState {
   activeTransitions: Record<string, { targetStateId: string; duration: number; easing: string; triggerTime: number; fromPos: Vector3Data; fromRot: Vector3Data; fromScl: Vector3Data }>;
   triggerStateTransition: (objectId: string, targetStateId: string, duration: number, easing: string) => void;
   
+  // Template actions
+  applyTemplate: (templateType: TemplateType) => void;
+
   // History actions
   undo: () => void;
   redo: () => void;

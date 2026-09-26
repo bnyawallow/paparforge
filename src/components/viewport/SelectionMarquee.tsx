@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -8,27 +8,50 @@ export function SelectionMarquee({ orbitControlsRef }: { orbitControlsRef: React
   const selectObjects = useEditorStore(state => state.selectObjects);
   const objects = useEditorStore(state => state.objects);
   const isMultiSelectMode = useEditorStore(state => state.isMultiSelectMode);
-  const setMultiSelectMode = useEditorStore(state => state.setMultiSelectMode);
-  
-  const [box, setBox] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
+  const isBoxSelectToolActive = useEditorStore(state => state.isBoxSelectToolActive);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+
+  const [candidateIds, setCandidateIds] = useState<string[]>([]);
+  const [isMarqueeActive, setIsMarqueeActive] = useState<boolean>(false);
   
   const boxRef = useRef<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
-  
-  // HTML overlay for the marquee
   const overlayRef = useRef<HTMLDivElement | null>(null);
-  
+  const badgeRef = useRef<HTMLDivElement | null>(null);
+
+  // Set up screen-space DOM overlay for the selection marquee
   useEffect(() => {
-    // Create an overlay div
     const overlay = document.createElement('div');
     overlay.style.position = 'absolute';
-    overlay.style.border = '1px solid rgba(80, 150, 255, 0.8)';
-    overlay.style.backgroundColor = 'rgba(80, 150, 255, 0.2)';
+    overlay.style.border = '1.5px solid #00e5ff';
+    overlay.style.backgroundColor = 'rgba(0, 229, 255, 0.12)';
+    overlay.style.boxShadow = '0 0 16px rgba(0, 229, 255, 0.25), inset 0 0 12px rgba(0, 229, 255, 0.08)';
     overlay.style.pointerEvents = 'none';
     overlay.style.display = 'none';
     overlay.style.zIndex = '9999';
+    overlay.style.borderRadius = '4px';
+
+    const badge = document.createElement('div');
+    badge.style.position = 'absolute';
+    badge.style.bottom = '-26px';
+    badge.style.left = '50%';
+    badge.style.transform = 'translateX(-50%)';
+    badge.style.backgroundColor = '#09090b';
+    badge.style.color = '#38bdf8';
+    badge.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+    badge.style.borderRadius = '9999px';
+    badge.style.padding = '2px 8px';
+    badge.style.fontSize = '10px';
+    badge.style.fontFamily = 'monospace';
+    badge.style.fontWeight = 'bold';
+    badge.style.whiteSpace = 'nowrap';
+    badge.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.6)';
+    badge.innerText = 'Selecting 0 objects';
+    overlay.appendChild(badge);
+
     gl.domElement.parentElement?.appendChild(overlay);
     overlayRef.current = overlay;
-    
+    badgeRef.current = badge;
+
     return () => {
       if (overlay.parentElement) {
         overlay.parentElement.removeChild(overlay);
@@ -39,18 +62,22 @@ export function SelectionMarquee({ orbitControlsRef }: { orbitControlsRef: React
   useEffect(() => {
     const canvas = gl.domElement;
     let isDragging = false;
-    let hasStartedMarquee = false;
+    let hasStarted = false;
 
     const onPointerDown = (e: PointerEvent) => {
-      // Only start marquee if Shift is held AND we click on empty space or we are forcing multi-select
-      if (e.shiftKey) {
+      // Activate on left click if box select tool is active OR Shift key is held
+      if (e.button !== 0) return;
+      const shouldTrigger = e.shiftKey || isBoxSelectToolActive || isMultiSelectMode;
+      
+      if (shouldTrigger) {
         isDragging = true;
-        hasStartedMarquee = true;
+        hasStarted = true;
+        setIsMarqueeActive(true);
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         boxRef.current = { startX: x, startY: y, endX: x, endY: y };
-        
+
         if (orbitControlsRef.current) {
           orbitControlsRef.current.enabled = false;
         }
@@ -58,45 +85,74 @@ export function SelectionMarquee({ orbitControlsRef }: { orbitControlsRef: React
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (isDragging && hasStartedMarquee && boxRef.current) {
+      if (isDragging && hasStarted && boxRef.current) {
         const rect = canvas.getBoundingClientRect();
         boxRef.current.endX = e.clientX - rect.left;
         boxRef.current.endY = e.clientY - rect.top;
-        
+
+        const minX = Math.min(boxRef.current.startX, boxRef.current.endX);
+        const maxX = Math.max(boxRef.current.startX, boxRef.current.endX);
+        const minY = Math.min(boxRef.current.startY, boxRef.current.endY);
+        const maxY = Math.max(boxRef.current.startY, boxRef.current.endY);
+        const width = maxX - minX;
+        const height = maxY - minY;
+
         if (overlayRef.current) {
           overlayRef.current.style.display = 'block';
-          const left = Math.min(boxRef.current.startX, boxRef.current.endX);
-          const top = Math.min(boxRef.current.startY, boxRef.current.endY);
-          const width = Math.abs(boxRef.current.endX - boxRef.current.startX);
-          const height = Math.abs(boxRef.current.endY - boxRef.current.startY);
-          overlayRef.current.style.left = left + 'px';
-          overlayRef.current.style.top = top + 'px';
+          overlayRef.current.style.left = minX + 'px';
+          overlayRef.current.style.top = minY + 'px';
           overlayRef.current.style.width = width + 'px';
           overlayRef.current.style.height = height + 'px';
+        }
+
+        // Live 3D projection test to find candidate objects within bounding box
+        if (width > 4 || height > 4) {
+          const matchingIds = testSceneObjectsInBox(minX, maxX, minY, maxY, rect);
+          setCandidateIds(matchingIds);
+          if (badgeRef.current) {
+            badgeRef.current.innerText = `${matchingIds.length} object${matchingIds.length === 1 ? '' : 's'} in box`;
+          }
         }
       }
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      if (hasStartedMarquee) {
+      if (hasStarted) {
         isDragging = false;
-        hasStartedMarquee = false;
+        hasStarted = false;
+        setIsMarqueeActive(false);
+
         if (overlayRef.current) {
           overlayRef.current.style.display = 'none';
         }
         if (orbitControlsRef.current) {
           orbitControlsRef.current.enabled = true;
         }
-        
-        // compute selection
+
         if (boxRef.current) {
           const width = Math.abs(boxRef.current.endX - boxRef.current.startX);
           const height = Math.abs(boxRef.current.endY - boxRef.current.startY);
-          
-          if (width > 5 && height > 5) {
-            performSelection(boxRef.current);
+
+          if (width > 6 && height > 6) {
+            const rect = canvas.getBoundingClientRect();
+            const minX = Math.min(boxRef.current.startX, boxRef.current.endX);
+            const maxX = Math.max(boxRef.current.startX, boxRef.current.endX);
+            const minY = Math.min(boxRef.current.startY, boxRef.current.endY);
+            const maxY = Math.max(boxRef.current.startY, boxRef.current.endY);
+
+            const finalIds = testSceneObjectsInBox(minX, maxX, minY, maxY, rect);
+            if (finalIds.length > 0) {
+              if (e.shiftKey) {
+                // Additive toggle
+                const combined = new Set([...useEditorStore.getState().selectedObjectIds, ...finalIds]);
+                useEditorStore.getState().selectObjects(Array.from(combined));
+              } else {
+                useEditorStore.getState().selectObjects(finalIds);
+              }
+            }
           }
           boxRef.current = null;
+          setCandidateIds([]);
         }
       }
     };
@@ -110,50 +166,161 @@ export function SelectionMarquee({ orbitControlsRef }: { orbitControlsRef: React
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [gl, camera, scene, orbitControlsRef]);
+  }, [gl, camera, scene, orbitControlsRef, isBoxSelectToolActive, isMultiSelectMode]);
 
-  const performSelection = (box: {startX: number, startY: number, endX: number, endY: number}) => {
-    const rect = gl.domElement.getBoundingClientRect();
-    const minX = Math.min(box.startX, box.endX);
-    const maxX = Math.max(box.startX, box.endX);
-    const minY = Math.min(box.startY, box.endY);
-    const maxY = Math.max(box.startY, box.endY);
-
-    const selectedIds: string[] = [];
+  // Projects each 3D object's 8 corners & center into 2D screen coordinates
+  const testSceneObjectsInBox = (
+    minX: number,
+    maxX: number,
+    minY: number,
+    maxY: number,
+    rect: DOMRect
+  ): string[] => {
+    const matches: string[] = [];
     const state = useEditorStore.getState();
+    const objectList = Object.values(state.objects);
 
-    // To prevent checking thousands of internal meshes, we can iterate over the top-level objects in the store
-    Object.values(state.objects).forEach(obj => {
-      // Find the corresponding 3D object in the scene
-      let sceneObj: THREE.Object3D | undefined;
+    for (const obj of objectList) {
+      if (!obj.visible || obj.locked) continue;
+      if (obj.type === 'hudCanvas' || ['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(obj.type)) continue;
+
+      let found3D: THREE.Object3D | null = null;
       scene.traverse((child) => {
-        if (child.userData?.id === obj.id) {
-          sceneObj = child;
+        if (child.userData?.id === obj.id || child.name === obj.id) {
+          found3D = child;
         }
       });
 
-      if (sceneObj) {
-        // Project object's bounding box center or vertices to screen
-        const boundingBox = new THREE.Box3().setFromObject(sceneObj);
-        const center = new THREE.Vector3();
-        boundingBox.getCenter(center);
-        
-        center.project(camera);
-        
-        // Convert to pixel coordinates
-        const px = (center.x * 0.5 + 0.5) * rect.width;
-        const py = (-(center.y * 0.5) + 0.5) * rect.height;
+      if (!found3D) continue;
 
-        if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
-          selectedIds.push(obj.id);
+      const bbox = new THREE.Box3().setFromObject(found3D);
+      if (bbox.isEmpty()) continue;
+
+      // Check center
+      const center = new THREE.Vector3();
+      bbox.getCenter(center);
+      const projCenter = center.clone().project(camera);
+      const cx = (projCenter.x * 0.5 + 0.5) * rect.width;
+      const cy = (-(projCenter.y * 0.5) + 0.5) * rect.height;
+
+      // Check if center or any of the 8 bounding box corners falls within the selection box
+      let isInside = (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY && projCenter.z <= 1);
+
+      if (!isInside) {
+        const corners = [
+          new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
+          new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
+          new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
+          new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
+          new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
+          new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
+          new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
+          new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
+        ];
+
+        for (const pt of corners) {
+          pt.project(camera);
+          const px = (pt.x * 0.5 + 0.5) * rect.width;
+          const py = (-(pt.y * 0.5) + 0.5) * rect.height;
+          if (px >= minX && px <= maxX && py >= minY && py <= maxY && pt.z <= 1) {
+            isInside = true;
+            break;
+          }
         }
+      }
+
+      if (isInside) {
+        matches.push(obj.id);
+      }
+    }
+
+    return matches;
+  };
+
+  // Render 3D live bounding box highlights for candidate objects in the scene
+  return (
+    <group name="marquee-preview-group">
+      {isMarqueeActive && candidateIds.map(id => {
+        const obj = objects[id];
+        if (!obj) return null;
+
+        return (
+          <CandidateBoundingPreview key={`cand-${id}`} objectId={id} />
+        );
+      })}
+    </group>
+  );
+}
+
+function CandidateBoundingPreview({ objectId }: { objectId: string }) {
+  const { scene } = useThree();
+  const groupRef = useRef<THREE.Group>(null);
+  const wireMeshRef = useRef<THREE.Mesh>(null);
+  const glowMeshRef = useRef<THREE.Mesh>(null);
+  const tempBox = useMemo(() => new THREE.Box3(), []);
+  const tempSize = useMemo(() => new THREE.Vector3(), []);
+  const tempCenter = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(() => {
+    if (!groupRef.current) return;
+    let target: THREE.Object3D | null = null;
+    scene.traverse((child) => {
+      if (child.userData?.id === objectId || child.name === objectId) {
+        target = child;
       }
     });
 
-    if (selectedIds.length > 0) {
-      state.selectObjects([...new Set([...state.selectedObjectIds, ...selectedIds])]);
-    }
-  };
+    if (target) {
+      tempBox.setFromObject(target);
+      if (!tempBox.isEmpty()) {
+        tempBox.getSize(tempSize);
+        tempBox.getCenter(tempCenter);
 
-  return null;
+        groupRef.current.position.copy(tempCenter);
+        if (wireMeshRef.current) {
+          wireMeshRef.current.scale.set(
+            Math.max(0.01, tempSize.x * 1.05),
+            Math.max(0.01, tempSize.y * 1.05),
+            Math.max(0.01, tempSize.z * 1.05)
+          );
+        }
+        if (glowMeshRef.current) {
+          glowMeshRef.current.scale.set(
+            Math.max(0.01, tempSize.x * 1.03),
+            Math.max(0.01, tempSize.y * 1.03),
+            Math.max(0.01, tempSize.z * 1.03)
+          );
+        }
+        groupRef.current.visible = true;
+        return;
+      }
+    }
+    groupRef.current.visible = false;
+  });
+
+  return (
+    <group ref={groupRef} visible={false}>
+      {/* 3D Cyan Glowing Bounding Box Wireframe Preview */}
+      <mesh ref={wireMeshRef}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial 
+          color="#00e5ff" 
+          wireframe 
+          transparent 
+          opacity={0.85} 
+          depthTest={false}
+        />
+      </mesh>
+      {/* Subtle Volumetric Glow Fill */}
+      <mesh ref={glowMeshRef}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial 
+          color="#00e5ff" 
+          transparent 
+          opacity={0.12} 
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
 }

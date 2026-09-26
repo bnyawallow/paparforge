@@ -2,6 +2,12 @@ import { AssetType } from '../../types';
 
 export type CategoryTab = 
   | 'discover'
+  | 'buildings'
+  | 'vehicles'
+  | 'food'
+  | 'furniture'
+  | 'nature'
+  | 'machines'
   | 'architecture'
   | 'primitives'
   | 'media'

@@ -40,7 +40,12 @@ import {
   ChevronRight,
   Filter,
   Armchair,
-  AlertCircle
+  AlertCircle,
+  Building2,
+  Car,
+  UtensilsCrossed,
+  TreePine,
+  Cpu
 } from 'lucide-react';
 import { SketchfabBrowser, CURATED_3D_ARCHIVE } from './SketchfabBrowser';
 import { Asset, AssetType, SceneObject } from '../../types';
@@ -61,6 +66,18 @@ import { BUTTON_TEMPLATES, ButtonTemplate } from '../../lib/buttonTemplates';
 import { PRIMITIVE_TEMPLATES, PrimitiveTemplate } from '../../lib/primitiveTemplates';
 import { MEDIA_WIDGET_TEMPLATES, MediaWidgetTemplate } from '../../lib/mediaTemplates';
 import { ARCHITECTURAL_ASSETS, ArchitecturalAsset } from '../../lib/architecturalAssets';
+import { 
+  ALL_REAL_3D_ASSETS, 
+  Real3DAsset,
+  BUILDING_ASSETS,
+  FOOD_UTENSIL_ASSETS,
+  VEHICLES_ASSETS,
+  FURNITURE_ASSETS,
+  NATURE_ASSETS,
+  MACHINES_ASSETS,
+  ELECTRONICS_ASSETS,
+  HOUSEHOLD_ASSETS
+} from '../../lib/assets';
 import { CategoryTab } from './assetTypes';
 import { CanvaDock } from './CanvaDock';
 import { CanvaHeader } from './CanvaHeader';
@@ -68,7 +85,12 @@ import { DiscoverView, renderButtonPreview, renderPrimitivePreview, renderMediaP
 import { AssetCard } from './AssetCard';
 import { MousePointerClick } from 'lucide-react';
 
-export function renderArchitecturalPreview(asset: ArchitecturalAsset) {
+export const COMBINED_3D_ASSETS: (ArchitecturalAsset | Real3DAsset)[] = [
+  ...ARCHITECTURAL_ASSETS,
+  ...ALL_REAL_3D_ASSETS
+];
+
+export function renderArchitecturalPreview(asset: ArchitecturalAsset | Real3DAsset) {
   return (
     <div 
       className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden rounded-lg bg-[#0d0d12] border border-white/5 group-hover:scale-105 group-hover:border-white/20 transition-all duration-300"
@@ -91,7 +113,7 @@ export function renderArchitecturalPreview(asset: ArchitecturalAsset) {
         className="asset-icon-fallback w-full h-full flex flex-col items-center justify-center"
         style={{ 
           display: asset.thumbnailUrl ? 'none' : 'flex',
-          background: asset.previewGradient || 'radial-gradient(circle, #10b981 0%, #064e3b 100%)' 
+          background: ('previewGradient' in asset && asset.previewGradient) ? asset.previewGradient : (asset.previewColor || 'radial-gradient(circle, #10b981 0%, #064e3b 100%)')
         }}
       >
         <span className="text-3xl drop-shadow-md select-none">{asset.icon}</span>
@@ -293,7 +315,7 @@ const PRESET_MODELS = [
     name: 'Astronaut',
     type: 'model' as AssetType,
     url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Astronaut/screenshot/screenshot.png',
+    thumbnail: 'https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/NeilArmstrong.webp',
     category: 'Characters',
     description: 'Classic zero-gravity space explorer GLB model',
   },
@@ -301,8 +323,8 @@ const PRESET_MODELS = [
     id: 'p-model-car',
     name: 'Toy Retro Car',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/ToyCar/glTF-Binary/ToyCar.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/ToyCar/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/glTF-Binary/ToyCar.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ToyCar/screenshot/screenshot.jpg',
     category: 'Vehicles',
     description: 'Highly detailed vintage toy car GLB model',
   },
@@ -311,25 +333,25 @@ const PRESET_MODELS = [
     name: 'Expressive Robot',
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
-    thumbnail: 'https://threejs.org/files/models/gltf/RobotExpressive/thumbnail.png',
+    thumbnail: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/screenshots/webgl_animation_skinning_morph.jpg',
     category: 'Characters',
     description: 'Robot with animated face panels and joints',
   },
   {
-    id: 'p-model-vase',
-    name: 'Bronze Vase',
+    id: 'p-model-camera',
+    name: 'Vintage Camera',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/VaseBronze/glTF-Binary/VaseBronze.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/VaseBronze/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/AntiqueCamera/glTF-Binary/AntiqueCamera.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/AntiqueCamera/screenshot/screenshot.jpg',
     category: 'Items',
-    description: 'Ancient bronze museum artifact GLB model',
+    description: 'Masterfully textured vintage brass and leather rangefinder camera',
   },
   {
     id: 'p-model-lantern',
     name: 'Vintage Lantern',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Lantern/glTF-Binary/Lantern.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/screenshot/screenshot.jpg',
     category: 'Items',
     description: 'Detailed classic light container GLB model',
   },
@@ -337,8 +359,8 @@ const PRESET_MODELS = [
     id: 'p-model-shoe',
     name: 'E-Comm Sneaker',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/thumbnail.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/glTF-Binary/MaterialsVariantsShoe.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/MaterialsVariantsShoe/screenshot/screenshot.jpg',
     category: 'Items',
     description: 'E-commerce athletic sneaker with material variants',
   },
@@ -346,8 +368,8 @@ const PRESET_MODELS = [
     id: 'p-model-helmet',
     name: 'Damaged Sci-Fi Helmet',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/thumbnail.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/screenshot/screenshot.png',
     category: 'Items',
     description: 'High-poly sci-fi battle-damaged helmet',
   },
@@ -355,8 +377,8 @@ const PRESET_MODELS = [
     id: 'p-model-avocado',
     name: '3D Avocado',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Avocado/glTF-Binary/Avocado.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Avocado/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/screenshot/screenshot.jpg',
     category: 'Food',
     description: 'Photorealistic fresh avocado GLB model',
   },
@@ -364,8 +386,8 @@ const PRESET_MODELS = [
     id: 'p-model-boombox',
     name: 'Retro BoomBox',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/BoomBox/glTF-Binary/BoomBox.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoomBox/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/glTF-Binary/BoomBox.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoomBox/screenshot/screenshot.jpg',
     category: 'Items',
     description: '80s cassette player stereo boombox',
   },
@@ -373,8 +395,8 @@ const PRESET_MODELS = [
     id: 'p-model-duck',
     name: 'Rubber Duck',
     type: 'model' as AssetType,
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Assets/Models/Duck/glTF-Binary/Duck.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/screenshot/screenshot.png',
     category: 'Animals',
     description: 'Yellow bath rubber duck GLB model',
   },
@@ -382,8 +404,8 @@ const PRESET_MODELS = [
     id: 'p-model-fox',
     name: 'Low-Poly Fox',
     type: 'model' as AssetType,
-    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/glTF-Binary/Fox.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Fox/screenshot/screenshot.png',
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/screenshot/screenshot.jpg',
     category: 'Animals',
     description: 'Animated low-poly forest fox character',
   },
@@ -392,7 +414,7 @@ const PRESET_MODELS = [
     name: 'Modern Sheen Chair',
     type: 'model' as AssetType,
     url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/glTF-Binary/SheenChair.glb',
-    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/SheenChair/screenshot/screenshot.png',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SheenChair/screenshot/screenshot.jpg',
     category: 'Furniture',
     description: 'Velvet fabric modern lounge arm chair',
   },
@@ -410,7 +432,7 @@ const PRESET_MODELS = [
     name: 'Wild Stallion Horse',
     type: 'model' as AssetType,
     url: 'https://threejs.org/examples/models/gltf/Horse.glb',
-    thumbnail: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=500&auto=format&fit=crop&q=80',
+    thumbnail: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/screenshots/webgl_morphtargets_horse.jpg',
     category: 'Animals',
     description: 'Galloping wild stallion horse GLB model',
   },
@@ -422,6 +444,24 @@ const PRESET_MODELS = [
     thumbnail: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=500&auto=format&fit=crop&q=80',
     category: 'Animals',
     description: 'Animated flying jungle parrot mesh',
+  },
+  {
+    id: 'p-model-flight-helmet',
+    name: 'Battle Cyber Helmet',
+    type: 'model' as AssetType,
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/screenshot/screenshot.png',
+    category: 'Items',
+    description: 'Aviation flight helmet with visor and microphone',
+  },
+  {
+    id: 'p-model-water-bottle',
+    name: 'Sport Water Bottle',
+    type: 'model' as AssetType,
+    url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb',
+    thumbnail: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/screenshot/screenshot.jpg',
+    category: 'Items',
+    description: 'Hydration stainless steel sports bottle with reflective finish',
   }
 ];
 
@@ -674,7 +714,8 @@ export function AssetBrowser() {
         setActiveTab('discover');
       } else {
         const isValidTab = [
-          'discover', 'elements', 'buttons', 'text-styles', 'ui-kits', 
+          'discover', 'buildings', 'vehicles', 'food', 'furniture', 'nature', 'machines',
+          'architecture', 'elements', 'primitives', 'media', 'buttons', 'text-styles', 'ui-kits', 
           'materials', 'textures', 'audio', 'lighting', 'markers', 
           'sketchfab', 'uploads', 'layouts'
         ].includes(storeAssetBrowserTab);
@@ -799,6 +840,7 @@ export function AssetBrowser() {
         name,
         type,
         url,
+        thumbnail: type === 'image' ? url : undefined,
       };
 
       addAsset(asset);
@@ -934,12 +976,14 @@ export function AssetBrowser() {
         iconType: icon.id,
         properties: {
           iconType: icon.id,
+          modelUrl: icon.modelUrl || '',
+          previewEmoji: icon.previewEmoji || '',
           color: icon.defaultColor,
           secondaryColor: icon.secondaryColor,
           materialStyle: selectedIconMaterialStyle || icon.materialStyle || 'glossy',
         }
       });
-      showToast(`Replaced asset with 3D icon "${icon.name}"`);
+      showToast(`Replaced asset with 3D model icon "${icon.name}"`);
       setReplaceTargetObjectId(null);
       return;
     }
@@ -958,6 +1002,8 @@ export function AssetBrowser() {
       parentId: parentId || null,
       properties: {
         iconType: icon.id,
+        modelUrl: icon.modelUrl || '',
+        previewEmoji: icon.previewEmoji || '',
         color: icon.defaultColor,
         secondaryColor: icon.secondaryColor,
         materialStyle: selectedIconMaterialStyle || icon.materialStyle || 'glossy',
@@ -967,7 +1013,7 @@ export function AssetBrowser() {
     };
 
     addObject(newObj, parentId || undefined);
-    showToast(`Added 3D icon "${newObj.name}" to the scene`);
+    showToast(`Added 3D icon model "${newObj.name}" to the scene`);
     addToRecentAssets({ id: icon.id, name: icon.name, type: '3D Icon', description: icon.description });
     handleAssetAddedSuccess();
   };
@@ -1057,7 +1103,7 @@ export function AssetBrowser() {
     handleAssetAddedSuccess();
   };
 
-  const handleAddArchitecturalAsset = (asset: ArchitecturalAsset) => {
+  const handleAddArchitecturalAsset = (asset: ArchitecturalAsset | Real3DAsset) => {
     playCachedAudio('/sounds/click.wav', false, 0.4);
     const parentId = resolveTargetParentId();
     let arTargetWidth = 5.0; // Default AR target width in 3D viewport units
@@ -1071,7 +1117,7 @@ export function AssetBrowser() {
     const newObj = asset.createObject(newId, arTargetWidth);
     newObj.parentId = parentId || null;
 
-    // Ensure all architectural assets are Z-up with [0,0,0] rotation and clean default scale
+    // Ensure all 3D assets are instantiated with neutral upright rotation [0, 0, 0]
     newObj.rotation = [0, 0, 0];
 
     addObject(newObj, parentId || undefined);
@@ -1590,8 +1636,20 @@ export function AssetBrowser() {
   // Filter chips per category
   const filterChipsForTab = useMemo(() => {
     switch (activeTab) {
+      case 'buildings':
+        return ['All', 'Realistic Buildings', 'Cartoon Buildings', 'Temples & Pagodas', 'Houses & Villas', 'Skyscrapers & Towers', 'Castles & Historic', 'Asian Heritage', 'European & Nordic', 'Modern & Modular'];
+      case 'vehicles':
+        return ['All', 'Emergency & Surgery', 'Realistic Cars', 'Cartoon & Toon', 'Commercial & Logistics', 'Aviation & Flight', 'Maritime & Marine', 'Space & Sci-Fi', 'Bikes & Mobility'];
+      case 'food':
+        return ['All', 'Realistic Food', 'Cartoon Food', 'Bottles & Cans', 'Restaurant & Chef', 'Desserts & Sweets', 'Breakfast & Brunch', 'Asian & Cultural', 'Fast Food & Snacks', 'Utensils & Cookware'];
+      case 'furniture':
+        return ['All', 'Chairs & Seating', 'Tables & Desks', 'Beds & Lounging', 'Storage & Shelves', 'Decor & Lighting'];
+      case 'nature':
+        return ['All', 'Trees & Foliage', 'Plants & Flowers', 'Rocks & Terrain', 'Garden & Outdoor'];
+      case 'machines':
+        return ['All', 'Appliances', 'Industrial & Safety', 'Fitness & Gym', 'Electronics & Audio'];
       case 'architecture':
-        return ['All', 'Furniture', 'Architecture', 'Deco', 'Lighting', 'Outdoor'];
+        return ['All', 'Realistic Food', 'Cartoon Food', 'Bottles & Cans', 'Realistic Buildings', 'Cartoon Buildings', 'Vehicles', 'Emergency & Surgery', 'Cartoon & Toon', 'Realistic Cars', 'Commercial & Logistics', 'Aviation & Flight', 'Maritime & Marine', 'Space & Sci-Fi', 'Bikes & Mobility', 'Electronics', 'Furniture', 'Household', 'Machines & Industrial', 'Nature & Outdoor', 'Architecture'];
       case 'primitives':
         return ['All', 'Basic Geometry', 'Textured Shapes', 'Sci-Fi Primitives', 'Organic & Metallic'];
       case 'media':
@@ -1624,7 +1682,13 @@ export function AssetBrowser() {
   // Asset counts for dock badges
   const categoryCounts = useMemo(() => {
     return {
-      'architecture': ARCHITECTURAL_ASSETS.length,
+      'buildings': BUILDING_ASSETS.length,
+      'vehicles': VEHICLES_ASSETS.length,
+      'food': FOOD_UTENSIL_ASSETS.length,
+      'furniture': FURNITURE_ASSETS.length,
+      'nature': NATURE_ASSETS.length,
+      'machines': MACHINES_ASSETS.length + ELECTRONICS_ASSETS.length,
+      'architecture': COMBINED_3D_ASSETS.length,
       'primitives': PRIMITIVE_TEMPLATES.length,
       'media': MEDIA_WIDGET_TEMPLATES.length,
       'buttons': BUTTON_TEMPLATES.length,
@@ -1876,31 +1940,33 @@ export function AssetBrowser() {
                   </section>
                 )}
 
-                {/* 3D Icons Matches */}
-                {SPLINE_3D_ICONS.some(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description.toLowerCase().includes(searchQuery.toLowerCase())) && (
+                {/* 3D Icons & Models Matches */}
+                {SPLINE_3D_ICONS.some(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description.toLowerCase().includes(searchQuery.toLowerCase()) || (i.tags && i.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())))) && (
                   <section className="space-y-3">
                     <h4 className="text-xs font-bold text-pink-400 uppercase tracking-wider flex items-center gap-1.5">
                       <Sparkles size={13} />
-                      <span>3D Spline Icons</span>
+                      <span>3D Advertising Models & Icons</span>
                     </h4>
                     <div className={`grid ${gridColsClass} gap-3`}>
                       {SPLINE_3D_ICONS
-                        .filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description.toLowerCase().includes(searchQuery.toLowerCase()) || (i.tags && i.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))))
                         .map(icon => {
-                          const thumb = getSplineThumbnailStyle(icon.name);
                           return (
                             <AssetCard
                               key={icon.id}
                               id={icon.id}
                               name={icon.name}
-                              badge="3D ICON"
-                              badgeColor="bg-pink-500/20 text-pink-300 border-pink-500/30"
+                              badge={icon.modelUrl ? "3D GLTF" : "3D SHAPE"}
+                              badgeColor={icon.modelUrl ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-pink-500/20 text-pink-300 border-pink-500/30"}
                               thumbnail={
                                 <div
-                                  className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center"
-                                  style={{ background: thumb.orbBg, boxShadow: `0 0 16px ${thumb.glowColor}` }}
+                                  className="w-12 h-12 rounded-xl shadow-lg flex items-center justify-center text-2xl select-none"
+                                  style={{ 
+                                    background: `radial-gradient(circle at 35% 35%, ${icon.defaultColor}ee, ${icon.secondaryColor || '#0f172a'})`, 
+                                    boxShadow: `0 4px 16px -2px ${icon.defaultColor}66` 
+                                  }}
                                 >
-                                  <span className="text-base text-white font-bold">{icon.name.charAt(0)}</span>
+                                  <span className="drop-shadow-md">{icon.previewEmoji || '⭐'}</span>
                                 </div>
                               }
                               description={icon.description}
@@ -1944,7 +2010,7 @@ export function AssetBrowser() {
               </div>
             )}
 
-            {/* ARCHITECTURE & FURNITURE TAB (Chairs, Tables, Lighting, Walls, Props) */}
+            {/* ARCHITECTURE & REAL 3D ASSETS TAB (Furniture, Electronics, Vehicles, Machines, Nature, Props) */}
             {activeTab === 'architecture' && (
               <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
                 <div className="flex items-center justify-between">
@@ -1953,24 +2019,438 @@ export function AssetBrowser() {
                       <Armchair size={16} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white tracking-wide">Furniture & Architectural Assets</h3>
-                      <p className="text-[11px] text-gray-400">Add interior design furniture, spatial dividers, lighting fixtures, and architectural fixtures</p>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Models & Architectural Assets</h3>
+                      <p className="text-[11px] text-gray-400">Add interior design furniture, electronics, vehicles, industrial machinery, and outdoor props</p>
                     </div>
                   </div>
                   <span className="text-xs text-gray-400 font-mono">
-                    {ARCHITECTURAL_ASSETS.filter(a => {
+                    {COMBINED_3D_ASSETS.filter(a => {
                       const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-                      const matchesFilter = activeFilterChip === 'All' || a.category === activeFilterChip;
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Realistic Food' && (a.category === 'Realistic Food & Utensils' || (a.tags || []).some(t => ['realistic food', 'culinary', 'dish', 'recipe'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Cartoon Food' && (a.category === 'Cartoon Food & Treats' || (a.tags || []).some(t => ['cartoon food', 'toon', 'treat', 'snack'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Bottles & Cans' && (a.tags || []).some(t => ['bottle', 'can', 'beverage', 'drink', 'soda', 'wine', 'beer'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Realistic Buildings' && (a.category === 'Realistic Buildings' || (a.tags || []).some(t => ['realistic building', 'architecture', 'monument', 'landmark', 'skyscraper', 'temple', 'house', 'pagoda', 'stave church', 'palace', 'hacienda', 'villa', 'cathedral'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Cartoon Buildings' && (a.category === 'Cartoon Buildings' || (a.tags || []).some(t => ['cartoon building', 'toon', 'stylized'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Emergency & Surgery' && (a.tags || []).some(t => ['emergency', 'medical', 'surgery', 'ambulance', 'paramedic', 'rescue', 'hospital', 'triage', 'hazmat', 'als'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Cartoon & Toon' && (a.tags || []).some(t => ['cartoon', 'toon', 'low-poly', 'stylized'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Realistic Cars' && (a.tags || []).some(t => ['tesla', 'sedan', 'coupe', 'sports car', 'suv', 'crossover', 'limousine', 'hypercar', 'supercar', 'convertible', 'muscle car', 'roadster', 'gt3'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Commercial & Logistics' && (a.tags || []).some(t => ['truck', 'tanker', 'cargo', 'van', 'semi', 'dump truck', 'mixer', 'forklift', 'excavator', 'tow truck', 'logging', 'grader', 'crane'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Aviation & Flight' && (a.tags || []).some(t => ['airplane', 'jet', 'helicopter', 'drone', 'uav', 'aviation', 'flight', 'heli', 'biplane', 'evtol', 'airliner'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Maritime & Marine' && (a.tags || []).some(t => ['boat', 'yacht', 'speedboat', 'jetski', 'marine', 'submarine', 'auv', 'watercraft', 'nautical', 'sea', 'catamaran', 'rhib'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Space & Sci-Fi' && (a.tags || []).some(t => ['space', 'capsule', 'rover', 'lander', 'rocket', 'probe', 'mars', 'orbital', 'asteroid', 'shuttle', 'starfighter', 'satellite'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Bikes & Mobility' && (a.tags || []).some(t => ['scooter', 'skateboard', 'motorcycle', 'superbike', 'bicycle', 'ebike', 'mtb', 'hoverboard', 'unicycle', 'euc', 'trike', 'atv'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
                       return matchesSearch && matchesFilter;
                     }).length} items
                   </span>
                 </div>
 
                 <div className={`grid ${gridColsClass} gap-4`}>
-                  {ARCHITECTURAL_ASSETS
+                  {COMBINED_3D_ASSETS
                     .filter(asset => {
                       const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-                      const matchesFilter = activeFilterChip === 'All' || asset.category === activeFilterChip;
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Realistic Food' && (asset.category === 'Realistic Food & Utensils' || (asset.tags || []).some(t => ['realistic food', 'culinary', 'dish', 'recipe'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Cartoon Food' && (asset.category === 'Cartoon Food & Treats' || (asset.tags || []).some(t => ['cartoon food', 'toon', 'treat', 'snack'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Bottles & Cans' && (asset.tags || []).some(t => ['bottle', 'can', 'beverage', 'drink', 'soda', 'wine', 'beer'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Realistic Buildings' && (asset.category === 'Realistic Buildings' || (asset.tags || []).some(t => ['realistic building', 'architecture', 'monument', 'landmark', 'skyscraper', 'temple', 'house', 'pagoda', 'stave church', 'palace', 'hacienda', 'villa', 'cathedral'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Cartoon Buildings' && (asset.category === 'Cartoon Buildings' || (asset.tags || []).some(t => ['cartoon building', 'toon', 'stylized'].includes(t.toLowerCase())))) ||
+                        (activeFilterChip === 'Emergency & Surgery' && (asset.tags || []).some(t => ['emergency', 'medical', 'surgery', 'ambulance', 'paramedic', 'rescue', 'hospital', 'triage', 'hazmat', 'als'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Cartoon & Toon' && (asset.tags || []).some(t => ['cartoon', 'toon', 'low-poly', 'stylized'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Realistic Cars' && (asset.tags || []).some(t => ['tesla', 'sedan', 'coupe', 'sports car', 'suv', 'crossover', 'limousine', 'hypercar', 'supercar', 'convertible', 'muscle car', 'roadster', 'gt3'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Commercial & Logistics' && (asset.tags || []).some(t => ['truck', 'tanker', 'cargo', 'van', 'semi', 'dump truck', 'mixer', 'forklift', 'excavator', 'tow truck', 'logging', 'grader', 'crane'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Aviation & Flight' && (asset.tags || []).some(t => ['airplane', 'jet', 'helicopter', 'drone', 'uav', 'aviation', 'flight', 'heli', 'biplane', 'evtol', 'airliner'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Maritime & Marine' && (asset.tags || []).some(t => ['boat', 'yacht', 'speedboat', 'jetski', 'marine', 'submarine', 'auv', 'watercraft', 'nautical', 'sea', 'catamaran', 'rhib'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Space & Sci-Fi' && (asset.tags || []).some(t => ['space', 'capsule', 'rover', 'lander', 'rocket', 'probe', 'mars', 'orbital', 'asteroid', 'shuttle', 'starfighter', 'satellite'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Bikes & Mobility' && (asset.tags || []).some(t => ['scooter', 'skateboard', 'motorcycle', 'superbike', 'bicycle', 'ebike', 'mtb', 'hoverboard', 'unicycle', 'euc', 'trike', 'atv'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* BUILDINGS TAB */}
+            {activeTab === 'buildings' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">
+                      <Building2 size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Buildings & Landmarks ({BUILDING_ASSETS.length})</h3>
+                      <p className="text-[11px] text-gray-400">Realistic architectural monuments, temples, skyscrapers, modern houses, and cartoon buildings</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {BUILDING_ASSETS.filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Realistic Buildings' && a.category === 'Realistic Buildings') ||
+                        (activeFilterChip === 'Cartoon Buildings' && a.category === 'Cartoon Buildings') ||
+                        (activeFilterChip === 'Temples & Pagodas' && (a.tags || []).some(t => ['temple', 'pagoda', 'shrine', 'pantheon', 'parthenon', 'acropolis'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Houses & Villas' && (a.tags || []).some(t => ['house', 'villa', 'cottage', 'cabin', 'mansion', 'machiya', 'hanok', 'igloo'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Skyscrapers & Towers' && (a.tags || []).some(t => ['skyscraper', 'tower', 'high-rise', 'clock tower', 'burj', 'empire'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Castles & Historic' && (a.tags || []).some(t => ['castle', 'medieval', 'palace', 'chateau', 'historic', 'pyramid', 'stave church'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Asian Heritage' && (a.tags || []).some(t => ['japan', 'china', 'korea', 'india', 'machiya', 'pagoda', 'siheyuan', 'hanok', 'taj mahal', 'asia'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'European & Nordic' && (a.tags || []).some(t => ['europe', 'paris', 'haussmann', 'tudor', 'nordic', 'stave church', 'santorini', 'chateau'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Modern & Modular' && (a.tags || []).some(t => ['modern', 'contemporary', 'glass', 'brutalist', 'modular', 'smart'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {BUILDING_ASSETS
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Realistic Buildings' && asset.category === 'Realistic Buildings') ||
+                        (activeFilterChip === 'Cartoon Buildings' && asset.category === 'Cartoon Buildings') ||
+                        (activeFilterChip === 'Temples & Pagodas' && (asset.tags || []).some(t => ['temple', 'pagoda', 'shrine', 'pantheon', 'parthenon', 'acropolis'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Houses & Villas' && (asset.tags || []).some(t => ['house', 'villa', 'cottage', 'cabin', 'mansion', 'machiya', 'hanok', 'igloo'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Skyscrapers & Towers' && (asset.tags || []).some(t => ['skyscraper', 'tower', 'high-rise', 'clock tower', 'burj', 'empire'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Castles & Historic' && (asset.tags || []).some(t => ['castle', 'medieval', 'palace', 'chateau', 'historic', 'pyramid', 'stave church'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Asian Heritage' && (asset.tags || []).some(t => ['japan', 'china', 'korea', 'india', 'machiya', 'pagoda', 'siheyuan', 'hanok', 'taj mahal', 'asia'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'European & Nordic' && (asset.tags || []).some(t => ['europe', 'paris', 'haussmann', 'tudor', 'nordic', 'stave church', 'santorini', 'chateau'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Modern & Modular' && (asset.tags || []).some(t => ['modern', 'contemporary', 'glass', 'brutalist', 'modular', 'smart'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* VEHICLES TAB */}
+            {activeTab === 'vehicles' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                      <Car size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Vehicles & Transport Fleet ({VEHICLES_ASSETS.length})</h3>
+                      <p className="text-[11px] text-gray-400">Emergency ambulances, sports cars, logistics trucks, aviation jets, maritime boats, and cartoon vehicles</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {VEHICLES_ASSETS.filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Emergency & Surgery' && (a.tags || []).some(t => ['emergency', 'medical', 'surgery', 'ambulance', 'paramedic', 'rescue', 'hospital', 'triage', 'hazmat', 'als', 'fire truck'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Realistic Cars' && (a.tags || []).some(t => ['tesla', 'sedan', 'coupe', 'sports car', 'suv', 'crossover', 'limousine', 'hypercar', 'supercar', 'convertible', 'muscle car', 'roadster', 'gt3'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Cartoon & Toon' && (a.tags || []).some(t => ['cartoon', 'toon', 'low-poly', 'stylized'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Commercial & Logistics' && (a.tags || []).some(t => ['truck', 'tanker', 'cargo', 'van', 'semi', 'dump truck', 'mixer', 'forklift', 'excavator', 'tow truck', 'logging', 'grader', 'crane'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Aviation & Flight' && (a.tags || []).some(t => ['airplane', 'jet', 'helicopter', 'drone', 'uav', 'aviation', 'flight', 'heli', 'biplane', 'evtol', 'airliner'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Maritime & Marine' && (a.tags || []).some(t => ['boat', 'yacht', 'speedboat', 'jetski', 'marine', 'submarine', 'auv', 'watercraft', 'nautical', 'sea', 'catamaran', 'rhib'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Space & Sci-Fi' && (a.tags || []).some(t => ['space', 'capsule', 'rover', 'lander', 'rocket', 'probe', 'mars', 'orbital', 'asteroid', 'shuttle', 'starfighter', 'satellite'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Bikes & Mobility' && (a.tags || []).some(t => ['scooter', 'skateboard', 'motorcycle', 'superbike', 'bicycle', 'ebike', 'mtb', 'hoverboard', 'unicycle', 'euc', 'trike', 'atv'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {VEHICLES_ASSETS
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Emergency & Surgery' && (asset.tags || []).some(t => ['emergency', 'medical', 'surgery', 'ambulance', 'paramedic', 'rescue', 'hospital', 'triage', 'hazmat', 'als', 'fire truck'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Realistic Cars' && (asset.tags || []).some(t => ['tesla', 'sedan', 'coupe', 'sports car', 'suv', 'crossover', 'limousine', 'hypercar', 'supercar', 'convertible', 'muscle car', 'roadster', 'gt3'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Cartoon & Toon' && (asset.tags || []).some(t => ['cartoon', 'toon', 'low-poly', 'stylized'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Commercial & Logistics' && (asset.tags || []).some(t => ['truck', 'tanker', 'cargo', 'van', 'semi', 'dump truck', 'mixer', 'forklift', 'excavator', 'tow truck', 'logging', 'grader', 'crane'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Aviation & Flight' && (asset.tags || []).some(t => ['airplane', 'jet', 'helicopter', 'drone', 'uav', 'aviation', 'flight', 'heli', 'biplane', 'evtol', 'airliner'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Maritime & Marine' && (asset.tags || []).some(t => ['boat', 'yacht', 'speedboat', 'jetski', 'marine', 'submarine', 'auv', 'watercraft', 'nautical', 'sea', 'catamaran', 'rhib'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Space & Sci-Fi' && (asset.tags || []).some(t => ['space', 'capsule', 'rover', 'lander', 'rocket', 'probe', 'mars', 'orbital', 'asteroid', 'shuttle', 'starfighter', 'satellite'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Bikes & Mobility' && (asset.tags || []).some(t => ['scooter', 'skateboard', 'motorcycle', 'superbike', 'bicycle', 'ebike', 'mtb', 'hoverboard', 'unicycle', 'euc', 'trike', 'atv'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* FOOD & UTENSILS TAB */}
+            {activeTab === 'food' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400">
+                      <UtensilsCrossed size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Food, Drinks & Utensils ({FOOD_UTENSIL_ASSETS.length})</h3>
+                      <p className="text-[11px] text-gray-400">Realistic restaurant dishes, bottles, soda cans, snacks, desserts, Asian cuisine, and cartoon treats</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {FOOD_UTENSIL_ASSETS.filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Realistic Food' && a.category === 'Realistic Food & Utensils') ||
+                        (activeFilterChip === 'Cartoon Food' && a.category === 'Cartoon Food & Treats') ||
+                        (activeFilterChip === 'Bottles & Cans' && (a.tags || []).some(t => ['bottle', 'can', 'beverage', 'drink', 'soda', 'wine', 'beer', 'boba', 'juice', 'water', 'cola'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Restaurant & Chef' && (a.tags || []).some(t => ['restaurant', 'chef', 'culinary', 'steak', 'ramen', 'sushi', 'pasta', 'pizza', 'dinner', 'dish', 'gourmet'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Desserts & Sweets' && (a.tags || []).some(t => ['dessert', 'cake', 'donut', 'ice cream', 'pastry', 'cookie', 'sweet', 'pie', 'treat', 'chocolate'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Breakfast & Brunch' && (a.tags || []).some(t => ['breakfast', 'pancake', 'waffle', 'croissant', 'coffee', 'toast', 'egg', 'cereal'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Asian & Cultural' && (a.tags || []).some(t => ['asia', 'japan', 'ramen', 'sushi', 'boba', 'dumpling', 'tea', 'dim sum', 'matcha'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Fast Food & Snacks' && (a.tags || []).some(t => ['burger', 'fries', 'pizza', 'hot dog', 'taco', 'nachos', 'popcorn', 'snack', 'sandwich'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Utensils & Cookware' && (a.tags || []).some(t => ['utensil', 'fork', 'knife', 'spoon', 'pan', 'pot', 'board', 'kettle', 'toaster', 'cookware', 'kitchen'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {FOOD_UTENSIL_ASSETS
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Realistic Food' && asset.category === 'Realistic Food & Utensils') ||
+                        (activeFilterChip === 'Cartoon Food' && asset.category === 'Cartoon Food & Treats') ||
+                        (activeFilterChip === 'Bottles & Cans' && (asset.tags || []).some(t => ['bottle', 'can', 'beverage', 'drink', 'soda', 'wine', 'beer', 'boba', 'juice', 'water', 'cola'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Restaurant & Chef' && (asset.tags || []).some(t => ['restaurant', 'chef', 'culinary', 'steak', 'ramen', 'sushi', 'pasta', 'pizza', 'dinner', 'dish', 'gourmet'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Desserts & Sweets' && (asset.tags || []).some(t => ['dessert', 'cake', 'donut', 'ice cream', 'pastry', 'cookie', 'sweet', 'pie', 'treat', 'chocolate'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Breakfast & Brunch' && (asset.tags || []).some(t => ['breakfast', 'pancake', 'waffle', 'croissant', 'coffee', 'toast', 'egg', 'cereal'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Asian & Cultural' && (asset.tags || []).some(t => ['asia', 'japan', 'ramen', 'sushi', 'boba', 'dumpling', 'tea', 'dim sum', 'matcha'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Fast Food & Snacks' && (asset.tags || []).some(t => ['burger', 'fries', 'pizza', 'hot dog', 'taco', 'nachos', 'popcorn', 'snack', 'sandwich'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Utensils & Cookware' && (asset.tags || []).some(t => ['utensil', 'fork', 'knife', 'spoon', 'pan', 'pot', 'board', 'kettle', 'toaster', 'cookware', 'kitchen'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* FURNITURE TAB */}
+            {activeTab === 'furniture' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Armchair size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Furniture & Interior Props ({FURNITURE_ASSETS.length})</h3>
+                      <p className="text-[11px] text-gray-400">Chairs, modern desks, lounge sofas, beds, bookcases, and decorative lamps</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {FURNITURE_ASSETS.filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Chairs & Seating' && (a.tags || []).some(t => ['chair', 'sofa', 'couch', 'armchair', 'stool', 'bench', 'seat', 'ottoman'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Tables & Desks' && (a.tags || []).some(t => ['table', 'desk', 'coffee table', 'dining table', 'nightstand'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Beds & Lounging' && (a.tags || []).some(t => ['bed', 'lounge', 'mattress', 'pillow'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Storage & Shelves' && (a.tags || []).some(t => ['shelf', 'bookcase', 'cabinet', 'wardrobe', 'drawer', 'dresser', 'storage'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Decor & Lighting' && (a.tags || []).some(t => ['lamp', 'light', 'mirror', 'plant', 'rug', 'carpet', 'clock', 'vase', 'decor'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {FURNITURE_ASSETS
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Chairs & Seating' && (asset.tags || []).some(t => ['chair', 'sofa', 'couch', 'armchair', 'stool', 'bench', 'seat', 'ottoman'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Tables & Desks' && (asset.tags || []).some(t => ['table', 'desk', 'coffee table', 'dining table', 'nightstand'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Beds & Lounging' && (asset.tags || []).some(t => ['bed', 'lounge', 'mattress', 'pillow'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Storage & Shelves' && (asset.tags || []).some(t => ['shelf', 'bookcase', 'cabinet', 'wardrobe', 'drawer', 'dresser', 'storage'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Decor & Lighting' && (asset.tags || []).some(t => ['lamp', 'light', 'mirror', 'plant', 'rug', 'carpet', 'clock', 'vase', 'decor'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* NATURE TAB */}
+            {activeTab === 'nature' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">
+                      <TreePine size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Nature, Plants & Terrain ({NATURE_ASSETS.length})</h3>
+                      <p className="text-[11px] text-gray-400">Realistic trees, garden flowers, rocks, terrain boulders, and outdoor nature scenery</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {NATURE_ASSETS.filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Trees & Foliage' && (a.tags || []).some(t => ['tree', 'pine', 'palm', 'oak', 'birch', 'forest', 'foliage', 'leaves'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Plants & Flowers' && (a.tags || []).some(t => ['plant', 'flower', 'rose', 'cactus', 'succulent', 'bush', 'hedge', 'grass'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Rocks & Terrain' && (a.tags || []).some(t => ['rock', 'stone', 'boulder', 'cliff', 'mountain', 'terrain', 'crystal'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Garden & Outdoor' && (a.tags || []).some(t => ['garden', 'outdoor', 'bench', 'fountain', 'fence', 'gazebo', 'path'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {NATURE_ASSETS
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Trees & Foliage' && (asset.tags || []).some(t => ['tree', 'pine', 'palm', 'oak', 'birch', 'forest', 'foliage', 'leaves'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Plants & Flowers' && (asset.tags || []).some(t => ['plant', 'flower', 'rose', 'cactus', 'succulent', 'bush', 'hedge', 'grass'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Rocks & Terrain' && (asset.tags || []).some(t => ['rock', 'stone', 'boulder', 'cliff', 'mountain', 'terrain', 'crystal'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Garden & Outdoor' && (asset.tags || []).some(t => ['garden', 'outdoor', 'bench', 'fountain', 'fence', 'gazebo', 'path'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    })
+                    .map((asset) => (
+                      <AssetCard
+                        key={asset.id}
+                        id={asset.id}
+                        name={asset.name}
+                        badge={asset.badge}
+                        badgeColor={asset.badgeColor}
+                        thumbnail={renderArchitecturalPreview(asset)}
+                        description={asset.description}
+                        isFavorite={!!favorites[asset.id]}
+                        onToggleFavorite={() => toggleFavorite(asset.id)}
+                        onSelect={() => handleAddArchitecturalAsset(asset)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* MACHINES & ELECTRONICS TAB */}
+            {activeTab === 'machines' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                      <Cpu size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-wide">3D Industrial Machines & Electronics ({MACHINES_ASSETS.length + ELECTRONICS_ASSETS.length})</h3>
+                      <p className="text-[11px] text-gray-400">Kitchen appliances, factory machinery, fitness gear, audio speakers, and consumer electronics</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">
+                    {[...MACHINES_ASSETS, ...ELECTRONICS_ASSETS].filter(a => {
+                      const matchesSearch = !searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase()) || a.category.toLowerCase().includes(searchQuery.toLowerCase()) || (a.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        a.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Appliances' && (a.tags || []).some(t => ['appliance', 'fridge', 'refrigerator', 'microwave', 'oven', 'dishwasher', 'washing machine', 'blender', 'coffee machine', 'kettle', 'toaster'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Industrial & Safety' && (a.tags || []).some(t => ['industrial', 'machine', 'robot', 'arm', 'generator', 'compressor', 'safety', 'gear', 'conveyor', 'factory'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Fitness & Gym' && (a.tags || []).some(t => ['gym', 'fitness', 'treadmill', 'dumbbell', 'barbell', 'bench', 'workout', 'exercise', 'bike'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Electronics & Audio' && (a.tags || []).some(t => ['audio', 'speaker', 'headphones', 'tv', 'monitor', 'computer', 'laptop', 'phone', 'camera', 'radio', 'display', 'gadget'].includes(t.toLowerCase()))) ||
+                        (a.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
+                      return matchesSearch && matchesFilter;
+                    }).length} items
+                  </span>
+                </div>
+
+                <div className={`grid ${gridColsClass} gap-4`}>
+                  {[...MACHINES_ASSETS, ...ELECTRONICS_ASSETS]
+                    .filter(asset => {
+                      const matchesSearch = !searchQuery || asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.description.toLowerCase().includes(searchQuery.toLowerCase()) || asset.category.toLowerCase().includes(searchQuery.toLowerCase()) || (asset.tags || []).some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+                      const matchesFilter = activeFilterChip === 'All' || 
+                        asset.category.toLowerCase() === activeFilterChip.toLowerCase() ||
+                        (activeFilterChip === 'Appliances' && (asset.tags || []).some(t => ['appliance', 'fridge', 'refrigerator', 'microwave', 'oven', 'dishwasher', 'washing machine', 'blender', 'coffee machine', 'kettle', 'toaster'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Industrial & Safety' && (asset.tags || []).some(t => ['industrial', 'machine', 'robot', 'arm', 'generator', 'compressor', 'safety', 'gear', 'conveyor', 'factory'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Fitness & Gym' && (asset.tags || []).some(t => ['gym', 'fitness', 'treadmill', 'dumbbell', 'barbell', 'bench', 'workout', 'exercise', 'bike'].includes(t.toLowerCase()))) ||
+                        (activeFilterChip === 'Electronics & Audio' && (asset.tags || []).some(t => ['audio', 'speaker', 'headphones', 'tv', 'monitor', 'computer', 'laptop', 'phone', 'camera', 'radio', 'display', 'gadget'].includes(t.toLowerCase()))) ||
+                        (asset.tags || []).some(t => t.toLowerCase() === activeFilterChip.toLowerCase());
                       return matchesSearch && matchesFilter;
                     })
                     .map((asset) => (
@@ -2164,22 +2644,33 @@ export function AssetBrowser() {
 
                     <div className={`grid ${gridColsClass} gap-3`}>
                       {SPLINE_3D_ICONS
-                        .filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .filter(i => {
+                          if (!searchQuery) return true;
+                          const q = searchQuery.toLowerCase();
+                          return (
+                            i.name.toLowerCase().includes(q) ||
+                            i.description.toLowerCase().includes(q) ||
+                            (i.tags && i.tags.some(t => t.toLowerCase().includes(q))) ||
+                            (i.category && i.category.toLowerCase().includes(q))
+                          );
+                        })
                         .map((icon) => {
-                          const thumb = getSplineThumbnailStyle(icon.name);
                           return (
                             <AssetCard
                               key={icon.id}
                               id={icon.id}
                               name={icon.name}
-                              badge="3D ICON"
-                              badgeColor="bg-pink-500/20 text-pink-300 border-pink-500/30"
+                              badge={icon.modelUrl ? "3D GLTF" : "3D SHAPE"}
+                              badgeColor={icon.modelUrl ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-pink-500/20 text-pink-300 border-pink-500/30"}
                               thumbnail={
                                 <div
-                                  className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center"
-                                  style={{ background: thumb.orbBg, boxShadow: `0 0 16px ${thumb.glowColor}` }}
+                                  className="w-12 h-12 rounded-xl shadow-lg flex items-center justify-center text-2xl select-none"
+                                  style={{ 
+                                    background: `radial-gradient(circle at 35% 35%, ${icon.defaultColor}ee, ${icon.secondaryColor || '#0f172a'})`, 
+                                    boxShadow: `0 4px 16px -2px ${icon.defaultColor}66` 
+                                  }}
                                 >
-                                  <span className="text-base text-white font-bold">{icon.name.charAt(0)}</span>
+                                  <span className="drop-shadow-md">{icon.previewEmoji || '⭐'}</span>
                                 </div>
                               }
                               description={icon.description}
@@ -2313,7 +2804,7 @@ export function AssetBrowser() {
                                 name: item.name,
                                 type: 'model',
                                 position: [0, 0, 0],
-                                rotation: [0, 0, 0],
+                                rotation: [90, 0, 0],
                                 scale: [1, 1, 1],
                                 visible: true,
                                 locked: false,
@@ -2756,15 +3247,31 @@ export function AssetBrowser() {
               <SketchfabBrowser
                 selectedObjectId={selectedObjectId}
                 replaceTargetObjectId={replaceTargetObjectId}
+                initialQuery={searchQuery}
+                onSaveToAssets={(item) => {
+                  addAsset({
+                    id: uuidv4(),
+                    name: item.name,
+                    type: 'model',
+                    url: item.url,
+                    thumbnail: item.thumbnail
+                  });
+                  showToast(`Saved "${item.name}" directly to Project Assets!`);
+                }}
                 onSelectModel={(item) => {
                   const performAdd = () => {
                     if (replaceTargetObjectId && objects[replaceTargetObjectId]) {
                       replaceObjectAsset(replaceTargetObjectId, {
                         type: 'model',
                         name: item.name,
-                        properties: { modelUrl: item.url }
+                        properties: { 
+                          modelUrl: item.url,
+                          url: item.url,
+                          behavior: 'none',
+                          collisionEnabled: true
+                        }
                       });
-                      showToast(`Replaced object with Sketchfab model "${item.name}"`);
+                      showToast(`Replaced object with 3D model "${item.name}" (Z-Up)`);
                       setReplaceTargetObjectId(null);
                       handleAssetAddedSuccess();
                       return;
@@ -2776,16 +3283,21 @@ export function AssetBrowser() {
                       name: item.name,
                       type: 'model',
                       position: [0, 0, 0],
-                      rotation: [0, 0, 0],
+                      rotation: [90, 0, 0], // Instantiated Z-Up as required by app convention
                       scale: [1, 1, 1],
                       visible: true,
                       locked: false,
                       children: [],
                       parentId: parentId || null,
-                      properties: { modelUrl: item.url }
+                      properties: { 
+                        modelUrl: item.url,
+                        url: item.url,
+                        behavior: 'none',
+                        collisionEnabled: true
+                      }
                     };
                     addObject(newObj, parentId || undefined);
-                    showToast(`Added Sketchfab model "${item.name}" to scene`);
+                    showToast(`Downloaded & instantiated "${item.name}" Z-Up into scene!`);
                     addToRecentAssets({ id: item.id, name: item.name, type: '3D Model' });
                     handleAssetAddedSuccess();
                   };
@@ -2855,10 +3367,12 @@ export function AssetBrowser() {
                           badge={asset.type.toUpperCase()}
                           badgeColor="bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                           thumbnail={
-                            asset.type === 'image' ? asset.url :
-                            asset.type === 'model' ? '🧊' :
-                            asset.type === 'audio' ? '🎵' :
-                            asset.type === 'video' ? '🎬' : '📄'
+                            asset.thumbnail || (
+                              asset.type === 'image' ? asset.url :
+                              asset.type === 'model' ? '🧊' :
+                              asset.type === 'audio' ? '🎵' :
+                              asset.type === 'video' ? '🎬' : '📄'
+                            )
                           }
                           description={`Uploaded ${asset.type}`}
                           metaText={replaceTargetObjectId || selectedObjectId ? `Apply to Selected Object` : `Ready to Add`}
@@ -2891,7 +3405,7 @@ export function AssetBrowser() {
                                   name: asset.name,
                                   type: 'model',
                                   position: [0, 0, 0],
-                                  rotation: [0, 0, 0],
+                                  rotation: [90, 0, 0],
                                   scale: [1, 1, 1],
                                   visible: true,
                                   children: [],

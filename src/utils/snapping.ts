@@ -107,16 +107,18 @@ export function getObjectBoundingBox(
   const halfY = sizeY * 0.5;
   const halfZ = sizeZ * 0.5;
 
+  // In Z-up coordinate system with bottom-center pivot:
+  // Base rests at pos[2], top reaches pos[2] + sizeZ
   const min = new THREE.Vector3(
     pos[0] - halfX - pivot[0],
     pos[1] - halfY - pivot[1],
-    pos[2] - halfZ - pivot[2]
+    pos[2] - pivot[2]
   );
 
   const max = new THREE.Vector3(
     pos[0] + halfX - pivot[0],
     pos[1] + halfY - pivot[1],
-    pos[2] + halfZ - pivot[2]
+    pos[2] + sizeZ - pivot[2]
   );
 
   const center = new THREE.Vector3(
@@ -147,6 +149,7 @@ export function computeComprehensiveSnapPosition(
     isShiftHeld?: boolean;
     dragStartPos?: THREE.Vector3;
     snapThreshold?: number;
+    surfaceSnapEnabled?: boolean;
   }
 ): SnapResult {
   const result = candidatePos.clone();
@@ -179,6 +182,8 @@ export function computeComprehensiveSnapPosition(
     }
   }
 
+  const surfaceSnapActive = options?.surfaceSnapEnabled !== false;
+
   // Dynamic snapping proximity threshold
   const SNAP_THRESHOLD = options?.snapThreshold ?? Math.max(0.32, gridSnapIncrement * 2.0);
 
@@ -200,101 +205,105 @@ export function computeComprehensiveSnapPosition(
   let snapType: 'surface' | 'object' | 'grid' | undefined;
 
   // A. SURFACE SNAPPING: Target Surface / Ground Plane (Z = 0)
-  // 1. Bottom face resting flush on surface (min.z = 0)
-  const surfaceRestDeltaZ = 0 - myBox.min.z;
-  if (Math.abs(surfaceRestDeltaZ) < minAbsDeltaZ) {
-    minAbsDeltaZ = Math.abs(surfaceRestDeltaZ);
-    bestDeltaZ = surfaceRestDeltaZ;
-    labelZ = 'Flush Surface (Z=0)';
-    snapType = 'surface';
-  }
+  if (surfaceSnapActive) {
+    // 1. Bottom face resting flush on surface (min.z = 0)
+    const surfaceRestDeltaZ = 0 - myBox.min.z;
+    if (Math.abs(surfaceRestDeltaZ) < minAbsDeltaZ) {
+      minAbsDeltaZ = Math.abs(surfaceRestDeltaZ);
+      bestDeltaZ = surfaceRestDeltaZ;
+      labelZ = 'Flush Surface (Z=0)';
+      snapType = 'surface';
+    }
 
-  // 2. Center aligned with surface (center.z = 0)
-  const surfaceCenterDeltaZ = 0 - myBox.center.z;
-  if (Math.abs(surfaceCenterDeltaZ) < minAbsDeltaZ) {
-    minAbsDeltaZ = Math.abs(surfaceCenterDeltaZ);
-    bestDeltaZ = surfaceCenterDeltaZ;
-    labelZ = 'Center on Surface';
-    snapType = 'surface';
-  }
+    // 2. Center aligned with surface (center.z = 0)
+    const surfaceCenterDeltaZ = 0 - myBox.center.z;
+    if (Math.abs(surfaceCenterDeltaZ) < minAbsDeltaZ) {
+      minAbsDeltaZ = Math.abs(surfaceCenterDeltaZ);
+      bestDeltaZ = surfaceCenterDeltaZ;
+      labelZ = 'Center on Surface';
+      snapType = 'surface';
+    }
 
-  // 3. Underside surface snap (max.z = 0)
-  const surfaceUndersideDeltaZ = 0 - myBox.max.z;
-  if (Math.abs(surfaceUndersideDeltaZ) < minAbsDeltaZ) {
-    minAbsDeltaZ = Math.abs(surfaceUndersideDeltaZ);
-    bestDeltaZ = surfaceUndersideDeltaZ;
-    labelZ = 'Underside Surface';
-    snapType = 'surface';
+    // 3. Underside surface snap (max.z = 0)
+    const surfaceUndersideDeltaZ = 0 - myBox.max.z;
+    if (Math.abs(surfaceUndersideDeltaZ) < minAbsDeltaZ) {
+      minAbsDeltaZ = Math.abs(surfaceUndersideDeltaZ);
+      bestDeltaZ = surfaceUndersideDeltaZ;
+      labelZ = 'Underside Surface';
+      snapType = 'surface';
+    }
   }
 
   // B. OBJECT-TO-OBJECT BOUNDING BOX SNAPPING
-  for (const otherId in objects) {
-    if (otherId === objectId) continue;
-    const other = objects[otherId];
-    if (!other || !other.visible || other.type === 'hudCanvas' || ['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(other.type)) continue;
-    if (other.parentId === objectId) continue;
-    if (other.parentId !== currentObj.parentId) continue;
+  if (surfaceSnapActive) {
+    for (const otherId in objects) {
+      if (otherId === objectId) continue;
+      const other = objects[otherId];
+      if (!other || !other.visible || other.type === 'hudCanvas' || ['hudText', 'hudButton', 'hudImage', 'hudEmbed'].includes(other.type)) continue;
+      if (other.parentId === objectId) continue;
+      if (other.parentId !== currentObj.parentId) continue;
 
-    const otherBox = getObjectBoundingBox(other);
+      const otherBox = getObjectBoundingBox(other);
 
-    // Bounding proximity check to avoid expensive checks on faraway objects
-    const centerDistSq = myBox.center.distanceToSquared(otherBox.center);
-    const maxCombinedExtent = myBox.size.length() + otherBox.size.length() + 3.5;
-    if (centerDistSq > maxCombinedExtent * maxCombinedExtent) continue;
+      // Bounding proximity check to avoid expensive checks on faraway objects
+      const centerDistSq = myBox.center.distanceToSquared(otherBox.center);
+      const maxCombinedExtent = myBox.size.length() + otherBox.size.length() + 3.5;
+      if (centerDistSq > maxCombinedExtent * maxCombinedExtent) continue;
 
-    const otherName = other.name || 'Object';
+      const otherName = other.name || 'Object';
 
-    // 1. Z-Axis Snapping (Stacking on top, underneath, or flush edge alignment)
-    const zCandidates: Array<{ delta: number; label: string }> = [
-      { delta: otherBox.max.z - myBox.min.z, label: `Stack on ${otherName}` },
-      { delta: otherBox.min.z - myBox.max.z, label: `Under ${otherName}` },
-      { delta: otherBox.min.z - myBox.min.z, label: `Flush Base with ${otherName}` },
-      { delta: otherBox.max.z - myBox.max.z, label: `Flush Top with ${otherName}` },
-      { delta: otherBox.center.z - myBox.center.z, label: `Center Z with ${otherName}` }
-    ];
+      // 1. Z-Axis Snapping (Stacking on top, underneath, or flush edge alignment)
+      const zCandidates: Array<{ delta: number; label: string }> = [
+        { delta: otherBox.max.z - myBox.min.z, label: `Stack on ${otherName}` },
+        { delta: otherBox.min.z - myBox.max.z, label: `Under ${otherName}` },
+        { delta: otherBox.min.z - myBox.min.z, label: `Flush Base with ${otherName}` },
+        { delta: otherBox.max.z - myBox.max.z, label: `Flush Top with ${otherName}` },
+        { delta: otherBox.center.z - myBox.center.z, label: `Center Z with ${otherName}` }
+      ];
 
-    for (const cand of zCandidates) {
-      if (Math.abs(cand.delta) < minAbsDeltaZ) {
-        minAbsDeltaZ = Math.abs(cand.delta);
-        bestDeltaZ = cand.delta;
-        labelZ = cand.label;
-        snapType = 'object';
+      for (const cand of zCandidates) {
+        if (Math.abs(cand.delta) < minAbsDeltaZ) {
+          minAbsDeltaZ = Math.abs(cand.delta);
+          bestDeltaZ = cand.delta;
+          labelZ = cand.label;
+          snapType = 'object';
+        }
       }
-    }
 
-    // 2. X-Axis Snapping (Side-by-side touching faces & flush edge alignment)
-    const xCandidates: Array<{ delta: number; label: string }> = [
-      { delta: otherBox.max.x - myBox.min.x, label: `Snap Right of ${otherName}` },
-      { delta: otherBox.min.x - myBox.max.x, label: `Snap Left of ${otherName}` },
-      { delta: otherBox.min.x - myBox.min.x, label: `Flush Left with ${otherName}` },
-      { delta: otherBox.max.x - myBox.max.x, label: `Flush Right with ${otherName}` },
-      { delta: otherBox.center.x - myBox.center.x, label: `Center X with ${otherName}` }
-    ];
+      // 2. X-Axis Snapping (Side-by-side touching faces & flush edge alignment)
+      const xCandidates: Array<{ delta: number; label: string }> = [
+        { delta: otherBox.max.x - myBox.min.x, label: `Snap Right of ${otherName}` },
+        { delta: otherBox.min.x - myBox.max.x, label: `Snap Left of ${otherName}` },
+        { delta: otherBox.min.x - myBox.min.x, label: `Flush Left with ${otherName}` },
+        { delta: otherBox.max.x - myBox.max.x, label: `Flush Right with ${otherName}` },
+        { delta: otherBox.center.x - myBox.center.x, label: `Center X with ${otherName}` }
+      ];
 
-    for (const cand of xCandidates) {
-      if (Math.abs(cand.delta) < minAbsDeltaX) {
-        minAbsDeltaX = Math.abs(cand.delta);
-        bestDeltaX = cand.delta;
-        labelX = cand.label;
-        snapType = 'object';
+      for (const cand of xCandidates) {
+        if (Math.abs(cand.delta) < minAbsDeltaX) {
+          minAbsDeltaX = Math.abs(cand.delta);
+          bestDeltaX = cand.delta;
+          labelX = cand.label;
+          snapType = 'object';
+        }
       }
-    }
 
-    // 3. Y-Axis Snapping (Front/Back touching faces & flush edge alignment)
-    const yCandidates: Array<{ delta: number; label: string }> = [
-      { delta: otherBox.max.y - myBox.min.y, label: `Snap Front of ${otherName}` },
-      { delta: otherBox.min.y - myBox.max.y, label: `Snap Back of ${otherName}` },
-      { delta: otherBox.min.y - myBox.min.y, label: `Flush Front with ${otherName}` },
-      { delta: otherBox.max.y - myBox.max.y, label: `Flush Back with ${otherName}` },
-      { delta: otherBox.center.y - myBox.center.y, label: `Center Y with ${otherName}` }
-    ];
+      // 3. Y-Axis Snapping (Front/Back touching faces & flush edge alignment)
+      const yCandidates: Array<{ delta: number; label: string }> = [
+        { delta: otherBox.max.y - myBox.min.y, label: `Snap Front of ${otherName}` },
+        { delta: otherBox.min.y - myBox.max.y, label: `Snap Back of ${otherName}` },
+        { delta: otherBox.min.y - myBox.min.y, label: `Flush Front with ${otherName}` },
+        { delta: otherBox.max.y - myBox.max.y, label: `Flush Back with ${otherName}` },
+        { delta: otherBox.center.y - myBox.center.y, label: `Center Y with ${otherName}` }
+      ];
 
-    for (const cand of yCandidates) {
-      if (Math.abs(cand.delta) < minAbsDeltaY) {
-        minAbsDeltaY = Math.abs(cand.delta);
-        bestDeltaY = cand.delta;
-        labelY = cand.label;
-        snapType = 'object';
+      for (const cand of yCandidates) {
+        if (Math.abs(cand.delta) < minAbsDeltaY) {
+          minAbsDeltaY = Math.abs(cand.delta);
+          bestDeltaY = cand.delta;
+          labelY = cand.label;
+          snapType = 'object';
+        }
       }
     }
   }

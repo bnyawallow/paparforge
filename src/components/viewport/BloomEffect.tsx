@@ -19,37 +19,50 @@ export function BloomEffect() {
   const composerRef = useRef<EffectComposer | null>(null);
 
   useEffect(() => {
-    if (!bloomEnabled) {
+    if (!bloomEnabled || size.width <= 0 || size.height <= 0) {
       composerRef.current = null;
       return;
     }
 
-    const composer = new EffectComposer(gl);
-    
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
+    try {
+      const composer = new EffectComposer(gl);
+      
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
 
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(size.width, size.height),
-      bloomIntensity,
-      bloomRadius,
-      bloomThreshold
-    );
-    composer.addPass(bloomPass);
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(Math.max(1, size.width), Math.max(1, size.height)),
+        bloomIntensity,
+        bloomRadius,
+        bloomThreshold
+      );
+      composer.addPass(bloomPass);
 
-    const outputPass = new OutputPass();
-    composer.addPass(outputPass);
+      const outputPass = new OutputPass();
+      composer.addPass(outputPass);
 
-    composerRef.current = composer;
+      composerRef.current = composer;
 
-    return () => {
-      composer.dispose();
-    };
+      return () => {
+        try {
+          composer.dispose();
+        } catch (e) {
+          // ignore cleanup errors on unmount
+        }
+      };
+    } catch (err) {
+      console.warn('Failed to initialize bloom composer:', err);
+      composerRef.current = null;
+    }
   }, [gl, scene, camera, bloomEnabled, bloomIntensity, bloomRadius, bloomThreshold, size.width, size.height]);
 
   useFrame(() => {
-    if (bloomEnabled && composerRef.current) {
-      composerRef.current.render();
+    if (bloomEnabled && composerRef.current && size.width > 0 && size.height > 0) {
+      try {
+        composerRef.current.render();
+      } catch (err) {
+        console.warn('Bloom render pass error:', err);
+      }
     }
   }, bloomEnabled ? 1 : 0);
 

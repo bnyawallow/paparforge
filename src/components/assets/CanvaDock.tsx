@@ -17,6 +17,11 @@ import {
   Video,
   Play,
   Armchair,
+  Building2,
+  Car,
+  UtensilsCrossed,
+  Trees,
+  Cpu,
   Image as ImageIcon
 } from 'lucide-react';
 import { CategoryTab, DockCategory } from './assetTypes';
@@ -37,11 +42,59 @@ export const CANVA_DOCK_CATEGORIES: DockCategory[] = [
     group: 'primary',
   },
   {
-    id: 'architecture',
+    id: 'buildings',
+    label: 'Buildings',
+    iconName: 'Building2',
+    accentColor: '#f59e0b',
+    gradient: 'from-amber-500 to-orange-600',
+    group: 'primary',
+  },
+  {
+    id: 'vehicles',
+    label: 'Vehicles',
+    iconName: 'Car',
+    accentColor: '#0ea5e9',
+    gradient: 'from-sky-500 to-cyan-600',
+    group: 'primary',
+  },
+  {
+    id: 'food',
+    label: 'Food & Dining',
+    iconName: 'UtensilsCrossed',
+    accentColor: '#f43f5e',
+    gradient: 'from-rose-500 to-red-600',
+    group: 'primary',
+  },
+  {
+    id: 'furniture',
     label: 'Furniture',
     iconName: 'Armchair',
     accentColor: '#10b981',
     gradient: 'from-emerald-500 to-teal-600',
+    group: 'primary',
+  },
+  {
+    id: 'nature',
+    label: 'Nature',
+    iconName: 'Trees',
+    accentColor: '#22c55e',
+    gradient: 'from-green-500 to-emerald-600',
+    group: 'primary',
+  },
+  {
+    id: 'machines',
+    label: 'Machines',
+    iconName: 'Cpu',
+    accentColor: '#eab308',
+    gradient: 'from-yellow-500 to-amber-600',
+    group: 'primary',
+  },
+  {
+    id: 'architecture',
+    label: 'All 3D Library',
+    iconName: 'Box',
+    accentColor: '#8b5cf6',
+    gradient: 'from-purple-500 to-indigo-600',
     group: 'primary',
   },
   {
@@ -162,7 +215,12 @@ export function CanvaDock({ activeTab, onSelectTab, counts = {} }: CanvaDockProp
   const renderIcon = (name: string, size = 20, className = '') => {
     switch (name) {
       case 'Compass': return <Compass size={size} className={className} />;
+      case 'Building2': return <Building2 size={size} className={className} />;
+      case 'Car': return <Car size={size} className={className} />;
+      case 'UtensilsCrossed': return <UtensilsCrossed size={size} className={className} />;
       case 'Armchair': return <Armchair size={size} className={className} />;
+      case 'Trees': return <Trees size={size} className={className} />;
+      case 'Cpu': return <Cpu size={size} className={className} />;
       case 'Box': return <Box size={size} className={className} />;
       case 'Video': return <Video size={size} className={className} />;
       case 'MousePointerClick': return <MousePointerClick size={size} className={className} />;
@@ -182,7 +240,14 @@ export function CanvaDock({ activeTab, onSelectTab, counts = {} }: CanvaDockProp
   };
 
   return (
-    <div className="w-full md:w-[72px] bg-[#0E0E12] border-b md:border-b-0 md:border-r border-white/10 flex flex-row md:flex-col items-center py-1.5 md:py-3 px-2 md:px-0 shrink-0 select-none z-20 overflow-x-auto md:overflow-y-auto overflow-y-hidden md:overflow-x-hidden scrollbar-none gap-1 md:gap-0">
+    <div 
+      className="w-full md:w-[72px] bg-[#0E0E12] border-b md:border-b-0 md:border-r border-white/10 flex flex-row md:flex-col items-center py-1.5 md:py-3 px-2 md:px-0 shrink-0 select-none z-20 overflow-x-auto md:overflow-y-auto overflow-y-hidden md:overflow-x-hidden scrollbar-none gap-1 md:gap-0 touch-pan-x"
+      onWheel={(e) => {
+        if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX) && window.innerWidth < 768) {
+          e.currentTarget.scrollLeft += e.deltaY;
+        }
+      }}
+    >
       {/* Mini App Branding - Hidden on small mobile screens to maximize category horizontal space */}
       <div className="hidden md:flex mb-3 px-2 flex-col items-center shrink-0">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 border border-white/20">

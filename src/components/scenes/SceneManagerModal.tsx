@@ -3,7 +3,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
 import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
 import { PRINT_MEDIA_PRESETS, findMatchingPreset } from '../../lib/printMediaPresets';
-import { Layers, Sparkles, Target, X, Check, Trash2, Edit3, Ruler, Sliders } from 'lucide-react';
+import { Layers, Sparkles, Target, X, Check, Trash2, Edit3, Ruler, Sliders, Image as ImageIcon, Smile, Box, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
@@ -53,6 +53,9 @@ export function SceneManagerModal() {
 
   // Local state for instant input responsiveness
   const [nameValue, setNameValue] = useState(sceneModalState.value || '');
+  const [trackingMode, setTrackingMode] = useState<'image' | 'face' | 'surface' | 'world'>(
+    (sceneModalState as any).trackingMode || 'image'
+  );
   const [targetMode, setTargetMode] = useState<'single' | 'multi'>(sceneModalState.targetMode || 'single');
   const [physicalWidth, setPhysicalWidth] = useState<number>(sceneModalState.physicalWidth || 0.127);
   const [isCustomMobileSize, setIsCustomMobileSize] = useState(false);
@@ -63,6 +66,7 @@ export function SceneManagerModal() {
     if (sceneModalState.type !== null) {
       const defaultName = `Scene ${Object.keys(scenes || {}).length + 1}`;
       setNameValue(sceneModalState.value || (sceneModalState.type === 'create' ? defaultName : ''));
+      setTrackingMode((sceneModalState as any).trackingMode || 'image');
       setTargetMode(sceneModalState.targetMode || 'single');
       const w = sceneModalState.physicalWidth || 0.127;
       setPhysicalWidth(w);
@@ -77,10 +81,18 @@ export function SceneManagerModal() {
     const trimmed = nameValue.trim();
     if (sceneModalState.type === 'create') {
       if (!trimmed) return;
-      createScene(trimmed, targetMode, physicalWidth);
+      createScene(trimmed, trackingMode, targetMode, physicalWidth);
       saveCurrentProject();
       addToast(`Created scene "${trimmed}"`);
       closeSceneModal();
+
+      // Automatically frame the new scene in the 3D editor
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new CustomEvent('trigger-frame-selected'));
+      });
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('trigger-frame-selected'));
+      }, 120);
     } else if (sceneModalState.type === 'rename') {
       if (!trimmed || !sceneModalState.sceneId) return;
       renameScene(sceneModalState.sceneId, trimmed);
@@ -268,66 +280,123 @@ export function SceneManagerModal() {
 
                   {sceneModalState.type === 'create' && (
                     <>
-                      {/* Compact Segmented Target Mode */}
+                      {/* Tracking Type Selection */}
                       <div className="flex flex-col gap-1.5">
                         <label className={cn("text-[11px] font-bold uppercase tracking-wider", isLight ? "text-gray-600" : "text-gray-400")}>
-                          Tracking Target Mode
+                          AR Tracking Mode
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
                             onClick={() => {
+                              setTrackingMode('image');
                               setTargetMode('single');
-                              setSceneModalState({ ...sceneModalState, targetMode: 'single' });
                             }}
                             className={cn(
-                              "h-14 p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all active:scale-98 cursor-pointer select-none",
-                              targetMode === 'single'
+                              "p-2.5 rounded-xl border flex flex-col gap-1 text-left transition-all active:scale-98 cursor-pointer select-none",
+                              trackingMode === 'image'
                                 ? "bg-blue-600/20 border-blue-500 text-white ring-1 ring-blue-500/50"
-                                : isLight
-                                  ? "bg-gray-50 border-gray-200 text-gray-600"
-                                  : "bg-[#18181D] border-white/10 text-gray-400"
+                                : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#18181D] border-white/10 text-gray-400"
                             )}
                           >
-                            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", targetMode === 'single' ? "bg-blue-500 text-white" : "bg-white/5 text-gray-400")}>
-                              <Target size={16} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-bold text-blue-400 flex items-center justify-between">
-                                <span>Single Target</span>
-                                {targetMode === 'single' && <Check size={12} className="text-blue-400" />}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <ImageIcon size={15} className="text-blue-400" />
+                                <span className="text-xs font-bold text-blue-400">Image</span>
                               </div>
-                              <span className="text-[10px] text-gray-400 block truncate">1 Image / Face</span>
+                              {trackingMode === 'image' && <Check size={12} className="text-blue-400" />}
                             </div>
+                            <span className="text-[10px] text-gray-400">Target poster</span>
                           </button>
 
                           <button
                             type="button"
-                            onClick={() => {
-                              setTargetMode('multi');
-                              setSceneModalState({ ...sceneModalState, targetMode: 'multi' });
-                            }}
+                            onClick={() => setTrackingMode('face')}
                             className={cn(
-                              "h-14 p-2.5 rounded-xl border flex items-center gap-2.5 text-left transition-all active:scale-98 cursor-pointer select-none",
-                              targetMode === 'multi'
+                              "p-2.5 rounded-xl border flex flex-col gap-1 text-left transition-all active:scale-98 cursor-pointer select-none",
+                              trackingMode === 'face'
                                 ? "bg-purple-600/20 border-purple-500 text-white ring-1 ring-purple-500/50"
-                                : isLight
-                                  ? "bg-gray-50 border-gray-200 text-gray-600"
-                                  : "bg-[#18181D] border-white/10 text-gray-400"
+                                : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#18181D] border-white/10 text-gray-400"
                             )}
                           >
-                            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", targetMode === 'multi' ? "bg-purple-500 text-white" : "bg-white/5 text-gray-400")}>
-                              <Layers size={16} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-bold text-purple-400 flex items-center justify-between">
-                                <span>Multi-Target</span>
-                                {targetMode === 'multi' && <Check size={12} className="text-purple-400" />}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Smile size={15} className="text-purple-400" />
+                                <span className="text-xs font-bold text-purple-400">Face</span>
                               </div>
-                              <span className="text-[10px] text-gray-400 block truncate">Multiple markers</span>
+                              {trackingMode === 'face' && <Check size={12} className="text-purple-400" />}
                             </div>
+                            <span className="text-[10px] text-gray-400">Face filter</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTrackingMode('surface')}
+                            className={cn(
+                              "p-2.5 rounded-xl border flex flex-col gap-1 text-left transition-all active:scale-98 cursor-pointer select-none",
+                              trackingMode === 'surface'
+                                ? "bg-emerald-600/20 border-emerald-500 text-white ring-1 ring-emerald-500/50"
+                                : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#18181D] border-white/10 text-gray-400"
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Box size={15} className="text-emerald-400" />
+                                <span className="text-xs font-bold text-emerald-400">Surface</span>
+                              </div>
+                              {trackingMode === 'surface' && <Check size={12} className="text-emerald-400" />}
+                            </div>
+                            <span className="text-[10px] text-gray-400">Floor placement</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTrackingMode('world')}
+                            className={cn(
+                              "p-2.5 rounded-xl border flex flex-col gap-1 text-left transition-all active:scale-98 cursor-pointer select-none",
+                              trackingMode === 'world'
+                                ? "bg-cyan-600/20 border-cyan-500 text-white ring-1 ring-cyan-500/50"
+                                : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#18181D] border-white/10 text-gray-400"
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Globe size={15} className="text-cyan-400" />
+                                <span className="text-xs font-bold text-cyan-400">World</span>
+                              </div>
+                              {trackingMode === 'world' && <Check size={12} className="text-cyan-400" />}
+                            </div>
+                            <span className="text-[10px] text-gray-400">Spatial 6DOF</span>
                           </button>
                         </div>
+
+                        {trackingMode === 'image' && (
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Target Mode</span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setTargetMode('single')}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                                  targetMode === 'single' ? "bg-blue-600 text-white shadow-sm" : "bg-white/5 text-gray-400 hover:text-white"
+                                )}
+                              >
+                                Single
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setTargetMode('multi')}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                                  targetMode === 'multi' ? "bg-purple-600 text-white shadow-sm" : "bg-white/5 text-gray-400 hover:text-white"
+                                )}
+                              >
+                                Multi
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Print Media Preset Picker */}
@@ -530,78 +599,123 @@ export function SceneManagerModal() {
 
           {sceneModalState.type === 'create' && (
             <>
-              {/* AR Target Mode: Cards */}
+              {/* AR Tracking Mode Cards */}
               <div className="flex flex-col gap-2">
                 <label className={cn("text-[11px] font-bold uppercase tracking-wider", isLight ? "text-gray-600" : "text-gray-400")}>
-                  AR Tracking Target Mode
+                  AR Tracking Mode
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => {
+                      setTrackingMode('image');
                       setTargetMode('single');
-                      setSceneModalState({ ...sceneModalState, targetMode: 'single' });
                     }}
                     className={cn(
-                      "min-h-[56px] flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer outline-none active:scale-98 select-none",
-                      targetMode === 'single'
-                        ? "bg-blue-600/15 border-blue-500 text-white shadow-sm ring-1 ring-blue-500/40"
-                        : isLight
-                          ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                          : "bg-[#161618] border-white/10 text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
+                      "p-3 rounded-xl border flex flex-col gap-1 text-left transition-all cursor-pointer select-none",
+                      trackingMode === 'image'
+                        ? "bg-blue-600/15 border-blue-500 ring-1 ring-blue-500/40 text-white"
+                        : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#161618] border-white/10 text-gray-400"
                     )}
                   >
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", targetMode === 'single' ? "bg-blue-500/25 text-blue-400" : "bg-white/5 text-gray-400")}>
-                      <Target size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs sm:text-sm text-blue-400">Single Marker</span>
-                        {targetMode === 'single' && (
-                          <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white">
-                            <Check size={10} strokeWidth={3} />
-                          </span>
-                        )}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-blue-400">
+                        <ImageIcon size={15} />
+                        <span>Image Target</span>
                       </div>
-                      <span className="text-[10px] sm:text-[11px] text-gray-400 leading-tight line-clamp-1 mt-0.5">
-                        High stability & 60 FPS anchor.
-                      </span>
+                      {trackingMode === 'image' && <Check size={12} className="text-blue-400" />}
                     </div>
+                    <span className="text-[10px] text-gray-400">Track posters & markers</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setTargetMode('multi');
-                      setSceneModalState({ ...sceneModalState, targetMode: 'multi' });
-                    }}
+                    onClick={() => setTrackingMode('face')}
                     className={cn(
-                      "min-h-[56px] flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer outline-none active:scale-98 select-none",
-                      targetMode === 'multi'
-                        ? "bg-purple-600/15 border-purple-500 text-white shadow-sm ring-1 ring-purple-500/40"
-                        : isLight
-                          ? "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                          : "bg-[#161618] border-white/10 text-gray-400 hover:text-gray-200 hover:bg-[#1e1e22]"
+                      "p-3 rounded-xl border flex flex-col gap-1 text-left transition-all cursor-pointer select-none",
+                      trackingMode === 'face'
+                        ? "bg-purple-600/15 border-purple-500 ring-1 ring-purple-500/40 text-white"
+                        : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#161618] border-white/10 text-gray-400"
                     )}
                   >
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", targetMode === 'multi' ? "bg-purple-500/25 text-purple-400" : "bg-white/5 text-gray-400")}>
-                      <Layers size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs sm:text-sm text-purple-400">Multi-Target</span>
-                        {targetMode === 'multi' && (
-                          <span className="w-4 h-4 rounded-full bg-purple-500 flex items-center justify-center text-white">
-                            <Check size={10} strokeWidth={3} />
-                          </span>
-                        )}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-purple-400">
+                        <Smile size={15} />
+                        <span>Face Mesh</span>
                       </div>
-                      <span className="text-[10px] sm:text-[11px] text-gray-400 leading-tight line-clamp-1 mt-0.5">
-                        Simultaneous multi-marker tracking.
-                      </span>
+                      {trackingMode === 'face' && <Check size={12} className="text-purple-400" />}
                     </div>
+                    <span className="text-[10px] text-gray-400">Face filters & 3D masks</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTrackingMode('surface')}
+                    className={cn(
+                      "p-3 rounded-xl border flex flex-col gap-1 text-left transition-all cursor-pointer select-none",
+                      trackingMode === 'surface'
+                        ? "bg-emerald-600/15 border-emerald-500 ring-1 ring-emerald-500/40 text-white"
+                        : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#161618] border-white/10 text-gray-400"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-400">
+                        <Box size={15} />
+                        <span>Surface AR</span>
+                      </div>
+                      {trackingMode === 'surface' && <Check size={12} className="text-emerald-400" />}
+                    </div>
+                    <span className="text-[10px] text-gray-400">Floor & table placement</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTrackingMode('world')}
+                    className={cn(
+                      "p-3 rounded-xl border flex flex-col gap-1 text-left transition-all cursor-pointer select-none",
+                      trackingMode === 'world'
+                        ? "bg-cyan-600/15 border-cyan-500 ring-1 ring-cyan-500/40 text-white"
+                        : isLight ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-[#161618] border-white/10 text-gray-400"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-cyan-400">
+                        <Globe size={15} />
+                        <span>World AR</span>
+                      </div>
+                      {trackingMode === 'world' && <Check size={12} className="text-cyan-400" />}
+                    </div>
+                    <span className="text-[10px] text-gray-400">Spatial 6DOF location</span>
                   </button>
                 </div>
+
+                {trackingMode === 'image' && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Target Mode</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setTargetMode('single')}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                          targetMode === 'single' ? "bg-blue-600 text-white shadow-sm" : "bg-white/5 text-gray-400 hover:text-white"
+                        )}
+                      >
+                        Single Target
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTargetMode('multi')}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                          targetMode === 'multi' ? "bg-purple-600 text-white shadow-sm" : "bg-white/5 text-gray-400 hover:text-white"
+                        )}
+                      >
+                        Multi-Target
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Marker Size Preset Picker */}

@@ -94,4 +94,48 @@ export class PivotNormalizationService {
     object.updateMatrix();
     object.updateMatrixWorld(true);
   }
+
+  /**
+   * Reconciles any glTF model's root object to normalize its orientation to Z-up immediately upon instantiation.
+   * Standard glTF coordinate system is Y-up (+Y is up, +Z is forward/out).
+   * ARForge conventions mandate that all 3D assets are instantiated Z-up (+Z is up, XY is the target surface).
+   * 
+   * When billboard is active (billboard=true or lookAtCamera=true):
+   * Billboard objects face the camera using Three.js lookAt with up=(0,0,1).
+   * This reconciliation ensures billboard models orient upright and face the camera without 90-degree tilting,
+   * fixing the previous inconsistency between glTF models and 2D/3D billboard objects (text, images, icons).
+   */
+  static reconcileGLTFZUpOrientation(object: THREE.Object3D, isBillboard: boolean = false): void {
+    if (!object) return;
+
+    const targetMode = isBillboard ? 'billboard' : 'z-up';
+    if (object.userData?.__zUpOrientation === targetMode) return;
+
+    // Reset rotation before applying normalization
+    object.rotation.set(0, 0, 0);
+
+    if (isBillboard) {
+      // In Three.js, lookAt(camera) with up=(0,0,1) maps local +Y to camera up and -Z to camera direction.
+      // For a standard GLTF model (head at +Y, front at +Z):
+      // Rotating 180 deg around Y aligns the model's front (+Z) with the camera direction (-Z), keeping head upright.
+      object.rotation.set(0, Math.PI, 0);
+    } else {
+      // Standard AR scene: target surface is XY plane, +Z is vertical up from surface.
+      // Rotating +90 deg around X maps model's +Y (up) directly to scene +Z (up), and +Z to -Y.
+      object.rotation.set(Math.PI / 2, 0, 0);
+    }
+
+    object.userData.__zUpOrientation = targetMode;
+    object.updateMatrix();
+    object.updateMatrixWorld(true);
+  }
 }
+
+/**
+ * Standalone reconciliation function for the editor's model loader.
+ * Ensures any glTF model's root object is normalized to Z-up orientation immediately upon instantiation.
+ */
+export function reconcileModelLoaderZUp(rootObject: THREE.Object3D, isBillboard: boolean = false): void {
+  PivotNormalizationService.reconcileGLTFZUpOrientation(rootObject, isBillboard);
+}
+

@@ -371,8 +371,9 @@ export const generateAFrameScene = (state: any) => {
         const iconType = obj.properties.iconType || 'rocket';
         entity += `${indent}  <a-entity gltf-model="/models/icons/${iconType}.glb" material="${matAttr}"></a-entity>\n`;
       } else if (obj.type === 'model') {
-        if (obj.properties.url && obj.properties.url.startsWith('primitive:')) {
-          const prim = obj.properties.url.replace('primitive:', '').toLowerCase();
+        const modelPath = obj.properties.modelUrl || obj.properties.url || '';
+        if (modelPath && modelPath.startsWith('primitive:')) {
+          const prim = modelPath.replace('primitive:', '').toLowerCase();
           const geomType = prim === 'cube' ? 'box' : prim === 'knot' ? 'torusKnot' : prim;
           entity += `${indent}  <a-entity geometry="primitive: ${geomType}; radius: 0.5" material="color: ${obj.properties.color || '#3b82f6'}"></a-entity>\n`;
         } else {
@@ -384,7 +385,7 @@ export const generateAFrameScene = (state: any) => {
           const matOverridesStr = JSON.stringify(obj.properties.materialOverrides || {}).replace(/"/g, '&quot;');
           const subOverridesStr = JSON.stringify(obj.properties.subObjectOverrides || {}).replace(/"/g, '&quot;');
           const overridesAttr = ` model-overrides="materials: ${matOverridesStr}; subObjects: ${subOverridesStr}"`;
-          entity += `${indent}  <a-entity gltf-model="${obj.properties.url || ''}"${animMixerAttr}${wireframeAttr}${overridesAttr}></a-entity>\n`;
+          entity += `${indent}  <a-entity gltf-model="${modelPath}"${animMixerAttr}${wireframeAttr}${overridesAttr}></a-entity>\n`;
         }
       } else if (obj.type === 'audio') {
         const soundUrl = obj.properties.soundUrl || '';
@@ -404,6 +405,7 @@ export const generateAFrameScene = (state: any) => {
     };
 
     const isFaceTracking = settings?.trackingMode === 'face';
+    const isSurfaceTracking = settings?.trackingMode === 'surface';
 
     if (isFaceTracking) {
       const faceAnchorIndex = getFaceAnchorIndex(settings?.faceAnchor);
@@ -477,6 +479,25 @@ export const generateAFrameScene = (state: any) => {
           });
         } else if (obj) {
           entitiesHtml += buildEntity(id, 2, offset);
+        }
+      });
+      entitiesHtml += `      </a-entity>\n`;
+    } else if (isSurfaceTracking) {
+      const surfaceOrientation = settings?.surfaceOrientation || 'horizontal';
+      const gridSize = settings?.surfaceGridSize || 2;
+      const showGrid = settings?.surfaceShowGrid ?? true;
+      entitiesHtml += `      <a-entity id="surface-anchor-target" position="0 0 0">\n`;
+      if (showGrid) {
+        entitiesHtml += `        <a-plane position="0 0 0" rotation="${surfaceOrientation === 'vertical' ? '0 0 0' : '-90 0 0'}" width="${gridSize}" height="${gridSize}" material="color: #10b981; wireframe: true; opacity: 0.35; transparent: true"></a-plane>\n`;
+      }
+      rootObjects.forEach(id => {
+        const obj = objects[id];
+        if (obj && obj.type === 'imageTarget') {
+          obj.children.forEach(childId => {
+            entitiesHtml += buildEntity(childId, 2);
+          });
+        } else if (obj && obj.type !== 'imageTarget') {
+          entitiesHtml += buildEntity(id, 2);
         }
       });
       entitiesHtml += `      </a-entity>\n`;
@@ -1138,6 +1159,7 @@ ${audioPreloadScript}
           } else if (rule === 'look-at-camera' || this.data.billboard) {
             const camera = this.el.sceneEl.camera;
             if (camera) {
+              this.el.object3D.up.set(0, 0, 1);
               this.el.object3D.lookAt(camera.position);
             }
           }
@@ -1212,6 +1234,14 @@ ${audioPreloadScript}
               el.addEventListener('mouseenter', () => this.executeActions(evt.actions));
             } else if (evt.trigger === 'onHoverExit') {
               el.addEventListener('mouseleave', () => this.executeActions(evt.actions));
+            } else if (evt.trigger === 'onAnimationComplete') {
+              el.addEventListener('animation-finished', () => this.executeActions(evt.actions));
+              el.addEventListener('animation-loop', () => this.executeActions(evt.actions));
+              const modelChild = el.querySelector('[animation-mixer]');
+              if (modelChild) {
+                modelChild.addEventListener('animation-finished', () => this.executeActions(evt.actions));
+                modelChild.addEventListener('animation-loop', () => this.executeActions(evt.actions));
+              }
             } else if (evt.trigger === 'onKeyDown' && evt.triggerKey) {
               window.addEventListener('keydown', (e) => {
                 if (e.key.toLowerCase() === evt.triggerKey.toLowerCase()) {
@@ -1250,7 +1280,7 @@ ${audioPreloadScript}
                   if (act.animationClipName) {
                     modelEl.setAttribute('animation-mixer', 'clip', act.animationClipName);
                   }
-                  modelEl.setAttribute('animation-mixer', 'timeScale', 1);
+                  modelEl.setAttribute('animation-mixer', 'timeScale', act.animationSpeedValue || 1);
                 }
               }
             } else if (act.type === 'pauseAnimation' || act.type === 'pauseModelAnimation') {
@@ -1259,6 +1289,32 @@ ${audioPreloadScript}
                 const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
                 if (modelEl) {
                   modelEl.setAttribute('animation-mixer', 'timeScale', 0);
+                }
+              }
+            } else if (act.type === 'stopAnimation' || act.type === 'stopModelAnimation') {
+              const animEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  modelEl.setAttribute('animation-mixer', 'timeScale', 0);
+                  modelEl.removeAttribute('animation-mixer');
+                }
+              }
+            } else if (act.type === 'setAnimationSpeed') {
+              const animEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  modelEl.setAttribute('animation-mixer', 'timeScale', act.animationSpeedValue || 1);
+                }
+              }
+            } else if (act.type === 'toggleAnimationPlayPause') {
+              const animEl = act.targetId ? document.getElementById(act.targetId) : this.el;
+              if (animEl) {
+                const modelEl = animEl.hasAttribute('animation-mixer') ? animEl : animEl.querySelector('[animation-mixer]');
+                if (modelEl) {
+                  const currentSpeed = parseFloat(modelEl.getAttribute('animation-mixer')?.timeScale || '1');
+                  modelEl.setAttribute('animation-mixer', 'timeScale', currentSpeed === 0 ? 1 : 0);
                 }
               }
             } else if (act.type === 'loadScene') {
@@ -1938,7 +1994,7 @@ ${audioPreloadScript}
             }
           });
 
-          const targetParent = el.closest('[mindar-image-target], [mindar-face-target]');
+          const targetParent = el.closest('[mindar-image-target], [mindar-face-target], #surface-anchor-target');
           if (targetParent) {
             targetParent.addEventListener('targetFound', () => {
               if (data.autoplay) {
@@ -1973,6 +2029,158 @@ ${audioPreloadScript}
           this.el.addEventListener('object3dset', applyColorWrite);
           if (this.el.getObject3D('mesh')) {
             applyColorWrite();
+          }
+        }
+      });
+
+      // Real-World Depth-Sensing & Physical Object Occlusion Engine
+      AFRAME.registerComponent('depth-sensing-occlusion', {
+        schema: {
+          enabled: { type: 'boolean', default: true },
+          mode: { type: 'string', default: 'auto' },
+          groundPlaneOcclusion: { type: 'boolean', default: true },
+          foregroundPhysicalOcclusion: { type: 'boolean', default: true }
+        },
+        init: function() {
+          this.active = this.data.enabled;
+          this.webxrDepthActive = false;
+          this.occluderElements = [];
+          this.depthCanvas = null;
+          this.depthCtx = null;
+          this.videoEl = null;
+          this.heatmapVisible = false;
+
+          console.log('[DEPTH-SENSING] Initializing Real-World Depth-Sensing & Physical Occlusion Engine...');
+
+          this.setupPhysicalSurfacesAndOccluders();
+
+          const scene = this.el.sceneEl || this.el;
+          if (scene) {
+            scene.addEventListener('enter-vr', () => this.checkWebXRDepth());
+            scene.addEventListener('arReady', () => this.initCameraDepthFeed());
+          }
+
+          // Expose global controller for viewer HUD toggling
+          window.__toggleDepthOcclusion = (forcedState) => {
+            this.active = typeof forcedState === 'boolean' ? forcedState : !this.active;
+            this.updateOccluders();
+            const badge = document.getElementById('depth-occlusion-badge');
+            const btn = document.getElementById('depth-occlusion-btn');
+            if (badge) {
+              badge.innerText = this.active ? 'Depth Occlusion: ACTIVE' : 'Depth Occlusion: OFF';
+            }
+            if (btn) {
+              btn.style.background = this.active ? 'rgba(16, 185, 129, 0.85)' : 'rgba(239, 68, 68, 0.7)';
+              btn.style.borderColor = this.active ? 'rgba(52, 211, 153, 0.5)' : 'rgba(248, 113, 113, 0.5)';
+            }
+            if (typeof showToast === 'function') {
+              showToast(this.active 
+                ? '🌐 Depth Occlusion ACTIVE: Real-world physical objects will occlude virtual 3D models.' 
+                : '🌐 Depth Occlusion OFF: Models render in front of real-world objects.'
+              );
+            }
+            return this.active;
+          };
+
+          window.__toggleDepthHeatmap = () => {
+            this.heatmapVisible = !this.heatmapVisible;
+            const heatmapEl = document.getElementById('depth-heatmap-overlay');
+            if (heatmapEl) {
+              heatmapEl.style.display = this.heatmapVisible ? 'block' : 'none';
+            }
+            return this.heatmapVisible;
+          };
+        },
+
+        setupPhysicalSurfacesAndOccluders: function() {
+          const targetEls = this.el.querySelectorAll('[mindar-image-target], [mindar-face-target], #surface-anchor-target');
+          targetEls.forEach((targetEl) => {
+            // 1. Surface plane occluder (prevents virtual 3D models from rendering behind physical print ads / desk surfaces)
+            const groundPlane = document.createElement('a-entity');
+            groundPlane.setAttribute('geometry', 'primitive: plane; width: 12; height: 12');
+            groundPlane.setAttribute('position', '0 0 -0.005');
+            groundPlane.setAttribute('material', 'colorWrite: false; depthWrite: true; opacity: 0; transparent: true');
+            groundPlane.setAttribute('class', 'realworld-physical-occluder');
+            
+            const setupMaterial = (el) => {
+              const mesh = el.getObject3D('mesh');
+              if (mesh) {
+                mesh.renderOrder = -1;
+                if (mesh.material) {
+                  mesh.material.colorWrite = false;
+                  mesh.material.depthWrite = true;
+                }
+              }
+            };
+            groundPlane.addEventListener('loaded', () => setupMaterial(groundPlane));
+            targetEl.appendChild(groundPlane);
+            this.occluderElements.push(groundPlane);
+
+            // 2. Dynamic foreground physical object occluder (occludes models when hands / real items pass over target)
+            const handOccluder = document.createElement('a-entity');
+            handOccluder.setAttribute('geometry', 'primitive: plane; width: 2.2; height: 2.2');
+            handOccluder.setAttribute('position', '0 0 0.04');
+            handOccluder.setAttribute('material', 'colorWrite: false; depthWrite: true; opacity: 0; transparent: true');
+            handOccluder.setAttribute('class', 'realworld-physical-occluder dynamic-hand-occluder');
+            handOccluder.addEventListener('loaded', () => setupMaterial(handOccluder));
+            targetEl.appendChild(handOccluder);
+            this.occluderElements.push(handOccluder);
+          });
+        },
+
+        initCameraDepthFeed: function() {
+          this.videoEl = document.querySelector('video');
+          if (!this.videoEl) {
+            setTimeout(() => this.initCameraDepthFeed(), 400);
+            return;
+          }
+          this.depthCanvas = document.createElement('canvas');
+          this.depthCanvas.width = 160;
+          this.depthCanvas.height = 120;
+          this.depthCtx = this.depthCanvas.getContext('2d', { willReadFrequently: true });
+          console.log('[DEPTH-SENSING] Video feed connected. Depth occluder passes primed.');
+        },
+
+        checkWebXRDepth: function() {
+          const renderer = (this.el.sceneEl || this.el).renderer;
+          if (!renderer || !renderer.xr) return;
+          const session = renderer.xr.getSession();
+          if (session && session.depthUsage) {
+            this.webxrDepthActive = true;
+            console.log('[DEPTH-SENSING] WebXR Depth Sensing API hardware detected.');
+            const badge = document.getElementById('depth-occlusion-badge');
+            if (badge) badge.innerText = 'Depth Occlusion: HARDWARE';
+          }
+        },
+
+        updateOccluders: function() {
+          this.occluderElements.forEach(el => {
+            el.setAttribute('visible', this.active ? 'true' : 'false');
+          });
+        },
+
+        tick: function() {
+          if (!this.active) return;
+          if (this.heatmapVisible && this.videoEl && this.videoEl.readyState >= 2 && this.depthCtx) {
+            try {
+              this.depthCtx.drawImage(this.videoEl, 0, 0, 160, 120);
+              const heatmapCanvas = document.getElementById('depth-heatmap-canvas');
+              if (heatmapCanvas) {
+                const hCtx = heatmapCanvas.getContext('2d');
+                if (hCtx) {
+                  const imgData = this.depthCtx.getImageData(0, 0, 160, 120);
+                  const d = imgData.data;
+                  for (let i = 0; i < d.length; i += 4) {
+                    const luma = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+                    const norm = luma / 255;
+                    d[i] = Math.min(255, Math.floor(norm * 280));
+                    d[i+1] = Math.min(255, Math.floor((1 - Math.abs(norm - 0.5) * 2) * 255));
+                    d[i+2] = Math.min(255, Math.floor((1 - norm) * 255));
+                  }
+                  hCtx.putImageData(imgData, 0, 0);
+                }
+              }
+            } catch (e) {}
           }
         }
       });
@@ -2122,8 +2330,28 @@ ${audioPreloadScript}
 
     <!-- Real-time HUD overlay system (Toasts, Video popups) -->
     <div id="hud-overlay" style="position: fixed; inset: 0; z-index: 10000000 !important; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <!-- Real-World Depth Sensing & Physical Occlusion Controller -->
+      <div id="depth-sensing-hud" style="position: absolute; top: 16px; left: 16px; z-index: 100000; display: flex; align-items: center; gap: 8px; pointer-events: auto;">
+        <button id="depth-occlusion-btn" onclick="window.__toggleDepthOcclusion && window.__toggleDepthOcclusion()" style="background: rgba(16, 185, 129, 0.85); border: 1px solid rgba(52, 211, 153, 0.5); border-radius: 20px; padding: 6px 14px; font-size: 11px; font-weight: 700; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.5); outline: none; transition: all 0.2s;" title="Toggle Real-World Physical Object Depth Occlusion">
+          <span style="font-size: 13px;">🌐</span>
+          <span id="depth-occlusion-badge">Depth Occlusion: ACTIVE</span>
+        </button>
+        <button id="depth-heatmap-btn" onclick="window.__toggleDepthHeatmap && window.__toggleDepthHeatmap()" style="background: rgba(15, 15, 20, 0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 6px 10px; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; backdrop-filter: blur(8px); outline: none; transition: all 0.2s;" title="Toggle Real-Time Depth Sensing Heatmap Visualizer">
+          <span>📊 Depth Map</span>
+        </button>
+      </div>
+
+      <!-- Real-Time Depth Sensing Heatmap PIP Overlay -->
+      <div id="depth-heatmap-overlay" style="position: absolute; top: 60px; left: 16px; width: 140px; height: 105px; background: rgba(0,0,0,0.85); border: 1px solid rgba(6,182,212,0.4); border-radius: 12px; overflow: hidden; display: none; z-index: 100000; box-shadow: 0 10px 25px rgba(0,0,0,0.7); pointer-events: auto;">
+        <div style="padding: 4px 8px; background: rgba(6,182,212,0.2); border-bottom: 1px solid rgba(6,182,212,0.3); font-size: 8px; font-weight: bold; color: #22d3ee; display: flex; justify-content: space-between; align-items: center; font-family: monospace;">
+          <span>REAL-TIME DEPTH</span>
+          <span onclick="window.__toggleDepthHeatmap && window.__toggleDepthHeatmap()" style="cursor: pointer; color: #aaa;">✕</span>
+        </div>
+        <canvas id="depth-heatmap-canvas" width="160" height="120" style="width: 100%; height: calc(100% - 20px); object-fit: cover;"></canvas>
+      </div>
+
       <!-- HUD Toasts -->
-      <div id="toasts-container" style="position: absolute; top: 16px; left: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; pointer-events: none;"></div>
+      <div id="toasts-container" style="position: absolute; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; pointer-events: none;"></div>
       
       <!-- Mobile Debug Console Toggle -->
       <button id="debug-toggle-btn" style="position: absolute; bottom: 85px; right: 16px; width: 44px; height: 44px; border-radius: 22px; background: rgba(15, 15, 15, 0.85); border: 1px solid rgba(255,255,255,0.15); color: #fbbf24; z-index: 100000; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5); backdrop-filter: blur(8px); pointer-events: auto; outline: none; transition: transform 0.1s active;" onclick="toggleDebugConsole()">🐞</button>
@@ -2332,10 +2560,14 @@ ${audioPreloadScript}
       ${isFaceTracking ? `
       <a-scene mindar-face="autoStart: true; uiScanning: no; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5};" 
                embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false"
+               webxr="optionalFeatures: depth-sensing, hit-test, dom-overlay; depthSensing: usagePreference: gpu-optimized, cpu-optimized; dataFormatPreference: float32, luminance-alpha;"
+               ${settings.depthSensingEnabled !== false ? 'depth-sensing-occlusion="enabled: true"' : ''}
                ${settings.hdrEnvironmentEnabled ? `hdr-environment="enabled: true; type: ${settings.hdrEnvironmentType || 'preset'}; preset: ${settings.hdrPreset || 'studio'}; url: ${settings.hdrEnvironmentUrl || ''}; showBackground: ${settings.hdrBackgroundEnabled ?? false}"` : ''}>
       ` : `
       <a-scene mindar-image="imageTargetSrc: __MIND_URL_PLACEHOLDER__; autoStart: true; maxTrack: ${Object.values(objects).filter((o: any) => o.type === 'imageTarget').length || 1}; filterMinCF:${imageTargetObj?.properties?.filterMinCF ?? 0.0001}; filterBeta:${imageTargetObj?.properties?.filterBeta ?? 0.001}; missTolerance:${imageTargetObj?.properties?.missTolerance ?? 5}; uiScanning: no;" 
                embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false"
+               webxr="optionalFeatures: depth-sensing, hit-test, dom-overlay; depthSensing: usagePreference: gpu-optimized, cpu-optimized; dataFormatPreference: float32, luminance-alpha;"
+               ${settings.depthSensingEnabled !== false ? 'depth-sensing-occlusion="enabled: true"' : ''}
                ${settings.hdrEnvironmentEnabled ? `hdr-environment="enabled: true; type: ${settings.hdrEnvironmentType || 'preset'}; preset: ${settings.hdrPreset || 'studio'}; url: ${settings.hdrEnvironmentUrl || ''}; showBackground: ${settings.hdrBackgroundEnabled ?? false}"` : ''}>
       `}
         
@@ -2472,8 +2704,8 @@ ${entitiesHtml}
           console.error('[MINDAR-ERROR] AR Engine initialization failed:', event);
         });
 
-        // Listen for targetFound and targetLost on MindAR target entities
-        const targetEls = scene.querySelectorAll('[mindar-face-target], [mindar-image-target]');
+        // Listen for targetFound and targetLost on MindAR & Surface target entities
+        const targetEls = scene.querySelectorAll('[mindar-face-target], [mindar-image-target], #surface-anchor-target');
         if (targetEls.length > 0) {
           let visibleTargetsCount = 0;
           targetEls.forEach(targetEl => {

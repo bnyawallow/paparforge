@@ -24,7 +24,10 @@ import {
   Shield,
   Settings,
   Star,
-  Video
+  Video,
+  Building2,
+  Car,
+  UtensilsCrossed
 } from 'lucide-react';
 import { CategoryTab } from './assetTypes';
 import { AssetCard } from './AssetCard';
@@ -216,6 +219,27 @@ export function DiscoverView({
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => onNavigateTab('buildings')}
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Building2 size={14} />
+              <span>Buildings</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab('vehicles')}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Car size={14} />
+              <span>Vehicles</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab('food')}
+              className="px-3.5 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-orange-500/20 flex items-center gap-1.5 cursor-pointer"
+            >
+              <UtensilsCrossed size={14} />
+              <span>Food & Cans</span>
+            </button>
+            <button
               onClick={() => onNavigateTab('primitives')}
               className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
             >
@@ -231,7 +255,7 @@ export function DiscoverView({
             </button>
             <button
               onClick={() => onNavigateTab('buttons')}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-1.5 cursor-pointer"
             >
               <MousePointerClick size={14} />
               <span>Buttons</span>
@@ -406,20 +430,22 @@ export function DiscoverView({
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {SPLINE_3D_ICONS.slice(0, 6).map((icon) => {
-            const thumb = getSplineThumbnailStyle(icon.name);
             return (
               <AssetCard
                 key={icon.id}
                 id={icon.id}
                 name={icon.name}
-                badge="3D ICON"
+                badge="3D MODEL"
                 badgeColor="bg-pink-500/20 text-pink-300 border-pink-500/30"
                 thumbnail={
                   <div
-                    className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center"
-                    style={{ background: thumb.orbBg, boxShadow: `0 0 20px ${thumb.glowColor}` }}
+                    className="w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center text-3xl select-none"
+                    style={{ 
+                      background: `radial-gradient(circle at 35% 35%, ${icon.defaultColor}ee, ${icon.secondaryColor || '#0f172a'})`, 
+                      boxShadow: `0 8px 24px -4px ${icon.defaultColor}66` 
+                    }}
                   >
-                    <span className="text-lg text-white font-bold">{icon.name.charAt(0)}</span>
+                    <span className="drop-shadow-lg transform transition-transform group-hover:scale-110">{icon.previewEmoji || '⭐'}</span>
                   </div>
                 }
                 description={icon.description}

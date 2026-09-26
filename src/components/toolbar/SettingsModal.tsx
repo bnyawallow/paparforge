@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Save, Info, Tag, Layers, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Save, Info, Tag, Layers, CheckCircle, BookOpen } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { GlassModal } from '../ui/HudComponents';
 import { PrintMediaPresetPicker } from '../ui/PrintMediaPresetPicker';
@@ -21,6 +21,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const [projectName, setProjectName] = useState(settings.projectName);
   const [imageTargetName, setImageTargetName] = useState(settings.imageTargetName || '');
+  const [showGuideOnStartup, setShowGuideOnStartup] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const completed = localStorage.getItem('ar_onboarding_completed');
+      setShowGuideOnStartup(completed !== 'true');
+    }
+  }, []);
   
   // Find the image target to read/update physical width
   const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -33,6 +41,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (!projectName.trim()) {
       addToast('Project name cannot be empty');
       return;
+    }
+
+    // Save startup guide preference
+    if (showGuideOnStartup) {
+      localStorage.removeItem('ar_onboarding_completed');
+    } else {
+      localStorage.setItem('ar_onboarding_completed', 'true');
     }
 
     // 1. Rename the project
@@ -113,6 +128,30 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <span>Provides correct real-world scale for AR elements relative to the physical tracker width.</span>
               </div>
             </div>
+          </div>
+
+          {/* Startup Onboarding Guide Toggle */}
+          <div className="p-3.5 bg-[#14141A] border border-[#262632] rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                <BookOpen size={14} />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-gray-200">Startup Onboarding Guide</h4>
+                <p className="text-[11px] text-gray-400">
+                  Show Getting Started guide when booting the editor
+                </p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showGuideOnStartup}
+                onChange={(e) => setShowGuideOnStartup(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
           </div>
 
           {/* QR Code / Trackable Status */}

@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { 
   Settings, Edit3, Camera, Undo2, Redo2, Globe, 
   FolderOpen, Edit2, Check, Save, Sun, Moon, LogOut, ShieldAlert, History, QrCode, Printer, LayoutTemplate,
-  Image as ImageIcon, Smile, Sliders, Gauge, Sparkles, ChevronLeft, ChevronRight, Maximize, Minimize
+  Image as ImageIcon, Smile, Sliders, Gauge, Sparkles, ChevronLeft, ChevronRight, Maximize, Minimize,
+  Keyboard, Smartphone, BookOpen, HelpCircle
 } from 'lucide-react';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -14,7 +15,11 @@ import { MarkerManagerModal } from './MarkerManagerModal';
 import { TemplatesLibraryModal } from '../templates/TemplatesLibraryModal';
 import { TrackingModeModal } from './TrackingModeModal';
 import { UIOptimizerModal } from './UIOptimizerModal';
+import { OnboardingModal } from '../onboarding/OnboardingModal';
 import { ProjectQRCodeModal } from '../qrcode/ProjectQRCodeModal';
+import { SnapToGridMenu } from '../layout/SnapToGridMenu';
+import { AlignmentMenu } from '../layout/AlignmentMenu';
+import { PapARForgeLogo } from '../common/PapARForgeLogo';
 import { useTheme } from '../../lib/theme';
 import { useNavigate } from 'react-router-dom';
 
@@ -45,7 +50,11 @@ export function Toolbar() {
     isQRCodeModalOpen,
     qrCodeModalProject,
     openQRCodeModal,
-    closeQRCodeModal
+    closeQRCodeModal,
+    setIsShortcutsModalOpen,
+    isOnboardingModalOpen,
+    setIsOnboardingModalOpen,
+    optimizeAllSceneMeshesForMobile
   } = useEditorStore();
   
   const { user, logout } = useAuthStore();
@@ -76,6 +85,18 @@ export function Toolbar() {
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const completed = localStorage.getItem('ar_onboarding_completed');
+      if (completed !== 'true') {
+        const timer = setTimeout(() => {
+          setIsOnboardingModalOpen(true);
+        }, 800);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [setIsOnboardingModalOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -136,17 +157,10 @@ export function Toolbar() {
 
   return (
     <>
-      <header className={`h-14 border-b flex items-center justify-between px-1.5 sm:px-3 shrink-0 relative z-30 select-none overflow-x-auto overflow-y-hidden no-scrollbar touch-pan-x w-full ${t.isLight ? 'bg-white border-gray-200 text-gray-800' : 'bg-[#141414] border-[#2A2A2A] text-white'}`}>
+      <header className={`h-14 border-b flex items-center justify-between px-1.5 sm:px-3 shrink-0 relative z-30 select-none overflow-visible w-full ${t.isLight ? 'bg-white border-gray-200 text-gray-800' : 'bg-[#141414] border-[#2A2A2A] text-white'}`}>
         {/* 1. Left Section: Logo & Project Switcher (Pinned, never clipped) */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 z-10">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-xs sm:text-sm shadow-md shadow-blue-500/20 shrink-0">
-              AF
-            </div>
-            <span className={`font-bold tracking-tight text-sm hidden lg:inline ${t.textHeading}`}>
-              ARForge
-            </span>
-          </div>
+          <PapARForgeLogo size="sm" />
 
           <div className={`h-4 w-[1px] hidden xs:block ${t.isLight ? 'bg-gray-200' : 'bg-[#2A2A2A]'}`} />
 
@@ -206,8 +220,30 @@ export function Toolbar() {
           )}
         </div>
 
-        {/* 2. Middle Section: Toolbar Tools */}
-        <div className="flex items-center gap-1 sm:gap-1.5 mx-1.5 sm:mx-2.5 shrink-0 py-1">
+        {/* 2. Middle Section: Toolbar Tools (Smoothly Scrollable on all screen sizes) */}
+        <div className="relative flex-1 min-w-0 flex items-center mx-1 sm:mx-2 overflow-hidden">
+          <button
+            onClick={handleScrollLeft}
+            className="hidden sm:flex shrink-0 p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors mr-0.5 cursor-pointer z-10"
+            title="Scroll tools left"
+          >
+            <ChevronLeft size={14} />
+          </button>
+
+          <div 
+            ref={scrollTrackRef}
+            className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto overflow-y-hidden scrollbar-none touch-pan-x py-1 w-full"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}
+            onWheel={(e) => {
+              if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                e.currentTarget.scrollLeft += e.deltaY;
+              }
+            }}
+          >
             {/* Asset Browser Trigger */}
             <button 
               onClick={() => useEditorStore.getState().openAssetBrowser('models')}
@@ -222,6 +258,12 @@ export function Toolbar() {
               <span className="text-[11px] whitespace-nowrap">Assets</span>
             </button>
 
+            {/* Snap to Grid & Advertising Alignment Tool */}
+            <SnapToGridMenu />
+
+            {/* Alignment & Distribution Tool */}
+            <AlignmentMenu />
+
             {/* UI Optimizer & Resolution Trigger */}
             <button
               onClick={() => setIsUIOptimizerOpen(true)}
@@ -234,6 +276,49 @@ export function Toolbar() {
             >
               <Gauge size={13} className="text-cyan-400 animate-pulse" />
               <span className="text-[11px] whitespace-nowrap">Optimizer</span>
+            </button>
+
+            {/* Quick Mobile 3D Mesh Optimizer */}
+            <button
+              onClick={() => optimizeAllSceneMeshesForMobile()}
+              className={`px-2 py-1 rounded-lg border transition-all duration-100 flex items-center gap-1.5 cursor-pointer text-xs font-bold shrink-0 ${
+                t.isLight
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                  : 'bg-emerald-950/30 hover:bg-emerald-950/50 text-emerald-400 border-emerald-500/30'
+              }`}
+              title="Optimize all 3D asset meshes for mobile (Alt+M)"
+              aria-label="Optimize all 3D asset meshes for mobile"
+            >
+              <Smartphone size={13} className="text-emerald-400" />
+              <span className="text-[11px] whitespace-nowrap">Mobile 3D</span>
+            </button>
+
+            {/* Keyboard Shortcuts Modal Trigger */}
+            <button
+              onClick={() => setIsShortcutsModalOpen(true)}
+              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center justify-center cursor-pointer text-xs font-bold shrink-0 ${
+                t.isLight
+                  ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                  : 'bg-blue-950/30 hover:bg-blue-950/50 text-blue-400 border-blue-500/30'
+              }`}
+              title="Keyboard Shortcuts (?)"
+              aria-label="View Keyboard Shortcuts"
+            >
+              <Keyboard size={14} />
+            </button>
+
+            {/* Getting Started Guide / Onboarding Trigger */}
+            <button
+              onClick={() => setIsOnboardingModalOpen(true)}
+              className={`p-1.5 rounded-lg border transition-all duration-100 flex items-center justify-center cursor-pointer text-xs font-bold shrink-0 ${
+                t.isLight
+                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
+                  : 'bg-amber-950/30 hover:bg-amber-950/50 text-amber-400 border-amber-500/30'
+              }`}
+              title="WebAR Creator Getting Started Guide & Onboarding"
+              aria-label="View Getting Started Guide"
+            >
+              <BookOpen size={14} />
             </button>
 
             {/* Tracking Mode Studio */}
@@ -326,6 +411,15 @@ export function Toolbar() {
             </button>
           </div>
 
+          <button
+            onClick={handleScrollRight}
+            className="hidden sm:flex shrink-0 p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors ml-0.5 cursor-pointer z-10"
+            title="Scroll tools right"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+
         {/* 3. Right Section: Pinned Critical Actions (Always Visible on ALL devices and orientations) */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 z-10">
           {/* Undo / Redo Cluster (Visible on larger screens) */}
@@ -363,10 +457,10 @@ export function Toolbar() {
                   ? "bg-blue-600 text-white shadow font-extrabold" 
                   : t.isLight ? "text-gray-500 hover:text-gray-900" : "text-gray-400 hover:text-gray-200"
               }`}
-              title="Switch to Design & Edit Mode"
+              title="Switch to 3D Editor Mode"
             >
               <Edit3 size={12} />
-              <span className="text-[11px] inline">Design</span>
+              <span className="text-[11px] inline">Editor</span>
             </button>
             <button
               onClick={() => setPreviewMode(true)}
@@ -445,6 +539,10 @@ export function Toolbar() {
         onClose={closeQRCodeModal}
         projectId={qrCodeModalProject?.id}
         projectName={qrCodeModalProject?.name}
+      />
+      <OnboardingModal
+        isOpen={isOnboardingModalOpen}
+        onClose={() => setIsOnboardingModalOpen(false)}
       />
     </>
   );

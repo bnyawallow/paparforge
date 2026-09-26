@@ -1,6 +1,6 @@
 {
-  "name": "ARForge",
-  "description": "Browser-based 3D AR Editor optimized for print-based advertising.",
+  "name": "papAR Forge",
+  "description": "Browser-based 3D AR Editor optimized for print-based advertising and spatial paper-to-digital experiences.",
   "requestFramePermissions": [
     "camera"
   ],

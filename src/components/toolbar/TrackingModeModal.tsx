@@ -18,10 +18,17 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
     addToast
   } = useEditorStore();
 
-  const [activeMode, setActiveMode] = useState<'image' | 'face'>(settings.trackingMode === 'face' ? 'face' : 'image');
+  const [activeMode, setActiveMode] = useState<'image' | 'face' | 'surface'>(
+    settings.trackingMode === 'face' ? 'face' : settings.trackingMode === 'surface' ? 'surface' : 'image'
+  );
   const [faceAnchor, setFaceAnchor] = useState<string>(settings.faceAnchor || 'head');
   const [showFaceMesh, setShowFaceMesh] = useState<boolean>(settings.showFaceMesh || false);
   const [showFaceOccluder, setShowFaceOccluder] = useState<boolean>(settings.showFaceOccluder ?? true);
+
+  const [surfaceOrientation, setSurfaceOrientation] = useState<'horizontal' | 'vertical' | 'any'>(settings.surfaceOrientation || 'horizontal');
+  const [surfaceReticleStyle, setSurfaceReticleStyle] = useState<'modern_ring' | 'cyber_brackets' | 'minimal_dot' | 'crosshair'>((settings.surfaceReticleStyle as any) || 'modern_ring');
+  const [surfaceGridSize, setSurfaceGridSize] = useState<number>(settings.surfaceGridSize || 2);
+  const [surfaceShowGrid, setSurfaceShowGrid] = useState<boolean>(settings.surfaceShowGrid ?? true);
 
   // Find image target object for physical width & compilation parameters
   const imageTarget = Object.values(objects).find(o => o.type === 'imageTarget');
@@ -37,6 +44,10 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
       faceAnchor: faceAnchor as any,
       showFaceMesh,
       showFaceOccluder,
+      surfaceOrientation,
+      surfaceReticleStyle,
+      surfaceGridSize,
+      surfaceShowGrid,
     });
 
     // 2. Update physical width on image target object if in image mode
@@ -55,12 +66,12 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
     // 3. Save to storage & notify
     setTimeout(() => {
       saveCurrentProject();
-      addToast(`Tracking mode updated to ${activeMode === 'face' ? 'Face AR Tracking' : 'Image AR Tracking'}`);
+      addToast(`Tracking mode updated to ${activeMode === 'face' ? 'Face AR Tracking' : activeMode === 'surface' ? 'Surface AR Tracking' : 'Image AR Tracking'}`);
       onClose();
     }, 50);
   };
 
-  const handleSelectMode = (mode: 'image' | 'face') => {
+  const handleSelectMode = (mode: 'image' | 'face' | 'surface') => {
     setActiveMode(mode);
   };
 
@@ -90,12 +101,12 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
       <form onSubmit={handleSave} className="p-5 space-y-5">
 
         {/* Mode Selector Cards */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           
           {/* Image Target Tracking Card */}
           <div
             onClick={() => handleSelectMode('image')}
-            className={`p-4 rounded-xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
               activeMode === 'image'
                 ? 'bg-blue-950/20 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.15)]'
                 : 'bg-[#181818] border-[#282828] hover:border-[#383838] opacity-75 hover:opacity-100'
@@ -107,23 +118,23 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
               </div>
             )}
             <div>
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-3">
-                <Image size={20} />
+              <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-2">
+                <Image size={18} />
               </div>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Image Target Tracking</h3>
-              <p className="text-[11px] text-[#888] leading-relaxed">
-                Track 2D posters, business cards, billboards, food packages, and printed markers in physical space.
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Image Target</h3>
+              <p className="text-[10px] text-[#888] leading-relaxed">
+                Track 2D posters, business cards, billboards, food packages, and printed markers.
               </p>
             </div>
-            <div className="mt-3 pt-2 border-t border-white/5 flex items-center gap-1.5 text-[10px] text-blue-400 font-mono font-bold">
-              <span>MindAR Image v1.2</span>
+            <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-1.5 text-[9px] text-blue-400 font-mono font-bold">
+              <span>MindAR Image</span>
             </div>
           </div>
 
           {/* Face AR Tracking Card */}
           <div
             onClick={() => handleSelectMode('face')}
-            className={`p-4 rounded-xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
               activeMode === 'face'
                 ? 'bg-purple-950/20 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.15)]'
                 : 'bg-[#181818] border-[#282828] hover:border-[#383838] opacity-75 hover:opacity-100'
@@ -135,16 +146,44 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
               </div>
             )}
             <div>
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mb-3">
-                <Smile size={20} />
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mb-2">
+                <Smile size={18} />
               </div>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Face AR Tracking</h3>
-              <p className="text-[11px] text-[#888] leading-relaxed">
-                Track human face landmarks in real-time. Place 3D glasses, hats, cosmetics, masks, and face filters.
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Face AR</h3>
+              <p className="text-[10px] text-[#888] leading-relaxed">
+                Track 3D face mesh landmarks. Place glasses, hats, cosmetics, and face filters.
               </p>
             </div>
-            <div className="mt-3 pt-2 border-t border-white/5 flex items-center gap-1.5 text-[10px] text-purple-400 font-mono font-bold">
-              <span>MindAR Face v1.2</span>
+            <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-1.5 text-[9px] text-purple-400 font-mono font-bold">
+              <span>MindAR Face</span>
+            </div>
+          </div>
+
+          {/* Surface AR Tracking Card */}
+          <div
+            onClick={() => handleSelectMode('surface')}
+            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+              activeMode === 'surface'
+                ? 'bg-emerald-950/20 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                : 'bg-[#181818] border-[#282828] hover:border-[#383838] opacity-75 hover:opacity-100'
+            }`}
+          >
+            {activeMode === 'surface' && (
+              <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                <Check size={12} className="stroke-[3]" />
+              </div>
+            )}
+            <div>
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-2">
+                <Sliders size={18} />
+              </div>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Surface AR</h3>
+              <p className="text-[10px] text-[#888] leading-relaxed">
+                Place 3D objects onto real-world floors, desks, tables, or walls with WebXR hit-test.
+              </p>
+            </div>
+            <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-1.5 text-[9px] text-emerald-400 font-mono font-bold">
+              <span>WebXR Surface</span>
             </div>
           </div>
 
@@ -171,6 +210,83 @@ export function TrackingModeModal({ onClose }: TrackingModeModalProps) {
                 value={parseFloat(physicalWidth) || 0.1}
                 onChange={(val) => setPhysicalWidth(val.toString())}
               />
+            </div>
+          </div>
+        ) : activeMode === 'surface' ? (
+          <div className="p-4 bg-[#181818] rounded-xl border border-[#282828] space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-[#252525]">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <Sliders size={14} />
+                Surface Hit-Test AR Options
+              </h4>
+              <span className="text-[10px] font-mono text-[#666]">Ground & Wall Tracking</span>
+            </div>
+
+            {/* Surface Plane Orientation */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#888]">Surface Alignment Mode</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'horizontal', label: 'Floor / Desk', icon: '📐' },
+                  { id: 'vertical', label: 'Wall / Door', icon: '🧱' },
+                  { id: 'any', label: 'Any Surface', icon: '🌐' }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSurfaceOrientation(item.id as any)}
+                    className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      surfaceOrientation === item.id
+                        ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-sm'
+                        : 'bg-[#141414] border-[#2A2A2A] text-[#888] hover:text-white'
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Surface Reticle Cursor Style */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#888]">Reticle Placement Indicator</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'modern_ring', label: 'Laser Ring' },
+                  { id: 'cyber_brackets', label: 'Cyber Box' },
+                  { id: 'minimal_dot', label: 'Minimal Dot' }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSurfaceReticleStyle(item.id as any)}
+                    className={`p-2 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
+                      surfaceReticleStyle === item.id
+                        ? 'bg-emerald-600/20 border-emerald-500 text-white'
+                        : 'bg-[#141414] border-[#2A2A2A] text-[#888] hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid Size & Visualizer Toggle */}
+            <div className="pt-2 border-t border-[#252525] flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#888]">Surface Grid Visualizer</label>
+              <button
+                type="button"
+                onClick={() => setSurfaceShowGrid(!surfaceShowGrid)}
+                className={`px-3 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                  surfaceShowGrid
+                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                    : 'bg-[#141414] border-[#2A2A2A] text-gray-500'
+                }`}
+              >
+                {surfaceShowGrid ? 'Visible' : 'Hidden'}
+              </button>
             </div>
           </div>
         ) : (

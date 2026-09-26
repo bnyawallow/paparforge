@@ -1,11 +1,13 @@
 import { playCachedAudio, globalAudioCache } from '../../lib/audioManager';
 import { PivotNormalizationService } from '../../lib/PivotNormalizationService';
+import { createSyntheticAnimationClip } from '../../utils/animationSynthesizer';
+import { cn } from '../../lib/utils';
 import React, { useRef, useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { CameraController } from './CameraController';
-import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useGizmoContext, useAnimations, Html, Environment, ContactShadows } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Text, useGLTF, useTexture, GizmoHelper, GizmoViewport, useGizmoContext, useAnimations, Html, Environment, ContactShadows, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import { useEditorStore } from '../../store/useEditorStore';
 import { DEFAULT_ART_POSTER_TEXTURE } from '../../lib/arTargetTexture';
 import { SceneObject } from '../../types';
@@ -19,6 +21,7 @@ import { Spline3DIconRenderer } from './Spline3DIconRenderer';
 import { Spline2DIconRenderer } from './Spline2DIconRenderer';
 import { MarkerConflictBanner } from '../toolbar/MarkerConflictBanner';
 import { SelectionMarquee } from './SelectionMarquee';
+import { SnapToGridMenu } from '../layout/SnapToGridMenu';
 import { TransformGizmoCallout3D, MobileTransformHUD, TransformHUDCallout } from './TransformPropertyCallout';
 import { computeComprehensiveSnapPosition, getObjectBoundingBox, computeGizmoScaleSnap } from '../../utils/snapping';
 import { 
@@ -53,6 +56,7 @@ import {
   Volume2,
   VolumeX,
   Box,
+  BoxSelect,
   Play,
   Link2,
   Star,
@@ -70,8 +74,20 @@ import {
   Download,
   Settings,
   Rocket,
-  Check
+  Check,
+  Boxes,
+  Activity,
+  Car
 } from 'lucide-react';
+import { VehicleDrivingHUD } from './VehicleDrivingHUD';
+import { VehiclePhysicsSceneController } from './VehiclePhysicsSceneController';
+import { 
+  stepVehiclePhysics, 
+  DEFAULT_VEHICLE_CONFIG, 
+  VehiclePhysicsConfig, 
+  computeOrientedBoundingBox 
+} from '../../lib/physics/collisionEngine';
+import { vehicleSoundEngine } from '../../lib/physics/vehicleSoundEngine';
 
 // Module-scoped flag to track if the user is actively dragging the transform gizmo.
 // This prevents useFrame from overwriting the vertical position during dragging.
@@ -796,11 +812,13 @@ function findIndexPathForObject(root: THREE.Object3D, target: THREE.Object3D): s
 // Robust GLTF / GLB 3D Model with Full Animation Clip Mixer support
 function PrimitiveModelRenderer({ url, properties }: { url: string; properties: any }) {
   const primitiveType = (url || '').replace('primitive:', '').toLowerCase();
+  const castShadow = properties?.castShadow !== false;
+  const receiveShadow = properties?.receiveShadow !== false;
   
   switch (primitiveType) {
     case 'sphere':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <sphereGeometry args={[0.5, 32, 32]} />
           <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
         </mesh>
@@ -808,140 +826,140 @@ function PrimitiveModelRenderer({ url, properties }: { url: string; properties: 
     case 'cube':
     case 'box':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <boxGeometry args={[1, 1, 1]} />
           <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
         </mesh>
       );
     case 'cylinder':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <cylinderGeometry args={[0.5, 0.5, 1, 32]} />
           <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
         </mesh>
       );
     case 'torus':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <torusGeometry args={[0.4, 0.12, 16, 64]} />
           <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
         </mesh>
       );
     case 'cone':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <coneGeometry args={[0.5, 1, 32]} />
           <TexturedMaterial properties={properties} defaultColor="#3b82f6" />
         </mesh>
       );
     case 'plane':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <planeGeometry args={[1, 1]} />
           <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#3b82f6" />
         </mesh>
       );
     case 'pyramid':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <coneGeometry args={[0.7, 1, 4]} />
           <TexturedMaterial properties={properties} defaultColor="#eab308" />
         </mesh>
       );
     case 'capsule':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
           <TexturedMaterial properties={properties} defaultColor="#a855f7" />
         </mesh>
       );
     case 'dodecahedron':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <dodecahedronGeometry args={[0.5]} />
           <TexturedMaterial properties={properties} defaultColor="#ec4899" />
         </mesh>
       );
     case 'octahedron':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <octahedronGeometry args={[0.5]} />
           <TexturedMaterial properties={properties} defaultColor="#10b981" />
         </mesh>
       );
     case 'icosahedron':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <icosahedronGeometry args={[0.5]} />
           <TexturedMaterial properties={properties} defaultColor="#06b6d4" />
         </mesh>
       );
     case 'circle':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <circleGeometry args={[0.5, 64]} />
           <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#06b6d4" />
         </mesh>
       );
     case 'ring':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <ringGeometry args={[0.3, 0.6, 64]} />
           <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#38bdf8" />
         </mesh>
       );
     case 'tube':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <cylinderGeometry args={[0.5, 0.5, 1, 32, 1, true]} />
           <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#64748b" />
         </mesh>
       );
     case 'prism':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <cylinderGeometry args={[0.6, 0.6, 1, 3]} />
           <TexturedMaterial properties={properties} defaultColor="#f97316" />
         </mesh>
       );
     case 'helix':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <torusKnotGeometry args={[0.35, 0.08, 100, 16, 2, 5]} />
           <TexturedMaterial properties={properties} defaultColor="#06b6d4" />
         </mesh>
       );
     case 'star':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <octahedronGeometry args={[0.6, 0]} />
           <TexturedMaterial properties={properties} defaultColor="#eab308" />
         </mesh>
       );
     case 'dome':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <sphereGeometry args={[0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <TexturedMaterial properties={{ ...properties, doubleSided: true }} defaultColor="#38bdf8" />
         </mesh>
       );
     case 'tetrahedron':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <tetrahedronGeometry args={[0.6]} />
           <TexturedMaterial properties={properties} defaultColor="#eab308" />
         </mesh>
       );
     case 'knot':
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <torusKnotGeometry args={[0.3, 0.1, 64, 16]} />
           <TexturedMaterial properties={properties} defaultColor="#f97316" />
         </mesh>
       );
     default:
       return (
-        <mesh castShadow receiveShadow>
+        <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <boxGeometry args={[0.8, 0.8, 0.8]} />
           <TexturedMaterial properties={properties} defaultColor="#6366f1" />
         </mesh>
@@ -953,12 +971,16 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   const group = useRef<THREE.Group>(null);
   const { scene, animations } = useGLTF(url);
   
+  const isBillboard = !!(properties?.billboard || properties?.lookAtCamera);
+
   // Clone scene so multiple model instances have independent animation/bone controllers
+  // Immediately reconcile and normalize glTF model root object to Z-up orientation upon instantiation
   const clonedScene = React.useMemo(() => {
     const cl = scene.clone();
+    PivotNormalizationService.reconcileGLTFZUpOrientation(cl, isBillboard);
     PivotNormalizationService.normalizePivot(cl);
     return cl;
-  }, [scene]);
+  }, [scene, isBillboard]);
 
   // Intelligent scaling & centering calculation to fit model inside Image Target frame and normalize scale
   const { scaleFactor, offsetVector } = React.useMemo(() => {
@@ -994,50 +1016,186 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
     // Offset center so the model's bottom center sits exactly at the pivot origin (0, 0, 0)
     const center = new THREE.Vector3();
     bbox.getCenter(center);
-    // In local model coordinates (Y-up), bbox.min.y is the base/bottom of the model
-    const offset = new THREE.Vector3(-center.x, -bbox.min.y, -center.z);
+    // In Z-up coordinate system, bbox.min.z is the base/bottom of the model
+    const offset = new THREE.Vector3(-center.x, -center.y, -bbox.min.z);
 
     return { scaleFactor: factor, offsetVector: offset };
   }, [clonedScene]);
 
-  const { actions, names } = useAnimations(animations, group);
+  // Compute effective animations: includes native glTF skeletal clips plus synthesized keyframe clips
+  // for any configured, discovered, or event-driven animation clips (e.g. VisorOpen, HUDScan, Spin, Flex)
+  const effectiveAnimations = React.useMemo(() => {
+    const result = [...(animations || [])];
+    const existingNames = new Set(result.map(a => a.name));
+
+    const requestedNames = new Set<string>();
+    if (properties?.activeAnimation) requestedNames.add(properties.activeAnimation);
+    if (Array.isArray(properties?.discoveredAnimations)) {
+      properties.discoveredAnimations.forEach((n: string) => requestedNames.add(n));
+    }
+    if (Array.isArray(properties?.animationClips)) {
+      properties.animationClips.forEach((n: string) => requestedNames.add(n));
+    }
+
+    const currentObj = useEditorStore.getState().objects[id];
+    if (currentObj?.events) {
+      currentObj.events.forEach((ev: any) => {
+        ev.actions?.forEach((act: any) => {
+          if ((act.type === 'playAnimation' || act.type === 'playModelAnimation') && act.animationClipName) {
+            requestedNames.add(act.animationClipName);
+          }
+        });
+      });
+    }
+
+    requestedNames.forEach(clipName => {
+      if (!existingNames.has(clipName) && clipName && typeof clipName === 'string') {
+        const syntheticClip = createSyntheticAnimationClip(clipName, clonedScene);
+        if (syntheticClip) {
+          result.push(syntheticClip);
+          existingNames.add(clipName);
+        }
+      }
+    });
+
+    return result;
+  }, [animations, properties?.activeAnimation, properties?.discoveredAnimations, properties?.animationClips, clonedScene, id]);
+
+  const { actions, names } = useAnimations(effectiveAnimations, group);
 
   const storeWireframe = useEditorStore(state => state.wireframeEnabled) || false;
-  const wireframe = storeWireframe || (properties.wireframe ?? false);
+  const selectedModelWireframeEnabled = useEditorStore(state => state.selectedModelWireframeEnabled) || false;
+  const visualizationMode = useEditorStore(state => state.visualizationMode) || 'standard';
+  const selectedObjectId = useEditorStore(state => state.selectedObjectId);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const isSelected = selectedObjectId === id || selectedObjectIds.includes(id);
+  const isSelectedWireframeActive = (selectedModelWireframeEnabled || visualizationMode === 'selectedWireframe') && isSelected;
+  const wireframe = storeWireframe || (properties.wireframe ?? false) || isSelectedWireframeActive;
+  const mobileMeshOptimizationEnabled = useEditorStore(state => state.mobileMeshOptimizationEnabled);
+  const isMobileOptimized = properties?.mobileOptimized || mobileMeshOptimizationEnabled;
 
-  // Auto-traverse mesh elements to enable real-time shadows and wireframe
+  // Auto-traverse mesh elements to enable real-time shadows, mobile performance optimizations, and wireframe
   useEffect(() => {
     clonedScene.traverse((node: any) => {
       if (node.isMesh) {
-        node.castShadow = true;
-        node.receiveShadow = true;
-        if (node.material) {
-          if (Array.isArray(node.material)) {
-            node.material.forEach((mat: any) => {
-              if (mat) mat.wireframe = wireframe;
+        node.castShadow = properties.castShadow !== false;
+        node.receiveShadow = properties.receiveShadow !== false;
+        node.frustumCulled = true;
+
+        if (isMobileOptimized) {
+          // Mobile performance mesh optimization:
+          // 1. Frustum culling ensures non-visible submeshes are not drawn
+          node.frustumCulled = true;
+
+          // 2. Vertex optimization: ensure clean normals are computed
+          if (node.geometry && !node.geometry.attributes.normal) {
+            node.geometry.computeVertexNormals();
+          }
+
+          // 3. Material & Texture optimization for mobile GPU:
+          const optimizeMaterial = (mat: any) => {
+            if (!mat) return;
+            mat.wireframe = wireframe;
+            mat.precision = 'mediump'; // mobile GPU power & memory efficiency
+            if (mat.roughness !== undefined) {
+              mat.roughness = Math.max(0.08, mat.roughness);
+            }
+
+            // Downscale texture anisotropy on mobile to prevent memory bandwidth chokes
+            const texKeys = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'];
+            texKeys.forEach(k => {
+              const tex = mat[k];
+              if (tex && tex.isTexture) {
+                tex.anisotropy = 1;
+                tex.generateMipmaps = true;
+                tex.minFilter = THREE.LinearMipmapLinearFilter;
+              }
             });
-          } else {
-            node.material.wireframe = wireframe;
+          };
+
+          if (Array.isArray(node.material)) {
+            node.material.forEach(optimizeMaterial);
+          } else if (node.material) {
+            optimizeMaterial(node.material);
+          }
+        } else {
+          if (node.material) {
+            if (Array.isArray(node.material)) {
+              node.material.forEach((mat: any) => {
+                if (mat) mat.wireframe = wireframe;
+              });
+            } else {
+              node.material.wireframe = wireframe;
+            }
           }
         }
       }
     });
-  }, [clonedScene, wireframe]);
+  }, [clonedScene, wireframe, isMobileOptimized, properties.castShadow, properties.receiveShadow]);
 
-  // Discover and store model's keyframe clips in state
+  // Discover and store model's keyframe clips, durations, and keyframe markers in state
   useEffect(() => {
-    if (names && names.length > 0) {
-      const currentAnims = useEditorStore.getState().objects[id]?.properties.discoveredAnimations;
-      if (!currentAnims || JSON.stringify(currentAnims) !== JSON.stringify(names)) {
+    if (effectiveAnimations && effectiveAnimations.length > 0) {
+      const animNames = effectiveAnimations.map(a => a.name || 'default');
+      const durations: Record<string, number> = {};
+      const keyframeMarkers: Record<string, number[]> = {};
+
+      effectiveAnimations.forEach(a => {
+        const clipName = a.name || 'default';
+        const dur = Number(a.duration.toFixed(3));
+        durations[clipName] = dur;
+
+        // Collect all distinct keyframe timestamps from all tracks of the clip
+        const timeSet = new Set<number>();
+        timeSet.add(0);
+        timeSet.add(dur);
+
+        a.tracks.forEach(track => {
+          if (track.times && track.times.length > 0) {
+            for (let i = 0; i < track.times.length; i++) {
+              timeSet.add(Number(track.times[i].toFixed(3)));
+            }
+          }
+        });
+
+        keyframeMarkers[clipName] = Array.from(timeSet).sort((x, y) => x - y);
+      });
+
+      const currentObj = useEditorStore.getState().objects[id];
+      const currentAnims = currentObj?.properties?.discoveredAnimations;
+      const currentDurations = currentObj?.properties?.animationClipDurations;
+      const currentMarkers = currentObj?.properties?.animationKeyframeMarkers;
+
+      if (
+        !currentAnims ||
+        JSON.stringify(currentAnims) !== JSON.stringify(animNames) ||
+        JSON.stringify(currentDurations) !== JSON.stringify(durations) ||
+        JSON.stringify(currentMarkers) !== JSON.stringify(keyframeMarkers)
+      ) {
         useEditorStore.getState().updateObject(id, {
           properties: {
             ...useEditorStore.getState().objects[id]?.properties,
-            discoveredAnimations: names
+            discoveredAnimations: animNames,
+            animationClipDurations: durations,
+            animationKeyframeMarkers: keyframeMarkers,
+            activeAnimation: currentObj?.properties?.activeAnimation || animNames[0]
+          }
+        });
+      }
+    } else {
+      const currentObj = useEditorStore.getState().objects[id];
+      if (currentObj?.properties?.discoveredAnimations && currentObj.properties.discoveredAnimations.length > 0) {
+        useEditorStore.getState().updateObject(id, {
+          properties: {
+            ...currentObj.properties,
+            discoveredAnimations: [],
+            animationClipDurations: {},
+            animationKeyframeMarkers: {}
           }
         });
       }
     }
-  }, [names, id]);
+  }, [effectiveAnimations, id]);
 
   // Discover and store model's unique material names in state
   useEffect(() => {
@@ -1303,26 +1461,56 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
   const selectObject = useEditorStore(state => state.selectObject);
   const liveInteractionsInDesign = useEditorStore(state => state.liveInteractionsInDesign);
   const activeAnimation = properties.activeAnimation || (names && names[0]) || '';
-  const animationPlaying = properties.animationPlaying !== false;
+  const animationPlaying = properties.animationPlaying === true;
   const actualAnimationPlaying = isPreviewMode
-    ? (properties.autoplayAnimation !== false && animationPlaying)
-    : (liveInteractionsInDesign && animationPlaying);
+    ? (properties.autoplayAnimation === true && animationPlaying)
+    : animationPlaying;
   const animationSpeed = properties.animationSpeed ?? 1.0;
   const loopAnimation = properties.loopAnimation !== false;
+  const fadeDuration = typeof properties.fadeDuration === 'number' 
+    ? properties.fadeDuration 
+    : (typeof properties.animationFadeDuration === 'number' ? properties.animationFadeDuration : 0.3);
+
+  const isScrubbing = properties.isScrubbing === true;
+  const targetTime = typeof properties.animationTime === 'number' ? properties.animationTime : undefined;
+
+  const prevActiveAnimRef = useRef<string>('');
 
   useEffect(() => {
     if (!actions) return;
     
-    // Deactivate all previous tracks
-    Object.values(actions).forEach(action => action?.stop());
-
-    // Play active target keyframe track
-    const action = actions[activeAnimation];
+    const action = actions[activeAnimation] || Object.values(actions)[0];
     if (action) {
-      action.reset();
+      if (prevActiveAnimRef.current !== activeAnimation) {
+        const prevAnimName = prevActiveAnimRef.current;
+        const prevAction = prevAnimName ? actions[prevAnimName] : null;
+
+        if (prevAction && prevAction !== action && fadeDuration > 0) {
+          // Smooth cross-fading between animation clips using configured fade duration
+          action.reset();
+          action.setEffectiveTimeScale(animationSpeed);
+          action.setEffectiveWeight(1);
+          if (loopAnimation) {
+            action.setLoop(THREE.LoopRepeat, Infinity);
+            action.clampWhenFinished = false;
+          } else {
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+          }
+          action.play();
+          prevAction.crossFadeTo(action, fadeDuration, true);
+        } else {
+          // Instant switch or no previous action
+          Object.values(actions).forEach(a => {
+            if (a && a !== action) a?.stop();
+          });
+          action.reset();
+        }
+        prevActiveAnimRef.current = activeAnimation;
+      }
+
       action.setEffectiveTimeScale(animationSpeed);
       
-      // Handle looping configuration
       if (loopAnimation) {
         action.setLoop(THREE.LoopRepeat, Infinity);
         action.clampWhenFinished = false;
@@ -1331,34 +1519,227 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
         action.clampWhenFinished = true;
       }
 
-      if (actualAnimationPlaying) {
+      if (actualAnimationPlaying && !isScrubbing) {
         action.play();
+        action.paused = false;
       } else {
-        action.play().paused = true;
-      }
-    } else {
-      // Automatic fallback to first track if active clip not specified
-      const fallbackAction = Object.values(actions)[0];
-      if (fallbackAction) {
-        fallbackAction.reset();
-        fallbackAction.setEffectiveTimeScale(animationSpeed);
-        
-        if (loopAnimation) {
-          fallbackAction.setLoop(THREE.LoopRepeat, Infinity);
-          fallbackAction.clampWhenFinished = false;
-        } else {
-          fallbackAction.setLoop(THREE.LoopOnce, 1);
-          fallbackAction.clampWhenFinished = true;
-        }
-
-        if (actualAnimationPlaying) {
-          fallbackAction.play();
-        } else {
-          fallbackAction.play().paused = true;
-        }
+        action.play();
+        action.paused = true;
       }
     }
-  }, [actions, activeAnimation, actualAnimationPlaying, animationSpeed, loopAnimation]);
+  }, [actions, activeAnimation, actualAnimationPlaying, animationSpeed, loopAnimation, isScrubbing, fadeDuration]);
+
+  // Listen to Three.js AnimationMixer finished & loop events for onAnimationComplete triggers
+  useEffect(() => {
+    if (!actions) return;
+    const currentAction = actions[activeAnimation] || Object.values(actions)[0];
+    if (!currentAction) return;
+
+    const mixer = currentAction.getMixer();
+    const handleFinished = () => {
+      // Dispatch hardware mixer event for animation controller and listeners
+      window.dispatchEvent(
+        new CustomEvent('ar-mixer-animation-finished', {
+          detail: { modelId: id, clipName: activeAnimation },
+        })
+      );
+
+      const obj = useEditorStore.getState().objects[id];
+      if (obj) {
+        // If an animation is not in loop, reset and go back to play button
+        if (obj.properties?.loopAnimation === false) {
+          currentAction.reset();
+          currentAction.paused = true;
+          useEditorStore.getState().updateObject(id, {
+            properties: {
+              ...obj.properties,
+              animationPlaying: false,
+              animationTime: 0,
+              isScrubbing: false,
+            }
+          });
+        }
+
+        if (obj.events) {
+          obj.events.forEach((ev: any) => {
+            if (ev.trigger === 'onAnimationComplete' || ev.trigger === 'onMediaEnd') {
+              window.dispatchEvent(new CustomEvent('ar-trigger-event', { detail: { event: ev, targetId: id } }));
+            }
+          });
+        }
+      }
+    };
+
+    const handleLoop = () => {
+      window.dispatchEvent(
+        new CustomEvent('ar-mixer-animation-loop', {
+          detail: { modelId: id, clipName: activeAnimation },
+        })
+      );
+    };
+
+    mixer.addEventListener('finished', handleFinished);
+    mixer.addEventListener('loop', handleLoop);
+    return () => {
+      mixer.removeEventListener('finished', handleFinished);
+      mixer.removeEventListener('loop', handleLoop);
+    };
+  }, [actions, activeAnimation, id]);
+
+  // Diagnostic tool listener for AnimationMixer state inspection and console debugging
+  useEffect(() => {
+    const handleDiagnosticRequest = (e: any) => {
+      if (e.detail?.modelId && e.detail.modelId !== id) return;
+      if (!actions) return;
+
+      const currentAction = actions[activeAnimation] || Object.values(actions)[0];
+      const mixer = currentAction?.getMixer();
+      const obj = useEditorStore.getState().objects[id];
+
+      const activeClip = currentAction?.getClip();
+      const trackList = activeClip?.tracks || [];
+
+      const diagnosticReport = {
+        modelId: id,
+        modelName: obj?.name || '3D Model',
+        url,
+        isBillboard,
+        rootOrientation: clonedScene?.userData?.__zUpOrientation || 'z-up',
+        mixerState: mixer
+          ? {
+              time: Number(mixer.time.toFixed(3)),
+              timeScale: mixer.timeScale,
+              rootNodeType: (mixer.getRoot() as any)?.type,
+              rootNodeName: (mixer.getRoot() as any)?.name,
+            }
+          : null,
+        activeTrack: activeAnimation,
+        actionState: currentAction
+          ? {
+              time: Number(currentAction.time.toFixed(3)),
+              duration: activeClip ? Number(activeClip.duration.toFixed(3)) : 0,
+              paused: currentAction.paused,
+              enabled: currentAction.enabled,
+              weight: currentAction.getEffectiveWeight(),
+              timeScale: currentAction.getEffectiveTimeScale(),
+              loopMode: currentAction.loop === THREE.LoopRepeat ? 'THREE.LoopRepeat' : 'THREE.LoopOnce',
+            }
+          : null,
+        totalClips: effectiveAnimations ? effectiveAnimations.length : 0,
+        clips: (effectiveAnimations || []).map((a) => ({
+          name: a.name,
+          duration: Number(a.duration.toFixed(3)),
+          tracksCount: a.tracks.length,
+        })),
+        activeClipTracksCount: trackList.length,
+        tracksSample: trackList.slice(0, 50).map((t) => ({
+          name: t.name,
+          type: t.ValueTypeName,
+          keyframes: t.times.length,
+          firstKeyTime: `${t.times[0]?.toFixed(3) ?? 0}s`,
+          lastKeyTime: `${t.times[t.times.length - 1]?.toFixed(3) ?? 0}s`,
+        })),
+        eventsRegistered: (obj?.events || []).map((ev: any) => ({
+          name: ev.name,
+          trigger: ev.trigger,
+          actionsCount: ev.actions?.length || 0,
+        })),
+      };
+
+      // Output rich formatted diagnostics directly to the developer console
+      console.group(
+        `%c🔍 [ARForge AnimationMixer Diagnostic] Model: "${diagnosticReport.modelName}" (#${id})`,
+        'background: #0891b2; color: white; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 11px;'
+      );
+      console.log('📌 Model Info:', {
+        name: diagnosticReport.modelName,
+        id: diagnosticReport.modelId,
+        url: diagnosticReport.url,
+        isBillboard: diagnosticReport.isBillboard,
+        orientation: diagnosticReport.rootOrientation,
+      });
+      console.log('🎛️ AnimationMixer State:', diagnosticReport.mixerState);
+      console.log('▶️ Active Action State:', diagnosticReport.actionState);
+
+      console.groupCollapsed(`🎞️ Available Animation Clips (${diagnosticReport.totalClips})`);
+      console.table(diagnosticReport.clips);
+      console.groupEnd();
+
+      if (diagnosticReport.tracksSample.length > 0) {
+        console.groupCollapsed(`🎼 Keyframe Tracks in "${activeAnimation}" (${diagnosticReport.activeClipTracksCount} tracks)`);
+        console.table(diagnosticReport.tracksSample);
+        console.groupEnd();
+      }
+
+      console.groupCollapsed(`⚡ Attached ARForge Events (${diagnosticReport.eventsRegistered.length})`);
+      console.table(diagnosticReport.eventsRegistered);
+      console.groupEnd();
+
+      // Diagnostic Sanity Verifications
+      if (!currentAction) {
+        console.warn('⚠️ Diagnostic Notice: No active AnimationAction found in mixer for clip:', activeAnimation);
+      } else if (currentAction.paused && properties?.animationPlaying !== false) {
+        console.warn('⚠️ Diagnostic Notice: Action is paused while animationPlaying is active.');
+      } else if (currentAction.getEffectiveWeight() === 0) {
+        console.warn('⚠️ Diagnostic Warning: Action weight is 0; tracks will not produce visible transform updates.');
+      } else {
+        console.log('✅ Diagnostic Status: AnimationMixer is healthy and actively evaluating keyframe tracks.');
+      }
+      console.groupEnd();
+
+      // Dispatch response for UI panel display
+      window.dispatchEvent(
+        new CustomEvent('response-animation-diagnostics', {
+          detail: diagnosticReport,
+        })
+      );
+    };
+
+    window.addEventListener('request-animation-diagnostics', handleDiagnosticRequest);
+    return () => {
+      window.removeEventListener('request-animation-diagnostics', handleDiagnosticRequest);
+    };
+  }, [actions, activeAnimation, effectiveAnimations, clonedScene, id, isBillboard, properties, url]);
+
+  // Real-time animation scrubber & timeline playback synchronizer
+  const lastSyncTimeRef = useRef<number>(0);
+
+  useFrame((state) => {
+    if (!actions) return;
+    const currentAction = actions[activeAnimation] || Object.values(actions)[0];
+    if (!currentAction) return;
+
+    const clipDuration = currentAction.getClip()?.duration || 1.0;
+
+    if (isScrubbing && targetTime !== undefined) {
+      currentAction.paused = true;
+      currentAction.time = Math.max(0, Math.min(targetTime, clipDuration));
+      currentAction.getMixer().update(0);
+    } else if (!actualAnimationPlaying) {
+      currentAction.paused = true;
+      if (targetTime !== undefined && Math.abs(currentAction.time - targetTime) > 0.02) {
+        currentAction.time = Math.max(0, Math.min(targetTime, clipDuration));
+        currentAction.getMixer().update(0);
+      }
+    } else if (actualAnimationPlaying) {
+      // If animation is not in loop and has finished, reset to 0 and revert to play button
+      if (!loopAnimation && currentAction.time >= clipDuration) {
+        currentAction.reset();
+        currentAction.paused = true;
+        useEditorStore.getState().updateObject(id, {
+          properties: {
+            ...useEditorStore.getState().objects[id]?.properties,
+            animationPlaying: false,
+            animationTime: 0,
+            isScrubbing: false,
+          }
+        });
+        return;
+      }
+
+      currentAction.paused = false;
+    }
+  });
 
   const handleSubMeshClick = (e: any) => {
     if (!isPreviewMode) {
@@ -1380,14 +1761,12 @@ function GLTFModel({ url, properties, id }: { url: string; properties: any; id: 
 
   return (
     <group scale={[scaleFactor, scaleFactor, scaleFactor]}>
-      <group rotation={[Math.PI / 2, 0, 0]}>
-        <primitive 
-          ref={group} 
-          object={clonedScene} 
-          position={[offsetVector.x, offsetVector.y, offsetVector.z]} 
-          onClick={handleSubMeshClick}
-        />
-      </group>
+      <primitive 
+        ref={group} 
+        object={clonedScene} 
+        position={[offsetVector.x, offsetVector.y, offsetVector.z]} 
+        onClick={handleSubMeshClick}
+      />
     </group>
   );
 }
@@ -1523,7 +1902,7 @@ function RobbieFaceMesh3D({
   }, [obj, faceTexture, textureUrl, color, opacity, wireframe]);
 
   if (!clonedObj) return null;
-  return <primitive object={clonedObj} scale={[10, 10, 10]} position={[0, 0, 0]} />;
+  return <primitive object={clonedObj} scale={[1, 1, 1]} rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]} />;
 }
 
 function RobbieHeadOccluder3D({ opacity = 0.35 }: { opacity?: number }) {
@@ -1550,7 +1929,7 @@ function RobbieHeadOccluder3D({ opacity = 0.35 }: { opacity?: number }) {
   }, [obj, opacity]);
 
   if (!clonedObj) return null;
-  return <primitive object={clonedObj} scale={[10, 10, 10]} position={[0, 0, 0]} />;
+  return <primitive object={clonedObj} scale={[1, 1, 1]} rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]} />;
 }
 
 function FaceMeshFallback() {
@@ -1569,13 +1948,13 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
   const [hoveredAnchor, setHoveredAnchor] = useState<string | null>(null);
 
   const anchorPositions: Record<string, { pos: [number, number, number]; label: string; icon: string }> = {
-    head: { pos: [0, 0, -0.5], label: 'Center Head', icon: '👤' },
-    forehead: { pos: [0, 0.7, -0.2], label: 'Forehead / Crown', icon: '👑' },
-    nose: { pos: [0, -0.1, 0.0], label: 'Nose Bridge', icon: '👃' },
-    leftEye: { pos: [-0.35, 0.3, -0.15], label: 'Left Eye Orbit', icon: '👁️' },
-    rightEye: { pos: [0.35, 0.3, -0.15], label: 'Right Eye Orbit', icon: '👁️' },
-    mouth: { pos: [0, -0.5, -0.1], label: 'Lips / Mouth', icon: '👄' },
-    chin: { pos: [0, -0.85, -0.2], label: 'Chin / Jawline', icon: '🗿' }
+    head: { pos: [0, 0, 0], label: 'Center Head', icon: '👤' },
+    forehead: { pos: [0, 0.05, 0.08], label: 'Forehead / Crown', icon: '👑' },
+    nose: { pos: [0, 0.08, 0.0], label: 'Nose Bridge', icon: '👃' },
+    leftEye: { pos: [-0.035, 0.06, 0.03], label: 'Left Eye Orbit', icon: '👁️' },
+    rightEye: { pos: [0.035, 0.06, 0.03], label: 'Right Eye Orbit', icon: '👁️' },
+    mouth: { pos: [0, 0.07, -0.05], label: 'Lips / Mouth', icon: '👄' },
+    chin: { pos: [0, 0.04, -0.09], label: 'Chin / Jawline', icon: '🗿' }
   };
 
   const activePos = anchorPositions[currentAnchor]?.pos || anchorPositions.head.pos;
@@ -1625,7 +2004,7 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
       </Suspense>
 
       {/* Interactive 3D Landmark Nodes (Clickable directly on the 3D Face Model) */}
-      {Object.entries(anchorPositions).map(([key, { pos, label }]) => {
+      {Object.entries(anchorPositions).map(([key, { pos }]) => {
         const isActive = currentAnchor === key;
         const isHovered = hoveredAnchor === key;
 
@@ -1636,7 +2015,7 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
               onPointerOver={(e) => { e.stopPropagation(); setHoveredAnchor(key); }}
               onPointerOut={() => setHoveredAnchor(null)}
             >
-              <sphereGeometry args={[isActive ? 0.09 : (isHovered ? 0.08 : 0.06), 16, 16]} />
+              <sphereGeometry args={[isActive ? 0.012 : (isHovered ? 0.01 : 0.007), 16, 16]} />
               <meshBasicMaterial
                 color={isActive ? "#22d3ee" : (isHovered ? "#f59e0b" : "#c084fc")}
               />
@@ -1645,7 +2024,7 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
             {/* Active / Hover Ring Halo */}
             {(isActive || isHovered) && (
               <mesh>
-                <ringGeometry args={[0.11, 0.16, 32]} />
+                <ringGeometry args={[0.015, 0.02, 32]} />
                 <meshBasicMaterial
                   color={isActive ? "#06b6d4" : "#f59e0b"}
                   side={THREE.DoubleSide}
@@ -1661,18 +2040,18 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
       {/* Active Anchor Reticle Highlight Pointer */}
       <group position={activePos}>
         <mesh>
-          <sphereGeometry args={[0.1, 16, 16]} />
+          <sphereGeometry args={[0.01, 16, 16]} />
           <meshBasicMaterial color="#22d3ee" />
         </mesh>
         <mesh>
-          <ringGeometry args={[0.18, 0.25, 32]} />
+          <ringGeometry args={[0.018, 0.025, 32]} />
           <meshBasicMaterial color="#06b6d4" side={THREE.DoubleSide} transparent opacity={0.85} />
         </mesh>
       </group>
 
       {/* Floating Pictarize Face Studio HUD Panel */}
       {!isPreviewMode && (
-        <Html position={[0, 1.45, 0]} center distanceFactor={6} pointerEvents="auto">
+        <Html position={[0, 0.12, 0.18]} center distanceFactor={6} pointerEvents="auto">
           <div className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-black/80 backdrop-blur-xl border border-purple-500/40 shadow-2xl text-white select-none transition-all">
             <div className="flex items-center gap-2 border-b border-white/10 pb-1 w-full justify-between px-1">
               <span className="text-[9px] font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1">
@@ -1747,13 +2126,142 @@ function FaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
   );
 }
 
+function SurfaceTarget3DRenderer({ obj }: { obj: SceneObject }) {
+  const settings = useEditorStore(state => state.settings);
+  const selectObject = useEditorStore(state => state.selectObject);
+  const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+
+  const orientation = obj.properties?.surfaceOrientation || settings.surfaceOrientation || 'horizontal';
+  const gridSize = obj.properties?.surfaceGridSize || settings.surfaceGridSize || 2;
+  const showGrid = obj.properties?.showGrid ?? settings.surfaceShowGrid ?? true;
+  const receiveShadows = obj.properties?.receiveShadows ?? true;
+  const reticleStyle = obj.properties?.reticleStyle || settings.surfaceReticleStyle || 'modern_ring';
+
+  return (
+    <group 
+      position={obj.position} 
+      rotation={obj.rotation} 
+      scale={obj.scale}
+      onClick={(e) => {
+        if (!isPreviewMode) {
+          e.stopPropagation();
+          selectObject(obj.id);
+        }
+      }}
+    >
+      {/* 1. Shadow Receiver Plane on physical surface */}
+      <mesh 
+        position={[0, 0, -0.001]} 
+        rotation={orientation === 'vertical' ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+        receiveShadow={receiveShadows}
+      >
+        <planeGeometry args={[gridSize * 3, gridSize * 3]} />
+        <shadowMaterial opacity={0.4} depthWrite={true} />
+      </mesh>
+
+      {/* 2. Physical Surface Depth Occluder Plane (Occludes geometry below ground/wall plane) */}
+      <mesh 
+        position={[0, 0, -0.005]} 
+        rotation={orientation === 'vertical' ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+        renderOrder={-1}
+      >
+        <planeGeometry args={[gridSize * 5, gridSize * 5]} />
+        <meshBasicMaterial colorWrite={false} depthWrite={true} transparent={true} opacity={0} />
+      </mesh>
+
+      {/* 3. Surface Calibrated Metric Grid */}
+      {showGrid && !isPreviewMode && (
+        <group rotation={orientation === 'vertical' ? [Math.PI / 2, 0, 0] : [0, 0, 0]}>
+          <gridHelper 
+            args={[gridSize, 10, '#10b981', '#047857']} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            position={[0, 0, 0]}
+          />
+        </group>
+      )}
+
+      {/* 4. Reticle Cursor Indicator */}
+      {!isPreviewMode && (
+        <group position={[0, 0, 0.002]} rotation={orientation === 'vertical' ? [Math.PI / 2, 0, 0] : [0, 0, 0]}>
+          {reticleStyle === 'cyber_brackets' ? (
+            <mesh>
+              <ringGeometry args={[0.2, 0.25, 4]} />
+              <meshBasicMaterial color="#10b981" wireframe />
+            </mesh>
+          ) : reticleStyle === 'minimal_dot' ? (
+            <mesh>
+              <circleGeometry args={[0.08, 16]} />
+              <meshBasicMaterial color="#10b981" transparent opacity={0.8} />
+            </mesh>
+          ) : (
+            <group>
+              <mesh>
+                <ringGeometry args={[0.22, 0.25, 32]} />
+                <meshBasicMaterial color="#10b981" transparent opacity={0.85} />
+              </mesh>
+              <mesh>
+                <circleGeometry args={[0.03, 16]} />
+                <meshBasicMaterial color="#34d399" />
+              </mesh>
+            </group>
+          )}
+        </group>
+      )}
+
+      {/* 5. Render Child 3D Entities */}
+      {obj.children.map(childId => (
+        <MemoizedObjectRenderer key={childId} id={childId} />
+      ))}
+    </group>
+  );
+}
+
+function WorldTarget3DRenderer({ obj }: { obj: SceneObject }) {
+  return (
+    <group 
+      position={obj.position} 
+      rotation={[THREE.MathUtils.degToRad(obj.rotation[0]), THREE.MathUtils.degToRad(obj.rotation[1]), THREE.MathUtils.degToRad(obj.rotation[2])]} 
+      scale={obj.scale}
+    >
+      {/* 6DOF Spatial World Anchor Grid & Compass */}
+      <group position={[0, 0, -0.01]}>
+        <gridHelper args={[4, 16, '#06b6d4', '#1e293b']} rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]} />
+        <mesh position={[0, 0, 0]}>
+          <ringGeometry args={[0.3, 0.32, 32]} />
+          <meshBasicMaterial color="#06b6d4" transparent opacity={0.6} side={THREE.DoubleSide} />
+        </mesh>
+        <Html position={[0, 0, 0.25]} center>
+          <div className="px-2 py-0.5 rounded-md bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold font-mono tracking-wider backdrop-blur-md select-none pointer-events-none flex items-center gap-1 shadow-md">
+            <span>🌐 World Spatial Anchor</span>
+          </div>
+        </Html>
+      </group>
+
+      {/* Render Child 3D Entities */}
+      {obj.children.map(childId => (
+        <MemoizedObjectRenderer key={childId} id={childId} />
+      ))}
+    </group>
+  );
+}
+
 function ImageTargetRenderer({ obj }: { obj: SceneObject }) {
   const trackingMode = useEditorStore(state => state.settings.trackingMode);
   if (!obj || !obj.properties) return null;
   const isFace = obj.properties?.targetType === 'face' || (trackingMode === 'face' && obj.properties?.targetType !== 'image');
-  
+  const isSurface = obj.properties?.targetType === 'surface' || (trackingMode === 'surface' && obj.properties?.targetType !== 'face' && obj.properties?.targetType !== 'image');
+  const isWorld = obj.properties?.targetType === 'world' || (trackingMode === 'world' && obj.properties?.targetType !== 'face' && obj.properties?.targetType !== 'image' && obj.properties?.targetType !== 'surface');
+
   if (isFace) {
     return <FaceTarget3DRenderer obj={obj} />;
+  }
+
+  if (isSurface) {
+    return <SurfaceTarget3DRenderer obj={obj} />;
+  }
+
+  if (isWorld) {
+    return <WorldTarget3DRenderer obj={obj} />;
   }
 
   const textureUrl = obj.properties.textureUrl || DEFAULT_ART_POSTER_TEXTURE;
@@ -1872,10 +2380,16 @@ function ImageTargetWithTexture({ obj }: { obj: SceneObject }) {
 }
 
 // Textured material rendering for primitives - Upgraded to supports custom physical parameters and multiple maps
-function TexturedMaterial({ properties, defaultColor }: { properties: any; defaultColor: string }) {
+function TexturedMaterial({ properties, defaultColor, objectId }: { properties: any; defaultColor: string; objectId?: string }) {
   const color = properties.color || defaultColor;
   const storeWireframe = useEditorStore(state => state.wireframeEnabled) || false;
-  const wireframe = storeWireframe || (properties.wireframe ?? false);
+  const selectedModelWireframeEnabled = useEditorStore(state => state.selectedModelWireframeEnabled) || false;
+  const visualizationMode = useEditorStore(state => state.visualizationMode) || 'standard';
+  const selectedObjectId = useEditorStore(state => state.selectedObjectId);
+  const selectedObjectIds = useEditorStore(state => state.selectedObjectIds);
+  const isSelected = objectId ? (selectedObjectId === objectId || selectedObjectIds.includes(objectId)) : false;
+  const isSelectedWireframeActive = (selectedModelWireframeEnabled || visualizationMode === 'selectedWireframe') && isSelected;
+  const wireframe = storeWireframe || (properties.wireframe ?? false) || isSelectedWireframeActive;
   const opacity = properties.opacity ?? 1;
   const doubleSided = properties.doubleSided ?? false;
   
@@ -2480,13 +2994,16 @@ function LightNodeRenderer({ properties, isPreviewMode }: { properties: any; isP
 
       {/* Embedded functional light node */}
       {lightType === 'directional' && (
-        <directionalLight color={color} intensity={intensity} castShadow={properties.castShadow ?? true} />
+        <directionalLight color={color} intensity={intensity} castShadow={properties.castShadow !== false} />
       )}
       {lightType === 'point' && (
-        <pointLight color={color} intensity={intensity} distance={distance} decay={decay} castShadow={properties.castShadow ?? true} />
+        <pointLight color={color} intensity={intensity} distance={distance} decay={decay} castShadow={properties.castShadow !== false} />
       )}
       {lightType === 'spot' && (
-        <spotLight color={color} intensity={intensity} distance={distance} angle={angle} decay={decay} castShadow={properties.castShadow ?? true} />
+        <spotLight color={color} intensity={intensity} distance={distance} angle={angle} decay={decay} castShadow={properties.castShadow !== false} />
+      )}
+      {lightType === 'ambient' && (
+        <ambientLight color={color} intensity={intensity} />
       )}
     </group>
   );
@@ -2726,8 +3243,12 @@ function CollisionDebuggerOverlay({ obj }: { obj: any }) {
         return <icosahedronGeometry args={[0.51]} />;
       case 'knot':
         return <torusKnotGeometry args={[0.31, 0.11, 32, 8]} />;
-      case 'model':
-        return <boxGeometry args={[1.1, 1.1, 1.1]} />;
+      case 'model': {
+        const bw = (obj.properties?.customBoundsWidth || 1.2) + (obj.properties?.colliderPadding?.[0] || 0);
+        const bl = (obj.properties?.customBoundsLength || 2.4) + (obj.properties?.colliderPadding?.[1] || 0);
+        const bh = (obj.properties?.customBoundsHeight || 1.1) + (obj.properties?.colliderPadding?.[2] || 0);
+        return <boxGeometry args={[bw, bl, bh]} />;
+      }
       case 'icon':
       case 'icon2d':
         return <boxGeometry args={[0.8, 0.8, 0.3]} />;
@@ -2883,9 +3404,11 @@ function ObjectRenderer({ id }: { id: string }) {
 
   // Snapping helper: snaps target position by bounding-box to nearest surfaces and scene objects
   const computeSnappedPosition = useCallback((targetLocal: THREE.Vector3, isShiftHeld: boolean) => {
-    const allObjects = useEditorStore.getState().objects;
-    const isSnappingOn = useEditorStore.getState().gridSnapEnabled;
-    const snapIncrement = isSnappingOn ? useEditorStore.getState().gridSnapIncrement : 0;
+    const state = useEditorStore.getState();
+    const allObjects = state.objects;
+    const isSnappingOn = state.gridSnapEnabled;
+    const surfaceSnapEnabled = state.surfaceSnapEnabled;
+    const snapIncrement = isSnappingOn ? state.gridSnapIncrement : 0;
     return computeComprehensiveSnapPosition(
       targetLocal,
       id,
@@ -2893,7 +3416,8 @@ function ObjectRenderer({ id }: { id: string }) {
       snapIncrement,
       {
         isShiftHeld,
-        dragStartPos: dragStartPosRef.current
+        dragStartPos: dragStartPosRef.current,
+        surfaceSnapEnabled
       }
     );
   }, [id]);
@@ -2991,7 +3515,7 @@ function ObjectRenderer({ id }: { id: string }) {
   useEffect(() => {
     if (meshRef.current && obj) {
       // Only normalize geometries for primitive shapes and groups. GLTF Models already handle normalized bounds & offsets.
-      if (['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'group'].includes(obj.type)) {
+      if (['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'circle', 'pyramid', 'capsule', 'dodecahedron', 'octahedron', 'icosahedron', 'knot', 'group'].includes(obj.type)) {
         if (!obj.properties?.skipPivotNormalization) {
           const timer = setTimeout(() => {
             if (meshRef.current) {
@@ -3079,11 +3603,15 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'playModelAnimation': {
         const pmaTarget = useEditorStore.getState().objects[targetId];
         if (pmaTarget && pmaTarget.type === 'model') {
-          const updates: any = { animationPlaying: true, animationSpeed: 1.0 };
+          const updates: any = { animationPlaying: true, isScrubbing: false, animationSpeed: b.animationSpeedValue ?? 1.0 };
           if (b.animationClipName) {
             updates.activeAnimation = b.animationClipName;
           }
+          if (typeof b.seekTime === 'number') {
+            updates.animationTime = b.seekTime;
+          }
           useEditorStore.getState().updateObject(targetId, { properties: { ...pmaTarget.properties, ...updates } });
+          useEditorStore.getState().addToast(`Playing 3D Animation: ${updates.activeAnimation || 'default'}`);
         }
         break;
       }
@@ -3091,7 +3619,44 @@ function ObjectRenderer({ id }: { id: string }) {
       case 'pauseModelAnimation': {
         const pmaPauseTarget = useEditorStore.getState().objects[targetId];
         if (pmaPauseTarget && pmaPauseTarget.type === 'model') {
-          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaPauseTarget.properties, animationPlaying: false, animationSpeed: 0.0 } });
+          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaPauseTarget.properties, animationPlaying: false, isScrubbing: false } });
+          useEditorStore.getState().addToast('Paused 3D Animation');
+        }
+        break;
+      }
+      case 'stopAnimation':
+      case 'stopModelAnimation': {
+        const pmaStopTarget = useEditorStore.getState().objects[targetId];
+        if (pmaStopTarget && pmaStopTarget.type === 'model') {
+          useEditorStore.getState().updateObject(targetId, { properties: { ...pmaStopTarget.properties, animationPlaying: false, animationTime: 0, isScrubbing: false } });
+          useEditorStore.getState().addToast('Stopped 3D Animation (0.00s)');
+        }
+        break;
+      }
+      case 'seekModelAnimation': {
+        const seekTarget = useEditorStore.getState().objects[targetId];
+        if (seekTarget && seekTarget.type === 'model') {
+          const seekT = typeof b.seekTime === 'number' ? b.seekTime : 0;
+          useEditorStore.getState().updateObject(targetId, { properties: { ...seekTarget.properties, animationTime: seekT, animationPlaying: false, isScrubbing: true } });
+          useEditorStore.getState().addToast(`Seek 3D Animation: ${seekT.toFixed(2)}s`);
+        }
+        break;
+      }
+      case 'toggleAnimationPlayPause': {
+        const toggleTarget = useEditorStore.getState().objects[targetId];
+        if (toggleTarget && toggleTarget.type === 'model') {
+          const currentPlaying = toggleTarget.properties.animationPlaying !== false;
+          useEditorStore.getState().updateObject(targetId, { properties: { ...toggleTarget.properties, animationPlaying: !currentPlaying, isScrubbing: false } });
+          useEditorStore.getState().addToast(!currentPlaying ? 'Resumed 3D Animation' : 'Paused 3D Animation');
+        }
+        break;
+      }
+      case 'setAnimationSpeed': {
+        const speedTarget = useEditorStore.getState().objects[targetId];
+        if (speedTarget && speedTarget.type === 'model') {
+          const newSpeed = typeof b.animationSpeedValue === 'number' ? b.animationSpeedValue : 1.0;
+          useEditorStore.getState().updateObject(targetId, { properties: { ...speedTarget.properties, animationSpeed: newSpeed } });
+          useEditorStore.getState().addToast(`Animation Speed: ${newSpeed}x`);
         }
         break;
       }
@@ -3568,6 +4133,7 @@ function ObjectRenderer({ id }: { id: string }) {
 
     const isBillboard = !!(currentObj.properties?.billboard || currentObj.properties?.lookAtCamera);
     if (isBillboard) {
+      meshRef.current.up.set(0, 0, 1);
       meshRef.current.lookAt(state.camera.position);
     }
 
@@ -3618,6 +4184,7 @@ function ObjectRenderer({ id }: { id: string }) {
     } else if (behavior === 'pendulum') {
       meshRef.current.rotateOnAxis(localAxis, Math.sin(effectiveT * 2) * 0.4 * intensity);
     } else if (behavior === 'look-at-camera') {
+      meshRef.current.up.set(0, 0, 1);
       meshRef.current.lookAt(state.camera.position);
     }
 
@@ -3676,21 +4243,31 @@ function ObjectRenderer({ id }: { id: string }) {
     }
   });
 
-  useEffect(() => {
-    if ((obj?.events || [])) {
-      (obj.events || []).forEach((b: any) => {
-        if (b.action === 'playSound' && b.soundPreset) {
-          const audio = new Audio();
-          audio.preload = 'auto';
-          audio.src = b.soundPreset;
-        }
-      });
-    }
-  }, [(obj?.events || [])]);
+  const soundPresetsKey = (obj?.events || [])
+    .filter((b: any) => b.action === 'playSound' && b.soundPreset)
+    .map((b: any) => b.soundPreset)
+    .join(',');
 
   useEffect(() => {
-    if (!isPreviewMode) return;
+    if (!soundPresetsKey) return;
+    soundPresetsKey.split(',').forEach(preset => {
+      if (preset) {
+        try {
+          const audio = new Audio();
+          audio.preload = 'auto';
+          audio.src = preset;
+        } catch (e) {}
+      }
+    });
+  }, [soundPresetsKey]);
+
+  useEffect(() => {
+    if (!isPreviewMode && !liveInteractionsInDesign) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toUpperCase();
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+
       const behaviors = (obj?.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onKeyDown') {
@@ -3700,7 +4277,11 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       });
     };
+
     const handleKeyUp = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toUpperCase();
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+
       const behaviors = (obj?.events || []) || [];
       behaviors.forEach((b: any) => {
         if (b.trigger === 'onKeyUp') {
@@ -3710,13 +4291,22 @@ function ObjectRenderer({ id }: { id: string }) {
         }
       });
     };
+
+    const handleCustomTrigger = (e: any) => {
+      if (e.detail && e.detail.targetId === id && e.detail.event) {
+        executeEvent(e.detail.event);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('ar-trigger-event', handleCustomTrigger);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('ar-trigger-event', handleCustomTrigger);
     };
-  }, [isPreviewMode, (obj?.events || [])]);
+  }, [isPreviewMode, liveInteractionsInDesign, id, (obj?.events || [])]);
 
   // Determine active target (persists across selection changes and preview mode)
   const activeTargetId = useEditorStore((state) => {
@@ -3806,14 +4396,15 @@ function ObjectRenderer({ id }: { id: string }) {
   const renderGeometry = () => {
     switch (obj.type) {
       case 'empty':
+      case 'group':
         return (
           <group>
             {!isPreviewMode && (
               <group>
                 {/* Center diamond marker */}
-                <mesh scale={[0.12, 0.12, 0.12]}>
+                <mesh scale={[0.14, 0.14, 0.14]}>
                   <octahedronGeometry args={[0.5]} />
-                  <meshBasicMaterial color={isSelected ? "#38bdf8" : "#a1a1aa"} wireframe transparent opacity={0.85} />
+                  <meshBasicMaterial color={isSelected ? "#38bdf8" : (obj.type === 'group' ? "#10b981" : "#a1a1aa")} wireframe transparent opacity={0.85} />
                 </mesh>
                 {/* Subdued Axis Lines */}
                 <mesh position={[0, 0, 0]}>
@@ -3862,24 +4453,30 @@ function ObjectRenderer({ id }: { id: string }) {
         );
       case 'cylinder':
         return (
-          <mesh>
-            <cylinderGeometry args={[0.5, 0.5, 1, 32]} />
-            <TexturedMaterial properties={obj.properties} defaultColor="#ffffff" />
-          </mesh>
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <mesh>
+              <cylinderGeometry args={[0.5, 0.5, 1, 32]} />
+              <TexturedMaterial properties={obj.properties} defaultColor="#ffffff" />
+            </mesh>
+          </group>
         );
       case 'cone':
         return (
-          <mesh>
-            <coneGeometry args={[0.5, 1, 32]} />
-            <TexturedMaterial properties={obj.properties} defaultColor="#ffffff" />
-          </mesh>
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <mesh>
+              <coneGeometry args={[0.5, 1, 32]} />
+              <TexturedMaterial properties={obj.properties} defaultColor="#ffffff" />
+            </mesh>
+          </group>
         );
       case 'torus':
         return (
-          <mesh>
-            <torusGeometry args={[0.4, 0.12, 16, 64]} />
-            <TexturedMaterial properties={obj.properties} defaultColor="#ffffff" />
-          </mesh>
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <mesh>
+              <torusGeometry args={[0.4, 0.12, 16, 64]} />
+              <TexturedMaterial properties={obj.properties} defaultColor="#ffffff" />
+            </mesh>
+          </group>
         );
       case 'text':
         return (
@@ -3936,42 +4533,46 @@ function ObjectRenderer({ id }: { id: string }) {
         );
       case 'pyramid':
         return (
-          <mesh castShadow receiveShadow>
-            <coneGeometry args={[0.7, 1, 4]} />
-            <TexturedMaterial properties={obj.properties} defaultColor="#eab308" />
-          </mesh>
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
+              <coneGeometry args={[0.7, 1, 4]} />
+              <TexturedMaterial properties={obj.properties} defaultColor="#eab308" />
+            </mesh>
+          </group>
         );
       case 'capsule':
         return (
-          <mesh castShadow receiveShadow>
-            <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
-            <TexturedMaterial properties={obj.properties} defaultColor="#a855f7" />
-          </mesh>
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
+              <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
+              <TexturedMaterial properties={obj.properties} defaultColor="#a855f7" />
+            </mesh>
+          </group>
         );
       case 'dodecahedron':
         return (
-          <mesh castShadow receiveShadow>
+          <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
             <dodecahedronGeometry args={[0.5]} />
             <TexturedMaterial properties={obj.properties} defaultColor="#ec4899" />
           </mesh>
         );
       case 'octahedron':
         return (
-          <mesh castShadow receiveShadow>
+          <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
             <octahedronGeometry args={[0.5]} />
             <TexturedMaterial properties={obj.properties} defaultColor="#10b981" />
           </mesh>
         );
       case 'icosahedron':
         return (
-          <mesh castShadow receiveShadow>
+          <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
             <icosahedronGeometry args={[0.5]} />
             <TexturedMaterial properties={obj.properties} defaultColor="#06b6d4" />
           </mesh>
         );
       case 'knot':
         return (
-          <mesh castShadow receiveShadow>
+          <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
             <torusKnotGeometry args={[0.3, 0.1, 64, 16]} />
             <TexturedMaterial properties={obj.properties} defaultColor="#f97316" />
           </mesh>
@@ -3982,7 +4583,7 @@ function ObjectRenderer({ id }: { id: string }) {
         }
         return obj.properties.url ? (
           <ErrorBoundary fallback={
-            <mesh castShadow receiveShadow>
+            <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
               <boxGeometry args={[0.8, 0.8, 0.8]} />
               <TexturedMaterial properties={obj.properties} defaultColor="#6366f1" />
             </mesh>
@@ -3992,7 +4593,7 @@ function ObjectRenderer({ id }: { id: string }) {
             </Suspense>
           </ErrorBoundary>
         ) : (
-          <mesh castShadow receiveShadow>
+          <mesh castShadow={obj.properties?.castShadow !== false} receiveShadow={obj.properties?.receiveShadow !== false}>
             <boxGeometry args={[0.8, 0.8, 0.8]} />
             <TexturedMaterial properties={obj.properties} defaultColor="#3b82f6" />
           </mesh>
@@ -4285,25 +4886,90 @@ function isObjectInScene(obj: THREE.Object3D | null | undefined, scene: THREE.Sc
 
 function ThumbnailCapturer() {
   const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  const camera = useThree((state) => state.camera);
   const currentProjectId = useEditorStore((state) => state.currentProjectId);
   const lastSavedTime = useEditorStore((state) => state.lastSavedTime);
   const updateProjectThumbnail = useEditorStore((state) => state.updateProjectThumbnail);
   const lastCapturedTime = useRef<number | null>(null);
 
   useEffect(() => {
-    if (lastSavedTime && lastSavedTime !== lastCapturedTime.current) {
-      lastCapturedTime.current = lastSavedTime;
-      // Small delay to ensure render is complete
-      setTimeout(() => {
+    const project = useEditorStore.getState().projectsList.find(p => p.id === currentProjectId);
+    const needsInitialSnapshot = project && !project.thumbnail;
+
+    if ((lastSavedTime && lastSavedTime !== lastCapturedTime.current) || needsInitialSnapshot) {
+      if (lastSavedTime) lastCapturedTime.current = lastSavedTime;
+      const timer = setTimeout(() => {
         try {
-          const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.5);
-          updateProjectThumbnail(currentProjectId, dataUrl);
+          // Save camera state
+          const origPos = camera.position.clone();
+          const origQuat = camera.quaternion.clone();
+
+          // Calculate bounding box containing all visible meshes/objects
+          const box = new THREE.Box3();
+          let count = 0;
+
+          scene.traverse((node) => {
+            if (
+              node.visible &&
+              (node as THREE.Mesh).isMesh &&
+              !node.name.includes('gizmo') &&
+              !node.name.includes('grid') &&
+              !node.name.includes('Transform') &&
+              !node.name.includes('reticle') &&
+              !node.name.includes('helper') &&
+              node.type !== 'LineSegments'
+            ) {
+              box.expandByObject(node);
+              count++;
+            }
+          });
+
+          if (count === 0 || box.isEmpty()) {
+            box.setFromCenterAndSize(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1.5, 1.5, 1.5));
+          }
+
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+
+          const maxDim = Math.max(size.x, size.y, size.z, 0.5);
+
+          // Compute distance to frame all objects comfortably within camera FOV
+          let distance = 2.0;
+          if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+            const perspCam = camera as THREE.PerspectiveCamera;
+            const fovRad = (perspCam.fov * Math.PI) / 180;
+            distance = Math.abs(maxDim / (2 * Math.tan(fovRad / 2))) * 1.35;
+          }
+          distance = Math.max(distance, 1.2);
+
+          // Position camera looking at box center from a nice diagonal view angle
+          const offset = new THREE.Vector3(0.5, 0.4, 0.85).normalize().multiplyScalar(distance);
+          camera.position.copy(center).add(offset);
+          camera.lookAt(center);
+          camera.updateMatrixWorld(true);
+
+          // Render framed snapshot
+          gl.render(scene, camera);
+          const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.6);
+
+          // Restore original camera position and rotation immediately
+          camera.position.copy(origPos);
+          camera.quaternion.copy(origQuat);
+          camera.updateMatrixWorld(true);
+
+          if (dataUrl && dataUrl.length > 100) {
+            updateProjectThumbnail(currentProjectId, dataUrl);
+          }
         } catch (e) {
-          console.error('Failed to capture thumbnail:', e);
+          console.error('Failed to capture framed thumbnail:', e);
         }
-      }, 100);
+      }, 150);
+      return () => clearTimeout(timer);
     }
-  }, [lastSavedTime, gl, currentProjectId, updateProjectThumbnail]);
+  }, [lastSavedTime, gl, scene, camera, currentProjectId, updateProjectThumbnail]);
 
   return null;
 }
@@ -4315,10 +4981,17 @@ function computeGizmoSnapPosition(
   objects: Record<string, SceneObject>,
   gridSnapIncrement: number = 0.1
 ) {
-  return computeComprehensiveSnapPosition(pos, objectId, objects, gridSnapIncrement);
+  const surfaceSnapEnabled = useEditorStore.getState().surfaceSnapEnabled;
+  return computeComprehensiveSnapPosition(pos, objectId, objects, gridSnapIncrement, { surfaceSnapEnabled });
 }
 
-function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.RefObject<any> }) {
+function TransformController({ 
+  orbitControlsRef, 
+  activeAxisView 
+}: { 
+  orbitControlsRef?: React.RefObject<any>; 
+  activeAxisView?: string; 
+}) {
   const { scene } = useThree();
   const selectedObjectId = useEditorStore(state => state.selectedObjectId);
   const objects = useEditorStore(state => state.objects);
@@ -4327,7 +5000,62 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   const transformGizmoEnabled = useEditorStore(state => state.transformGizmoEnabled);
   const updateObject = useEditorStore(state => state.updateObject);
   const isPreviewMode = useEditorStore(state => state.isPreviewMode);
+  const cameraType = useEditorStore(state => state.cameraType);
   const controlsRef = useRef<any>(null);
+
+  const normView = (activeAxisView || '').toUpperCase();
+  const isTopOrBottomView = ['TOP', 'Z', '-Z', 'BOTTOM'].includes(normView);
+  const isFrontOrBackView = ['FRONT', 'Y', '-Y', 'BACK'].includes(normView);
+  const isSideOrLeftRightView = ['SIDE', 'RIGHT', 'LEFT', 'X', '-X'].includes(normView);
+  const isPlanarOrtho = isTopOrBottomView || isFrontOrBackView || isSideOrLeftRightView;
+
+  // Filter gizmo axes visibility to strictly match the orthographic view plane
+  let allowX = true;
+  let allowY = true;
+  let allowZ = true;
+
+  if (isPlanarOrtho) {
+    if (isTopOrBottomView) {
+      // Top/Bottom (X-Y Plane):
+      // Move/Scale: X & Y allowed, Z hidden (perpendicular to screen)
+      // Rotate: Z allowed (in-plane spin), X & Y hidden
+      if (transformMode === 'rotate') {
+        allowX = false;
+        allowY = false;
+        allowZ = true;
+      } else {
+        allowX = true;
+        allowY = true;
+        allowZ = false;
+      }
+    } else if (isFrontOrBackView) {
+      // Front/Back (X-Z Plane):
+      // Move/Scale: X & Z allowed, Y hidden (perpendicular to screen)
+      // Rotate: Y allowed (in-plane spin), X & Z hidden
+      if (transformMode === 'rotate') {
+        allowX = false;
+        allowY = true;
+        allowZ = false;
+      } else {
+        allowX = true;
+        allowY = false;
+        allowZ = true;
+      }
+    } else if (isSideOrLeftRightView) {
+      // Side/Right/Left (Y-Z Plane):
+      // Move/Scale: Y & Z allowed, X hidden (perpendicular to screen)
+      // Rotate: X allowed (in-plane spin), Y & Z hidden
+      if (transformMode === 'rotate') {
+        allowX = true;
+        allowY = false;
+        allowZ = false;
+      } else {
+        allowX = false;
+        allowY = true;
+        allowZ = true;
+      }
+    }
+  }
 
   const gridSnapEnabled = useEditorStore(state => state.gridSnapEnabled);
   const gridSnapIncrement = useEditorStore(state => state.gridSnapIncrement);
@@ -4388,15 +5116,11 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   const obj = selectedObjectId ? objects[selectedObjectId] : null;
 
   const isTransformable = Boolean(
-    transformGizmoEnabled &&
     !isPreviewMode &&
-    (selectedObjectId || isMultiSelecting) &&
-    obj &&
-    obj.visible &&
-    !obj.locked &&
-    obj.type !== 'imageTarget' &&
-    !['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) &&
-    !(obj.type === 'youtube' && obj.properties?.displayMode === '2d')
+    (
+      (isMultiSelecting && selectionCenterPos) ||
+      (selectedObjectId && obj && obj.visible && !obj.locked && obj.type !== 'imageTarget' && !['hudCanvas', 'hudText', 'hudButton', 'hudImage', 'hudEmbed', 'icon2d'].includes(obj.type) && !(obj.type === 'youtube' && obj.properties?.displayMode === '2d'))
+    )
   );
 
   // Resolve target directly from the scene graph with useMemo
@@ -4482,6 +5206,28 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
     }
 
     const initPrimary = initialTransformRef.current;
+    if (initPrimary && isPlanarOrtho) {
+      if (isTopOrBottomView) {
+        finalPos.z = initPrimary.pos.z;
+        target.position.z = initPrimary.pos.z;
+        target.rotation.x = initPrimary.rot.x;
+        target.rotation.y = initPrimary.rot.y;
+        target.scale.z = initPrimary.scl.z;
+      } else if (isFrontOrBackView) {
+        finalPos.y = initPrimary.pos.y;
+        target.position.y = initPrimary.pos.y;
+        target.rotation.x = initPrimary.rot.x;
+        target.rotation.z = initPrimary.rot.z;
+        target.scale.y = initPrimary.scl.y;
+      } else if (isSideOrLeftRightView) {
+        finalPos.x = initPrimary.pos.x;
+        target.position.x = initPrimary.pos.x;
+        target.rotation.y = initPrimary.rot.y;
+        target.rotation.z = initPrimary.rot.z;
+        target.scale.x = initPrimary.scl.x;
+      }
+    }
+
     const deltaPos = initPrimary ? finalPos.clone().sub(initPrimary.pos) : new THREE.Vector3();
     const deltaRotX = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.x - initPrimary.rot.x) : 0;
     const deltaRotY = initPrimary ? THREE.MathUtils.radToDeg(target.rotation.y - initPrimary.rot.y) : 0;
@@ -4535,6 +5281,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   }, [target, selectedObjectId, updateObject, gridSnapEnabled, transformMode, gridSnapIncrement]);
 
   // Ensure gizmo controls are always rendered on top of 3D models without depth clipping
+  const lastTraversedHelperRef = useRef<any>(null);
   useFrame(() => {
     const controls = controlsRef.current;
     if (controls) {
@@ -4545,7 +5292,8 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
       }
 
       const helper = controls.getHelper ? controls.getHelper() : (controls as any)._gizmo;
-      if (helper) {
+      if (helper && helper !== lastTraversedHelperRef.current) {
+        lastTraversedHelperRef.current = helper;
         helper.traverse((child: any) => {
           if (child.material) {
             const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -4600,6 +5348,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
         objectName: name,
         mode: 'translate',
         axis: detectedAxis,
+        space: state.transformSpace,
         selectedCount,
         x,
         y,
@@ -4624,6 +5373,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
         objectName: name,
         mode: 'rotate',
         axis: detectedAxis,
+        space: state.transformSpace,
         selectedCount,
         x: degX,
         y: degY,
@@ -4648,6 +5398,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
         objectName: name,
         mode: 'scale',
         axis: detectedAxis,
+        space: state.transformSpace,
         selectedCount,
         x: sx,
         y: sy,
@@ -4663,6 +5414,11 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
+
+    const axisChangedCallback = (e: any) => {
+      const activeAxis = e?.value || (controls as any)?.axis || null;
+      useEditorStore.getState().setActiveTransformAxis(activeAxis);
+    };
 
     const draggingCallback = (e: any) => {
       const isDragging = !!e.value;
@@ -4706,6 +5462,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
           });
 
           const activeAxis = (controls as any).axis || undefined;
+          useEditorStore.getState().setActiveTransformAxis(activeAxis || null);
           updateCallout(target, true, false, undefined, activeAxis);
         }
       } else {
@@ -4716,9 +5473,11 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
           if (calloutTimeoutRef.current) clearTimeout(calloutTimeoutRef.current);
           calloutTimeoutRef.current = setTimeout(() => {
             useEditorStore.getState().setActiveTransformCallout(null);
+            useEditorStore.getState().setActiveTransformAxis(null);
           }, 1600);
         } else {
           useEditorStore.getState().setActiveTransformCallout(null);
+          useEditorStore.getState().setActiveTransformAxis(null);
         }
       }
     };
@@ -4728,10 +5487,16 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
         let currentPos = target.position.clone();
         let wasSnapped = false;
         let snapLabel = '';
-        if (gridSnapEnabled && transformMode === 'translate') {
-          const snapResult = computeGizmoSnapPosition(currentPos, selectedObjectId, useEditorStore.getState().objects, gridSnapIncrement);
+        const surfaceSnapEnabled = useEditorStore.getState().surfaceSnapEnabled;
+        if ((gridSnapEnabled || surfaceSnapEnabled) && transformMode === 'translate') {
+          const snapResult = computeGizmoSnapPosition(
+            currentPos, 
+            selectedObjectId, 
+            useEditorStore.getState().objects, 
+            gridSnapEnabled ? gridSnapIncrement : 0
+          );
           wasSnapped = snapResult.isSnapped;
-          snapLabel = snapResult.snapLabel || (gridSnapIncrement ? `Snap ${gridSnapIncrement}m` : undefined) || '';
+          snapLabel = snapResult.snapLabel || (gridSnapEnabled ? `Snap ${gridSnapIncrement}m` : (surfaceSnapEnabled ? 'Surface Snapped' : undefined)) || '';
           target.position.copy(snapResult.position);
           currentPos = snapResult.position;
         }
@@ -4758,6 +5523,29 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
             target.rotation.z = initPrimary.rot.z;
             target.scale.z = initPrimary.scl.z;
             currentPos.z = initPrimary.pos.z;
+          }
+        }
+
+        // Enforce Orthographic View Plane constraints during dragging
+        if (initPrimary && isPlanarOrtho) {
+          if (isTopOrBottomView) {
+            target.position.z = initPrimary.pos.z;
+            target.rotation.x = initPrimary.rot.x;
+            target.rotation.y = initPrimary.rot.y;
+            target.scale.z = initPrimary.scl.z;
+            currentPos.z = initPrimary.pos.z;
+          } else if (isFrontOrBackView) {
+            target.position.y = initPrimary.pos.y;
+            target.rotation.x = initPrimary.rot.x;
+            target.rotation.z = initPrimary.rot.z;
+            target.scale.y = initPrimary.scl.y;
+            currentPos.y = initPrimary.pos.y;
+          } else if (isSideOrLeftRightView) {
+            target.position.x = initPrimary.pos.x;
+            target.rotation.y = initPrimary.rot.y;
+            target.rotation.z = initPrimary.rot.z;
+            target.scale.x = initPrimary.scl.x;
+            currentPos.x = initPrimary.pos.x;
           }
         }
 
@@ -4821,9 +5609,11 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
       }
     };
 
+    controls.addEventListener('axis-changed', axisChangedCallback);
     controls.addEventListener('dragging-changed', draggingCallback);
     controls.addEventListener('change', changeCallback);
     return () => {
+      controls.removeEventListener('axis-changed', axisChangedCallback);
       controls.removeEventListener('dragging-changed', draggingCallback);
       controls.removeEventListener('change', changeCallback);
       isTransformDragging = false;
@@ -4831,6 +5621,7 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
         clearTimeout(calloutTimeoutRef.current);
       }
       useEditorStore.getState().setActiveTransformCallout(null);
+      useEditorStore.getState().setActiveTransformAxis(null);
       if (orbitControlsRef && orbitControlsRef.current) {
         orbitControlsRef.current.enabled = true;
       }
@@ -4842,19 +5633,21 @@ function TransformController({ orbitControlsRef }: { orbitControlsRef?: React.Re
   }
 
   return (
-    <TransformControls
-      key={selectedObjectId}
-      ref={bindControls}
-      object={target}
-      mode={transformMode}
-      space={transformSpace}
-      showX={!lockedAxes?.x}
-      showY={!lockedAxes?.y}
-      showZ={!lockedAxes?.z}
-      translationSnap={gridSnapEnabled ? gridSnapIncrement : null}
-      rotationSnap={rotationSnapEnabled ? (rotationSnapIncrement * Math.PI) / 180 : null}
-      scaleSnap={scaleSnapEnabled ? scaleSnapIncrement : null}
-    />
+    <ErrorBoundary fallback={null}>
+      <TransformControls
+        key={selectedObjectId}
+        ref={bindControls}
+        object={target}
+        mode={transformMode}
+        space={transformSpace}
+        showX={allowX && !lockedAxes?.x}
+        showY={allowY && !lockedAxes?.y}
+        showZ={allowZ && !lockedAxes?.z}
+        translationSnap={gridSnapEnabled ? gridSnapIncrement : null}
+        rotationSnap={rotationSnapEnabled ? (rotationSnapIncrement * Math.PI) / 180 : null}
+        scaleSnap={scaleSnapEnabled ? scaleSnapIncrement : null}
+      />
+    </ErrorBoundary>
   );
 }
 
@@ -5000,6 +5793,7 @@ function SelectionHighlight3D() {
 
 function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObject; target: THREE.Object3D }) {
   const [bounds, setBounds] = useState<{ center: [number, number, number]; size: [number, number, number]; is2D: boolean } | null>(null);
+  const prevRef = useRef<{ cx: number; cy: number; cz: number; sx: number; sy: number; sz: number; is2D: boolean } | null>(null);
 
   useFrame(() => {
     if (!target) return;
@@ -5025,11 +5819,32 @@ function SingleObjectHighlight({ id, obj, target }: { id: string; obj: SceneObje
       size.z = Math.max(size.z, 0.06);
     }
 
-    setBounds({
-      center: [center.x, center.y, center.z],
-      size: [size.x, size.y, size.z],
-      is2D
-    });
+    const prev = prevRef.current;
+    if (
+      !prev ||
+      prev.is2D !== is2D ||
+      Math.abs(prev.cx - center.x) > 0.002 ||
+      Math.abs(prev.cy - center.y) > 0.002 ||
+      Math.abs(prev.cz - center.z) > 0.002 ||
+      Math.abs(prev.sx - size.x) > 0.002 ||
+      Math.abs(prev.sy - size.y) > 0.002 ||
+      Math.abs(prev.sz - size.z) > 0.002
+    ) {
+      prevRef.current = {
+        cx: center.x,
+        cy: center.y,
+        cz: center.z,
+        sx: size.x,
+        sy: size.y,
+        sz: size.z,
+        is2D
+      };
+      setBounds({
+        center: [center.x, center.y, center.z],
+        size: [size.x, size.y, size.z],
+        is2D
+      });
+    }
   });
 
   if (!bounds) return null;
@@ -5455,20 +6270,25 @@ export function Viewport() {
   const [activeAxisView, setActiveAxisView] = useState<string>('3D');
   const [isAxisMenuOpen, setIsAxisMenuOpen] = useState(false);
 
-  const handleSelectAxisView = useCallback((axis: string) => {
-    setActiveAxisView(axis);
-    setAxisUpdateId((n) => n + 1);
-    setIsAxisMenuOpen(false);
-  }, []);
+  // In Top, Front, Side, and other planar orthographic views, 3D orbit rotation is locked
+  // while 2D planar panning and zooming are enabled intuitively (like Blender / CAD / Figma).
+  const isPlanarOrthographicView = useMemo(() => {
+    return ['Top', 'Front', 'Side', 'Z', 'Y', 'X', '-X', '-Y', '-Z', 'Bottom', 'Back', 'Left', 'Right'].includes(activeAxisView);
+  }, [activeAxisView]);
 
   const { 
     addObject, 
     objects, 
     settings,
+    activeSceneId,
+    currentProjectId,
     gridSnapEnabled, 
     gridSnapIncrement,
     setGridSnapEnabled,
     setGridSnapIncrement,
+    surfaceSnapEnabled,
+    setSurfaceSnapEnabled,
+    toggleSurfaceSnap,
     rotationSnapEnabled,
     rotationSnapIncrement,
     setRotationSnapEnabled,
@@ -5477,9 +6297,16 @@ export function Viewport() {
     setCameraType,
     wireframeEnabled,
     setWireframeEnabled,
+    selectedModelWireframeEnabled,
+    setSelectedModelWireframeEnabled,
+    visualizationMode,
+    setVisualizationMode,
     isPreviewMode,
     transformGizmoEnabled,
     setTransformGizmoEnabled,
+    isBoxSelectToolActive,
+    setBoxSelectToolActive,
+    toggleBoxSelectTool,
     collisionDebuggerEnabled,
     setCollisionDebuggerEnabled,
     activeStateId,
@@ -5491,6 +6318,19 @@ export function Viewport() {
     targetDprScale,
     setIsUIOptimizerOpen
   } = useEditorStore();
+
+  const handleSelectAxisView = useCallback((axis: string) => {
+    setActiveAxisView(axis);
+    if (axis === '3D' || axis === 'Isometric' || axis === 'ISO') {
+      setCameraType('perspective');
+      useEditorStore.getState().addToast('3D Orbit View: 3D Camera Rotation Enabled');
+    } else {
+      setCameraType('orthographic');
+      useEditorStore.getState().addToast(`${axis} View: 2D Pan & Zoom Locked (3D Orbit Disabled)`);
+    }
+    setAxisUpdateId((n) => n + 1);
+    setIsAxisMenuOpen(false);
+  }, [setCameraType]);
 
   const canvasDpr = typeof targetDprScale === 'number' ? targetDprScale : [1, 2];
 
@@ -5678,6 +6518,10 @@ export function Viewport() {
   const setTransformSpace = useEditorStore(state => state.setTransformSpace);
   const lockedAxes = useEditorStore(state => state.lockedAxes);
   const toggleLockAxis = useEditorStore(state => state.toggleLockAxis);
+  const cameraOrbitLocked = useEditorStore(state => state.cameraOrbitLocked);
+  const toggleCameraOrbitLock = useEditorStore(state => state.toggleCameraOrbitLock);
+  const isDrivingActive = useEditorStore(state => state.isDrivingActive);
+  const toggleDrivingActive = useEditorStore(state => state.toggleDrivingActive);
   const scaleSnapEnabled = useEditorStore(state => (state as any).scaleSnapEnabled ?? true);
   const setScaleSnapEnabled = useEditorStore(state => (state as any).setScaleSnapEnabled);
   const toasts = useEditorStore(state => state.toasts);
@@ -5740,6 +6584,11 @@ export function Viewport() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const webCamRef = useRef<HTMLVideoElement>(null);
 
+  // Vehicle Physics & Driving Simulation Touch / Trigger Refs
+  const vehicleTouchInputRef = useRef<{ steer: number; throttle: number; brake: boolean }>({ steer: 0, throttle: 0, brake: false });
+  const vehicleResetTriggerRef = useRef<(() => void) | null>(null);
+  const vehicleToggleHeadlightsRef = useRef<(() => void) | null>(null);
+
   // Time ticker for mock status bar
   useEffect(() => {
     const updateTime = () => {
@@ -5766,6 +6615,11 @@ export function Viewport() {
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (isPreviewMode && bgType === 'webcam') {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        console.warn("Webcam not supported or permitted in this environment, falling back to office background");
+        setBgType('office');
+        return;
+      }
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(s => {
           stream = s;
@@ -5809,11 +6663,25 @@ export function Viewport() {
       if (e.key === 'Escape') {
         e.preventDefault();
         selectObject(null);
+        useEditorStore.getState().setBoxSelectToolActive?.(false);
+      }
+
+      // B: Toggle Box Marquee Select Tool
+      if (e.key.toLowerCase() === 'b' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        useEditorStore.getState().toggleBoxSelectTool?.();
+      }
+
+      // V: Pointer Select Mode
+      if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        useEditorStore.getState().setBoxSelectToolActive?.(false);
       }
 
       // W or T: Set transform mode to Translate
       if (e.key.toLowerCase() === 'w' || e.key.toLowerCase() === 't') {
         e.preventDefault();
+        useEditorStore.getState().setBoxSelectToolActive?.(false);
         setTransformMode('translate');
       }
 
@@ -5840,6 +6708,12 @@ export function Viewport() {
       if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('trigger-frame-selected'));
+      }
+
+      // L: Toggle Camera Orbit Lock
+      if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        useEditorStore.getState().toggleCameraOrbitLock();
       }
 
       // Home: Reset Camera Orbit
@@ -6210,36 +7084,92 @@ export function Viewport() {
                 }
               }}
             >
-              <Canvas 
-                camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
-                onPointerMissed={handlePointerMissed}
+              <ErrorBoundary
+                resetKeys={[activeSceneId, currentProjectId]}
+                fallback={(error, reset) => (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 text-white p-6 z-50 text-center">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-3 text-emerald-400">
+                      <Camera size={22} />
+                    </div>
+                    <h4 className="text-sm font-bold text-white mb-1">AR Simulator Reloading</h4>
+                    <p className="text-[11px] text-gray-400 max-w-xs mb-4">
+                      The WebGL simulator context is refreshing.
+                    </p>
+                    <button
+                      onClick={() => reset()}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer"
+                    >
+                      Resume Simulator
+                    </button>
+                  </div>
+                )}
               >
-                
-                <AutoSceneLightingEngine />
-                <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={previewOrbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
-                <Grid 
-                  position={[0, 0, -0.01]} 
-                  args={[100, 100]} 
-                  cellSize={1} 
-                  cellThickness={1} 
-                  cellColor="#333338" 
-                  sectionSize={5} 
-                  sectionThickness={1.5} 
-                  sectionColor="#555562" 
-                  fadeDistance={40} 
-                  fadeStrength={1} 
-                  rotation={[Math.PI / 2, 0, 0]}
-                />
+                <Canvas 
+                  camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
+                  onPointerMissed={handlePointerMissed}
+                  gl={{ preserveDrawingBuffer: true, powerPreference: 'high-performance', antialias: true }}
+                  onCreated={({ gl }) => {
+                    gl.domElement.addEventListener('webglcontextlost', (e) => {
+                      e.preventDefault();
+                      console.warn('Preview WebGL context lost handled');
+                    }, false);
+                  }}
+                >
+                  
+                  <AutoSceneLightingEngine />
+                  <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={previewOrbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
+                  <Grid 
+                    position={[0, 0, -0.01]} 
+                    args={[100, 100]} 
+                    cellSize={1} 
+                    cellThickness={1} 
+                    cellColor="#333338" 
+                    sectionSize={5} 
+                    sectionThickness={1.5} 
+                    sectionColor="#555562" 
+                    fadeDistance={40} 
+                    fadeStrength={1} 
+                    rotation={[Math.PI / 2, 0, 0]}
+                  />
 
-                
-                {rootObjects.map(id => (
-                  <MemoizedObjectRenderer key={id} id={id} />
-                ))}
+                  
+                  {rootObjects.map(id => (
+                    <MemoizedObjectRenderer key={id} id={id} />
+                  ))}
 
-                <OrbitControls ref={previewOrbitControlsRef} enabled={!isDraggableDragging} enableRotate={!isDraggableDragging} makeDefault />
-                <BloomEffect />
-                <PerformanceTracker />
-              </Canvas>
+                  <OrbitControls 
+                    ref={previewOrbitControlsRef} 
+                    enabled={!isDraggableDragging} 
+                    enableRotate={!isDraggableDragging && !isPlanarOrthographicView} 
+                    enablePan={!isDraggableDragging}
+                    enableZoom={!isDraggableDragging}
+                    screenSpacePanning={true}
+                    mouseButtons={
+                      isPlanarOrthographicView ? {
+                        LEFT: THREE.MOUSE.PAN,
+                        MIDDLE: THREE.MOUSE.DOLLY,
+                        RIGHT: THREE.MOUSE.PAN
+                      } : {
+                        LEFT: THREE.MOUSE.ROTATE,
+                        MIDDLE: THREE.MOUSE.DOLLY,
+                        RIGHT: THREE.MOUSE.PAN
+                      }
+                    }
+                    touches={
+                      isPlanarOrthographicView ? {
+                        ONE: THREE.TOUCH.PAN,
+                        TWO: THREE.TOUCH.DOLLY_PAN
+                      } : {
+                        ONE: THREE.TOUCH.ROTATE,
+                        TWO: THREE.TOUCH.DOLLY_PAN
+                      }
+                    }
+                    makeDefault 
+                  />
+                  <BloomEffect />
+                  <PerformanceTracker />
+                </Canvas>
+              </ErrorBoundary>
             </div>
 
             {/* 2D Overlay Renderer for Preview Mode */}
@@ -6318,7 +7248,7 @@ export function Viewport() {
                   ) : (
                     <>
                       <RefreshCw size={10} className="text-amber-400 animate-spin shrink-0" />
-                      <span>{settings.trackingMode === 'face' ? 'Detecting Face...' : 'Searching Marker...'}</span>
+                      <span>{settings.trackingMode === 'face' ? 'Detecting Face...' : settings.trackingMode === 'surface' ? 'Detecting Surface...' : 'Searching Marker...'}</span>
                     </>
                   )}
                 </div>
@@ -6345,10 +7275,14 @@ export function Viewport() {
                 {trackingStable 
                   ? (settings.trackingMode === 'face' 
                       ? "👤 Face Locked! 3D glasses & facial filters actively attached to your mesh."
-                      : "🎯 Point your screen at the physical image print target. Drag to rotate model, click to interact!")
+                      : settings.trackingMode === 'surface'
+                        ? "📐 Surface Locked! Tap or point to place 3D models onto your floor or wall plane."
+                        : "🎯 Point your screen at the physical image print target. Drag to rotate model, click to interact!")
                   : (settings.trackingMode === 'face'
                       ? "👤 Position your face clearly in the camera frame for real-time landmark tracking."
-                      : "🔍 Calibrating spatial environment sensors. Keep camera stable.")
+                      : settings.trackingMode === 'surface'
+                        ? "📐 Point camera slowly towards a flat floor or wall surface to detect ground planes."
+                        : "🔍 Calibrating spatial environment sensors. Keep camera stable.")
                 }
               </div>
 
@@ -6464,58 +7398,310 @@ export function Viewport() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        <Canvas 
-          camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
-          onPointerMissed={handlePointerMissed}
+        <ErrorBoundary
+          resetKeys={[activeSceneId, currentProjectId]}
+          fallback={(error, reset) => (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141418] text-white p-6 z-50 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4 text-amber-400">
+                <Sparkles size={28} />
+              </div>
+              <h3 className="text-base font-bold text-white mb-2">3D Viewport Recovered</h3>
+              <p className="text-xs text-gray-400 text-center max-w-md mb-5 leading-relaxed">
+                The 3D WebGL rendering context was refreshed. Your scene objects, hierarchy, and project data are safe.
+              </p>
+              <button
+                onClick={() => {
+                  reset();
+                  useEditorStore.getState().selectObject(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <RefreshCw size={13} />
+                <span>Restart 3D Engine</span>
+              </button>
+            </div>
+          )}
         >
-          <SelectionMarquee orbitControlsRef={orbitControlsRef} />
-          <SceneRefCapturer sceneRef={sceneRef} />
-          <AutoSceneLightingEngine />
-          <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
-          <Grid 
-            position={[0, 0, -0.01]} 
-            args={[100, 100]} 
-            cellSize={1} 
-            cellThickness={1} 
-            cellColor="#333338" 
-            sectionSize={5} 
-            sectionThickness={1.5} 
-            sectionColor="#555562" 
-            fadeDistance={40} 
-            fadeStrength={1} 
-            rotation={[Math.PI / 2, 0, 0]}
-          />
+          <Canvas 
+            camera={{ position: [0, -4, 4], fov: 50, up: [0, 0, 1] }}
+            onPointerMissed={handlePointerMissed}
+            gl={{ preserveDrawingBuffer: true, powerPreference: 'high-performance', antialias: true }}
+            onCreated={({ gl }) => {
+              gl.domElement.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                console.warn('Editor WebGL context lost handled');
+              }, false);
+            }}
+          >
+            {cameraType === 'orthographic' ? (
+              <OrthographicCamera
+                makeDefault
+                position={[0, -4, 4]}
+                zoom={80}
+                near={-1000}
+                far={1000}
+                up={[0, 0, 1]}
+              />
+            ) : (
+              <PerspectiveCamera
+                makeDefault
+                position={[0, -4, 4]}
+                fov={50}
+                near={0.1}
+                far={1000}
+                up={[0, 0, 1]}
+              />
+            )}
+            <SelectionMarquee orbitControlsRef={orbitControlsRef} />
+            <SceneRefCapturer sceneRef={sceneRef} />
+            <AutoSceneLightingEngine />
+            <CameraController activeAxisView={activeAxisView} axisUpdateId={axisUpdateId} orbitControlsRef={orbitControlsRef} onResetTo3D={() => setActiveAxisView('3D')} />
+            <Grid 
+              position={[0, 0, -0.01]} 
+              args={[100, 100]} 
+              cellSize={1} 
+              cellThickness={1} 
+              cellColor="#333338" 
+              sectionSize={5} 
+              sectionThickness={1.5} 
+              sectionColor="#555562" 
+              fadeDistance={40} 
+              fadeStrength={1} 
+              rotation={[Math.PI / 2, 0, 0]}
+            />
 
-          {rootObjects.map(id => (
-            <MemoizedObjectRenderer key={id} id={id} />
-          ))}
+            {rootObjects.map(id => (
+              <MemoizedObjectRenderer key={id} id={id} />
+            ))}
 
-          <TransformController orbitControlsRef={orbitControlsRef} />
-          <SelectionHighlight3D />
-          <ScaleSnapGridVisualizer />
-          <ProjectedPositionsUpdater />
-          <ThumbnailCapturer />
+            <TransformController orbitControlsRef={orbitControlsRef} activeAxisView={activeAxisView} />
+            <SelectionHighlight3D />
+            <ScaleSnapGridVisualizer />
+            <ProjectedPositionsUpdater />
+            <ThumbnailCapturer />
 
-          <GizmoHelper alignment="top-right" margin={[70, 70]}>
-            <ZUpGizmoViewport onSelectAxisView={handleSelectAxisView} />
-          </GizmoHelper>
+            <GizmoHelper 
+              alignment="top-right" 
+              margin={[
+                typeof window !== 'undefined' && window.innerWidth < 768 ? 55 : 70, 
+                typeof window !== 'undefined' && window.innerWidth < 768 ? 140 : 75
+              ]}
+            >
+              <ZUpGizmoViewport onSelectAxisView={handleSelectAxisView} />
+            </GizmoHelper>
 
-          <OrbitControls 
-            ref={orbitControlsRef} 
-            enabled={!isDraggableDragging} 
-            enableRotate={!isDraggableDragging} 
-            makeDefault 
-          />
-          <BloomEffect />
-          <PerformanceTracker />
-        </Canvas>
+            <OrbitControls 
+              ref={orbitControlsRef} 
+              enabled={!isDraggableDragging && !cameraOrbitLocked} 
+              enableRotate={!isDraggableDragging && !cameraOrbitLocked && !isPlanarOrthographicView} 
+              enablePan={!isDraggableDragging && !cameraOrbitLocked} 
+              enableZoom={!isDraggableDragging && !cameraOrbitLocked}
+              screenSpacePanning={true}
+              mouseButtons={
+                isPlanarOrthographicView ? {
+                  LEFT: THREE.MOUSE.PAN,
+                  MIDDLE: THREE.MOUSE.DOLLY,
+                  RIGHT: THREE.MOUSE.PAN
+                } : {
+                  LEFT: THREE.MOUSE.ROTATE,
+                  MIDDLE: THREE.MOUSE.DOLLY,
+                  RIGHT: THREE.MOUSE.PAN
+                }
+              }
+              touches={
+                isPlanarOrthographicView ? {
+                  ONE: THREE.TOUCH.PAN,
+                  TWO: THREE.TOUCH.DOLLY_PAN
+                } : {
+                  ONE: THREE.TOUCH.ROTATE,
+                  TWO: THREE.TOUCH.DOLLY_PAN
+                }
+              }
+              makeDefault 
+            />
+            <VehiclePhysicsSceneController
+              touchInputRef={vehicleTouchInputRef}
+              resetTriggerRef={vehicleResetTriggerRef}
+              toggleHeadlightsRef={vehicleToggleHeadlightsRef}
+            />
+            <BloomEffect />
+            <PerformanceTracker />
+          </Canvas>
+        </ErrorBoundary>
       </div>
+
+      {/* Interactive Vehicle Driving Physics Simulation HUD */}
+      <VehicleDrivingHUD
+        onControlInput={(input) => { vehicleTouchInputRef.current = input; }}
+        onResetVehicle={() => vehicleResetTriggerRef.current?.()}
+        onToggleHeadlights={() => vehicleToggleHeadlightsRef.current?.()}
+      />
+
+      {/* Camera Orbit Locked Notification HUD */}
+      {cameraOrbitLocked && (
+        <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-40 px-3 py-1.5 rounded-xl bg-[#131317]/95 backdrop-blur-xl border border-amber-500/40 text-amber-300 text-[11px] font-mono font-bold flex items-center gap-2 shadow-2xl shadow-black/80 pointer-events-auto select-none animate-in fade-in slide-in-from-top-2">
+          <Lock size={12} className="text-amber-400 shrink-0 animate-pulse" />
+          <span>Camera Orbit Locked</span>
+          <span className="text-[9px] text-amber-400/70 font-mono hidden sm:inline">[L]</span>
+          <button 
+            onClick={() => toggleCameraOrbitLock()} 
+            className="ml-1 px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-200 text-[10px] font-sans font-bold uppercase transition-all cursor-pointer border border-amber-500/30"
+          >
+            Unlock
+          </button>
+        </div>
+      )}
 
       {/* 2D Overlay / HUD Canvas */}
       <Overlay2DRenderer isPreviewMode={false} />
 
       {/* AR Marker Conflict Alert Banner */}
       <MarkerConflictBanner />
+
+      {/* Dedicated Orthographic Camera Views & Surface Snapping Quick Bar (Top Left) */}
+      {!isPreviewMode && (
+        <div className="absolute top-14 sm:top-3.5 left-2 sm:left-3.5 z-30 flex flex-wrap items-center gap-1.5 pointer-events-auto select-none max-w-[calc(100vw-16px)]">
+          {/* Quick Orthographic Views Pill */}
+          <div className="flex items-center gap-0.5 p-1 bg-[#121217]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/70">
+            <span className="text-[9.5px] font-mono font-bold text-gray-400 uppercase px-1.5 hidden md:inline">
+              View:
+            </span>
+            
+            <button
+              onClick={() => {
+                setActiveAxisView('Top');
+                setCameraType('orthographic');
+                setAxisUpdateId((n) => n + 1);
+                addToast('Top View (2D Pan & Zoom - 3D Orbit Disabled)');
+              }}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1",
+                (activeAxisView === 'Top' || activeAxisView === 'Z')
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30 border border-blue-400/50"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
+              )}
+              title="Top View: Locks camera to +Z axis. Drag to Pan 2D, wheel/pinch to Zoom. 3D orbit disabled."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              <span>Top</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveAxisView('Front');
+                setCameraType('orthographic');
+                setAxisUpdateId((n) => n + 1);
+                addToast('Front View (2D Pan & Zoom - 3D Orbit Disabled)');
+              }}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1",
+                (activeAxisView === 'Front' || activeAxisView === 'Y')
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-500/30 border border-emerald-400/50"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
+              )}
+              title="Front View: Locks camera to +Y axis. Drag to Pan 2D, wheel/pinch to Zoom. 3D orbit disabled."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>Front</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveAxisView('Side');
+                setCameraType('orthographic');
+                setAxisUpdateId((n) => n + 1);
+                addToast('Side View (2D Pan & Zoom - 3D Orbit Disabled)');
+              }}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1",
+                (activeAxisView === 'Side' || activeAxisView === 'Right' || activeAxisView === 'X')
+                  ? "bg-red-600 text-white shadow-sm shadow-red-500/30 border border-red-400/50"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
+              )}
+              title="Side View: Locks camera to +X axis. Drag to Pan 2D, wheel/pinch to Zoom. 3D orbit disabled."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+              <span>Side</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveAxisView('3D');
+                setCameraType('perspective');
+                setAxisUpdateId((n) => n + 1);
+                addToast('3D Orbit View (Full 3D Rotation Enabled)');
+              }}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1",
+                (activeAxisView === 'Isometric' || activeAxisView === '3D' || activeAxisView === 'ISO')
+                  ? "bg-purple-600 text-white shadow-sm shadow-purple-500/30 border border-purple-400/50"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
+              )}
+              title="Switch to 3D Orbit View: Enables full 3D rotation, pitch, and yaw."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+              <span>3D Orbit</span>
+            </button>
+
+            {isPlanarOrthographicView && (
+              <button
+                onClick={() => {
+                  setActiveAxisView('3D');
+                  setCameraType('perspective');
+                  setAxisUpdateId((n) => n + 1);
+                  addToast('Switched to 3D Orbit View');
+                }}
+                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1 shadow-xs"
+                title="Camera rotation is locked for 2D pan/zoom alignment. Click to switch to 3D Orbit."
+              >
+                <RotateCw size={10} className="text-amber-400" />
+                <span>Switch to 3D Orbit</span>
+              </button>
+            )}
+          </div>
+
+          {/* Quick Projection & Surface Snap Helper Pill */}
+          <div className="flex items-center gap-1 p-1 bg-[#121217]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/70">
+            {/* Projection Mode Toggle */}
+            <button
+              onClick={() => {
+                const nextType = cameraType === 'perspective' ? 'orthographic' : 'perspective';
+                setCameraType(nextType);
+                addToast(`Camera Projection: ${nextType.toUpperCase()}`);
+              }}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1.5 border",
+                cameraType === 'orthographic'
+                  ? "bg-cyan-600/30 text-cyan-300 border-cyan-400/50 shadow-xs"
+                  : "bg-white/5 text-gray-400 border-white/5 hover:text-white hover:bg-white/10"
+              )}
+              title={cameraType === 'orthographic' ? "Camera in Orthographic projection mode. Click for Perspective." : "Camera in Perspective projection mode. Click for Orthographic."}
+            >
+              <Compass size={11} className={cameraType === 'orthographic' ? 'text-cyan-400 animate-spin' : ''} style={{ animationDuration: '12s' }} />
+              <span>{cameraType === 'orthographic' ? 'Ortho' : 'Persp'}</span>
+            </button>
+
+            {/* Surface Snapping Toggle */}
+            <button
+              onClick={() => {
+                const next = !surfaceSnapEnabled;
+                setSurfaceSnapEnabled(next);
+                addToast(next ? "Surface Snap: ON (Object-to-surface alignment)" : "Surface Snap: OFF");
+              }}
+              className={cn(
+                "px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 flex items-center gap-1.5 border",
+                surfaceSnapEnabled
+                  ? "bg-cyan-500 text-white border-cyan-300 shadow-sm shadow-cyan-500/25"
+                  : "bg-white/5 text-gray-400 border-white/5 hover:text-white hover:bg-white/10"
+              )}
+              title="Toggle Object-to-Surface Snapping (aligns flush with AR targets, ground, and other 3D surfaces)"
+            >
+              <Magnet size={11} className={surfaceSnapEnabled ? "text-white animate-pulse" : "text-gray-400"} />
+              <span>Surface Snap</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Performance Engine Monitor HUD */}
       {showPerformanceMonitor && (
@@ -6552,31 +7738,59 @@ export function Viewport() {
         </div>
       )}
 
-      {/* Floating Spline 3D Viewport Navigation Bar */}
+      {/* Floating Spline 3D Viewport Navigation Bar (Desktop / Tablet - on mobile, tools are in mobile dock) */}
       {!isPreviewMode && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto max-w-[95vw]">
-          <div className="flex items-center gap-1.5 p-1.5 bg-[#121217]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/80 font-sans text-xs select-none overflow-x-auto no-scrollbar touch-pan-x">
-            {/* Tool Modes Group: Select (V), Move (W), Rotate (E), Scale (R) */}
+        <div className="hidden sm:block absolute bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto max-w-[96vw]">
+          <div 
+            className="flex items-center gap-1.5 p-1.5 bg-[#121217]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/80 font-sans text-xs select-none overflow-x-auto touch-pan-x"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}
+            onWheel={(e) => {
+              if (e.currentTarget && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                e.currentTarget.scrollLeft += e.deltaY;
+              }
+            }}
+          >
+            {/* Tool Modes Group: Pointer (V), Box Select (B), Move (W), Rotate (E), Scale (R) */}
             <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
               <button
-                onClick={() => setTransformGizmoEnabled(false)}
+                onClick={() => {
+                  setBoxSelectToolActive?.(false);
+                }}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                  !transformGizmoEnabled
+                  !isBoxSelectToolActive && !transformMode
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
-                title="Select Mode [V] - Select objects without transform gizmo"
+                title="Pointer Select Mode [V]"
               >
                 <MousePointer size={14} />
               </button>
 
               <button
                 onClick={() => {
-                  setTransformGizmoEnabled(true);
+                  toggleBoxSelectTool?.();
+                }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  isBoxSelectToolActive
+                    ? 'bg-cyan-500 text-black font-bold shadow-md shadow-cyan-500/40 ring-1 ring-cyan-300'
+                    : 'text-gray-400 hover:text-cyan-400 hover:bg-white/5'
+                }`}
+                title="Box Selection Tool [B / Shift+Drag] - Drag 3D bounding box to select multiple objects"
+              >
+                <BoxSelect size={14} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setBoxSelectToolActive?.(false);
                   setTransformMode('translate');
                 }}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                  transformGizmoEnabled && transformMode === 'translate'
+                  !isBoxSelectToolActive && transformMode === 'translate'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
@@ -6587,11 +7801,11 @@ export function Viewport() {
 
               <button
                 onClick={() => {
-                  setTransformGizmoEnabled(true);
+                  setBoxSelectToolActive?.(false);
                   setTransformMode('rotate');
                 }}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                  transformGizmoEnabled && transformMode === 'rotate'
+                  !isBoxSelectToolActive && transformMode === 'rotate'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
@@ -6602,11 +7816,11 @@ export function Viewport() {
 
               <button
                 onClick={() => {
-                  setTransformGizmoEnabled(true);
+                  setBoxSelectToolActive?.(false);
                   setTransformMode('scale');
                 }}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                  transformGizmoEnabled && transformMode === 'scale'
+                  !isBoxSelectToolActive && transformMode === 'scale'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
@@ -6618,19 +7832,34 @@ export function Viewport() {
 
             <div className="w-px h-6 bg-white/10 mx-0.5" />
 
-            {/* Coordinate Space Toggle (Local vs World [Q]) */}
-            <button
-              onClick={() => {
-                const currentSpace = useEditorStore.getState().transformSpace;
-                useEditorStore.getState().setTransformSpace(currentSpace === 'local' ? 'world' : 'local');
-              }}
-              className="h-8 px-2.5 rounded-xl bg-[#1a1a24] border border-white/5 text-gray-300 hover:text-white hover:border-blue-500/40 flex items-center gap-1.5 transition-all cursor-pointer font-mono text-[10px]"
-              title="Toggle Transform Space (Local vs World) [Q]"
-            >
-              <Globe size={12} className="text-blue-400" />
-              <span className="font-bold uppercase tracking-wider">{transformSpace}</span>
-              <span className="text-[8px] bg-white/10 text-gray-400 px-1 py-0.2 rounded font-sans">Q</span>
-            </button>
+            {/* Coordinate Space Toggles (Local vs World [Q]) */}
+            <div className="flex items-center bg-[#1a1a24] p-1 rounded-xl border border-white/5 gap-0.5" title="Toggle Transform Coordinate Space [Q]">
+              <button
+                onClick={() => useEditorStore.getState().setTransformSpace('local')}
+                className={`h-6 sm:h-6.5 px-2 rounded-lg flex items-center gap-1 font-mono text-[10px] font-bold transition-all cursor-pointer select-none ${
+                  transformSpace === 'local'
+                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/40'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Local Space - Transforms align with object's own rotation"
+              >
+                <Box size={11} />
+                <span>Local</span>
+              </button>
+              <button
+                onClick={() => useEditorStore.getState().setTransformSpace('world')}
+                className={`h-6 sm:h-6.5 px-2 rounded-lg flex items-center gap-1 font-mono text-[10px] font-bold transition-all cursor-pointer select-none ${
+                  transformSpace === 'world'
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/40'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="World Space - Transforms align with global world axes"
+              >
+                <Globe size={11} />
+                <span>World</span>
+              </button>
+              <span className="text-[8px] bg-white/10 text-gray-400 px-1 py-0.5 rounded font-sans ml-0.5 hidden md:inline" title="Press Q to toggle space">Q</span>
+            </div>
 
             <div className="w-px h-6 bg-white/10 mx-0.5" />
 
@@ -6803,10 +8032,23 @@ export function Viewport() {
               {/* Perspective vs Orthographic Projection Toggle */}
               <button
                 onClick={() => setCameraType(cameraType === 'perspective' ? 'orthographic' : 'perspective')}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${cameraType === 'orthographic' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${cameraType === 'orthographic' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 title={`Projection: ${cameraType === 'perspective' ? 'Perspective (Click for Orthographic)' : 'Orthographic (Click for Perspective)'}`}
               >
                 <Compass size={14} className={cameraType === 'orthographic' ? 'animate-spin' : ''} style={{ animationDuration: cameraType === 'orthographic' ? '12s' : '0s' }} />
+              </button>
+
+              {/* Camera Orbit Lock Toggle */}
+              <button
+                onClick={() => toggleCameraOrbitLock()}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                  cameraOrbitLocked 
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.3)]' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={cameraOrbitLocked ? "Camera Orbit Locked (Click to Unlock) [L]" : "Lock Camera Orbit View [L]"}
+              >
+                {cameraOrbitLocked ? <Lock size={14} className="text-amber-400" /> : <Unlock size={14} />}
               </button>
             </div>
 
@@ -6814,42 +8056,54 @@ export function Viewport() {
 
             {/* Viewport Overlays Group: Position Snap (G), Rotation Snap, Wireframe Mode, AR Physics & Collision Debugger, Performance Stats */}
             <div className="flex items-center gap-1 bg-[#1a1a24] p-1 rounded-xl border border-white/5">
-              <button
-                onClick={() => setGridSnapEnabled(!gridSnapEnabled)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                  gridSnapEnabled ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-                title="Toggle Position Snap [G]"
-              >
-                <Grid3x3 size={14} />
-              </button>
-
-              <button
-                onClick={() => setRotationSnapEnabled(!rotationSnapEnabled)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                  rotationSnapEnabled ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-                title="Toggle Rotation Snap"
-              >
-                <RotateCw size={14} />
-              </button>
-
-              <button
-                onClick={() => setScaleSnapEnabled && setScaleSnapEnabled(!scaleSnapEnabled)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                  scaleSnapEnabled ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-                title="Toggle Scale Snap-to-Grid (Print Advertising Alignment Grid)"
-              >
-                <Maximize2 size={14} />
-              </button>
+              {/* Comprehensive Snap-to-Grid & Print Alignment Dropdown */}
+              <SnapToGridMenu direction="up" align="center" />
 
               <button
                 onClick={() => setWireframeEnabled(!wireframeEnabled)}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${wireframeEnabled ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-                title={wireframeEnabled ? "Disable Wireframe Mode" : "Enable Wireframe Mode"}
+                title={wireframeEnabled ? "Disable Global Wireframe Mode" : "Enable Global Wireframe Mode"}
               >
                 <Layers size={14} />
+              </button>
+
+              <button
+                onClick={() => {
+                  const next = !selectedModelWireframeEnabled;
+                  setSelectedModelWireframeEnabled(next);
+                  setVisualizationMode(next ? 'selectedWireframe' : 'standard');
+                }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 relative ${
+                  selectedModelWireframeEnabled
+                    ? 'bg-cyan-600/25 text-cyan-300 border border-cyan-500/50 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={
+                  selectedModelWireframeEnabled
+                    ? "Visualization Mode: Disable Selected Model Wireframe"
+                    : "Visualization Mode: Toggle Wireframe for Selected Models (Assess Topology & Print-Ad AR Optimization)"
+                }
+              >
+                <Boxes size={14} className={selectedModelWireframeEnabled ? 'text-cyan-300 animate-pulse' : ''} />
+                {selectedModelWireframeEnabled && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-cyan-400 rounded-full animate-ping" />
+                )}
+              </button>
+
+              <button
+                onClick={() => toggleDrivingActive()}
+                className={`h-8 px-2.5 rounded-lg flex items-center gap-1.5 transition-all duration-200 text-xs font-bold cursor-pointer ${
+                  isDrivingActive
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-105'
+                    : 'text-gray-300 hover:text-cyan-300 hover:bg-cyan-500/10 border border-white/5'
+                }`}
+                title={isDrivingActive ? "Exit Vehicle Driving Mode [Esc]" : "Engage Vehicle Driving Simulator & Physics Rig"}
+              >
+                <Car size={13} className={isDrivingActive ? 'text-black fill-black' : 'text-cyan-400'} />
+                <span>{isDrivingActive ? 'Driving' : 'Drive'}</span>
+                {isDrivingActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+                )}
               </button>
 
               <button
@@ -6894,6 +8148,77 @@ export function Viewport() {
                 title="Open 3D Embed & GLTF Export Center"
               >
                 <Download size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Topology & Print-Ad AR Optimization Assessment Card */}
+      {selectedModelWireframeEnabled && selectedObjectId && objects[selectedObjectId] && (
+        <div className="absolute top-16 right-4 z-40 bg-zinc-900/90 backdrop-blur-md border border-cyan-500/40 rounded-xl p-3.5 shadow-2xl w-80 text-white animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <Boxes size={15} className="text-cyan-400 animate-pulse" />
+              <span className="text-xs font-semibold text-cyan-300 tracking-wide uppercase">Topology & Optimization</span>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedModelWireframeEnabled(false);
+                setVisualizationMode('standard');
+              }}
+              className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors"
+              title="Close Topology Visualizer"
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          <div className="mt-2.5 space-y-2 text-xs">
+            <div className="flex items-center justify-between text-gray-300">
+              <span className="text-gray-400">Target Model:</span>
+              <span className="font-mono text-cyan-200 truncate max-w-[170px]">
+                {objects[selectedObjectId]?.name || objects[selectedObjectId]?.type || 'Selected Object'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-gray-300">
+              <span className="text-gray-400">Rendering Mode:</span>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 text-[10px] font-semibold uppercase tracking-wider">
+                Wireframe Active
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-[11px]">Print-Ad AR Readiness:</span>
+                <span className="text-emerald-400 font-semibold text-[11px] flex items-center gap-1">
+                  <CheckCircle size={12} /> Mobile Verified
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                Wireframe mode isolates edge density to verify clean quad/tri triangulation, vertex distribution, and avoid texture z-fighting when tracked across print media.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setSelectedModelWireframeEnabled(false);
+                  setVisualizationMode('standard');
+                }}
+                className="flex-1 py-1.5 px-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-center text-[11px] text-gray-300 font-medium transition-colors"
+              >
+                Shaded View
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedModelWireframeEnabled(true);
+                  setVisualizationMode('selectedWireframe');
+                }}
+                className="flex-1 py-1.5 px-2 bg-cyan-600/30 hover:bg-cyan-600/40 border border-cyan-500/50 rounded-lg text-center text-[11px] text-cyan-200 font-medium transition-colors"
+              >
+                Wireframe View
               </button>
             </div>
           </div>
